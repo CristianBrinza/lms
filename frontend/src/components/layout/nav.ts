@@ -5,6 +5,8 @@ import {
   PersonOutlinedIcon,
   SettingsIcon,
   SettingsOutlinedIcon,
+  UtilitiesIcon,
+  UtilitiesOutlinedIcon,
   type IconComponent,
 } from '@/components/ui/icons';
 
@@ -19,11 +21,12 @@ export interface NavItem {
 }
 
 /**
- * The bottom menu and the desktop rail. Three places today; the bar spreads up to five evenly,
+ * The bottom menu and the desktop rail. Four places today; the bar spreads up to five evenly,
  * so a new place is one more entry here.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/home', label: 'Home', icon: HomeIcon, idleIcon: HomeOutlinedIcon },
+  { to: '/utilities', label: 'Utilities', icon: UtilitiesIcon, idleIcon: UtilitiesOutlinedIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon, idleIcon: SettingsOutlinedIcon, alsoActive: /^\/admin(\/|$)/ },
   { to: '/profile', label: 'Profile', icon: PersonIcon, idleIcon: PersonOutlinedIcon },
 ];

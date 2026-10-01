@@ -41,6 +41,7 @@ const routes: RouteObject[] = [
             element: <AppShell />,
             children: [
               { path: 'home', lazy: page(() => import('@/pages/home/HomePage')) },
+              { path: 'utilities', lazy: page(() => import('@/pages/utilities/UtilitiesPage')) },
               { path: 'settings', lazy: page(() => import('@/pages/settings/SettingsPage')) },
               { path: 'profile', lazy: page(() => import('@/pages/profile/ProfilePage')) },
               adminRoutes,

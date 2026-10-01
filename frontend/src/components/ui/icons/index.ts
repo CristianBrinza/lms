@@ -26,6 +26,8 @@ export { default as ErrorIcon } from '@mui/icons-material/ErrorOutlineRounded';
 export { default as ExpandMoreIcon } from '@mui/icons-material/ExpandMoreRounded';
 export { default as FoodIcon } from '@mui/icons-material/RestaurantRounded';
 export { default as GroupIcon } from '@mui/icons-material/GroupRounded';
+export { default as UtilitiesIcon } from '@mui/icons-material/HandymanRounded';
+export { default as UtilitiesOutlinedIcon } from '@mui/icons-material/HandymanOutlined';
 export { default as HistoryIcon } from '@mui/icons-material/HistoryRounded';
 export { default as HomeIcon } from '@mui/icons-material/HomeRounded';
 export { default as InfoIcon } from '@mui/icons-material/InfoOutlined';
