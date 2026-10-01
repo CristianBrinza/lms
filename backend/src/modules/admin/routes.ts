@@ -1,0 +1,269 @@
+import { Hono } from 'hono';
+import { z } from 'zod';
+import type { AppDeps, AppEnv } from '../../context';
+import { audit } from '../../lib/audit';
+import { readablePassword } from '../../lib/crypto';
+import { AppError } from '../../lib/errors';
+import { enforceRateLimits } from '../../lib/rate-limit';
+import { maskIp } from '../../lib/text';
+import { emailField, nameField, newPasswordField, readJson, surnameField } from '../../lib/validation';
+import { requireAuth, requireRole } from '../../middleware/auth';
+import { revokeAllSessions } from '../auth/sessions';
+import { countActiveAdmins, findUserById, insertUser, toPublicUser, USER_COLUMNS, toUser, type PublicUser, type User } from '../users';
+
+const RoleField = z.enum(['member', 'admin'], { error: 'Choose member or admin' });
+
+const CreateBody = z.object({
+  email: emailField,
+  name: nameField('Name'),
+  surname: surnameField.default(''),
+  role: RoleField.default('member'),
+  /** Empty: a one-time password is generated and shown to the admin once. */
+  password: newPasswordField.optional(),
+  /** Ask the person to choose their own password at first sign-in. */
+  mustChangePassword: z.boolean().default(true),
+});
+
+const UpdateBody = z
+  .object({
+    email: emailField,
+    name: nameField('Name'),
+    surname: surnameField,
+    role: RoleField,
+    isActive: z.boolean(),
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+
+const ResetBody = z.object({
+  password: newPasswordField.optional(),
+  mustChangePassword: z.boolean().default(true),
+});
+
+export interface AdminUser extends PublicUser {
+  isActive: boolean;
+  lastLoginAt: string | null;
+  lastSeenAt: string | null;
+  activeSessions: number;
+  updatedAt: string;
+}
+
+type AdminRow = Parameters<typeof toUser>[0] & { active_sessions: number; last_seen_at: Date | null };
+
+function toAdminUser(row: AdminRow): AdminUser {
+  const user = toUser(row);
+  return {
+    ...toPublicUser(user),
+    isActive: user.isActive,
+    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    lastSeenAt: row.last_seen_at?.toISOString() ?? null,
+    activeSessions: row.active_sessions,
+    updatedAt: user.updatedAt.toISOString(),
+  };
+}
+
+const ADMIN_SELECT = `
+  SELECT ${USER_COLUMNS.split(', ')
+    .map((column) => `u.${column}`)
+    .join(', ')},
+    (SELECT count(*)::int FROM sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > $1) AS active_sessions,
+    (SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen_at
+  FROM users u`;
+
+const isUniqueViolation = (error: unknown) => (error as { code?: string }).code === '23505';
+const EMAIL_TAKEN = () =>
+  new AppError(409, 'EMAIL_TAKEN', 'Someone already uses this email', { fields: { email: 'Someone already uses this email' } });
+const LAST_ADMIN = () => new AppError(409, 'LAST_ADMIN', 'Keep at least one active admin, or nobody can manage accounts');
+
+/** Accounts are created and managed here only: the app has no public sign-up. */
+export function adminRoutes(deps: AppDeps) {
+  const app = new Hono<AppEnv>();
+  app.use('*', requireAuth(deps), requireRole('admin'));
+  app.use('*', async (c, next) => {
+    if (c.req.method !== 'GET') {
+      await enforceRateLimits(deps, [{ key: `admin:${c.get('user').id}`, limit: 120, windowSec: 15 * 60 }]);
+    }
+    await next();
+  });
+
+  const loadTarget = async (id: string): Promise<User> => {
+    const user = await findUserById(deps.db, id);
+    if (!user) throw new AppError(404, 'NOT_FOUND', 'This person was not found');
+    return user;
+  };
+
+  const adminUser = async (id: string): Promise<AdminUser> => {
+    const { rows } = await deps.db.query<AdminRow>(`${ADMIN_SELECT} WHERE u.id = $2`, [deps.now(), id]);
+    return toAdminUser(rows[0]!);
+  };
+
+  app.get('/users', async (c) => {
+    const q = (c.req.query('q') ?? '').trim().slice(0, 100);
+    const pattern = `%${q.toLowerCase().replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+    const { rows } = await deps.db.query<AdminRow>(
+      `${ADMIN_SELECT}
+       WHERE $2 = '' OR lower(u.name || ' ' || u.surname || ' ' || u.email) LIKE $3
+       ORDER BY u.is_active DESC, u.created_at ASC
+       LIMIT 500`,
+      [deps.now(), q, pattern],
+    );
+    return c.json({ users: rows.map(toAdminUser) });
+  });
+
+  app.get('/users/:id', async (c) => {
+    const user = await loadTarget(c.req.param('id'));
+    return c.json({ user: await adminUser(user.id) });
+  });
+
+  app.post('/users', async (c) => {
+    const body = await readJson(c, CreateBody);
+    const actor = c.get('user');
+    const generated = body.password ? null : readablePassword();
+    let created: User;
+    try {
+      created = await insertUser(deps.db, {
+        email: body.email,
+        name: body.name,
+        surname: body.surname,
+        role: body.role,
+        passwordHash: await deps.passwords.hash(body.password ?? generated!),
+        mustChangePassword: generated ? true : body.mustChangePassword,
+        createdBy: actor.id,
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw EMAIL_TAKEN();
+      throw error;
+    }
+    await audit(deps, { actorId: actor.id, action: 'user.created', targetId: created.id, ip: maskIp(c.get('ip')), meta: { role: created.role } });
+    return c.json({ user: await adminUser(created.id), password: generated }, 201);
+  });
+
+  app.patch('/users/:id', async (c) => {
+    const body = await readJson(c, UpdateBody);
+    const actor = c.get('user');
+    const target = await loadTarget(c.req.param('id'));
+    const self = target.id === actor.id;
+
+    if (body.isActive === false && self) throw new AppError(400, 'SELF', 'You cannot switch off your own account');
+    const losesAdmin = target.role === 'admin' && target.isActive && (body.role === 'member' || body.isActive === false);
+    const now = deps.now();
+
+    try {
+      await deps.db.tx(async (tx) => {
+        // Serialise admin changes so two admins demoting each other cannot leave none.
+        if (losesAdmin) {
+          await tx.query('SELECT pg_advisory_xact_lock(727275)');
+          if ((await countActiveAdmins(tx)) <= 1) throw LAST_ADMIN();
+        }
+        await tx.query(
+          `UPDATE users SET
+             email = COALESCE($2, email), name = COALESCE($3, name), surname = COALESCE($4, surname),
+             role = COALESCE($5, role), is_active = COALESCE($6, is_active), updated_at = $7
+           WHERE id = $1`,
+          [target.id, body.email ?? null, body.name ?? null, body.surname ?? null, body.role ?? null, body.isActive ?? null, now],
+        );
+        // Switched off: signed out of every device at once.
+        if (body.isActive === false && target.isActive) await revokeAllSessions(tx, target.id, now);
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw EMAIL_TAKEN();
+      throw error;
+    }
+
+    const ip = maskIp(c.get('ip'));
+    if (body.role && body.role !== target.role) {
+      await audit(deps, { actorId: actor.id, action: 'user.role_changed', targetId: target.id, ip, meta: { from: target.role, to: body.role } });
+    }
+    if (body.isActive !== undefined && body.isActive !== target.isActive) {
+      await audit(deps, { actorId: actor.id, action: body.isActive ? 'user.reactivated' : 'user.deactivated', targetId: target.id, ip });
+    }
+    const changed = (['email', 'name', 'surname'] as const).filter((key) => body[key] !== undefined && body[key] !== target[key]);
+    if (changed.length > 0) await audit(deps, { actorId: actor.id, action: 'user.updated', targetId: target.id, ip, meta: { fields: changed } });
+
+    return c.json({ user: await adminUser(target.id) });
+  });
+
+  app.post('/users/:id/password', async (c) => {
+    const body = await readJson(c, ResetBody);
+    const actor = c.get('user');
+    const target = await loadTarget(c.req.param('id'));
+    if (target.id === actor.id) throw new AppError(400, 'SELF', 'Change your own password from your profile');
+    const generated = body.password ? null : readablePassword();
+    const now = deps.now();
+    const hash = await deps.passwords.hash(body.password ?? generated!);
+    await deps.db.tx(async (tx) => {
+      await tx.query('UPDATE users SET password_hash = $2, must_change_password = $3, updated_at = $4 WHERE id = $1', [
+        target.id,
+        hash,
+        generated ? true : body.mustChangePassword,
+        now,
+      ]);
+      await revokeAllSessions(tx, target.id, now);
+    });
+    await audit(deps, { actorId: actor.id, action: 'user.password_reset', targetId: target.id, ip: maskIp(c.get('ip')) });
+    return c.json({ user: await adminUser(target.id), password: generated });
+  });
+
+  app.post('/users/:id/sign-out', async (c) => {
+    const actor = c.get('user');
+    const target = await loadTarget(c.req.param('id'));
+    if (target.id === actor.id) throw new AppError(400, 'SELF', 'Manage your own devices from Settings');
+    await revokeAllSessions(deps.db, target.id, deps.now());
+    await audit(deps, { actorId: actor.id, action: 'user.signed_out', targetId: target.id, ip: maskIp(c.get('ip')) });
+    return c.json({ user: await adminUser(target.id) });
+  });
+
+  app.delete('/users/:id', async (c) => {
+    const actor = c.get('user');
+    const target = await loadTarget(c.req.param('id'));
+    if (target.id === actor.id) throw new AppError(400, 'SELF', 'You cannot delete your own account');
+    await deps.db.tx(async (tx) => {
+      if (target.role === 'admin' && target.isActive) {
+        await tx.query('SELECT pg_advisory_xact_lock(727275)');
+        if ((await countActiveAdmins(tx)) <= 1) throw LAST_ADMIN();
+      }
+      await tx.query('DELETE FROM users WHERE id = $1', [target.id]);
+    });
+    await audit(deps, {
+      actorId: actor.id,
+      action: 'user.deleted',
+      ip: maskIp(c.get('ip')),
+      meta: { email: target.email, name: `${target.name} ${target.surname}`.trim() },
+    });
+    return c.body(null, 204);
+  });
+
+  app.get('/activity', async (c) => {
+    const { rows } = await deps.db.query<{
+      id: number;
+      action: string;
+      meta: Record<string, unknown>;
+      created_at: Date;
+      actor_id: string | null;
+      actor_name: string | null;
+      target_id: string | null;
+      target_name: string | null;
+    }>(
+      `SELECT a.id, a.action, a.meta, a.created_at, a.actor_id, a.target_id,
+         nullif(trim(actor.name || ' ' || actor.surname), '') AS actor_name,
+         nullif(trim(target.name || ' ' || target.surname), '') AS target_name
+       FROM audit_log a
+       LEFT JOIN users actor ON actor.id = a.actor_id
+       LEFT JOIN users target ON target.id = a.target_id
+       ORDER BY a.created_at DESC, a.id DESC
+       LIMIT 40`,
+    );
+    return c.json({
+      activity: rows.map((row) => ({
+        id: String(row.id),
+        action: row.action,
+        meta: row.meta,
+        createdAt: row.created_at.toISOString(),
+        actor: row.actor_id ? { id: row.actor_id, name: row.actor_name ?? '' } : null,
+        target: row.target_id ? { id: row.target_id, name: row.target_name ?? '' } : null,
+      })),
+    });
+  });
+
+  return app;
+}
