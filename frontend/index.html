@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>LMS</title>
+    <meta name="description" content="LMS — Life Management System: your private hub for training, food and every other area of life." />
+    <meta name="theme-color" content="#BABBF4" />
+    <meta name="color-scheme" content="light" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="LMS" />
+    <meta name="application-name" content="LMS" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180x180.png" />
+    <!--apple-splash-links-->
+    <style>
+      /* Splash: painted before any JS, removed by src/lib/splash.ts. */
+      html { background: #babbf4; }
+      body { margin: 0; }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: grid;
+        place-items: center;
+        container-type: size;
+        background: #babbf4;
+        transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 420ms;
+      }
+      #splash.is-leaving { opacity: 0; visibility: hidden; }
+      /* Back within the same session (src/lib/splashGate.ts): no splash, straight to the app. */
+      html[data-splash='skip'] #splash { display: none; }
+      /* Same size and place as the iOS launch image (SPLASH_TILE in scripts/brand-assets.mjs):
+         26% of the screen's width, at most 112px, centred on the whole screen; the gate moves it up
+         by half the status bar the Home Screen app lays the page out below. */
+      .splash__logo {
+        display: block;
+        width: min(26cqw, 112px);
+        height: auto;
+        border-radius: 26%;
+        translate: 0 calc(var(--splash-status-bar, 0px) / -2);
+        animation: splash-breathe 1400ms 200ms cubic-bezier(0.65, 0, 0.35, 1) both;
+      }
+      @keyframes splash-breathe {
+        50% { scale: 1.06; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .splash__logo { animation: none; }
+      }
+    </style>
+    <!--splash-gate-->
+  </head>
+  <body>
+    <!--
+      THESIS: One private home for every area of a life, opened from the Home Screen. Refuses the SaaS dashboard grid of same-size icon cards and stat tiles.
+      OWN-WORLD: Lavender field (#BABBF4) atop every screen; white sheets with 28px corners; ink pill actions and chips; round white icon buttons; indigo #6466CF accent and a raised centre + in a white tab bar; each life area a coloured pass (indigo, peach, sky, mint, pink) with a hatched or dotted material band; red only inside the logo tile; Figtree, heavy and tight.
+      STORY: Members sign in once, stay signed in and open an area in one tap; the admin creates and manages every account.
+      FIRST VIEWPORT: Home: avatar and greeting row with a round settings button; a 44px two-tone headline; the area passes stacked below, Training first, within thumb reach; the tab bar with its raised + at the bottom.
+      FORM: Brief-pinned world (the user's two mockups); structure from roll position 4 of 7, the wallet pass stack; seed key 72ac4ed9.
+      FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+    -->
+    <div id="splash" role="status" aria-label="LMS is starting"><!--splash-logo--></div>
+    <div id="root"></div>
+    <noscript>
+      <p style="font-family: system-ui, sans-serif; padding: 24px; text-align: center">LMS needs JavaScript to run.</p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

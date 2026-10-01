@@ -1,0 +1,26 @@
+{
+  // LMS — the web app (React PWA) on Cloudflare Workers Static Assets.
+  // /api/* and /health are handled by worker/index.ts, which proxies the API through the
+  // Cloudflare Tunnel hostname, so the browser only ever talks to this origin.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "lms",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-15",
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health"]
+  },
+  "vars": {
+    // The public hostname of your Cloudflare Tunnel that points at the API container,
+    // e.g. "https://lms-api.example.com" (Zero Trust → Networks → Tunnels → Public hostnames).
+    // Empty = the app loads but /api answers 503 API_NOT_CONFIGURED.
+    "API_ORIGIN": ""
+  }
+  // Secret shared with the API (PROXY_SECRET in deploy/.env): wrangler secret put PROXY_SECRET
+  //
+  // Custom domain for the app (optional; otherwise https://lms.<account>.workers.dev):
+  // , "routes": [{ "pattern": "lms.example.com", "custom_domain": true }]
+}

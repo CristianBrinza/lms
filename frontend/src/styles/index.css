@@ -1,0 +1,373 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/figtree/wght.css';
+
+/*
+ * LMS — design tokens. The world blends the owner's three reference mockups: from the task app,
+ * the lavender field, the two-tone headline and the indigo accent; from the cyan mood app, white
+ * screens with outlined rows, dark tiles and the soft cyan tab tile; from the yellow mood app,
+ * butter round buttons and featured cards, cream chips, black "Continue" pills with outlined
+ * "Skip" pills. The logo's red (#E40523) lives only inside the logo tile.
+ */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* Ink — text and the one action colour (pills, chips, the active pass arrow). Cool, to sit on lavender. */
+  --color-ink-50: #f7f7fa;
+  --color-ink-100: #efeff4;
+  --color-ink-200: #e2e2ea;
+  --color-ink-300: #c8c8d3;
+  --color-ink-400: #9d9dab;
+  --color-ink-500: #737382;
+  --color-ink-600: #5a5a68;
+  --color-ink-700: #42424e;
+  --color-ink-800: #2c2c35;
+  --color-ink-900: #1d1d24;
+
+  /* Lavender — the field atop every screen (300), and the indigo accent (600). */
+  --color-lav-50: #f6f6fe;
+  --color-lav-100: #ececfd;
+  --color-lav-200: #dcdcfa;
+  --color-lav-300: #babbf4;
+  --color-lav-400: #a2a3ee;
+  --color-lav-500: #8284e1;
+  --color-lav-600: #6466cf;
+  --color-lav-700: #4f51b4;
+  --color-lav-800: #3c3d8e;
+  --color-lav-900: #2a2b66;
+
+  /* Butter — the yellow app's round play buttons, featured cards and chosen chips; cream (100) for idle chips. */
+  --color-butter-50: #fffbef;
+  --color-butter-100: #fbf0d2;
+  --color-butter-200: #f8e4a6;
+  --color-butter-300: #f6d47a;
+  --color-butter-400: #f0c44f;
+  --color-butter-800: #6e5000;
+
+  /* Area pastels, each with a deep tone for text and marks on it. */
+  --color-peach-100: #fbe6d2;
+  --color-peach-200: #f4cfac;
+  --color-peach-800: #7a4515;
+  --color-sky-100: #e5f1f8;
+  --color-sky-200: #cfe3ef;
+  --color-sky-800: #1f5670;
+  --color-mint-100: #dcf6ec;
+  --color-mint-200: #bfeedd;
+  --color-mint-800: #1d6247;
+  --color-pink-100: #fde3f1;
+  --color-pink-200: #f9cde6;
+  --color-pink-400: #f5a6d3;
+  --color-pink-800: #8a2c63;
+  --color-cyan-50: #f0fafd;
+  --color-cyan-100: #dcf3f9;
+  --color-cyan-200: #a6e2f1;
+  --color-cyan-400: #6ed2e8;
+  --color-cyan-500: #4fc3dc;
+  --color-cyan-800: #145e70;
+
+  /* Feedback. Errors are crimson-on-blush, deliberately apart from the logo's red. */
+  --color-danger-50: #fff1f3;
+  --color-danger-100: #ffdfe4;
+  --color-danger-600: #c22a47;
+  --color-danger-700: #a11d38;
+  --color-success-600: #1d7a52;
+
+  /* The logo tile only. */
+  --color-brand-red: #e40523;
+
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Phone-first sizes; wide screens step up with lg: where a page needs it. */
+  --text-display: 2.75rem;
+  --text-display--line-height: 1;
+  --text-display--letter-spacing: -0.04em;
+  --text-h1: 2rem;
+  --text-h1--line-height: 1.05;
+  --text-h1--letter-spacing: -0.035em;
+  --text-h2: 1.375rem;
+  --text-h2--line-height: 1.15;
+  --text-h2--letter-spacing: -0.025em;
+  --text-h3: 1.0625rem;
+  --text-h3--line-height: 1.3;
+  --text-h3--letter-spacing: -0.012em;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.45;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.35;
+
+  /* Shape: sheets and passes are soft and large; controls are pills and circles. */
+  --radius-xs: 0.5rem;
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 1.75rem;
+  --radius-3xl: 2rem;
+  --radius-pill: 999px;
+
+  /* Depth: offset and soft, tinted by the lavender field. */
+  --shadow-card: 0 1px 2px rgb(42 43 102 / 0.05), 0 12px 28px -16px rgb(42 43 102 / 0.28);
+  --shadow-raised: 0 2px 6px rgb(42 43 102 / 0.07), 0 20px 40px -20px rgb(42 43 102 / 0.38);
+  --shadow-pass: 0 -1px 0 rgb(255 255 255 / 0.5) inset, 0 14px 30px -18px rgb(29 29 36 / 0.45);
+  --shadow-float: 0 10px 30px -10px rgb(42 43 102 / 0.4);
+  --shadow-fab: 0 10px 22px -8px rgb(79 81 180 / 0.75);
+  --shadow-sheet: 0 -12px 48px -16px rgb(29 29 36 / 0.32);
+
+  /* Motion: exponential ease-out everywhere; no bounce except the pass lift. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-lift: cubic-bezier(0.34, 1.32, 0.64, 1);
+
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+
+  --animate-fade-in: fade-in 220ms var(--ease-out) backwards;
+  --animate-rise: rise 380ms var(--ease-out) backwards;
+  --animate-page: page-in 240ms var(--ease-out) backwards;
+  --animate-deal: deal 560ms var(--ease-out) backwards;
+  --animate-sheet-in: sheet-in 380ms var(--ease-out) backwards;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-shake: shake 420ms var(--ease-out);
+  --animate-pop: pop 260ms var(--ease-out) backwards;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translate3d(0, 10px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  /* Passes are dealt into the wallet: up from below, settling into their place in the stack. */
+  @keyframes deal {
+    from { opacity: 0; transform: translate3d(0, 36px, 0) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes sheet-in {
+    from { transform: translate3d(0, 100%, 0); }
+    to { transform: none; }
+  }
+  @keyframes page-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+  @keyframes shake {
+    0%, 100% { transform: none; }
+    20% { transform: translateX(-6px); }
+    45% { transform: translateX(5px); }
+    70% { transform: translateX(-3px); }
+    85% { transform: translateX(2px); }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale3d(0.6, 0.6, 1); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --gutter: 1.25rem;
+    --tabbar-h: 5.5rem;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html {
+    background: var(--color-lav-300);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    scroll-padding-top: 5rem;
+    /* Pan and pinch stay native; only double-tap zoom goes, so fast taps never zoom. */
+    touch-action: manipulation;
+    text-wrap: pretty;
+  }
+  body {
+    min-height: 100dvh;
+    background: var(--color-lav-300);
+  }
+  #root {
+    isolation: isolate;
+    min-height: 100dvh;
+  }
+  /* A sheet is open: the page behind stays where it was, without rubber band. */
+  html[data-scroll-locked] {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /* Browser surfaces carry the world too. */
+  ::selection {
+    background: var(--color-lav-200);
+    color: var(--color-ink-900);
+  }
+  input,
+  textarea {
+    caret-color: var(--color-lav-600);
+  }
+  a {
+    text-underline-offset: 0.22em;
+    text-decoration-thickness: 1px;
+  }
+  :focus-visible {
+    outline: 2.5px solid var(--color-lav-700);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  legend,
+  figcaption,
+  dt,
+  th {
+    text-wrap: balance;
+  }
+  input,
+  textarea,
+  [contenteditable] {
+    text-wrap: wrap;
+  }
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    ::-webkit-scrollbar {
+      width: 14px;
+      height: 14px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      min-height: 48px;
+      background-color: rgb(42 43 102 / 0.22);
+      background-clip: padding-box;
+      border: 4px solid transparent;
+      border-radius: 999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background-color: rgb(42 43 102 / 0.38);
+    }
+    ::-webkit-scrollbar-corner {
+      background: transparent;
+    }
+    @supports (-moz-appearance: none) {
+      * {
+        scrollbar-color: rgb(42 43 102 / 0.3) transparent;
+      }
+    }
+  }
+  dialog::backdrop {
+    background: rgb(29 29 36 / 0.4);
+  }
+  dialog[data-state]::backdrop {
+    opacity: 0;
+    transition: opacity 240ms var(--ease-out);
+  }
+  dialog[data-state='open']::backdrop {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility gutter-x {
+  padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+}
+
+/* A press sinks a little, like a real button; the release springs back. */
+@utility press {
+  transition-property: transform, background-color, color, box-shadow, opacity;
+  transition-duration: 160ms;
+  transition-timing-function: var(--ease-out);
+  &:active:not(:disabled):not([aria-disabled='true']) {
+    transform: scale(0.97);
+  }
+}
+
+/*
+ * Pass materials (the area passes on Home): the hatch is the reference's striped bars, the dot
+ * grid a plate's pattern. Drawn in the pass's own deep tone through --ink.
+ */
+@utility material-hatch {
+  background-image: repeating-linear-gradient(-55deg, var(--ink) 0 1.5px, transparent 1.5px 7px);
+}
+@utility material-dots {
+  background-image: radial-gradient(circle, var(--ink) 1.2px, transparent 1.6px);
+  background-size: 10px 10px;
+}
+@utility material-waves {
+  background-image: repeating-radial-gradient(circle at 100% 100%, transparent 0 6px, var(--ink) 6px 7.5px);
+}
+
+/* Tab switches slide like a native app (React Router view transitions); the bars stay put. */
+@keyframes nav-out-left {
+  to { opacity: 0; transform: translateX(-18%); }
+}
+@keyframes nav-out-right {
+  to { opacity: 0; transform: translateX(18%); }
+}
+@keyframes nav-in-right {
+  from { opacity: 0; transform: translateX(18%); }
+}
+@keyframes nav-in-left {
+  from { opacity: 0; transform: translateX(-18%); }
+}
+::view-transition-old(root) {
+  animation: nav-out-left 260ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+::view-transition-new(root) {
+  animation: nav-in-right 320ms var(--ease-out) both;
+}
+html[data-nav-dir='back']::view-transition-old(root) {
+  animation-name: nav-out-right;
+}
+html[data-nav-dir='back']::view-transition-new(root) {
+  animation-name: nav-in-left;
+}
+::view-transition-old(tabbar),
+::view-transition-old(sidenav) {
+  display: none;
+}
+::view-transition-new(tabbar),
+::view-transition-new(sidenav) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
