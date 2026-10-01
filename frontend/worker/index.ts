@@ -1,8 +1,13 @@
 /**
  * LMS — Cloudflare Worker in front of the app.
  *
- * - Static files (the React PWA) are served by Workers Static Assets; this script only runs for
- *   /api/* and /health (`run_worker_first` in wrangler.jsonc).
+ * - Static files (the React PWA) are served by Workers Static Assets. This script runs first for
+ *   pages, /api/* and /health (`run_worker_first` in wrangler.jsonc); hashed assets, icons and
+ *   launch screens skip it.
+ * - Every HTML page gets a fresh CSP nonce: the Worker adds it to the Content-Security-Policy and
+ *   to each <script>. Cloudflare reads that nonce from the header and puts it on the scripts it
+ *   injects for the zone (JavaScript detections, Web Analytics), so they run under a strict
+ *   policy without 'unsafe-inline'.
  * - /api/* is reverse-proxied to the API through its Cloudflare Tunnel hostname (API_ORIGIN), so
  *   the browser only ever sees this origin: first-party cookies, no CORS, no API address in the
  *   client. Every proxied request carries a shared secret (PROXY_SECRET); the API answers 404 to
@@ -98,11 +103,59 @@ async function health(request: Request, env: Env): Promise<Response> {
   });
 }
 
+/** Cloudflare Web Analytics, which the zone injects into pages (its beacon and where it reports). */
+const ANALYTICS_SCRIPT = 'https://static.cloudflareinsights.com';
+const ANALYTICS_CONNECT = 'https://cloudflareinsights.com';
+
+function newNonce(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/** The CSP of an HTML page with this request's nonce, and room for Cloudflare's own scripts. */
+export function withNonce(csp: string, nonce: string): string {
+  return csp
+    .split(';')
+    .map((directive) => {
+      const trimmed = directive.trim();
+      if (trimmed.startsWith('script-src ')) return `${trimmed} 'nonce-${nonce}' ${ANALYTICS_SCRIPT}`;
+      if (trimmed.startsWith('connect-src ')) return `${trimmed} ${ANALYTICS_CONNECT}`;
+      return trimmed;
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
+class NonceScripts {
+  constructor(private readonly nonce: string) {}
+  element(element: { setAttribute(name: string, value: string): void }) {
+    element.setAttribute('nonce', this.nonce);
+  }
+}
+
+interface HtmlRewriterLike {
+  on(selector: string, handler: NonceScripts): HtmlRewriterLike;
+  transform(response: Response): Response;
+}
+declare const HTMLRewriter: { new (): HtmlRewriterLike };
+
+async function serveAsset(request: Request, env: Env): Promise<Response> {
+  const response = await env.ASSETS.fetch(request);
+  const csp = response.headers.get('content-security-policy');
+  if (!csp || !(response.headers.get('content-type') ?? '').includes('text/html')) return response;
+  const nonce = newNonce();
+  const headers = new Headers(response.headers);
+  headers.set('content-security-policy', withNonce(csp, nonce));
+  const page = new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  return new HTMLRewriter().on('script', new NonceScripts(nonce)).transform(page);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(request.url);
     if (pathname === '/health') return health(request, env);
     if (pathname === '/api' || pathname.startsWith('/api/')) return proxyApi(request, env);
-    return env.ASSETS.fetch(request);
+    return serveAsset(request, env);
   },
 };

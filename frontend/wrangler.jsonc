@@ -11,7 +11,8 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/health"]
+    // Pages, /api and /health run the Worker (CSP nonce, API proxy); hashed files go straight out.
+    "run_worker_first": ["/*", "!/assets/*", "!/icons/*", "!/splash/*", "!/favicon.*", "!/workbox-*"]
   },
   // The app's public address. Wrangler creates the DNS record and certificate (shades.md is a
   // zone on the same Cloudflare account).
