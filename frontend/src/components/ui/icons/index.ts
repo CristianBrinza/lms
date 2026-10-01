@@ -6,6 +6,7 @@ export { default as AddIcon } from '@mui/icons-material/AddRounded';
 export { default as AddBoxIcon } from '@mui/icons-material/AddBoxOutlined';
 export { default as AddToHomeScreenIcon } from '@mui/icons-material/AddToHomeScreenRounded';
 export { default as AdminIcon } from '@mui/icons-material/AdminPanelSettingsRounded';
+export { default as AndroidIcon } from '@mui/icons-material/AndroidRounded';
 export { default as AreasIcon } from '@mui/icons-material/GridViewRounded';
 export { default as ArrowBackIcon } from '@mui/icons-material/ArrowBackRounded';
 export { default as ArrowForwardIcon } from '@mui/icons-material/ArrowForwardRounded';
