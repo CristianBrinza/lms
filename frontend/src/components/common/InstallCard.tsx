@@ -20,9 +20,9 @@ export function InstallCard() {
     setHidden(true);
   };
   return (
-    <div className="relative animate-rise rounded-[1.75rem] bg-[linear-gradient(155deg,#fae3a0_0%,#f6d47a_50%,#f1c65a_100%)] shadow-[var(--shadow-sheen-light),0_2px_4px_rgb(110_80_0/0.1),0_20px_36px_-20px_rgb(110_80_0/0.55)]">
+    <div className="relative animate-rise rounded-[1.75rem] bg-butter-300 shadow-[0_2px_4px_rgb(110_80_0/0.1),0_20px_36px_-20px_rgb(110_80_0/0.55)]">
       <Link to="/app" viewTransition className="press group/feature flex flex-col rounded-[1.75rem] p-5">
-        <span className="inline-flex h-8 items-center self-start rounded-pill bg-ink-900 px-3.5 text-sm font-semibold text-white shadow-[var(--shadow-sheen-dark)]">The app</span>
+        <span className="inline-flex h-8 items-center self-start rounded-pill bg-ink-900 px-3.5 text-sm font-semibold text-white">The app</span>
         <span className="mt-7 pr-14 text-h2 font-bold text-ink-900">Put LMS on your Home Screen</span>
         <span className="mt-1.5 max-w-xs pr-14 text-[0.9375rem] leading-snug text-butter-800">It opens full screen, stays signed in and updates by itself.</span>
         <span

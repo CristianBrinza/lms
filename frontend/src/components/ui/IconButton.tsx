@@ -12,7 +12,7 @@ const VARIANTS: Record<Variant, string> = {
   // The task app's settings / back circles on a white screen: a hairline ring.
   outline: 'bg-white text-ink-900 ring-1 ring-inset ring-ink-200 hover:bg-ink-50',
   soft: 'bg-lav-100 text-ink-900 hover:bg-lav-200',
-  ink: 'bg-ink-900 text-white shadow-[var(--shadow-sheen-dark),0_10px_20px_-10px_rgb(29_29_36/0.8)] hover:bg-ink-800',
+  ink: 'bg-ink-900 text-white shadow-[0_10px_20px_-10px_rgb(29_29_36/0.8)] hover:bg-ink-800',
   accent: 'bg-lav-600 text-white hover:bg-lav-700',
   ghost: 'bg-transparent text-ink-800 hover:bg-ink-900/5',
 };

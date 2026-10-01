@@ -9,7 +9,7 @@ export type ButtonSize = 'lg' | 'md' | 'sm';
 
 const VARIANTS: Record<ButtonVariant, string> = {
   // The one action colour: an ink pill (the reference's "Today" / "All Tasks").
-  primary: 'bg-ink-900 text-white hover:bg-ink-800 shadow-[var(--shadow-sheen-dark),0_1px_2px_rgb(29_29_36/0.3),0_12px_22px_-12px_rgb(29_29_36/0.85)]',
+  primary: 'bg-ink-900 text-white hover:bg-ink-800 shadow-[0_1px_2px_rgb(29_29_36/0.3),0_12px_22px_-12px_rgb(29_29_36/0.85)]',
   // The indigo accent, for the single most important action on a lavender screen.
   accent: 'bg-lav-600 text-white hover:bg-lav-700 shadow-fab',
   // A white pill on the lavender field (the reference's "In Progress" chip as a button).
@@ -18,7 +18,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   tint: 'bg-lav-100 text-ink-900 hover:bg-lav-200',
   outline: 'bg-white/30 text-ink-900 ring-1 ring-inset ring-ink-900/20 hover:bg-white/60',
   ghost: 'bg-transparent text-ink-900 hover:bg-ink-900/5',
-  danger: 'bg-danger-600 text-white shadow-[var(--shadow-sheen-dark),0_12px_22px_-12px_rgb(161_29_56/0.8)] hover:bg-danger-700',
+  danger: 'bg-danger-600 text-white shadow-[0_12px_22px_-12px_rgb(161_29_56/0.8)] hover:bg-danger-700',
 };
 
 // 56 / 48 / 40 px: a full-width call to action, the everyday button, a compact inline one.

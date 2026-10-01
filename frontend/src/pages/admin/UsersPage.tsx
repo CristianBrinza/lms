@@ -133,7 +133,7 @@ function Stats({ people }: { people: AdminUser[] }) {
           className={cx(
             'flex flex-col rounded-[1.375rem] p-4 animate-rise',
             index === 0
-              ? 'bg-[linear-gradient(155deg,#fae3a0,#f6d47a_55%,#f1c65a)] shadow-[var(--shadow-sheen-light),0_14px_28px_-18px_rgb(110_80_0/0.6)]'
+              ? 'bg-butter-300 shadow-[0_14px_28px_-18px_rgb(110_80_0/0.6)]'
               : 'bg-white shadow-[var(--shadow-xs)] ring-1 ring-inset ring-ink-100',
           )}
           style={{ animationDelay: `${index * 50}ms` }}
