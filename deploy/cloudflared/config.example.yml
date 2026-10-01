@@ -1,0 +1,14 @@
+# Only if you run the API WITHOUT Docker (yarn --cwd backend build && start) and a locally
+# managed tunnel instead of a token:
+#   cloudflared tunnel login
+#   cloudflared tunnel create lms-api
+#   cloudflared tunnel route dns lms-api lms-api.example.com
+#   cloudflared tunnel --config deploy/cloudflared/config.yml run lms-api
+# Copy this file to config.yml and fill in the tunnel id.
+tunnel: <TUNNEL-ID>
+credentials-file: /Users/<you>/.cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  - hostname: lms-api.example.com
+    service: http://127.0.0.1:8790
+  - service: http_status:404

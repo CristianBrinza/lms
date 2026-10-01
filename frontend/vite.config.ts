@@ -208,7 +208,8 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: 'hidden',
       reportCompressedSize: false,
-      chunkSizeWarningLimit: 400,
+      // The entry holds React, the router and TanStack Query (about 130 kB gzipped); pages load on demand.
+      chunkSizeWarningLimit: 450,
       rolldownOptions: {
         output: {
           chunkFileNames: (chunk) =>

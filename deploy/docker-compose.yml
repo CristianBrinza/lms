@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LMS server: PostgreSQL + the API + a Cloudflare Tunnel, on any machine with Docker
+# (a home server, a mini PC, this Mac). Nothing listens on the internet: cloudflared dials out
+# to Cloudflare, and the tunnel's public hostname reaches the API inside this network.
+#
+#   cp deploy/.env.template deploy/.env      # fill it in
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   (or from the repo root: yarn deploy api)
+#
+# In Cloudflare: Zero Trust → Networks → Tunnels → your tunnel → Public hostname:
+#   lms-api.<your-domain>  →  Service: HTTP  api:8790
+# ─────────────────────────────────────────────────────────────────────────────
+name: lms
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: lms
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'lms', '-d', 'lms']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../backend
+      args:
+        APP_VERSION: ${APP_VERSION:-}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: '8790'
+      DATABASE_URL: postgres://lms:${POSTGRES_PASSWORD}@postgres:5432/lms
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # For checks from this machine only (yarn deploy verify); the tunnel uses the inner network.
+    ports:
+      - '127.0.0.1:8790:8790'
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
+    depends_on:
+      - api
+
+volumes:
+  db-data:
