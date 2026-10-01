@@ -90,8 +90,11 @@ export async function migrate(db: Database, log: (message: string) => void = () 
 
 /** Removes expired sessions and rate-limit windows (run hourly by the server). */
 export async function cleanup(db: Database, now: Date): Promise<void> {
-  await db.query('DELETE FROM rate_limits WHERE expires_at < $1', [now]);
-  // Revoked or expired sessions are kept a month for the "devices" history, then dropped.
-  await db.query(`DELETE FROM sessions WHERE expires_at < $1 - interval '30 days' OR revoked_at < $1 - interval '30 days'`, [now]);
-  await db.query(`DELETE FROM audit_log WHERE created_at < $1 - interval '365 days'`, [now]);
+  await db.query('DELETE FROM rate_limits WHERE expires_at < $1::timestamptz', [now]);
+  // Revoked or expired sessions are kept a month, then dropped.
+  await db.query(
+    `DELETE FROM sessions WHERE expires_at < $1::timestamptz - interval '30 days' OR revoked_at < $1::timestamptz - interval '30 days'`,
+    [now],
+  );
+  await db.query(`DELETE FROM audit_log WHERE created_at < $1::timestamptz - interval '365 days'`, [now]);
 }
