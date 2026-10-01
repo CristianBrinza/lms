@@ -43,38 +43,38 @@ export function CredentialsSheet({ open, onClose, name, email, password, reason 
       title={reason === 'created' ? `${name} can sign in now` : `New password for ${name}`}
       description="This password shows only once. Send it to them now; they’ll replace it at first sign-in."
       footer={
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-2.5">
           {canShare ? (
-            <Button variant="tint" size="md" icon={IosShareIcon} onClick={() => void share()}>
+            <Button variant="outline" icon={IosShareIcon} fullWidth onClick={() => void share()}>
               Share sign-in details
             </Button>
           ) : null}
-          <Button size="md" onClick={onClose}>
+          <Button fullWidth onClick={onClose}>
             Done
           </Button>
         </div>
       }
     >
       <dl className="flex flex-col gap-3">
-        <div className="rounded-2xl bg-lav-50 p-4">
-          <dt className="text-sm font-semibold text-lav-800">Email</dt>
+        <div className="rounded-[1.125rem] bg-ink-50 p-4">
+          <dt className="text-[0.8125rem] font-semibold text-ink-600">Email</dt>
           <dd className="mt-1 break-all text-base font-semibold text-ink-900">{email}</dd>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl bg-ink-900 p-4 text-white">
+        <div className="flex items-center gap-3 rounded-[1.125rem] bg-ink-900 p-4 text-white">
           <div className="min-w-0 flex-1">
-            <dt className="text-sm font-semibold text-lav-200">One-time password</dt>
+            <dt className="text-[0.8125rem] font-semibold text-butter-300">One-time password</dt>
             <dd className="tabular mt-1 select-all font-mono text-[1.375rem] font-semibold tracking-wider">{password}</dd>
           </div>
           <button
             type="button"
             onClick={() => void copy(password, 'Password')}
             aria-label="Copy password"
-            className="press flex size-11 shrink-0 items-center justify-center rounded-full bg-white/12 text-[1.2rem] hover:bg-white/20"
+            className="press flex size-11 shrink-0 items-center justify-center rounded-full bg-butter-300 text-[1.2rem] text-ink-900 hover:bg-butter-200"
           >
             <ContentCopyIcon fontSize="inherit" />
           </button>
         </div>
-        <Button variant="tint" size="sm" icon={ContentCopyIcon} className="self-start" onClick={() => void copy(message, 'Sign-in details')}>
+        <Button variant="ghost" size="sm" icon={ContentCopyIcon} className="self-start" onClick={() => void copy(message, 'Sign-in details')}>
           Copy all sign-in details
         </Button>
       </dl>

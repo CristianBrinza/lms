@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
 import { useAuth, useUser } from '@/app/auth';
 import { AreaGrid } from '@/areas/AreaTile';
 import { AREAS } from '@/areas/registry';
 import { FeatureCard } from '@/components/common/FeatureCard';
 import { InstallCard } from '@/components/common/InstallCard';
 import { Screen } from '@/components/layout/Screen';
-import { Avatar, IconLink } from '@/components/ui';
-import { SettingsOutlinedIcon } from '@/components/ui/icons';
 import { formatDay, partOfDay } from '@/lib/format';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
@@ -30,10 +27,6 @@ export default function HomePage() {
           <p className="truncate text-h2 font-bold">Hi, {user.name}!</p>
           <p className="truncate text-sm font-medium text-lav-800">{formatDay(now)}</p>
         </div>
-        <IconLink to="/settings" icon={SettingsOutlinedIcon} label="Settings" />
-        <Link to="/profile" aria-label="Your profile" className="press rounded-full">
-          <Avatar person={user} size="md" />
-        </Link>
       </header>
 
       <div className="gutter-x mt-7 lg:px-8">
@@ -59,7 +52,7 @@ export default function HomePage() {
         <h2 id="for-you-title" className="mt-5 text-h3 font-bold lg:mt-3">
           For you
         </h2>
-        <div className="mt-3.5 grid gap-3 lg:grid-cols-2">
+        <div className="mt-3.5 grid gap-3 md:grid-cols-2">
           <InstallCard />
           {isAdmin ? <PeopleCard /> : null}
           <FeatureCard to="/profile" tone="white" title="Your profile and password" pills={[user.role === 'admin' ? 'Admin' : 'Member', `Since ${since}`]} />

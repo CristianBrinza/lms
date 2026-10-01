@@ -131,7 +131,7 @@ function UpdateToast({ apply }: { apply: () => void }) {
   }, [location.pathname, apply]);
 
   useEffect(() => {
-    const id = toast('A new version of LMS is ready', {
+    const id = toast.info('A new version of LMS is ready', {
       description: 'Finish what you’re typing, then update. You stay signed in.',
       duration: Infinity,
       action: { label: 'Update', onClick: apply },

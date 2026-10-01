@@ -20,11 +20,11 @@ export function ConfirmSheet({ open, onClose, onConfirm, title, description, con
       onClose={onClose}
       title={title}
       footer={
-        <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:justify-end">
-          <Button variant="tint" size="md" onClick={onClose}>
+        <div className="flex flex-col gap-2.5">
+          <Button variant="outline" fullWidth onClick={onClose}>
             Cancel
           </Button>
-          <Button variant={tone === 'danger' ? 'danger' : 'primary'} size="md" loading={loading} onClick={onConfirm}>
+          <Button variant={tone === 'danger' ? 'danger' : 'primary'} fullWidth loading={loading} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>

@@ -52,7 +52,7 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
       type="button"
       className={classes}
       style={style}
-      onClick={() => toast(`${area.name} is being built`, { id: `area-${area.id}`, description: 'Its screen arrives in a coming update.' })}
+      onClick={() => toast.info(`${area.name} is being built`, { id: `area-${area.id}`, description: 'Its screen arrives in a coming update.' })}
     >
       {content}
     </button>

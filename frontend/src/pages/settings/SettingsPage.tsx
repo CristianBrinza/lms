@@ -26,7 +26,7 @@ export default function SettingsPage() {
     setChecking(true);
     try {
       if (await newBuildOnServer()) {
-        toast('Updating LMS…', { description: 'You stay signed in.' });
+        toast.info('Updating LMS…', { description: 'You stay signed in.' });
         const registration = await navigator.serviceWorker?.getRegistration();
         await registration?.update().catch(() => undefined);
         // The update prompt takes over once the new version has downloaded; without a service

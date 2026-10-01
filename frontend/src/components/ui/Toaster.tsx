@@ -1,35 +1,60 @@
 import { Toaster as Sonner } from 'sonner';
-import { CheckCircleIcon, ErrorIcon, InfoIcon, WarningIcon } from './icons';
+import { CheckIcon, ErrorIcon, InfoIcon, WarningIcon } from './icons';
 import { Spinner } from './Spinner';
 
-const icon = 'animate-pop text-[1.35rem]';
+const chip = 'flex size-9 animate-pop items-center justify-center rounded-full text-[1.15rem] text-ink-900';
 
-/** App-wide toasts: ink pills dropping from the top, clear of the tab bar. */
+/**
+ * LMS toasts: white cards that rise from the bottom, above the menu, each led by a round icon
+ * chip in the palette's colours (mint done, butter news, peach warning, crimson problem).
+ */
 export function Toaster() {
+  const bottom = 'calc(var(--tabbar-h) + var(--safe-bottom) + 0.75rem)';
   return (
     <Sonner
-      position="top-center"
-      offset={{ top: 'calc(var(--safe-top) + 12px)' }}
-      mobileOffset={{ top: 'calc(var(--safe-top) + 12px)' }}
+      position="bottom-center"
+      offset={{ bottom: '1.5rem' }}
+      mobileOffset={{ bottom }}
       gap={10}
       visibleToasts={3}
       icons={{
-        success: <CheckCircleIcon fontSize="inherit" className={`${icon} text-mint-200`} />,
-        error: <ErrorIcon fontSize="inherit" className={`${icon} text-white`} />,
-        warning: <WarningIcon fontSize="inherit" className={`${icon} text-peach-200`} />,
-        info: <InfoIcon fontSize="inherit" className={`${icon} text-cyan-200`} />,
-        loading: <Spinner className="size-5 text-white/80" />,
+        success: (
+          <span className={`${chip} bg-mint-200`}>
+            <CheckIcon fontSize="inherit" />
+          </span>
+        ),
+        info: (
+          <span className={`${chip} bg-butter-300`}>
+            <InfoIcon fontSize="inherit" />
+          </span>
+        ),
+        warning: (
+          <span className={`${chip} bg-peach-200`}>
+            <WarningIcon fontSize="inherit" />
+          </span>
+        ),
+        error: (
+          <span className={`${chip} bg-danger-600 text-white`}>
+            <ErrorIcon fontSize="inherit" />
+          </span>
+        ),
+        loading: (
+          <span className={`${chip} bg-lav-100`}>
+            <Spinner className="size-4 text-lav-700" />
+          </span>
+        ),
       }}
       toastOptions={{
         unstyled: true,
         classNames: {
-          toast: 'flex w-full items-start gap-3 rounded-2xl bg-ink-900 px-4 py-3.5 text-white shadow-float md:w-[22rem] font-sans',
-          title: 'text-[0.9375rem] font-semibold',
-          description: 'mt-0.5 text-sm text-white/75',
-          actionButton: 'ml-auto shrink-0 rounded-pill bg-white px-3.5 py-1.5 text-sm font-semibold text-ink-900 press',
-          cancelButton: 'shrink-0 rounded-pill px-3 py-1.5 text-sm font-semibold text-white/75',
-          icon: 'mt-px flex size-6 shrink-0 items-center justify-center',
-          error: 'bg-danger-700',
+          toast:
+            'flex w-full items-center gap-3 rounded-[1.375rem] bg-white p-2.5 pr-3 font-sans text-ink-900 shadow-[0_18px_40px_-16px_rgb(42_43_102/0.5)] ring-1 ring-ink-100 md:w-[23rem]',
+          title: 'text-[0.9375rem] font-semibold leading-snug',
+          description: 'mt-0.5 text-sm leading-snug text-ink-600',
+          content: 'min-w-0 flex-1 py-0.5',
+          actionButton: 'press ml-auto shrink-0 rounded-pill bg-ink-900 px-4 py-2 text-sm font-semibold text-white',
+          cancelButton: 'shrink-0 rounded-pill px-3 py-2 text-sm font-semibold text-ink-600',
+          icon: 'flex shrink-0 items-center justify-center self-start [&>*]:m-0',
         },
       }}
     />

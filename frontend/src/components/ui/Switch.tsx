@@ -10,7 +10,7 @@ interface SwitchProps {
   className?: string;
 }
 
-/** An on/off setting: role="switch" on a real button, the knob slides on the indigo track. */
+/** An on/off setting: role="switch" on a real button; on, the track turns ink and the knob butter. */
 export function Switch({ checked, onChange, label, hint, disabled, className }: SwitchProps) {
   const id = useId();
   return (
@@ -30,14 +30,14 @@ export function Switch({ checked, onChange, label, hint, disabled, className }: 
         onClick={() => onChange(!checked)}
         className={cx(
           'relative mt-0.5 inline-flex h-7 w-12 shrink-0 items-center rounded-pill transition-colors duration-200 disabled:opacity-45',
-          checked ? 'bg-lav-600' : 'bg-ink-300',
+          checked ? 'bg-ink-900' : 'bg-ink-200',
         )}
       >
         <span
           aria-hidden="true"
           className={cx(
-            'absolute left-0.5 size-6 rounded-full bg-white shadow-[0_2px_6px_rgb(29_29_36/0.25)] transition-transform duration-250 ease-(--ease-lift)',
-            checked ? 'translate-x-5' : 'translate-x-0',
+            'absolute left-0.5 size-6 rounded-full shadow-[0_2px_6px_rgb(29_29_36/0.25)] transition-[translate,background-color] duration-250 ease-(--ease-lift)',
+            checked ? 'translate-x-5 bg-butter-300' : 'translate-x-0 bg-white',
           )}
         />
       </button>
