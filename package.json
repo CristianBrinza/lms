@@ -17,7 +17,7 @@
     "lint": "yarn --cwd backend lint && yarn --cwd frontend lint",
     "test": "yarn --cwd backend test && yarn --cwd frontend test",
     "build": "yarn --cwd backend build && yarn --cwd frontend build",
-    "check": "yarn typecheck && yarn lint && yarn test && yarn build",
+    "verify": "yarn typecheck && yarn lint && yarn test && yarn build",
     "deploy": "node scripts/deploy.mjs",
     "deploy:verify": "yarn --cwd backend deploy:verify",
     "format": "prettier --write ."
