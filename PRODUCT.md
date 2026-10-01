@@ -36,20 +36,21 @@ Not a marketplace app or a single-purpose tracker: one private, invite-only hub 
 - Roles: `member` and `admin`. Every user has a name, surname and email.
 - Sign-in with email and password only. No self sign-up and no "forgot password" email flow yet: the admin resets passwords from the console.
 - Admin console: list and search users, create a user (with a generated or chosen password), edit name, email and role, deactivate/reactivate, reset password, sign a user out everywhere, delete. The last active admin cannot be demoted, deactivated or deleted.
-- Dashboard: a registry of area cards. Two areas exist now (Training, Food), each with a placeholder screen; the registry is built for 10+.
+- Dashboard: a registry of area tiles. Two areas exist now (Training, Food), as tiles only, marked Soon; their screens arrive later (the owner builds them). The registry is built for 10+.
+- Bottom menu: Home, Utilities (an empty page for now), Settings, Profile; the admin console is reached from Settings and Home.
 - English only; copy kept in components so another language can be added later.
 - Undecided: what each area contains, any email delivery, avatars/photos.
 
 ## Brand Commitments
 
 - Name: **LMS**, "Life Management System". Repository `lms`.
-- User-supplied visual references (two phone mockups), followed in spirit, not copied: a lavender/periwinkle field, white large-radius cards, ink-black pill buttons and chips, round white icon buttons, an indigo accent, pastel tiles (peach, sky), a hatched bar chart, a floating bottom tab bar with a raised centre "+" button; dark cards with cyan accents, chip selections, white "Next" pills.
+- User-supplied visual references (five phone mockups: a lavender task app, a cyan/dark mood app, a yellow mood app, a violet/lime learning app, a periwinkle learning app), blended, not copied. The owner keeps the LMS palette fixed and takes UI elements and blocks from new references, not their colours. Surfaces are flat colour (no gradients or lighting) with soft drop shadows. LMS must not look like the nails-by-alynna app.
 - Icons: MUI icons.
 - Logo (supplied, `frontend/brand/logo.svg`): a red `#E40523` square with a white four-point sparkle fading to transparent. It is the app icon, favicon and splash mark. Red stays inside the logo: it is not the app's theme or action color (user instruction).
 
 ## Evidence on Hand
 
-- The two reference mockups (shared in chat, not stored in the repo).
+- The five reference mockups (shared in chat, not stored in the repo).
 - The supplied logo. No photos, no real user data. Nothing may be presented as real statistics; any illustrative numbers on placeholder screens are labeled as examples.
 
 ## Product Principles

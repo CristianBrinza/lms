@@ -27,8 +27,7 @@ export default function ProfilePage() {
         <p className="mt-1 text-center text-sm text-ink-600">{user.email}</p>
 
         <section className="mt-6 w-full rounded-3xl bg-butter-300 p-5 shadow-[0_18px_32px_-20px_rgb(110_80_0/0.6)]" aria-label="Your account">
-          <p className="text-sm font-semibold text-butter-800">Your account</p>
-          <p className="mt-1.5 text-[1.0625rem] font-semibold leading-snug text-ink-900">
+          <p className="text-[1.0625rem] font-semibold leading-snug text-ink-900">
             {user.role === 'admin' ? 'Admin: you can add and manage everyone’s accounts.' : 'Member: the admin manages accounts.'}
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -40,7 +39,7 @@ export default function ProfilePage() {
           <ListRowButton icon={BadgeIcon} label="Your details" detail="Name and surname" onClick={() => setOpen('details')} />
           <ListRowButton icon={LockIcon} label="Password" detail="Change it any time" onClick={() => setOpen('password')} />
           <ListRowLink to="/settings" icon={SettingsOutlinedIcon} label="Settings" detail="This device, signed-in devices" />
-          <ListRowButton icon={LogoutOutlinedIcon} label="Sign out" tone="danger" onClick={() => void logout()} />
+          <ListRowButton icon={LogoutOutlinedIcon} label="Sign out" detail="On this device" onClick={() => void logout()} />
         </ListGroup>
       </div>
 

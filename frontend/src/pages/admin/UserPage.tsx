@@ -98,17 +98,21 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
   const name = fullName(person);
   return (
     <Screen tone="white">
-      <PageHeader title={name} subtitle={person.email} back="/admin/users" />
+      <PageHeader title={name} back="/admin/users" centered />
       <div className="gutter-x mt-6 grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
         <section className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 lg:col-start-1">
           <div className="flex items-center gap-4">
             <Avatar person={person} size="lg" className={cx(!person.isActive && 'opacity-45 grayscale')} />
-            <div className="flex min-w-0 flex-wrap gap-1.5">
+            <div className="min-w-0">
+              <p className="truncate text-h3 font-bold">{name}</p>
+              <p className="truncate text-sm text-ink-600">{person.email}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
               {isMe ? <Badge tone="lav">You</Badge> : null}
               <Badge tone={person.role === 'admin' ? 'ink' : 'lav'}>{person.role === 'admin' ? 'Admin' : 'Member'}</Badge>
               {person.isActive ? <Badge tone="mint">Can sign in</Badge> : <Badge tone="muted">Switched off</Badge>}
               {person.mustChangePassword ? <Badge tone="peach">Password not chosen yet</Badge> : null}
-            </div>
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-ink-100 pt-4 text-sm">
             <div className="min-w-0">

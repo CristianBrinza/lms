@@ -1,10 +1,13 @@
 import { useRef, type KeyboardEvent } from 'react';
 import { cx } from '@/lib/cx';
+import type { IconComponent } from './icons';
 
 interface ChipOption<T extends string> {
   value: T;
   label: string;
   count?: number;
+  /** A leading icon, like the learning app's "Logic / Visual / Focus" chips. */
+  icon?: IconComponent;
 }
 
 interface ChipsProps<T extends string> {
@@ -59,6 +62,7 @@ export function Chips<T extends string>({ label, value, options, onChange, tone 
                   : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
             )}
           >
+            {option.icon ? <option.icon fontSize="inherit" className="-ml-1 text-[1.2rem]" /> : null}
             {option.label}
             {option.count !== undefined ? (
               <span className={cx('tabular rounded-pill px-1.5 text-xs font-semibold', active && tone === 'field' ? 'bg-white/15 text-white' : 'bg-ink-900/6 text-ink-700')}>

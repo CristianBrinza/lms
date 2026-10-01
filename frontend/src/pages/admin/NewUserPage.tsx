@@ -48,8 +48,9 @@ export default function NewUserPage() {
 
   return (
     <Screen tone="white">
-      <PageHeader title="Add a person" subtitle="They sign in with this email. Nobody can sign up on their own." back="/admin/users" />
+      <PageHeader title="Add a person" back="/admin/users" centered />
       <form onSubmit={submit} noValidate className="gutter-x mt-6 lg:px-8 flex max-w-2xl flex-col gap-5">
+        <p className="text-[0.9375rem] text-ink-600">They sign in with this email. Nobody can sign up on their own.</p>
         <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label="Name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} required autoFocus />

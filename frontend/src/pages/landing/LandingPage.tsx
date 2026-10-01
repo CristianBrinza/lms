@@ -34,7 +34,7 @@ export default function LandingPage() {
       <main id="main" className="gutter-x mx-auto flex w-full max-w-md flex-1 flex-col pb-[calc(var(--safe-bottom)+1.25rem)] lg:max-w-5xl lg:flex-row lg:items-center lg:gap-16">
         <div className="relative flex flex-1 items-center py-8 lg:py-0">
           <Flower className="pointer-events-none absolute -right-4 top-2 w-28 rotate-12 animate-pop text-pink-400 [animation-delay:300ms] lg:right-10" />
-          <StarBurst className="pointer-events-none absolute -left-5 bottom-0 w-16 -rotate-12 animate-pop text-cyan-500 [animation-delay:420ms]" />
+          <StarBurst className="pointer-events-none absolute -left-5 bottom-0 w-16 -rotate-12 animate-pop text-cyan-500 [animation-delay:420ms] lg:-left-16 lg:bottom-auto lg:top-[40%]" />
           <h1 className="relative text-[3.25rem] font-extrabold leading-[0.98] tracking-[-0.045em] text-ink-900 sm:text-[3.75rem] lg:text-[5rem]">
             Train,
             <Sticker className="ml-3 -rotate-[10deg] bg-butter-300 align-[0.5em]" delay={200}>
@@ -55,10 +55,10 @@ export default function LandingPage() {
             <br />
             <span className="text-lav-800">one place.</span>
           </h1>
-          <CurlyArrow className="pointer-events-none absolute -bottom-2 right-6 w-16 animate-pop text-ink-900 [animation-delay:520ms] lg:hidden" />
+          <CurlyArrow className="pointer-events-none absolute -bottom-2 right-6 w-16 animate-pop text-ink-900 [animation-delay:520ms] lg:-right-14 lg:bottom-8 lg:w-20 lg:-rotate-[70deg]" />
         </div>
 
-        <div className="flex flex-col gap-3 lg:w-96">
+        <div className="flex flex-col gap-3 lg:mb-16 lg:w-96 lg:self-end">
           <ButtonLink to="/app" variant="outline" icon={InstallIcon} fullWidth onClick={markLandingSeen}>
             Install the app
           </ButtonLink>

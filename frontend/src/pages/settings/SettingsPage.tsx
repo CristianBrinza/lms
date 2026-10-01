@@ -68,7 +68,7 @@ export default function SettingsPage() {
         ) : null}
 
         <ListGroup>
-          <ListRowButton icon={LogoutIcon} label="Sign out" detail="On this device only" tone="danger" onClick={() => setConfirmSignOut(true)} />
+          <ListRowButton icon={LogoutIcon} label="Sign out" detail="On this device only" onClick={() => setConfirmSignOut(true)} />
         </ListGroup>
       </div>
 
@@ -165,7 +165,7 @@ function DeviceRow({ session, onEnd, ending }: { session: DeviceSession; onEnd: 
             disabled={ending}
             aria-label={`Sign out ${name}`}
             title="Sign out this device"
-            className="press flex size-10 shrink-0 items-center justify-center rounded-full text-[1.25rem] text-ink-500 hover:bg-danger-50 hover:text-danger-600 disabled:opacity-40"
+            className="press flex size-11 shrink-0 items-center justify-center rounded-full text-[1.25rem] text-ink-500 hover:bg-danger-50 hover:text-danger-600 disabled:opacity-40"
           >
             <CloseIcon fontSize="inherit" />
           </button>

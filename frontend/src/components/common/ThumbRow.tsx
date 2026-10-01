@@ -1,11 +1,20 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ChevronRightIcon } from '@/components/ui/icons';
+
+/** The learning app's row end: a small dark circle holding the chevron. */
+export function ChevronCircle() {
+  return (
+    <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink-900 text-[1.25rem] text-white">
+      <ChevronRightIcon fontSize="inherit" />
+    </span>
+  );
+}
 import { cx } from '@/lib/cx';
 
 interface ThumbRowProps {
   to: string;
-  /** The round picture on the left: a doodle, an avatar. */
+  /** The round picture on the left: an icon, an avatar. */
   thumb: ReactNode;
   /** The thumbnail circle's colour. */
   thumbClassName?: string;
@@ -34,7 +43,7 @@ export function ThumbRow({ to, thumb, thumbClassName, title, detail, trailing, c
         <span className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{title}</span>
         {detail ? <span className="mt-0.5 block truncate text-sm text-ink-600">{detail}</span> : null}
       </span>
-      {trailing ?? <ChevronRightIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-400" />}
+      {trailing ?? <ChevronCircle />}
     </Link>
   );
 }

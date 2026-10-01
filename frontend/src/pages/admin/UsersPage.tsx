@@ -2,10 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useUser } from '@/app/auth';
+import { ChevronCircle } from '@/components/common/ThumbRow';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Avatar, Badge, ButtonLink, Chips, IconLink, Skeleton, TextField } from '@/components/ui';
-import { ChevronRightIcon, HistoryIcon, PersonAddIcon, SearchIcon } from '@/components/ui/icons';
+import { AdminIcon, BlockIcon, GroupIcon, HistoryIcon, PersonAddIcon, PersonIcon, SearchIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { formatAgo, fullName } from '@/lib/format';
@@ -43,7 +44,6 @@ export default function UsersPage() {
     <Screen tone="white">
       <PageHeader
         title="People"
-        subtitle={users.data ? `${counts.admins + counts.members} can sign in${counts.off ? ` · ${counts.off} switched off` : ''}` : ' '}
         back="/settings"
         actions={<IconLink to="/admin/users/new" icon={PersonAddIcon} label="Add a person" variant="ink" />}
       />
@@ -66,11 +66,12 @@ export default function UsersPage() {
           tone="sheet"
           value={filter}
           onChange={setFilter}
+          className="-mx-5 px-5 lg:-mx-1 lg:px-1"
           options={[
-            { value: 'all', label: 'All', count: counts.all },
-            { value: 'admins', label: 'Admins', count: counts.admins },
-            { value: 'members', label: 'Members', count: counts.members },
-            { value: 'off', label: 'Switched off', count: counts.off },
+            { value: 'all', label: 'All', count: counts.all, icon: GroupIcon },
+            { value: 'admins', label: 'Admins', count: counts.admins, icon: AdminIcon },
+            { value: 'members', label: 'Members', count: counts.members, icon: PersonIcon },
+            { value: 'off', label: 'Switched off', count: counts.off, icon: BlockIcon },
           ]}
         />
 
@@ -168,7 +169,7 @@ function PersonRow({ person, isMe }: { person: AdminUser; isMe: boolean }) {
           </span>
         </span>
       </span>
-      <ChevronRightIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-400" />
+      <ChevronCircle />
     </Link>
   );
 }

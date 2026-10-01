@@ -2,10 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth, useUser } from '@/app/auth';
 import { AreaGrid } from '@/areas/AreaTile';
 import { AREAS } from '@/areas/registry';
-import { Flower, ScribbleBall, StarBurst } from '@/components/brand/Doodles';
 import { ThumbRow } from '@/components/common/ThumbRow';
 import { InstallCard } from '@/components/common/InstallCard';
 import { Screen } from '@/components/layout/Screen';
+import { AdminIcon, DevicesIcon, PersonIcon } from '@/components/ui/icons';
 import { formatDay, partOfDay } from '@/lib/format';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
@@ -59,12 +59,18 @@ export default function HomePage() {
             {isAdmin ? <PeopleRow /> : null}
             <ThumbRow
               to="/profile"
-              thumbClassName="bg-pink-200"
-              thumb={<Flower className="w-10 text-ink-900" />}
+              thumbClassName="bg-pink-200 text-[1.6rem] text-ink-900"
+              thumb={<PersonIcon fontSize="inherit" />}
               title="Your profile and password"
               detail={`${user.role === 'admin' ? 'Admin' : 'Member'} since ${since}`}
             />
-            <ThumbRow to="/settings" thumbClassName="bg-ink-900" thumb={<ScribbleBall className="w-12 text-butter-300" />} title="Devices and updates" detail="Where you’re signed in" />
+            <ThumbRow
+              to="/settings"
+              thumbClassName="bg-ink-900 text-[1.5rem] text-white"
+              thumb={<DevicesIcon fontSize="inherit" />}
+              title="Devices and updates"
+              detail="Where you’re signed in"
+            />
           </div>
         </div>
       </section>
@@ -79,8 +85,8 @@ function PeopleRow() {
   return (
     <ThumbRow
       to="/admin/users"
-      thumbClassName="bg-cyan-200"
-      thumb={<StarBurst className="w-10 text-ink-900" />}
+      thumbClassName="bg-cyan-200 text-[1.6rem] text-ink-900"
+      thumb={<AdminIcon fontSize="inherit" />}
       title="People and access"
       detail={users.isPending ? 'Loading…' : `${active} can sign in · add a person`}
     />

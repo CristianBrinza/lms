@@ -14,7 +14,7 @@ export function LogoTile({ className, label = 'LMS' }: { className?: string; lab
       width={56}
       height={56}
       draggable={false}
-      className={cx('block aspect-square select-none rounded-[26%] shadow-[0_8px_18px_-10px_rgb(228_5_35/0.55)]', className)}
+      className={cx('block aspect-square select-none rounded-[26%] shadow-[0_8px_18px_-10px_rgb(42_43_102/0.45)]', className)}
     />
   );
 }

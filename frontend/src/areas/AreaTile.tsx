@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { toast } from '@/components/ui';
-import { ArrowOutIcon } from '@/components/ui/icons';
+import { ArrowOutIcon, HourglassIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { TONES, type Area } from './registry';
 
@@ -32,11 +32,11 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
         <span
           aria-hidden="true"
           className={cx(
-            'flex size-12 shrink-0 items-center justify-center rounded-full text-[1.35rem] transition-transform duration-300 ease-(--ease-lift) group-hover/tile:rotate-45',
-            tone.button,
+            'flex size-12 shrink-0 items-center justify-center rounded-full text-[1.35rem]',
+            area.to ? cx(tone.button, 'transition-transform duration-300 ease-(--ease-lift) group-hover/tile:rotate-45') : cx(tone.chip, 'opacity-80'),
           )}
         >
-          <ArrowOutIcon fontSize="inherit" />
+          {area.to ? <ArrowOutIcon fontSize="inherit" /> : <HourglassIcon fontSize="inherit" />}
         </span>
         {area.to ? null : <span className={cx('inline-flex h-8 items-center rounded-pill px-3 text-xs font-semibold', tone.chip)}>Soon</span>}
       </span>

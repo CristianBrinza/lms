@@ -12,16 +12,30 @@ interface PageHeaderProps {
   back?: string;
   /** Round buttons on the right. */
   actions?: ReactNode;
+  /**
+   * Sub-pages (one person, a form): the learning app's "AI Assistant" header, an outlined back
+   * button, the title small and centred, the actions opposite. No big title.
+   */
+  centered?: boolean;
   className?: string;
 }
 
 /** A screen's top: round back button and actions, then a big tight title (both references). */
-export function PageHeader({ title, subtitle, back, actions, className }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, back, actions, centered, className }: PageHeaderProps) {
   const navigate = useNavigate();
   const goBack = () => {
     if (back && window.history.state?.idx > 0) navigate(-1);
     else if (back) navigate(back, { replace: true });
   };
+  if (centered) {
+    return (
+      <header className={cx('gutter-x grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-7', className)}>
+        {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} /> : <span />}
+        <h1 className="truncate text-center text-[1.0625rem] font-semibold">{title}</h1>
+        <div className="flex justify-end">{actions}</div>
+      </header>
+    );
+  }
   return (
     <header className={cx('gutter-x pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-7', className)}>
       {back || actions ? (
