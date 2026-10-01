@@ -1,0 +1,55 @@
+# ── Dependencies ────────────────────────────────────────────────
+node_modules/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+
+# ── Builds & caches ─────────────────────────────────────────────
+dist/
+build/
+.wrangler/
+.vite/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# ── Environment & secrets (templates are committed) ────────────
+.env
+.env.*
+!.env.template
+!.env.*.template
+.dev.vars
+.dev.vars.*
+!.dev.vars.template
+
+# ── Logs ────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── OS / editors ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# ── Local tooling ───────────────────────────────────────────────
+.impeccable/review/
+.impeccable/live/
+.claude/settings.local.json
+.claude/worktrees/
+graphify-out/
+
+# ── Generated at build time from frontend/brand/logo.svg ───────
+frontend/public/icons/
+frontend/public/splash/
+frontend/public/favicon.svg
+frontend/public/favicon.ico
+
+# ── Server deploy secrets (Cloudflare Tunnel token, DB password) ─
+deploy/.env

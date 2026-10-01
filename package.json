@@ -1,0 +1,30 @@
+{
+  "name": "lms",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LMS — Life Management System: a private, installable PWA (React + Vite frontend on Cloudflare, Node.js + PostgreSQL API behind a Cloudflare Tunnel)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "setup": "yarn install && yarn --cwd backend install && yarn --cwd frontend install",
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"yarn --cwd backend dev\" \"yarn --cwd frontend dev\"",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "create-admin": "yarn --cwd backend create-admin",
+    "typecheck": "yarn --cwd backend typecheck && yarn --cwd frontend typecheck",
+    "lint": "yarn --cwd backend lint && yarn --cwd frontend lint",
+    "test": "yarn --cwd backend test && yarn --cwd frontend test",
+    "build": "yarn --cwd backend build && yarn --cwd frontend build",
+    "check": "yarn typecheck && yarn lint && yarn test && yarn build",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:verify": "yarn --cwd backend deploy:verify",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "prettier": "^3.9.9"
+  },
+  "packageManager": "yarn@1.22.22"
+}
