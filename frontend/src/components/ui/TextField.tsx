@@ -10,6 +10,8 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   error?: string;
   hint?: ReactNode;
   trailing?: ReactNode;
+  /** `well` (default) sits on a white card; `raised` is a white field for the grey page itself (search). */
+  surface?: 'well' | 'raised';
 }
 
 /**
@@ -17,7 +19,7 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
  * turning white with a crisp ink outline while you type. Errors tint the well and outline it red.
  */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, hideLabel, icon: Icon, error, hint, trailing, className, id, disabled, ...rest },
+  { label, hideLabel, icon: Icon, error, hint, trailing, surface = 'well', className, id, disabled, ...rest },
   ref,
 ) {
   const autoId = useId();
@@ -52,7 +54,9 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
             trailing ? 'pr-14' : 'pr-4',
             error
               ? 'bg-danger-50 shadow-[inset_0_0_0_2px_var(--color-danger-600)]'
-              : 'bg-ink-50 hover:bg-ink-100 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)] disabled:hover:bg-ink-50',
+              : surface === 'raised'
+                ? 'bg-white shadow-[var(--shadow-xs),inset_0_0_0_1px_var(--color-ink-100)] focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]'
+                : 'bg-ink-50 hover:bg-ink-100 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)] disabled:hover:bg-ink-50',
           )}
           {...rest}
         />

@@ -122,7 +122,7 @@ function Devices() {
           </Button>
         ) : null}
       </div>
-      <div className="divide-y divide-ink-100 overflow-hidden rounded-3xl bg-white ring-1 ring-inset ring-ink-100">
+      <div className="divide-y divide-ink-100 overflow-hidden rounded-3xl bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
         {sessions.isPending ? (
           <div className="flex flex-col gap-3 p-4">
             <Skeleton className="h-10" />

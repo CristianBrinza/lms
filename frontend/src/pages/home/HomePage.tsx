@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth, useUser } from '@/app/auth';
 import { AreaGrid } from '@/areas/AreaTile';
 import { AREAS } from '@/areas/registry';
-import { FeatureCard } from '@/components/common/FeatureCard';
+import { Flower, ScribbleBall, StarBurst } from '@/components/brand/Doodles';
+import { ThumbRow } from '@/components/common/ThumbRow';
 import { InstallCard } from '@/components/common/InstallCard';
 import { Screen } from '@/components/layout/Screen';
 import { formatDay, partOfDay } from '@/lib/format';
@@ -54,8 +55,17 @@ export default function HomePage() {
         </h2>
         <div className="mt-3.5 grid gap-3 md:grid-cols-2">
           <InstallCard />
-          {isAdmin ? <PeopleCard /> : null}
-          <FeatureCard to="/profile" tone="white" title="Your profile and password" pills={[user.role === 'admin' ? 'Admin' : 'Member', `Since ${since}`]} />
+          <div className="flex flex-col gap-3">
+            {isAdmin ? <PeopleRow /> : null}
+            <ThumbRow
+              to="/profile"
+              thumbClassName="bg-pink-200"
+              thumb={<Flower className="w-10 text-ink-900" />}
+              title="Your profile and password"
+              detail={`${user.role === 'admin' ? 'Admin' : 'Member'} since ${since}`}
+            />
+            <ThumbRow to="/settings" thumbClassName="bg-ink-900" thumb={<ScribbleBall className="w-12 text-butter-300" />} title="Devices and updates" detail="Where you’re signed in" />
+          </div>
         </div>
       </section>
     </Screen>
@@ -63,9 +73,16 @@ export default function HomePage() {
 }
 
 /** Admins only: who can sign in, one tap from the console. */
-function PeopleCard() {
+function PeopleRow() {
   const users = useQuery({ queryKey: queryKeys.users(''), queryFn: () => adminApi.users() });
   const active = (users.data ?? []).filter((person) => person.isActive).length;
-  const label = users.isPending ? 'Loading…' : `${active} can sign in`;
-  return <FeatureCard to="/admin/users" tone="cyan" title="People and access" pills={[label, 'Add a person']} />;
+  return (
+    <ThumbRow
+      to="/admin/users"
+      thumbClassName="bg-cyan-200"
+      thumb={<StarBurst className="w-10 text-ink-900" />}
+      title="People and access"
+      detail={users.isPending ? 'Loading…' : `${active} can sign in · add a person`}
+    />
+  );
 }

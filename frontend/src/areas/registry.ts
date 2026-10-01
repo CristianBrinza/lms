@@ -42,8 +42,20 @@ export const AREAS: readonly Area[] = [
  * yellow app's play buttons), white on butter, ink on the pastels. Text on every tone meets AA.
  */
 export const TONES: Record<AreaTone, { surface: string; text: string; muted: string; chip: string; button: string }> = {
-  ink: { surface: 'bg-ink-900', text: 'text-white', muted: 'text-white/70', chip: 'bg-white text-ink-900', button: 'bg-butter-300 text-ink-900' },
-  white: { surface: 'bg-white ring-1 ring-inset ring-ink-100', text: 'text-ink-900', muted: 'text-ink-600', chip: 'bg-butter-100 text-butter-800', button: 'bg-butter-300 text-ink-900' },
+  ink: {
+    surface: 'bg-[linear-gradient(160deg,#363642_0%,#1d1d24_58%)] shadow-[var(--shadow-sheen-dark),var(--shadow-tile)]',
+    text: 'text-white',
+    muted: 'text-white/70',
+    chip: 'bg-white text-ink-900',
+    button: 'bg-butter-300 text-ink-900 shadow-[var(--shadow-sheen-light),0_8px_16px_-8px_rgb(0_0_0/0.55)]',
+  },
+  white: {
+    surface: 'bg-white shadow-[var(--shadow-tile)]',
+    text: 'text-ink-900',
+    muted: 'text-ink-600',
+    chip: 'bg-butter-100 text-butter-800',
+    button: 'bg-butter-300 text-ink-900 shadow-[var(--shadow-sheen-light),0_8px_16px_-8px_rgb(110_80_0/0.45)]',
+  },
   butter: { surface: 'bg-butter-300', text: 'text-ink-900', muted: 'text-butter-800', chip: 'bg-white text-ink-900', button: 'bg-white text-ink-900' },
   lav: { surface: 'bg-lav-200', text: 'text-ink-900', muted: 'text-lav-800', chip: 'bg-white text-ink-900', button: 'bg-ink-900 text-white' },
   mint: { surface: 'bg-mint-200', text: 'text-ink-900', muted: 'text-mint-800', chip: 'bg-white text-ink-900', button: 'bg-ink-900 text-white' },

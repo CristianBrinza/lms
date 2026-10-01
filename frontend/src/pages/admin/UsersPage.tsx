@@ -22,6 +22,8 @@ export default function UsersPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const q = useDeferredValue(search.trim());
   const users = useQuery({ queryKey: queryKeys.users(q), queryFn: () => adminApi.users(q), placeholderData: (previous) => previous });
+  // Everyone, whatever the search: the numbers at the top always count the whole list.
+  const everyone = useQuery({ queryKey: queryKeys.users(''), queryFn: () => adminApi.users() });
 
   const list = useMemo(() => users.data ?? [], [users.data]);
   const counts = useMemo(
@@ -46,10 +48,12 @@ export default function UsersPage() {
         actions={<IconLink to="/admin/users/new" icon={PersonAddIcon} label="Add a person" variant="ink" />}
       />
 
-      <div className="gutter-x mt-6 lg:px-8 flex max-w-3xl flex-col gap-4">
+      <div className="gutter-x mt-6 flex max-w-3xl flex-col gap-4 lg:px-8">
+        {everyone.data ? <Stats people={everyone.data} /> : null}
         <TextField
           label="Search people"
           hideLabel
+          surface="raised"
           icon={SearchIcon}
           type="search"
           placeholder="Search by name or email"
@@ -70,9 +74,9 @@ export default function UsersPage() {
           ]}
         />
 
-        <section aria-label="Accounts" className="overflow-hidden rounded-3xl bg-white ring-1 ring-inset ring-ink-100">
+        <section aria-label="Accounts">
           {users.isPending ? (
-            <div className="flex flex-col gap-4 p-4">
+            <div className="flex flex-col gap-4 rounded-[1.375rem] bg-white p-4 ring-1 ring-inset ring-ink-100">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="flex items-center gap-3">
                   <Skeleton className="size-12 rounded-full" />
@@ -84,9 +88,9 @@ export default function UsersPage() {
               ))}
             </div>
           ) : users.isError ? (
-            <p className="p-5 text-sm font-medium text-danger-600">{errorMessage(users.error)}</p>
+            <p className="rounded-[1.375rem] bg-danger-50 p-5 text-sm font-medium text-danger-600">{errorMessage(users.error)}</p>
           ) : shown.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+            <div className="flex flex-col items-center gap-3 rounded-[1.375rem] bg-white px-6 py-10 text-center ring-1 ring-inset ring-ink-100">
               <p className="text-h3 font-bold">{q ? `No one matches “${q}”` : 'No one here yet'}</p>
               <p className="max-w-xs text-sm text-ink-600">{q ? 'Try part of a name or the email.' : 'Add family and friends: each gets their own sign-in.'}</p>
               {!q ? (
@@ -96,7 +100,7 @@ export default function UsersPage() {
               ) : null}
             </div>
           ) : (
-            <ul className="divide-y divide-ink-100">
+            <ul className="flex flex-col gap-2.5">
               {shown.map((person) => (
                 <li key={person.id}>
                   <PersonRow person={person} isMe={person.id === me.id} />
@@ -112,10 +116,46 @@ export default function UsersPage() {
   );
 }
 
+/** The learning app's stat tiles: four real counts, the first one in butter. */
+function Stats({ people }: { people: AdminUser[] }) {
+  const active = people.filter((person) => person.isActive);
+  const tiles = [
+    { label: 'Can sign in', value: active.length, note: active.length === 1 ? 'active account' : 'active accounts' },
+    { label: 'Admins', value: active.filter((person) => person.role === 'admin').length, note: 'manage accounts' },
+    { label: 'Not set up yet', value: active.filter((person) => person.mustChangePassword).length, note: 'no own password yet' },
+    { label: 'Signed in now', value: active.reduce((sum, person) => sum + person.activeSessions, 0), note: 'devices' },
+  ];
+  return (
+    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {tiles.map((tile, index) => (
+        <div
+          key={tile.label}
+          className={cx(
+            'flex flex-col rounded-[1.375rem] p-4 animate-rise',
+            index === 0
+              ? 'bg-[linear-gradient(155deg,#fae3a0,#f6d47a_55%,#f1c65a)] shadow-[var(--shadow-sheen-light),0_14px_28px_-18px_rgb(110_80_0/0.6)]'
+              : 'bg-white shadow-[var(--shadow-xs)] ring-1 ring-inset ring-ink-100',
+          )}
+          style={{ animationDelay: `${index * 50}ms` }}
+        >
+          <dt className="text-[0.9375rem] font-medium text-ink-800">{tile.label}</dt>
+          <dd className="mt-4">
+            <span className="tabular block text-[2.25rem] font-semibold leading-none tracking-[-0.03em] text-ink-900">{tile.value}</span>
+            <span className={cx('mt-1.5 block text-sm', index === 0 ? 'text-butter-800' : 'text-ink-600')}>{tile.note}</span>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function PersonRow({ person, isMe }: { person: AdminUser; isMe: boolean }) {
   return (
-    <Link to={`/admin/users/${person.id}`} className="press flex min-h-18 items-center gap-3.5 px-4 py-3 hover:bg-lav-50">
-      <Avatar person={person} size="md" className={cx(!person.isActive && 'opacity-45 grayscale')} />
+    <Link
+      to={`/admin/users/${person.id}`}
+      className="press flex min-h-20 items-center gap-3.5 rounded-[1.375rem] bg-white p-3 pr-4 shadow-[var(--shadow-xs)] ring-1 ring-inset ring-ink-100 transition-[box-shadow,translate] duration-200 hover:-translate-y-px hover:shadow-[var(--shadow-card)]"
+    >
+      <Avatar person={person} size="lg" className={cx('ring-0', !person.isActive && 'opacity-45 grayscale')} />
       <span className="min-w-0 flex-1">
         <span className={cx('block truncate text-[0.9375rem] font-semibold', person.isActive ? 'text-ink-900' : 'text-ink-500')}>{fullName(person)}</span>
         <span className="block truncate text-sm text-ink-600">{person.email}</span>

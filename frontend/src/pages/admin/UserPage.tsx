@@ -100,7 +100,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
     <Screen tone="white">
       <PageHeader title={name} subtitle={person.email} back="/admin/users" />
       <div className="gutter-x mt-6 grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
-        <section className="rounded-3xl bg-white p-5 ring-1 ring-inset ring-ink-100 lg:col-start-1">
+        <section className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 lg:col-start-1">
           <div className="flex items-center gap-4">
             <Avatar person={person} size="lg" className={cx(!person.isActive && 'opacity-45 grayscale')} />
             <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -233,7 +233,7 @@ function DetailsForm({ person, isMe, onSaved }: { person: AdminUser; isMe: boole
   };
 
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4 rounded-3xl bg-white p-5 ring-1 ring-inset ring-ink-100">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
       <h2 className="text-h3 font-bold">Details</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} />

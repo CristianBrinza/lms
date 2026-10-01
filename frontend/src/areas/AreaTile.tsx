@@ -15,7 +15,7 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   const Icon = area.icon;
   const classes = cx(
     'group/tile relative flex aspect-[4/5] w-full flex-col rounded-[1.75rem] p-4 text-left sm:aspect-[5/5] sm:p-5',
-    'animate-rise shadow-[0_14px_30px_-20px_rgb(29_29_36/0.55)] transition-[translate,box-shadow] duration-300 ease-(--ease-lift)',
+    'animate-rise transition-[translate,box-shadow] duration-300 ease-(--ease-lift)',
     'hover:-translate-y-1 focus-visible:-translate-y-1 active:translate-y-0 active:duration-100',
     tone.surface,
     tone.text,

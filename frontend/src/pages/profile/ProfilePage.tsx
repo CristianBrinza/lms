@@ -26,7 +26,7 @@ export default function ProfilePage() {
         <h2 className="mt-4 text-center text-h2 font-bold">{fullName(user)}</h2>
         <p className="mt-1 text-center text-sm text-ink-600">{user.email}</p>
 
-        <section className="mt-6 w-full rounded-3xl bg-butter-300 p-5" aria-label="Your account">
+        <section className="mt-6 w-full rounded-3xl bg-[linear-gradient(155deg,#fae3a0,#f6d47a_55%,#f1c65a)] p-5 shadow-[var(--shadow-sheen-light),0_18px_32px_-20px_rgb(110_80_0/0.6)]" aria-label="Your account">
           <p className="text-sm font-semibold text-butter-800">Your account</p>
           <p className="mt-1.5 text-[1.0625rem] font-semibold leading-snug text-ink-900">
             {user.role === 'admin' ? 'Admin: you can add and manage everyone’s accounts.' : 'Member: the admin manages accounts.'}

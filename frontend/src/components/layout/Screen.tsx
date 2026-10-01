@@ -25,7 +25,8 @@ export function Screen({
       className={cx(
         'animate-page min-h-dvh lg:min-h-[calc(100dvh-2rem)]',
         clearTabBar && 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+1.5rem)] lg:pb-10',
-        tone === 'white' && 'bg-white lg:rounded-3xl lg:shadow-card',
+        // A cool light grey, so the white cards on it stand off the page.
+        tone === 'white' && 'bg-ink-50 lg:rounded-3xl lg:shadow-card',
         className,
       )}
     >

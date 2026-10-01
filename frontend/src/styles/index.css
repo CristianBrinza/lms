@@ -2,11 +2,12 @@
 @import '@fontsource-variable/figtree/wght.css';
 
 /*
- * LMS — design tokens. The world blends the owner's three reference mockups: from the task app,
- * the lavender field, the two-tone headline and the indigo accent; from the cyan mood app, white
- * screens with outlined rows, dark tiles and the soft cyan tab tile; from the yellow mood app,
- * butter round buttons and featured cards, cream chips, black "Continue" pills with outlined
- * "Skip" pills. The logo's red (#E40523) lives only inside the logo tile.
+ * LMS — design tokens. The world blends the owner's reference mockups: from the task app, the
+ * lavender field, the two-tone headline and the indigo accent; from the mood apps, white screens
+ * with outlined rows, dark tiles, the soft cyan tab tile, butter buttons and featured cards, black
+ * "Continue" over outlined "Skip" pills; from the learning app, its blocks in these colours: the
+ * sticker-pill onboarding with hand-drawn doodles, scribbled underlines, round-thumbnail list rows
+ * and big-number stat tiles. The logo's red (#E40523) lives only in the logo tile.
  */
 @theme {
   --color-*: initial;
@@ -110,13 +111,20 @@
   --radius-3xl: 2rem;
   --radius-pill: 999px;
 
-  /* Depth: offset and soft, tinted by the lavender field. */
-  --shadow-card: 0 1px 2px rgb(42 43 102 / 0.05), 0 12px 28px -16px rgb(42 43 102 / 0.28);
-  --shadow-raised: 0 2px 6px rgb(42 43 102 / 0.07), 0 20px 40px -20px rgb(42 43 102 / 0.38);
-  --shadow-pass: 0 -1px 0 rgb(255 255 255 / 0.5) inset, 0 14px 30px -18px rgb(29 29 36 / 0.45);
+  /*
+   * Elevation: every raised surface casts a short contact shadow and a long soft one, tinted by the
+   * lavender world (never grey haze); dark and coloured surfaces also catch light on their top edge.
+   */
+  --shadow-xs: 0 1px 2px rgb(42 43 102 / 0.08);
+  --shadow-card: 0 1px 2px rgb(42 43 102 / 0.07), 0 10px 24px -14px rgb(42 43 102 / 0.28);
+  --shadow-raised: 0 2px 4px rgb(42 43 102 / 0.08), 0 22px 40px -20px rgb(42 43 102 / 0.42);
+  --shadow-tile: 0 1px 2px rgb(29 29 36 / 0.12), 0 18px 34px -20px rgb(29 29 36 / 0.6);
   --shadow-float: 0 10px 30px -10px rgb(42 43 102 / 0.4);
   --shadow-fab: 0 10px 22px -8px rgb(79 81 180 / 0.75);
-  --shadow-sheet: 0 -12px 48px -16px rgb(29 29 36 / 0.32);
+  --shadow-sheet: 0 -1px 0 rgb(255 255 255 / 0.9), 0 -18px 44px -20px rgb(42 43 102 / 0.45);
+  /* Top-edge light on dark, ink and butter surfaces. */
+  --shadow-sheen-dark: inset 0 1px 0 rgb(255 255 255 / 0.1);
+  --shadow-sheen-light: inset 0 1px 0 rgb(255 255 255 / 0.65);
 
   /* Motion: exponential ease-out everywhere; no bounce except the pass lift. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -198,9 +206,14 @@
     touch-action: manipulation;
     text-wrap: pretty;
   }
+  /* The field is lit from the top left, so it reads as a surface, not a flat fill. */
   body {
     min-height: 100dvh;
-    background: var(--color-lav-300);
+    background:
+      radial-gradient(120% 55% at 0% 0%, rgb(255 255 255 / 0.32), transparent 62%),
+      radial-gradient(90% 45% at 100% 0%, rgb(200 196 250 / 0.55), transparent 70%),
+      var(--color-lav-300);
+    background-attachment: fixed;
   }
   #root {
     isolation: isolate;
@@ -331,6 +344,24 @@
 }
 @utility material-waves {
   background-image: repeating-radial-gradient(circle at 100% 100%, transparent 0 6px, var(--ink) 6px 7.5px);
+}
+
+/* A doodle's stroke draws itself in once (styles with .doodle-draw on an SVG path). */
+.doodle-draw {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: doodle-draw 700ms var(--ease-out) forwards;
+}
+@keyframes doodle-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .doodle-draw {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
 }
 
 /* Tab switches slide like a native app (React Router view transitions); the bars stay put. */

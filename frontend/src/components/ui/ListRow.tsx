@@ -58,7 +58,7 @@ export function ListGroup({ title, children, className }: { title?: string; chil
   return (
     <section className={className}>
       {title ? <h2 className="mb-2.5 px-1 text-h3 font-bold text-ink-900">{title}</h2> : null}
-      <div className="divide-y divide-ink-100 overflow-hidden rounded-3xl bg-white ring-1 ring-inset ring-ink-100">{children}</div>
+      <div className="divide-y divide-ink-100 overflow-hidden rounded-3xl bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">{children}</div>
     </section>
   );
 }

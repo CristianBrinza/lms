@@ -50,7 +50,7 @@ export default function NewUserPage() {
     <Screen tone="white">
       <PageHeader title="Add a person" subtitle="They sign in with this email. Nobody can sign up on their own." back="/admin/users" />
       <form onSubmit={submit} noValidate className="gutter-x mt-6 lg:px-8 flex max-w-2xl flex-col gap-5">
-        <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 ring-1 ring-inset ring-ink-100">
+        <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label="Name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} required autoFocus />
             <TextField label="Surname" autoComplete="off" value={surname} onChange={(e) => setSurname(e.target.value)} error={fields.surname} />
@@ -87,7 +87,7 @@ export default function NewUserPage() {
           </fieldset>
         </section>
 
-        <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 ring-1 ring-inset ring-ink-100">
+        <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
           <Switch
             checked={generate}
             onChange={setGenerate}
