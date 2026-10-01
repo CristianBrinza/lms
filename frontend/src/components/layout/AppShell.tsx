@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router';
+import { PullToRefresh } from './PullToRefresh';
 import { SideNav } from './SideNav';
 import { TabBar } from './TabBar';
 
@@ -8,7 +9,9 @@ export function AppShell() {
     <div className="mx-auto flex min-h-dvh w-full max-w-7xl gap-6 lg:p-4">
       <SideNav />
       <main id="main" className="min-w-0 flex-1">
-        <Outlet />
+        <PullToRefresh>
+          <Outlet />
+        </PullToRefresh>
       </main>
       <TabBar />
     </div>

@@ -6,6 +6,7 @@ import { LogoTile } from '@/components/brand/Logo';
 import { Button, PasswordField, toast } from '@/components/ui';
 import { LockIcon } from '@/components/ui/icons';
 import { errorMessage, fieldErrors } from '@/lib/errors';
+import { MatchMark, PasswordStrength } from '@/components/common/PasswordStrength';
 import { meApi } from '@/services/api/endpoints';
 import { THEME, useThemeColor } from '@/lib/themeColor';
 
@@ -78,6 +79,7 @@ export default function WelcomePage() {
               error={fields.newPassword}
               autoFocus
             />
+            <PasswordStrength password={password} />
             <PasswordField
               label="Repeat it"
               icon={LockIcon}
@@ -86,6 +88,7 @@ export default function WelcomePage() {
               onChange={(event) => setConfirm(event.target.value)}
               error={mismatch ? 'The two passwords are different' : undefined}
             />
+            {!mismatch ? <MatchMark password={password} repeat={confirm} /> : null}
             {save.error && !fields.newPassword ? (
               <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
             ) : null}

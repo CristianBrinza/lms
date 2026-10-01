@@ -1,5 +1,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router/dom';
+import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { Button, Toaster } from '@/components/ui';
 import { RefreshIcon, WarningIcon } from '@/components/ui/icons';
 import { hideSplash } from '@/lib/splash';
@@ -36,6 +37,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AuthGate />
+        <OfflineBanner />
         <Toaster />
       </AuthProvider>
     </QueryClientProvider>

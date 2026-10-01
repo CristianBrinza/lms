@@ -1,9 +1,10 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useAuth, useUser } from '@/app/auth';
+import { PasswordSheet } from '@/components/common/PasswordSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Avatar, Button, ListGroup, ListRowButton, ListRowLink, PasswordField, Sheet, TextField, toast } from '@/components/ui';
+import { Avatar, Button, ListGroup, ListRowButton, ListRowLink, Sheet, TextField, toast } from '@/components/ui';
 import { BadgeIcon, EmailIcon, LockIcon, LogoutOutlinedIcon, SettingsOutlinedIcon } from '@/components/ui/icons';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { formatDate, fullName } from '@/lib/format';
@@ -46,9 +47,7 @@ export default function ProfilePage() {
       <Sheet open={open === 'details'} onClose={close} title="Your details">
         <NameForm onDone={close} />
       </Sheet>
-      <Sheet open={open === 'password'} onClose={close} title="Change password" description="Your other devices will be signed out.">
-        <PasswordForm onDone={close} />
-      </Sheet>
+      <PasswordSheet open={open === 'password'} onClose={close} />
     </Screen>
   );
 }
@@ -82,60 +81,6 @@ function NameForm({ onDone }: { onDone: () => void }) {
       {save.error && !fields.name && !fields.surname ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
       <Button type="submit" size="md" fullWidth loading={save.isPending} disabled={!changed || !name.trim()}>
         Save details
-      </Button>
-    </form>
-  );
-}
-
-function PasswordForm({ onDone }: { onDone: () => void }) {
-  const user = useUser();
-  const { setUser } = useAuth();
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [repeat, setRepeat] = useState('');
-  const [mismatch, setMismatch] = useState(false);
-  const save = useMutation({
-    mutationFn: () => meApi.changePassword({ currentPassword: current, newPassword: next }),
-    onSuccess: (updated) => {
-      setUser(updated);
-      setCurrent('');
-      setNext('');
-      setRepeat('');
-      toast.success('Password changed', { description: 'Your other devices were signed out.' });
-      onDone();
-    },
-  });
-  const fields = fieldErrors(save.error);
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (next !== repeat) return setMismatch(true);
-    setMismatch(false);
-    save.mutate();
-  };
-  return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <input type="email" name="username" autoComplete="username" value={user.email} readOnly hidden />
-      <PasswordField label="Current password" icon={LockIcon} autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} error={fields.currentPassword} />
-      <PasswordField
-        label="New password"
-        icon={LockIcon}
-        autoComplete="new-password"
-        value={next}
-        onChange={(e) => setNext(e.target.value)}
-        error={fields.newPassword}
-        hint="At least 10 characters."
-      />
-      <PasswordField
-        label="Repeat new password"
-        icon={LockIcon}
-        autoComplete="new-password"
-        value={repeat}
-        onChange={(e) => setRepeat(e.target.value)}
-        error={mismatch ? 'The two passwords are different' : undefined}
-      />
-      {save.error && !fields.currentPassword && !fields.newPassword ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
-      <Button type="submit" size="md" fullWidth loading={save.isPending} disabled={!current || next.length < 10 || !repeat}>
-        Change password
       </Button>
     </form>
   );

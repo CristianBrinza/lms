@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useAuth } from '@/app/auth';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
+import { PasswordSheet } from '@/components/common/PasswordSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Badge, Button, ListGroup, ListRow, ListRowButton, ListRowLink, Skeleton, toast } from '@/components/ui';
-import { AdminIcon, CloseIcon, DevicesIcon, InstallIcon, LaptopIcon, LogoutIcon, PhoneIphoneIcon, SyncIcon } from '@/components/ui/icons';
+import { AdminIcon, CloseIcon, DevicesIcon, InstallIcon, LaptopIcon, LockIcon, LogoutIcon, PersonOutlinedIcon, PhoneIphoneIcon, SyncIcon } from '@/components/ui/icons';
 import { BUILD } from '@/build-info';
 import { newBuildOnServer } from '@/lib/appUpdate';
 import { errorMessage } from '@/lib/errors';
@@ -19,6 +20,7 @@ import type { DeviceSession } from '@/types/api';
 export default function SettingsPage() {
   const { isAdmin, logout } = useAuth();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const standalone = currentPlatform().standalone;
 
@@ -59,6 +61,11 @@ export default function SettingsPage() {
           />
         </ListGroup>
 
+        <ListGroup title="Your account">
+          <ListRowButton icon={LockIcon} label="Change password" detail="Other devices sign out; this one stays" onClick={() => setPasswordOpen(true)} />
+          <ListRowLink to="/profile" icon={PersonOutlinedIcon} label="Profile" detail="Your name and surname" />
+        </ListGroup>
+
         <Devices />
 
         {isAdmin ? (
@@ -72,6 +79,7 @@ export default function SettingsPage() {
         </ListGroup>
       </div>
 
+      <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
       <ConfirmSheet
         open={confirmSignOut}
         onClose={() => setConfirmSignOut(false)}

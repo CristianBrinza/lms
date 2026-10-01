@@ -63,7 +63,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         {trailing ? <div className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</div> : null}
       </div>
       {error ? (
-        <p id={`${inputId}-error`} className="flex items-start gap-1.5 text-sm font-medium text-danger-600">
+        <p id={`${inputId}-error`} className="flex animate-rise items-start gap-1.5 text-sm font-medium text-danger-600">
           <ErrorIcon fontSize="inherit" className="mt-[0.15rem] text-base" />
           <span>{error}</span>
         </p>

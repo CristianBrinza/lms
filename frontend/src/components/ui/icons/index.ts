@@ -29,6 +29,8 @@ export { default as GroupIcon } from '@mui/icons-material/GroupRounded';
 export { default as UtilitiesIcon } from '@mui/icons-material/HandymanRounded';
 export { default as UtilitiesOutlinedIcon } from '@mui/icons-material/HandymanOutlined';
 export { default as HourglassIcon } from '@mui/icons-material/HourglassTopRounded';
+export { default as WifiOffIcon } from '@mui/icons-material/WifiOffRounded';
+export { default as HelpIcon } from '@mui/icons-material/HelpOutlineRounded';
 export { default as HistoryIcon } from '@mui/icons-material/HistoryRounded';
 export { default as HomeIcon } from '@mui/icons-material/HomeRounded';
 export { default as InfoIcon } from '@mui/icons-material/InfoOutlined';

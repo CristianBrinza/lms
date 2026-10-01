@@ -6,8 +6,10 @@ import { Screen } from '@/components/layout/Screen';
 import { Button, Chips, PasswordField, Switch, TextField } from '@/components/ui';
 import { EmailIcon, LockIcon, PersonAddIcon } from '@/components/ui/icons';
 import { errorMessage, fieldErrors } from '@/lib/errors';
+import { haptic } from '@/lib/haptics';
 import { adminApi } from '@/services/api/endpoints';
 import type { AdminUser, Role } from '@/types/api';
+import { PasswordStrength } from '@/components/common/PasswordStrength';
 import { CredentialsSheet } from './CredentialsSheet';
 
 /** A new account: details, role, and a one-time password (generated, or the admin's choice). */
@@ -34,6 +36,7 @@ export default function NewUserPage() {
         mustChangePassword: generate ? true : mustChange,
       }),
     onSuccess: ({ user, password: oneTime }) => {
+      haptic('success');
       void queryClient.invalidateQueries({ queryKey: ['admin'] });
       if (oneTime) setCreated({ user, password: oneTime });
       else navigate(`/admin/users/${user.id}`, { replace: true });
@@ -106,6 +109,7 @@ export default function NewUserPage() {
                 error={fields.password}
                 hint="At least 10 characters."
               />
+              <PasswordStrength password={password} />
               <Switch checked={mustChange} onChange={setMustChange} label="Ask them to choose their own at first sign-in" />
             </>
           ) : null}

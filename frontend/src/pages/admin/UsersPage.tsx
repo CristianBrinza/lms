@@ -10,6 +10,7 @@ import { AdminIcon, BlockIcon, GroupIcon, HistoryIcon, PersonAddIcon, PersonIcon
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { formatAgo, fullName } from '@/lib/format';
+import { useCountUp } from '@/lib/useCountUp';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
 import type { ActivityEntry, AdminUser } from '@/types/api';
@@ -102,8 +103,8 @@ export default function UsersPage() {
             </div>
           ) : (
             <ul className="flex flex-col gap-2.5">
-              {shown.map((person) => (
-                <li key={person.id}>
+              {shown.map((person, index) => (
+                <li key={person.id} className="animate-rise" style={{ animationDelay: `${Math.min(index, 6) * 50}ms` }}>
                   <PersonRow person={person} isMe={person.id === me.id} />
                 </li>
               ))}
@@ -141,13 +142,18 @@ function Stats({ people }: { people: AdminUser[] }) {
         >
           <dt className="text-[0.9375rem] font-medium text-ink-800">{tile.label}</dt>
           <dd className="mt-4">
-            <span className="tabular block text-[2.25rem] font-semibold leading-none tracking-[-0.03em] text-ink-900">{tile.value}</span>
+            <CountUp value={tile.value} />
             <span className={cx('mt-1.5 block text-sm', index === 0 ? 'text-butter-800' : 'text-ink-600')}>{tile.note}</span>
           </dd>
         </div>
       ))}
     </dl>
   );
+}
+
+function CountUp({ value }: { value: number }) {
+  const shown = useCountUp(value);
+  return <span className="tabular block text-[2.25rem] font-semibold leading-none tracking-[-0.03em] text-ink-900">{shown}</span>;
 }
 
 function PersonRow({ person, isMe }: { person: AdminUser; isMe: boolean }) {

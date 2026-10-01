@@ -1,5 +1,7 @@
 import { Button, Sheet, toast } from '@/components/ui';
-import { ContentCopyIcon, IosShareIcon } from '@/components/ui/icons';
+import { CheckIcon, ContentCopyIcon, IosShareIcon } from '@/components/ui/icons';
+import { haptic } from '@/lib/haptics';
+import { useState } from 'react';
 
 interface CredentialsSheetProps {
   open: boolean;
@@ -15,13 +17,24 @@ interface CredentialsSheetProps {
  * The one moment a one-time password is visible: copy it or share the sign-in details, then it's
  * gone. The person chooses their own at first sign-in.
  */
-export function CredentialsSheet({ open, onClose, name, email, password, reason }: CredentialsSheetProps) {
+export function CredentialsSheet({
+  open,
+  onClose,
+  name,
+  email,
+  password,
+  reason,
+}: CredentialsSheetProps) {
   const url = `${window.location.origin}/login`;
   const message = `Your LMS account is ready.\n\nOpen ${url}\nEmail: ${email}\nOne-time password: ${password}\n\nYou'll choose your own password after signing in. Add LMS to your Home Screen: ${window.location.origin}/app`;
 
+  const [copied, setCopied] = useState<string | null>(null);
   const copy = async (text: string, what: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      haptic('success');
+      setCopied(what);
+      window.setTimeout(() => setCopied((current) => (current === what ? null : current)), 1600);
       toast.success(`${what} copied`);
     } catch {
       toast.error('Couldn’t copy. Select the text and copy it instead.');
@@ -63,7 +76,9 @@ export function CredentialsSheet({ open, onClose, name, email, password, reason 
         <div className="flex items-center gap-3 rounded-[1.125rem] bg-ink-900 p-4 text-white">
           <div className="min-w-0 flex-1">
             <dt className="text-[0.8125rem] font-semibold text-butter-300">One-time password</dt>
-            <dd className="tabular mt-1 select-all font-mono text-[1.375rem] font-semibold tracking-wider">{password}</dd>
+            <dd className="tabular mt-1 select-all font-mono text-[1.375rem] font-semibold tracking-wider">
+              {password}
+            </dd>
           </div>
           <button
             type="button"
@@ -71,10 +86,20 @@ export function CredentialsSheet({ open, onClose, name, email, password, reason 
             aria-label="Copy password"
             className="press flex size-11 shrink-0 items-center justify-center rounded-full bg-butter-300 text-[1.2rem] text-ink-900 hover:bg-butter-200"
           >
-            <ContentCopyIcon fontSize="inherit" />
+            {copied === 'Password' ? (
+              <CheckIcon fontSize="inherit" className="animate-pop" />
+            ) : (
+              <ContentCopyIcon fontSize="inherit" />
+            )}
           </button>
         </div>
-        <Button variant="ghost" size="sm" icon={ContentCopyIcon} className="self-start" onClick={() => void copy(message, 'Sign-in details')}>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={ContentCopyIcon}
+          className="self-start"
+          onClick={() => void copy(message, 'Sign-in details')}
+        >
           Copy all sign-in details
         </Button>
       </dl>

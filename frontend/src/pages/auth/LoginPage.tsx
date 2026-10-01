@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '@/app/auth';
 import { Lockup } from '@/components/brand/Logo';
-import { Button, ButtonLink, Checkbox, PasswordField, TextField } from '@/components/ui';
+import { Button, ButtonLink, Checkbox, PasswordField, Sheet, TextField } from '@/components/ui';
 import { EmailIcon, ErrorIcon, InstallIcon, LockIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
@@ -10,6 +10,7 @@ import { currentPlatform } from '@/lib/platform';
 import { storage, STORAGE_KEYS } from '@/lib/storage';
 import { isApiError } from '@/services/api/client';
 import { authApi } from '@/services/api/endpoints';
+import { haptic } from '@/lib/haptics';
 import { THEME, useThemeColor } from '@/lib/themeColor';
 
 /**
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
   const [shake, setShake] = useState(0);
+  const [forgotOpen, setForgotOpen] = useState(false);
   const passwordRef = useRef<HTMLInputElement>(null);
   const standalone = currentPlatform().standalone;
   useThemeColor(THEME.field);
@@ -34,6 +36,7 @@ export default function LoginPage() {
       setUser(user); // GuestOnly sends the person on.
     },
     onError: (error) => {
+      haptic('error');
       setShake((n) => n + 1);
       if (isApiError(error, 'INVALID_CREDENTIALS')) {
         setPassword('');
@@ -98,6 +101,13 @@ export default function LoginPage() {
               error={fields.password}
               autoFocus={Boolean(email)}
             />
+            <button
+              type="button"
+              onClick={() => setForgotOpen(true)}
+              className="press -mt-2 self-end rounded-pill px-2 py-1.5 text-sm font-semibold text-lav-800 underline-offset-4 hover:underline"
+            >
+              Forgot password?
+            </button>
             <Checkbox
               label="Keep me signed in"
               hint="Stay signed in on this device for a year."
@@ -118,6 +128,21 @@ export default function LoginPage() {
             <p className="px-2 text-center text-sm text-lav-900">No account yet? Ask the admin to add you. Forgot your password? The admin can reset it.</p>
           </div>
         </form>
+        <Sheet
+          open={forgotOpen}
+          onClose={() => setForgotOpen(false)}
+          title="Forgot your password?"
+          footer={
+            <Button fullWidth onClick={() => setForgotOpen(false)}>
+              Got it
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-3 text-[0.9375rem] text-ink-700">
+            <p>LMS is private, so passwords are reset by the admin, not by email.</p>
+            <p>Ask them for a new one-time password. Sign in with it, and LMS asks you to choose your own straight away.</p>
+          </div>
+        </Sheet>
       </main>
     </div>
   );
