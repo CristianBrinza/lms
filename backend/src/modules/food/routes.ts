@@ -6,8 +6,22 @@ import { requireAuth } from '../../middleware/auth';
 import { foodCtx, requireKitchen } from './kitchen';
 import { CATEGORIES, FOOD_ICONS, LOCATIONS, PRESETS, type Location } from './presets';
 import { archiveProduct, createProduct, listProducts, updateProduct } from './products';
-import { AddStockInput, LotPatch, ProductInput, ProductPatch, UseStockInput } from './schemas';
+import {
+  AddShoppingInput,
+  AddStockInput,
+  CheckoutInput,
+  LotPatch,
+  ProductInput,
+  ProductPatch,
+  ShoppingItemPatch,
+  StoreInput,
+  StorePatch,
+  TripItemPatch,
+  UseStockInput,
+} from './schemas';
+import { addShoppingItems, checkout, getTrip, listShopping, listTrips, removeShoppingItem, updateShoppingItem, updateTripItem } from './shopping';
 import { addStock, kitchen, productDetail, removeLot, updateLot, useStock } from './stock';
+import { createStore, deleteStore, listStores, updateStore } from './stores';
 
 /** /api/food — the kitchen's products and stock (stores, lists, recipes and plan join in later phases). */
 export function foodRoutes(deps: AppDeps) {
@@ -38,6 +52,28 @@ export function foodRoutes(deps: AppDeps) {
     await removeLot(ctx(c), c.req.param('id'));
     return c.body(null, 204);
   });
+
+  app.get('/stores', async (c) => c.json({ stores: await listStores(ctx(c)) }));
+  app.post('/stores', async (c) => c.json({ store: await createStore(ctx(c), await readJson(c, StoreInput)) }, 201));
+  app.patch('/stores/:id', async (c) => c.json({ store: await updateStore(ctx(c), c.req.param('id'), await readJson(c, StorePatch)) }));
+  app.delete('/stores/:id', async (c) => {
+    await deleteStore(ctx(c), c.req.param('id'));
+    return c.body(null, 204);
+  });
+
+  app.get('/shopping', async (c) => c.json({ items: await listShopping(ctx(c)), stores: await listStores(ctx(c)) }));
+  app.post('/shopping/items', async (c) => c.json({ items: await addShoppingItems(ctx(c), (await readJson(c, AddShoppingInput)).items) }, 201));
+  app.patch('/shopping/items/:id', async (c) => c.json({ item: await updateShoppingItem(ctx(c), c.req.param('id'), await readJson(c, ShoppingItemPatch)) }));
+  app.delete('/shopping/items/:id', async (c) => {
+    await removeShoppingItem(ctx(c), c.req.param('id'));
+    return c.body(null, 204);
+  });
+  app.post('/shopping/checkout', async (c) => c.json(await checkout(ctx(c), await readJson(c, CheckoutInput)), 201));
+  app.get('/shopping/trips', async (c) => c.json({ trips: await listTrips(ctx(c)) }));
+  app.get('/shopping/trips/:id', async (c) => c.json(await getTrip(ctx(c), c.req.param('id'))));
+  app.patch('/shopping/trips/:tripId/items/:id', async (c) =>
+    c.json(await updateTripItem(ctx(c), c.req.param('tripId'), c.req.param('id'), await readJson(c, TripItemPatch))),
+  );
 
   return app;
 }

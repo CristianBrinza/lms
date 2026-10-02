@@ -87,3 +87,65 @@ export const LotPatch = z
   })
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type LotPatch = z.infer<typeof LotPatch>;
+
+export const STORE_TONES = ['butter', 'cyan', 'pink', 'mint', 'lav', 'peach', 'ink'] as const;
+
+export const StoreInput = z.object({
+  name: z.string().trim().min(1, 'Name the store').max(40, 'Keep it under 40 characters'),
+  tone: z.enum(STORE_TONES).optional().describe('Colour of its tab'),
+});
+export const StorePatch = StoreInput.extend({ sort: z.number().int().min(0).max(1000) })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+
+export const ShoppingItemInput = z
+  .object({
+    ...productRef,
+    amount: quantityField.nullable().optional().describe('How much to buy, in `unit`'),
+    unit: unitField.nullable().optional(),
+    storeId: idField.nullable().optional().describe('Which store’s list; null for “any store”; omitted: the item’s usual store'),
+    note: noteField.optional(),
+  })
+  .refine(hasProductRef, { message: 'Say what to buy', path: ['name'] });
+export type ShoppingItemInput = z.infer<typeof ShoppingItemInput>;
+
+export const AddShoppingInput = z.object({ items: z.array(ShoppingItemInput).min(1, 'Add at least one item').max(100, 'At most 100 at once') });
+
+export const ShoppingItemPatch = z
+  .object({
+    checked: z.boolean().describe('In the cart'),
+    amount: quantityField.nullable(),
+    unit: unitField.nullable(),
+    price: priceField.nullable().describe('What the whole line cost'),
+    storeId: idField.nullable(),
+    note: noteField,
+  })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+export type ShoppingItemPatch = z.infer<typeof ShoppingItemPatch>;
+
+export const CheckoutInput = z.object({
+  storeId: idField.nullable().describe('The store being finished; null for the “any store” list'),
+  lines: z
+    .array(
+      z.object({
+        id: idField,
+        price: priceField.nullable().optional(),
+        amount: quantityField.nullable().optional(),
+        unit: unitField.nullable().optional(),
+        expiresOn: dateField.nullable().optional(),
+        location: locationField.optional(),
+        addToKitchen: z.boolean().optional().describe('Default true: the item goes into the kitchen'),
+      }),
+    )
+    .max(200)
+    .default([])
+    .describe('Overrides for the bought lines; every line in the cart is bought'),
+});
+export type CheckoutInput = z.infer<typeof CheckoutInput>;
+
+export const TripItemPatch = z
+  .object({ price: priceField.nullable(), amount: quantityField, unit: unitField })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+export type TripItemPatch = z.infer<typeof TripItemPatch>;
