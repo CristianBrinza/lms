@@ -9,7 +9,7 @@ import { completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, reo
 import { overview } from './overview';
 import { planNeeds } from './plan';
 import { createRecipe, deleteRecipe, getRecipe, listRecipes, updateRecipe } from './recipes';
-import { CATEGORIES, FOOD_ICONS, LOCATIONS, PRESETS, type Location } from './presets';
+import { CATEGORIES, FOOD_ICONS, LOCATIONS, PRESETS, presetOrGuess, type Location } from './presets';
 import { archiveProduct, createProduct, listProducts, updateProduct } from './products';
 import {
   AddShoppingInput,
@@ -18,6 +18,7 @@ import {
   CompleteMealInput,
   CookInput,
   dateField,
+  LevelInput,
   LotPatch,
   MealIngredientsInput,
   MealInput,
@@ -35,7 +36,7 @@ import {
   UseStockInput,
 } from './schemas';
 import { addShoppingItems, checkout, getTrip, listShopping, listTrips, removeShoppingItem, updateShoppingItem, updateTripItem } from './shopping';
-import { addStock, kitchen, productDetail, removeLot, restoreStock, updateLot, useStock } from './stock';
+import { addStock, kitchen, productDetail, removeLot, restoreStock, setLevel, updateLot, useStock } from './stock';
 import { createStore, deleteStore, listStores, updateStore } from './stores';
 
 /** /api/food — the kitchen's products and stock (stores, lists, recipes and plan join in later phases). */
@@ -48,6 +49,10 @@ export function foodRoutes(deps: AppDeps) {
 
   app.get('/presets', (c) => c.json({ presets: PRESETS, categories: CATEGORIES, icons: FOOD_ICONS, locations: LOCATIONS }));
 
+  // What a name the catalog doesn't know probably is ("Smoked salt" → a spice, kept by level).
+  app.get('/guess', (c) => c.json({ guess: presetOrGuess((c.req.query('name') ?? '').slice(0, 80)) }));
+
+  app.put('/products/:id/level', async (c) => c.json({ product: await setLevel(ctx(c), c.req.param('id'), (await readJson(c, LevelInput)).level) }));
   app.get('/products', async (c) => c.json({ products: await listProducts(ctx(c), c.req.query('q') ?? '') }));
   app.post('/products', async (c) => c.json({ product: await createProduct(ctx(c), await readJson(c, ProductInput)) }, 201));
   app.get('/products/:id', async (c) => c.json(await productDetail(ctx(c), c.req.param('id'))));

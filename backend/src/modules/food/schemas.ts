@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CATEGORIES, FOOD_ICONS, LOCATIONS } from './presets';
+import { CATEGORIES, FOOD_ICONS, LEVELS, LOCATIONS, TRACK_MODES } from './presets';
 import { BASE_UNITS, UNITS } from './units';
 
 /**
@@ -37,7 +37,14 @@ export const ProductInput = z.object({
   location: locationField.optional().describe('Where it is usually kept'),
   shelfLifeDays: z.number().int().positive().max(3650).nullable().optional().describe('Default days until it expires once bought'),
   openedDays: z.number().int().positive().max(3650).nullable().optional().describe('Days it keeps once opened'),
-  trackStock: z.boolean().optional().describe('False for staples that are always there (salt): never deducted or listed'),
+  trackStock: z.boolean().optional().describe('Older form of trackMode: false means none'),
+  trackMode: z
+    .enum(TRACK_MODES)
+    .optional()
+    .describe('exact: amounts and dates (meat, cheese); level: just full/low/out (spices, sauces, oil); none: always there'),
+  level: z.enum(LEVELS).optional().describe('For level items: full, low or out'),
+  freezerDays: z.number().int().positive().max(3650).nullable().optional().describe('Days it keeps frozen'),
+  thawedDays: z.number().int().positive().max(365).nullable().optional().describe('Days it keeps once thawed'),
   minStock: z.number().min(0).max(1_000_000).nullable().optional().describe('Below this (in the base unit) it is “running low”'),
   storeId: idField.nullable().optional().describe('The store it is usually bought at'),
   note: noteField.optional(),
@@ -245,3 +252,5 @@ export const CookInput = z.object({
 });
 
 export const RangeQuery = z.object({ from: dateField, to: dateField }).refine((r) => r.from <= r.to, { message: '“from” must be before “to”', path: ['to'] });
+
+export const LevelInput = z.object({ level: z.enum(LEVELS, { error: 'Full, low or out' }) });

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
-import type { Location } from './presets';
+import { freezingFor, type Level, type Location } from './presets';
 import { findProduct, PRODUCT_COLUMNS, resolveProduct, toProduct, type Product, type ProductRow } from './products';
 import type { AddStockInput, LotPatch, UseStockInput } from './schemas';
 import { round, toBase, UnitMismatchError, type Unit } from './units';
@@ -93,7 +93,7 @@ export function baseQuantity(quantity: number, unit: Unit | undefined | null, pr
 
 export async function recordEvent(
   ctx: FoodCtx,
-  event: { productId: string; lotId: string | null; kind: 'added' | 'used' | 'wasted' | 'adjusted' | 'moved' | 'restored'; delta: number; mealId?: string | null; note?: string },
+  event: { productId: string; lotId: string | null; kind: 'added' | 'used' | 'wasted' | 'adjusted' | 'moved' | 'restored' | 'level'; delta: number; mealId?: string | null; note?: string },
 ): Promise<void> {
   await ctx.db.query(
     `INSERT INTO stock_events (household_id, product_id, lot_id, kind, delta, meal_id, actor_id, via, note, created_at)
@@ -110,7 +110,30 @@ async function findLot(ctx: FoodCtx, id: string, lock = false): Promise<LotRow> 
 }
 
 /** Puts something in the kitchen: a new lot, with its expiry from the product's shelf life unless given. */
-export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: string | null }): Promise<{ product: Product; lot: Lot }> {
+/** Expiry for a lot put in `location`: frozen food keeps its frozen days, else the shelf life. */
+function defaultExpiry(product: Product, location: Location, now: Date): string | null {
+  if (location === 'freezer' && product.location !== 'freezer') {
+    const { freezerDays } = freezingFor(product);
+    if (freezerDays) return localDate(now, freezerDays);
+  }
+  return product.shelfLifeDays ? localDate(now, product.shelfLifeDays) : null;
+}
+
+/**
+ * Sets a level item's level (full, low, out). Level items have no lots: buying one makes it full,
+ * and people say when it runs low or out.
+ */
+export async function setLevel(ctx: FoodCtx, productId: string, level: Level): Promise<Product> {
+  return ctx.tx(async (tx) => {
+    const product = await findProduct(tx, productId, { lock: true });
+    if (product.trackMode !== 'level') throw new AppError(409, 'NOT_LEVEL', `${product.name} is counted in amounts; change it to “full / low / out” first`);
+    await tx.db.query('UPDATE products SET level = $2, level_at = $3, archived_at = NULL WHERE id = $1', [product.id, level, tx.now]);
+    await recordEvent(tx, { productId: product.id, lotId: null, kind: 'level', delta: 0, note: level });
+    return { ...product, level, levelAt: tx.now.toISOString(), archived: false };
+  });
+}
+
+export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: string | null }): Promise<{ product: Product; lot: Lot | null }> {
   return ctx.tx(async (tx) => {
     let product = input.productId ? await findProduct(tx, input.productId, { lock: true }) : await resolveProduct(tx, input.name!, input.unit);
     if (product.archived) {
@@ -121,13 +144,16 @@ export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: s
       const { rowCount } = await tx.db.query('SELECT 1 FROM stores WHERE id = $1 AND household_id = $2', [input.storeId, tx.actor.householdId]);
       if (!rowCount) throw new AppError(400, 'VALIDATION', 'That store is not in your kitchen', { fields: { storeId: 'Unknown store' } });
     }
+    // A level item bought is simply full again; it keeps no lots.
+    if (product.trackMode === 'level') return { product: await setLevel(tx, product.id, 'full'), lot: null };
     const quantity = baseQuantity(input.quantity, input.unit, product);
-    const expiresOn = input.expiresOn === undefined ? (product.shelfLifeDays ? localDate(tx.now, product.shelfLifeDays) : null) : input.expiresOn;
+    const location = input.location ?? product.location;
+    const expiresOn = input.expiresOn === undefined ? defaultExpiry(product, location, tx.now) : input.expiresOn;
     const id = randomUUID();
     await tx.db.query(
       `INSERT INTO stock_lots (id, household_id, product_id, quantity, initial_quantity, location, added_at, expires_on, price, store_id, trip_id, note, created_by)
        VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [id, tx.actor.householdId, product.id, quantity, input.location ?? product.location, tx.now, expiresOn, input.price ?? null, input.storeId ?? null, input.tripId ?? null, input.note ?? '', tx.actor.userId],
+      [id, tx.actor.householdId, product.id, quantity, location, tx.now, expiresOn, input.price ?? null, input.storeId ?? null, input.tripId ?? null, input.note ?? '', tx.actor.userId],
     );
     await recordEvent(tx, { productId: product.id, lotId: id, kind: 'added', delta: quantity });
     return { product, lot: toLot(await findLot(tx, id)) };
@@ -150,6 +176,8 @@ export interface UseResult {
 export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: string | null }): Promise<UseResult> {
   return ctx.tx(async (tx) => {
     const product = await findProduct(tx, input.productId, { lock: true });
+    // Level items aren't measured: using some leaves them as they are.
+    if (product.trackMode !== 'exact') return { productId: product.id, used: 0, shortfall: 0, lots: [] };
     const wanted = baseQuantity(input.quantity, input.unit, product);
     if (input.lotId) {
       const lot = await findLot(tx, input.lotId);
@@ -217,8 +245,13 @@ export async function updateLot(ctx: FoodCtx, id: string, patch: LotPatch): Prom
       }
     }
     if (patch.location && patch.location !== lot.location) {
-      await tx.db.query('UPDATE stock_lots SET location = $2 WHERE id = $1', [id, patch.location]);
-      await recordEvent(tx, { productId: product.id, lotId: id, kind: 'moved', delta: 0, note: `${lot.location} → ${patch.location}` });
+      // Freezing restarts the clock with the frozen days; thawing gives it the thawed days.
+      const { freezerDays, thawedDays } = freezingFor(product);
+      const days = patch.location === 'freezer' ? freezerDays : lot.location === 'freezer' ? thawedDays : null;
+      const expiry = patch.expiresOn === undefined && days ? localDate(tx.now, days) : null;
+      await tx.db.query('UPDATE stock_lots SET location = $2, expires_on = COALESCE($3::date, expires_on) WHERE id = $1', [id, patch.location, expiry]);
+      const note = `${lot.location} → ${patch.location}${expiry ? `, keeps until ${expiry}` : ''}`;
+      await recordEvent(tx, { productId: product.id, lotId: id, kind: 'moved', delta: 0, note });
     }
     if (patch.expiresOn !== undefined) await tx.db.query('UPDATE stock_lots SET expires_on = $2 WHERE id = $1', [id, patch.expiresOn]);
     if (patch.opened !== undefined) {
@@ -269,7 +302,8 @@ export async function kitchen(ctx: FoodCtx, filter: { location?: Location } = {}
   }
   const { rows } = await ctx.db.query<ProductRow>(
     `SELECT ${PRODUCT_COLUMNS} FROM products
-      WHERE household_id = $1 AND archived_at IS NULL AND (id = ANY($2::uuid[]) OR (min_stock > 0${filter.location ? ' AND location = $3' : ''}))
+      WHERE household_id = $1 AND archived_at IS NULL
+        AND (id = ANY($2::uuid[]) OR ((min_stock > 0 OR track_mode = 'level')${filter.location ? ' AND location = $3' : ''}))
       ORDER BY lower(name)`,
     filter.location ? [ctx.actor.householdId, [...lotsByProduct.keys()], filter.location] : [ctx.actor.householdId, [...lotsByProduct.keys()]],
   );
@@ -279,7 +313,8 @@ export async function kitchen(ctx: FoodCtx, filter: { location?: Location } = {}
 export function stocked(product: Product, lots: Lot[]): StockedProduct {
   const total = round(lots.reduce((sum, lot) => sum + lot.quantity, 0));
   const nextExpiry = lots.map((lot) => lot.expiresOn).filter((date): date is string => Boolean(date)).sort()[0] ?? null;
-  return { ...product, total, lots, nextExpiry, low: product.minStock !== null && product.minStock > 0 && total < product.minStock };
+  const low = product.trackMode === 'level' ? product.level !== 'full' : product.minStock !== null && product.minStock > 0 && total < product.minStock;
+  return { ...product, total, lots, nextExpiry, low };
 }
 
 export interface StockEvent {

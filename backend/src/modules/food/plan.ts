@@ -1,6 +1,7 @@
 import { ingredientRows, neededBase, stockSnapshot } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import { CATEGORIES, type Category, type FoodIcon } from './presets';
+import type { Product } from './products';
 import { toBase, amountIn, canConvert, displayUnit, round, type BaseUnit, type Unit } from './units';
 
 /**
@@ -23,7 +24,28 @@ export interface NeedLine {
   toBuyAmount: number;
   toBuyUnit: Unit;
   storeId: string | null;
+  /** Level items: low or out (toBuy is then one, with no amount). */
+  level: 'low' | 'out' | null;
   meals: Array<{ id: string; title: string; date: string }>;
+}
+
+function levelLine(product: Product, total: number): NeedLine {
+  return {
+    productId: product.id,
+    name: product.name,
+    icon: product.icon,
+    category: product.category,
+    unit: product.unit,
+    needed: 0,
+    inStock: round(total),
+    onList: 0,
+    toBuy: 1,
+    toBuyAmount: 1,
+    toBuyUnit: 'pcs',
+    storeId: product.storeId,
+    level: product.level === 'full' ? null : product.level,
+    meals: [],
+  };
 }
 
 export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }> {
@@ -40,8 +62,16 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
     for (const row of ingredients.get(meal.id) ?? []) {
       if (row.optional) continue;
       const info = row.product_id ? stock.get(row.product_id) : undefined;
-      if (!info || !info.product.trackStock) continue;
+      if (!info || info.product.trackMode === 'none') continue;
       const product = info.product;
+      if (product.trackMode === 'level') {
+        // Not measured: on the list when it is low or out.
+        if (product.level === 'full') continue;
+        const line = lines.get(product.id) ?? levelLine(product, info.total);
+        if (!line.meals.some((m) => m.id === meal.id)) line.meals.push(meal);
+        lines.set(product.id, line);
+        continue;
+      }
       let needed = neededBase(row, product);
       if (needed === null) {
         // "Some parsley": one piece when the item comes in pieces; otherwise just check.
@@ -65,6 +95,7 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
         toBuyAmount: 0,
         toBuyUnit: product.unit as Unit,
         storeId: product.storeId,
+        level: null,
         meals: [],
       };
       line.needed = round(line.needed + needed);
@@ -80,6 +111,10 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
     );
     for (const item of listed) {
       const line = lines.get(item.product_id)!;
+      if (line.level) {
+        line.onList += 1;
+        continue;
+      }
       const product = stock.get(item.product_id)!.product;
       const unit = item.unit ?? product.unit;
       // A line with no amount still counts as one piece (or as "enough" when it can't be counted).
@@ -90,6 +125,7 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
 
   const order = (category: Category) => CATEGORIES.indexOf(category);
   const result = [...lines.values()].map((line) => {
+    if (line.level) return { ...line, toBuy: line.onList ? 0 : 1, toBuyAmount: line.onList ? 0 : 1 };
     const product = stock.get(line.productId)!.product;
     let toBuy = Math.max(0, round(line.needed - line.inStock - line.onList));
     if (line.unit === 'pcs') toBuy = Math.ceil(toBuy - 1e-9);

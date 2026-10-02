@@ -26,6 +26,8 @@ export interface IngredientLine {
   optional: boolean;
   /** In stock now, in the product's base unit; null when not linked or not counted. */
   inStock: number | null;
+  /** For level items: full, low or out. */
+  level: 'full' | 'low' | 'out' | null;
   baseUnit: BaseUnit | null;
   /** Enough in stock for this line (null when it isn't checked). */
   enough: boolean | null;
@@ -93,11 +95,13 @@ export function describeLines(rows: IngredientRow[], stock: Map<string, StockInf
   const availability: Availability = { have: 0, total: 0, ready: true, missing: [], useSoon: 0 };
   for (const row of rows) {
     const info = row.product_id ? stock.get(row.product_id) : undefined;
-    const counted = Boolean(info && info.product.trackStock);
-    const needed = info ? neededBase(row, info.product, scale) : null;
+    const mode = info?.product.trackMode ?? 'none';
+    // Exact items are measured against stock; level items just need to not be out.
+    const counted = mode === 'exact' || mode === 'level';
+    const needed = info && mode === 'exact' ? neededBase(row, info.product, scale) : null;
     const total = info?.total ?? 0;
-    const enough = counted ? (needed === null ? total > 0 : total + 1e-9 >= needed) : null;
-    const missing = counted && !enough ? round(needed === null ? 0 : needed - total) : 0;
+    const enough = mode === 'level' ? info!.product.level !== 'out' : mode === 'exact' ? (needed === null ? total > 0 : total + 1e-9 >= needed) : null;
+    const missing = mode === 'exact' && !enough ? round(needed === null ? 0 : needed - total) : 0;
     const expiresSoon = Boolean(info?.nextExpiry && info.nextExpiry <= soon && total > 0);
     lines.push({
       id: row.id,
@@ -109,7 +113,8 @@ export function describeLines(rows: IngredientRow[], stock: Map<string, StockInf
       unit: row.unit,
       note: row.note,
       optional: row.optional,
-      inStock: counted ? total : null,
+      inStock: mode === 'exact' ? total : null,
+      level: mode === 'level' ? info!.product.level : null,
       baseUnit: info?.product.unit ?? null,
       enough,
       missing,
@@ -136,7 +141,8 @@ export async function resolveIngredients(ctx: FoodCtx, inputs: Array<IngredientI
     if (input.productId) product = await findProduct(ctx, input.productId);
     else if (input.link !== false) product = await resolveProduct(ctx, input.name, input.unit ?? undefined);
     const unit = input.amount ? (input.unit ?? product?.unit ?? null) : null;
-    if (product && unit && !canConvert(unit, product)) {
+    // Only measured items need a unit they can be counted in ("2 tsp" of a spice kept by level is fine).
+    if (product && product.trackMode === 'exact' && unit && !canConvert(unit, product)) {
       const message = `${product.name} is counted in ${product.unit}; ${unit} can’t be converted`;
       throw new AppError(400, 'VALIDATION', message, { fields: { [`ingredients.${index}.unit`]: message } });
     }

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
-import { findPreset, normalizeName, sameName, type Category, type FoodIcon, type Location } from './presets';
+import { findPreset, normalizeName, presetOrGuess, sameName, type Category, type FoodIcon, type Level, type Location, type TrackMode } from './presets';
 import type { ProductInput } from './schemas';
 import { canConvert, type BaseUnit, type Measured, type Unit } from './units';
 
@@ -16,8 +16,16 @@ export interface Product extends Measured {
   shelfLifeDays: number | null;
   /** Days it keeps once opened (milk: 5); opening shortens its expiry to this. */
   openedDays: number | null;
-  /** False for staples that are simply always there (salt): never deducted or put on a list. */
+  /** exact: amounts and dates; level: full / low / out; none: always there (never counted or listed). */
+  trackMode: TrackMode;
+  /** For level items: how much is left, roughly. */
+  level: Level;
+  levelAt: string | null;
+  /** False for staples that are always there; kept for older clients (trackMode none). */
   trackStock: boolean;
+  /** Days it keeps frozen, and once thawed (null: the kind's default). */
+  freezerDays: number | null;
+  thawedDays: number | null;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -38,6 +46,11 @@ export interface ProductRow {
   shelf_life_days: number | null;
   opened_days: number | null;
   track_stock: boolean;
+  track_mode: TrackMode;
+  level: Level;
+  level_at: Date | null;
+  freezer_days: number | null;
+  thawed_days: number | null;
   min_stock: number | null;
   store_id: string | null;
   note: string;
@@ -47,7 +60,7 @@ export interface ProductRow {
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, track_stock, min_stock, store_id, note, archived_at, created_at, updated_at';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, track_stock, track_mode, level, level_at, freezer_days, thawed_days, min_stock, store_id, note, archived_at, created_at, updated_at';
 
 export const productColumns = (alias: string) =>
   PRODUCT_COLUMNS.split(', ')
@@ -66,7 +79,12 @@ export function toProduct(row: ProductRow): Product {
     location: row.location,
     shelfLifeDays: row.shelf_life_days,
     openedDays: row.opened_days,
-    trackStock: row.track_stock,
+    trackMode: row.track_mode,
+    level: row.level,
+    levelAt: row.level_at?.toISOString() ?? null,
+    trackStock: row.track_mode !== 'none',
+    freezerDays: row.freezer_days,
+    thawedDays: row.thawed_days,
     minStock: row.min_stock,
     storeId: row.store_id,
     note: row.note,
@@ -127,11 +145,18 @@ function baseFor(unit: Unit | undefined): BaseUnit {
   return 'pcs';
 }
 
+/** The tracking mode a product input asks for (trackStock: false is the older way to say none). */
+function modeOf(input: Pick<ProductInput, 'trackMode' | 'trackStock'>): TrackMode | undefined {
+  return input.trackMode ?? (input.trackStock === false ? 'none' : input.trackStock === true ? 'exact' : undefined);
+}
+
 async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUnit }): Promise<Product> {
-  const preset = findPreset(input.name);
+  const preset = presetOrGuess(input.name);
+  const mode = modeOf(input) ?? preset?.track ?? 'exact';
   const { rows } = await ctx.db.query<ProductRow>(
-    `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at, opened_days, track_stock)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17)
+    `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at,
+                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21)
      RETURNING ${PRODUCT_COLUMNS}`,
     [
       randomUUID(),
@@ -150,7 +175,12 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
       ctx.actor.userId,
       ctx.now,
       input.openedDays === undefined ? (preset?.openedDays ?? null) : input.openedDays,
-      input.trackStock ?? preset?.trackStock ?? true,
+      mode !== 'none',
+      mode,
+      // A level item nobody has said anything about yet is assumed there (a recipe's salt).
+      input.level ?? 'full',
+      input.freezerDays ?? preset?.freezerDays ?? null,
+      input.thawedDays ?? preset?.thawedDays ?? null,
     ],
   );
   return toProduct(rows[0]!);
@@ -168,7 +198,7 @@ export async function createProduct(ctx: FoodCtx, input: ProductInput): Promise<
     await ctx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [existing.id, ctx.now]);
     return updateProduct(ctx, existing.id, input);
   }
-  const preset = findPreset(input.name);
+  const preset = presetOrGuess(input.name);
   return insertProduct(ctx, { ...input, unit: input.unit ?? preset?.unit ?? 'pcs' });
 }
 
@@ -177,7 +207,7 @@ export async function createProduct(ctx: FoodCtx, input: ProductInput): Promise<
  * built-in catalog, else a plain new item counted the way `unitHint` suggests. Used wherever people
  * or the assistant type a name: adding stock, shopping lines, recipe ingredients.
  */
-export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: Unit): Promise<Product> {
+export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: Unit, options: { level?: Level } = {}): Promise<Product> {
   const preset = findPreset(name);
   // "roșii" and "steak" find the Tomatoes and Beef steak already in the kitchen.
   const existing = (await findByName(ctx, name)) ?? (preset ? await findByName(ctx, preset.name) : null);
@@ -185,11 +215,12 @@ export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: Unit
     if (existing.archived_at) await ctx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [existing.id, ctx.now]);
     return toProduct({ ...existing, archived_at: null });
   }
-  const measured: Measured | null = preset ? { unit: preset.unit, pieceSize: preset.pieceSize ?? null, pieceUnit: preset.pieceUnit ?? null } : null;
-  const unit = preset && measured && (!unitHint || canConvert(unitHint, measured)) ? preset.unit : baseFor(unitHint);
+  const known = preset ?? presetOrGuess(name);
+  const measured: Measured | null = known ? { unit: known.unit, pieceSize: known.pieceSize ?? null, pieceUnit: known.pieceUnit ?? null } : null;
+  const unit = known && measured && (!unitHint || canConvert(unitHint, measured)) ? known.unit : baseFor(unitHint);
   const tidy = name.trim().replace(/\s+/g, ' ');
   // A catalog item keeps the catalog's name ("roșii" becomes Tomatoes); anything else keeps what was typed.
-  return insertProduct(ctx, { name: preset && unit === preset.unit ? preset.name : tidy.charAt(0).toUpperCase() + tidy.slice(1), unit });
+  return insertProduct(ctx, { name: preset && unit === preset.unit ? preset.name : tidy.charAt(0).toUpperCase() + tidy.slice(1), unit, level: options.level });
 }
 
 export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<ProductInput>): Promise<Product> {
@@ -216,7 +247,12 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
     location: patch.location,
     shelf_life_days: patch.shelfLifeDays,
     opened_days: patch.openedDays,
-    track_stock: patch.trackStock,
+    track_stock: modeOf(patch) === undefined ? undefined : modeOf(patch) !== 'none',
+    track_mode: modeOf(patch),
+    level: patch.level,
+    level_at: patch.level === undefined ? undefined : ctx.now,
+    freezer_days: patch.freezerDays,
+    thawed_days: patch.thawedDays,
     min_stock: patch.minStock,
     store_id: patch.storeId,
     note: patch.note,

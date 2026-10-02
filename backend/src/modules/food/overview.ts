@@ -15,7 +15,7 @@ export interface FoodOverview {
     products: number;
     expiring: Array<{ lotId: string; productId: string; name: string; icon: FoodIcon; quantity: number; unit: BaseUnit; expiresOn: string }>;
     expired: number;
-    low: Array<{ productId: string; name: string; icon: FoodIcon; total: number; minStock: number; unit: BaseUnit }>;
+    low: Array<{ productId: string; name: string; icon: FoodIcon; total: number; minStock: number; unit: BaseUnit; level: 'full' | 'low' | 'out' | null }>;
   };
   recipes: { total: number; ready: number; favorites: number };
   shopping: { open: number; inCart: number; stores: Array<{ id: string; name: string; tone: string; open: number }>; anyStore: number };
@@ -46,10 +46,12 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
   return {
     kitchen: kitchenRow[0] ?? { name: 'Kitchen', currency: 'MDL' },
     stock: {
-      products: products.filter((p) => p.total > 0).length,
+      products: products.filter((p) => p.total > 0 || (p.trackMode === 'level' && p.level !== 'out')).length,
       expiring: expiring.slice(0, 12),
       expired: expiring.filter((lot) => lot.expiresOn < today).length,
-      low: products.filter((p) => p.low).map((p) => ({ productId: p.id, name: p.name, icon: p.icon, total: p.total, minStock: p.minStock!, unit: p.unit })),
+      low: products
+        .filter((p) => p.low)
+        .map((p) => ({ productId: p.id, name: p.name, icon: p.icon, total: p.total, minStock: p.minStock ?? 0, unit: p.unit, level: p.trackMode === 'level' ? p.level : null })),
     },
     recipes: { total: recipes.length, ready: recipes.filter((r) => r.availability.ready).length, favorites: recipes.filter((r) => r.favorite).length },
     shopping: {

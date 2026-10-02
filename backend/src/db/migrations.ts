@@ -269,6 +269,27 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE products ADD COLUMN track_stock boolean NOT NULL DEFAULT true;
     `,
   },
+  {
+    version: 4,
+    name: 'food: items tracked by level (full, low, out) instead of amounts',
+    sql: `
+      ALTER TABLE products ADD COLUMN track_mode text NOT NULL DEFAULT 'exact' CHECK (track_mode IN ('exact', 'level', 'none'));
+      UPDATE products SET track_mode = 'none' WHERE NOT track_stock;
+      ALTER TABLE products ADD COLUMN level text NOT NULL DEFAULT 'out' CHECK (level IN ('full', 'low', 'out'));
+      ALTER TABLE products ADD COLUMN level_at timestamptz;
+      ALTER TABLE stock_events DROP CONSTRAINT stock_events_kind_check;
+      ALTER TABLE stock_events ADD CONSTRAINT stock_events_kind_check
+        CHECK (kind IN ('added', 'used', 'wasted', 'adjusted', 'moved', 'restored', 'level'));
+    `,
+  },
+  {
+    version: 5,
+    name: 'food: how long items keep frozen and once thawed',
+    sql: `
+      ALTER TABLE products ADD COLUMN freezer_days integer CHECK (freezer_days > 0);
+      ALTER TABLE products ADD COLUMN thawed_days integer CHECK (thawed_days > 0);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

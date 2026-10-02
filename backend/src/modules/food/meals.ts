@@ -214,7 +214,7 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
     for (const row of rows) {
       if (!row.product_id || row.amount === null) continue;
       const product = await findProduct(tx, row.product_id);
-      if (!product.trackStock) continue;
+      if (product.trackMode !== 'exact') continue;
       const result = await useStock(tx, { productId: product.id, quantity: row.amount, unit: row.unit ?? product.unit, lotId: row.lot_id ?? undefined, mealId: id });
       if (result.shortfall > 0 && !row.optional) shortfalls.push({ name: row.name, missing: result.shortfall, unit: product.unit });
     }
@@ -232,7 +232,7 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
         expiresOn: input.leftovers.expiresOn === undefined ? localDate(tx.now, 3) : input.leftovers.expiresOn,
         note: `From ${meal.title}, ${meal.date}`,
       });
-      leftoversLotId = lot.id;
+      leftoversLotId = lot?.id ?? null;
     }
     await tx.db.query(`UPDATE meals SET status = 'done', done_at = $2, leftovers_lot_id = $3, updated_at = $2 WHERE id = $1`, [id, tx.now, leftoversLotId]);
   });

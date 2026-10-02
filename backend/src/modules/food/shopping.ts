@@ -152,11 +152,11 @@ export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[]
   const ids = await ctx.tx(async (tx) => {
     const out: string[] = [];
     for (const input of inputs) {
-      const product = input.productId ? await findProduct(tx, input.productId) : await resolveProduct(tx, input.name!, input.unit ?? undefined);
+      const product = input.productId ? await findProduct(tx, input.productId) : await resolveProduct(tx, input.name!, input.unit ?? undefined, { level: 'out' });
       const storeId = input.storeId === undefined ? product.storeId : input.storeId;
       await checkStore(tx, storeId);
       const unit = input.amount ? (input.unit ?? product.unit) : null;
-      if (unit && input.amount) baseQuantity(input.amount, unit, product);
+      if (unit && input.amount && product.trackMode === 'exact') baseQuantity(input.amount, unit, product);
 
       const { rows: same } = await tx.db.query<ItemRow>(
         `${ITEM_SELECT} WHERE i.household_id = $1 AND i.product_id = $2 AND i.store_id IS NOT DISTINCT FROM $3 AND i.trip_id IS NULL AND i.checked_at IS NULL FOR UPDATE OF i`,
@@ -199,7 +199,7 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
     const unit = patch.unit === undefined ? item.unit : patch.unit;
     if (amount !== null && item.product_id) {
       const product = await findProduct(tx, item.product_id);
-      baseQuantity(amount, unit ?? product.unit, product, 'amount');
+      if (product.trackMode === 'exact') baseQuantity(amount, unit ?? product.unit, product, 'amount');
     }
     await tx.db.query(
       `UPDATE shopping_items SET
@@ -299,8 +299,9 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
       let lotId: string | null = null;
       if (row.product_id && line?.addToKitchen !== false) {
         const product = await findProduct(tx, row.product_id);
-        const quantity = amount ?? (product.unit === 'pcs' || product.pieceSize ? 1 : null);
-        const quantityUnit = amount ? (unit ?? product.unit) : 'pcs';
+        // Level items are simply full again; others need an amount (one piece when they come in pieces).
+        const quantity = product.trackMode === 'level' ? 1 : (amount ?? (product.unit === 'pcs' || product.pieceSize ? 1 : null));
+        const quantityUnit = product.trackMode === 'level' ? product.unit : amount ? (unit ?? product.unit) : 'pcs';
         if (quantity !== null) {
           const { lot } = await addStock(tx, {
             productId: product.id,
@@ -312,7 +313,7 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
             ...(line?.expiresOn !== undefined ? { expiresOn: line.expiresOn } : {}),
             ...(line?.location ? { location: line.location } : {}),
           });
-          lotId = lot.id;
+          lotId = lot?.id ?? null;
           stocked += 1;
         } else notStocked.push(row.name);
       } else notStocked.push(row.name);

@@ -27,7 +27,7 @@ import {
   UseStockInput,
 } from '../food/schemas';
 import { addShoppingItems, checkout, listShopping, listTrips, removeShoppingItem, updateShoppingItem } from '../food/shopping';
-import { addStock, kitchen, productDetail, restoreStock, updateLot, useStock, type StockedProduct } from '../food/stock';
+import { addStock, kitchen, productDetail, restoreStock, setLevel, updateLot, useStock, type StockedProduct } from '../food/stock';
 import { createStore, listStores } from '../food/stores';
 import type { TokenScope } from '../tokens';
 
@@ -82,7 +82,8 @@ const stockItem = (p: StockedProduct) => ({
   unit: p.unit,
   total: p.total,
   ...(p.low ? { low: true, minStock: p.minStock } : {}),
-  ...(p.trackStock ? {} : { alwaysThere: true }),
+  ...(p.trackMode === 'none' ? { alwaysThere: true } : {}),
+  ...(p.trackMode === 'level' ? { trackedBy: 'level', level: p.level } : {}),
   lots: p.lots.map((l) => ({
     id: l.id,
     quantity: l.quantity,
@@ -204,7 +205,8 @@ export const TOOLS: Tool[] = [
         shelfLifeDays: p.shelfLifeDays,
         minStock: p.minStock,
         storeId: p.storeId,
-        trackStock: p.trackStock,
+        trackMode: p.trackMode,
+        ...(p.trackMode === 'level' ? { level: p.level } : {}),
       })),
   }),
   tool({
@@ -229,7 +231,11 @@ export const TOOLS: Tool[] = [
       const out = [];
       for (const item of args.items) {
         const { product, lot } = await addStock(ctx, item);
-        out.push({ item: product.name, productId: product.id, lotId: lot.id, quantity: lot.quantity, unit: product.unit, expiresOn: lot.expiresOn, location: lot.location });
+        out.push(
+          lot
+            ? { item: product.name, productId: product.id, lotId: lot.id, quantity: lot.quantity, unit: product.unit, expiresOn: lot.expiresOn, location: lot.location }
+            : { item: product.name, productId: product.id, level: product.level },
+        );
       }
       return out;
     },
@@ -244,6 +250,17 @@ export const TOOLS: Tool[] = [
       const out = [];
       for (const item of args.items) out.push(await useStock(ctx, item));
       return out;
+    },
+  }),
+  tool({
+    name: 'set_level',
+    title: 'Full, low or out',
+    description: 'For items kept by level (spices, sauces, oil): say they are full, running low, or out. Out or low items show on the plan’s shopping needs.',
+    access: 'write',
+    input: z.object({ productId: idField, level: z.enum(['full', 'low', 'out']) }),
+    run: async ({ ctx }, args) => {
+      const product = await setLevel(ctx, args.productId, args.level);
+      return { item: product.name, level: product.level };
     },
   }),
   tool({
@@ -268,7 +285,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'save_item',
     title: 'Create or change an item',
-    description: 'Create a catalog item, or change one (productId): icon, category, unit, piece size, place, shelf life, running-low amount, usual store, alwaysThere via trackStock: false.',
+    description:
+      'Create a catalog item, or change one (productId): icon, category, unit, piece size, place, shelf life, frozen/thawed days, running-low amount, usual store, and trackMode (exact amounts, level = full/low/out for spices and sauces, none = always there).',
     access: 'write',
     input: ProductInput.partial().and(z.object({ productId: idField.optional() })),
     run: async ({ ctx }, { productId, ...input }) => {

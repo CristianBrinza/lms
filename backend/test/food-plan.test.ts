@@ -39,7 +39,7 @@ async function stock(b: B) {
 }
 
 const totals = async (b: B) =>
-  Object.fromEntries(((await b.get('/api/food/kitchen')).body.products as any[]).map((p) => [p.name, p.total]));
+  Object.fromEntries(((await b.get('/api/food/kitchen')).body.products as any[]).filter((p) => p.trackMode === 'exact').map((p) => [p.name, p.total]));
 
 describe('food: recipes', () => {
   it('links ingredients to kitchen items and says what is missing', async () => {
@@ -55,8 +55,9 @@ describe('food: recipes', () => {
       ['Salt', 'salt', null, null],
       ['Dill', 'herbs', null, null],
     ]);
-    // Salt is a staple that is always there; dill is optional.
-    expect(recipe.availability).toMatchObject({ have: 0, total: 3, ready: false });
+    // Salt is kept by level and assumed there; dill is optional.
+    expect(recipe.ingredients[3]).toMatchObject({ name: 'Salt', level: 'full', enough: true });
+    expect(recipe.availability).toMatchObject({ have: 1, total: 4, ready: false });
     expect(recipe.availability.missing.map((m: any) => [m.name, m.missing])).toEqual([
       ['Beef steak', 500],
       ['Tomatoes', 2],
@@ -65,12 +66,12 @@ describe('food: recipes', () => {
 
     await stock(b);
     const ready = (await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe;
-    expect(ready.availability).toMatchObject({ have: 3, total: 3, ready: true, useSoon: 1 });
+    expect(ready.availability).toMatchObject({ have: 4, total: 4, ready: true, useSoon: 1 });
     expect(ready.ingredients[0]).toMatchObject({ inStock: 3300, enough: true, expiresSoon: true });
 
     const forFour = (await b.get(`/api/food/recipes/${recipe.id}?servings=4`)).body.recipe;
     expect(forFour.ingredients.slice(0, 3).map((i: any) => i.amount)).toEqual([1000, 4, 2]);
-    expect(forFour.availability).toMatchObject({ have: 1, ready: false });
+    expect(forFour.availability).toMatchObject({ have: 2, ready: false });
   });
 
   it('refuses an amount the item cannot be counted in', async () => {
@@ -236,7 +237,8 @@ describe('food: everyday details', () => {
     const res = await b.get('/api/food/overview?today=2026-10-02');
     expect(res.status).toBe(200);
     expect(res.body.kitchen).toEqual({ name: 'Ana’s kitchen', currency: 'MDL' });
-    expect(res.body.stock).toMatchObject({ products: 3, expired: 0 });
+    // Steak, tomatoes, cucumbers, and the recipe's salt (kept by level, assumed there).
+    expect(res.body.stock).toMatchObject({ products: 4, expired: 0 });
     expect(res.body.stock.expiring.map((e: any) => e.name)).toEqual(['Beef steak']);
     expect(res.body.stock.low.map((l: any) => l.name)).toEqual(['Eggs']);
     expect(res.body.recipes).toEqual({ total: 1, ready: 1, favorites: 0 });

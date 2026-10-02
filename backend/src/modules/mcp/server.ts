@@ -26,6 +26,8 @@ How it works
 - Items are counted in a base unit: pcs, g or ml. Amounts may be given in pcs, g, kg, ml, l, tsp, tbsp or cup; pieces convert through an item's piece size (a tomato ≈ 120 g).
 - Names resolve loosely ("tomato" = Tomatoes; Romanian and Russian shop names work too). An unknown name creates a new item, so reuse the names you see in list_stock / find_items.
 - Stock is kept as lots: each steak or package is its own lot with its own expiry. Using stock takes the lot you name, else opened lots first, then the soonest to expire.
+- Spices, sauces, oil and similar are kept by level instead (trackedBy: level): full, low or out — set it with set_level; they are never weighed or deducted. Buying one makes it full again.
+- Moving a lot to the freezer (update_lot location: freezer) resets its expiry to the item's frozen days; taking it out gives it the thawed days.
 - A meal copies its recipe's ingredients, scaled to its servings; change them for that day with update_meal (e.g. pick a lotId). complete_meal takes them from the kitchen and can keep leftovers; reopen_meal undoes it.
 - plan_needs says what to buy for planned meals, minus stock and what is already listed. Add those lines with add_to_shopping_list (source "plan"), to each item's usual store unless told otherwise.
 - Dates are YYYY-MM-DD and times HH:MM, local to the kitchen (Europe/Chisinau). Prices are in lei (MDL).
