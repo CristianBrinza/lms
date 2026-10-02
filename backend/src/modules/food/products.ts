@@ -252,7 +252,7 @@ function variantNamed(product: Product, word: string): string | null {
 }
 
 /** "mango peach juice" → Juice + "Mango peach", when Juice is an item that comes in types. */
-async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: string; variant: string } | null> {
+export async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: string; variant: string } | null> {
   const words = normalizeName(name).split(' ');
   const { rows } = await ctx.db.query<{ name: string; variants: string[] }>(`SELECT name, variants FROM products WHERE household_id = $1 AND cardinality(variants) > 0`, [
     ctx.actor.householdId,

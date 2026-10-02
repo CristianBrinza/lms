@@ -26,8 +26,17 @@ export type Slot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export interface CustomUnit {
   name: string;
   plural?: string;
-  /** One of it, in the item's base unit. */
+  /** How much one usually holds, in the item's base unit (a loaf: 20 slices; a jar of honey: 400 g). */
   size: number;
+  /** Sizes it comes in, to pick from (a bottle of cola: 500, 1000, 1250… ml). */
+  sizes?: number[];
+}
+
+/** Packages bought: "2 cans of 300 g". Sizes in the item's base unit unless sizeUnit says. */
+export interface PackageInput {
+  count: number;
+  size: number;
+  sizeUnit?: string;
 }
 
 export interface Warning {
@@ -52,6 +61,8 @@ export interface Product {
   location: Location;
   shelfLifeDays: number | null;
   openedDays: number | null;
+  /** Where it goes once opened (an opened can: the fridge). */
+  openedLocation: Location | null;
   trackMode: TrackMode;
   level: Level;
   levelAt: string | null;
@@ -83,6 +94,9 @@ export interface Lot {
   tripId: string | null;
   note: string;
   variant: string;
+  /** The package it came in (jar, bottle, loaf) and what one held; '' and null when loose. */
+  package: string;
+  packageSize: number | null;
 }
 
 export interface StockedProduct extends Product {
@@ -125,17 +139,31 @@ export interface Preset {
   pieceSize?: number;
   pieceUnit?: 'g' | 'ml';
   openedDays?: number;
+  openedLocation?: Location;
   track?: TrackMode;
   freezerDays?: number;
   thawedDays?: number;
+  units?: CustomUnit[];
+  variants?: string[];
 }
 
 export interface UseResult {
   productId: string;
   used: number;
   shortfall: number;
-  lots: Array<{ lotId: string; taken: number; left: number }>;
+  lots: Array<{ lotId: string; taken: number; left: number; opened: boolean; expiresOn: string | null; location: Location }>;
   events: number[];
+}
+
+/** A package cooking opened. */
+export interface Opened {
+  productId: string;
+  lotId: string;
+  name: string;
+  left: number;
+  unit: BaseUnit;
+  expiresOn: string | null;
+  location: Location;
 }
 
 export interface Store {
@@ -166,6 +194,13 @@ export interface ShoppingItem {
   price: number | null;
   lastPrice: { price: number; storeName: string | null; boughtAt: string } | null;
   estimate: number | null;
+  /** At least this much, in the base unit (null: no amount asked). */
+  need: number | null;
+  /** What was really bought, package by package (sizes in the base unit). */
+  bought: Array<{ count: number; size: number }> | null;
+  package: string;
+  boughtTotal: number | null;
+  baseUnit: BaseUnit | null;
   createdAt: string;
 }
 
@@ -182,6 +217,14 @@ export interface IngredientLine {
   id: string;
   productId: string | null;
   lotId: string | null;
+  /** The meal part it belongs to (meals only). */
+  partId: string | null;
+  /** Only this type will do ('' for any). */
+  variant: string;
+  /** Or one of these instead, in order. */
+  alternatives: Array<{ productId: string | null; name: string; icon: string; amount: number | null; unit: string | null; variant: string; enough: boolean | null }>;
+  /** Covered by an alternative rather than the main item. */
+  using: { productId: string; name: string; icon: string } | null;
   name: string;
   icon: string;
   amount: number | null;
@@ -226,6 +269,7 @@ export interface Recipe {
   shownServings: number;
   ingredients: IngredientLine[];
   availability: Availability;
+  tools: ToolNeed[];
   timesCooked: number;
   lastCooked: string | null;
 }
@@ -245,8 +289,71 @@ export interface Meal {
   doneAt: string | null;
   createdVia: Via;
   leftoversLotId: string | null;
+  parts: MealPart[];
+  tools: ToolNeed[];
   ingredients: IngredientLine[];
   availability: Availability;
+}
+
+export type PartKind = 'dish' | 'side' | 'sauce' | 'drink';
+
+export interface MealPart {
+  id: string;
+  recipeId: string | null;
+  title: string;
+  kind: PartKind;
+  servings: number;
+  icon: string;
+}
+
+export interface MealPartInput {
+  recipeId?: string | null;
+  title?: string;
+  kind?: PartKind;
+  servings?: number;
+  ingredients?: IngredientInput[];
+}
+
+export type ToolKind = 'cookware' | 'bakeware' | 'utensil' | 'dishes' | 'bar' | 'appliance' | 'other';
+
+export interface Tool {
+  id: string;
+  name: string;
+  icon: string;
+  kind: ToolKind;
+  count: number;
+  clean: number;
+  dirty: number;
+  washing: number;
+  washingUntil: string | null;
+  washable: boolean;
+  place: string;
+  note: string;
+}
+
+export interface ToolNeed {
+  toolId: string;
+  name: string;
+  icon: string;
+  count: number;
+  status: 'ready' | 'washing' | 'dirty' | 'missing';
+  readyAt: string | null;
+}
+
+export interface ToolNeedInput {
+  toolId?: string;
+  name?: string;
+  count?: number;
+}
+
+export interface ToolInput {
+  name?: string;
+  icon?: string;
+  kind?: ToolKind;
+  count?: number;
+  washable?: boolean;
+  place?: string;
+  note?: string;
 }
 
 export interface NeedLine {
@@ -273,6 +380,18 @@ export interface FoodOverview {
     products: number;
     expiring: Array<{ lotId: string; productId: string; name: string; icon: string; quantity: number; unit: BaseUnit; expiresOn: string }>;
     expired: number;
+    opened: Array<{
+      lotId: string;
+      productId: string;
+      name: string;
+      icon: string;
+      quantity: number;
+      unit: BaseUnit;
+      expiresOn: string | null;
+      location: Location;
+      package: string;
+      recipes: number;
+    }>;
     low: Array<{ productId: string; name: string; icon: string; total: number; minStock: number; unit: BaseUnit; level: Level | null }>;
   };
   recipes: { total: number; ready: number; favorites: number };
@@ -289,6 +408,9 @@ export interface IngredientInput {
   optional?: boolean;
   link?: boolean;
   lotId?: string | null;
+  partId?: string | null;
+  variant?: string;
+  or?: Array<{ productId?: string; name: string; amount?: number | null; unit?: string | null; variant?: string }>;
 }
 
 export interface RecipeInput {
@@ -304,6 +426,7 @@ export interface RecipeInput {
   notes?: string;
   favorite?: boolean;
   ingredients?: IngredientInput[];
+  tools?: ToolNeedInput[];
 }
 
 export interface KitchenPerson {

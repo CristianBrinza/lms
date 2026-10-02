@@ -129,7 +129,8 @@
   --ease-lift: cubic-bezier(0.16, 1, 0.3, 1);
 
   --breakpoint-sm: 40rem;
-  --breakpoint-md: 48rem;
+  /* 44rem: an iPad mini held upright (744px) already gets the tablet layout. */
+  --breakpoint-md: 44rem;
   --breakpoint-lg: 64rem;
   --breakpoint-xl: 80rem;
 

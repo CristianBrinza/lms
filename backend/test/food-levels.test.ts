@@ -78,6 +78,10 @@ describe('food: kept by level, frozen, guessed', () => {
     expect((await b.get('/api/food/guess?name=Smoked%20salt%20seasoning')).body.guess).toMatchObject({ icon: 'spice', category: 'spices', track: 'level' });
     expect((await b.get('/api/food/guess?name=Oat%20cookies')).body.guess).toMatchObject({ icon: 'cookie', category: 'snacks' });
     expect((await b.get('/api/food/guess?name=zzz')).body.guess).toBeNull();
+    // A new type of a known item: the item, not a new one.
+    expect((await b.get('/api/food/guess?name=guava%20juice')).body.match).toEqual({ item: 'Juice', variant: 'Guava' });
+    expect((await b.get('/api/food/guess?name=Absolut')).body.match).toEqual({ item: 'Vodka', variant: 'Absolut' });
+    expect((await b.get('/api/food/guess?name=Tomatoes')).body.match).toBeNull();
     const created = (await b.post('/api/food/stock', { name: 'Pumpkin seed oil', quantity: 1 })).body.product;
     expect(created).toMatchObject({ icon: 'oil', trackMode: 'level' });
   });

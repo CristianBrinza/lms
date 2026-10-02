@@ -5,12 +5,35 @@ import type { BaseUnit, Category, CustomUnit, Location, Slot, Unit } from './typ
  * mirrors the API (backend/src/modules/food/units.ts) so the app can preview before it saves.
  */
 
-interface Measured {
+export interface Measured {
   unit: BaseUnit;
   pieceSize: number | null;
   pieceUnit: 'g' | 'ml' | null;
   /** The item's own units (slice, pack), sizes in its base unit. */
   units?: CustomUnit[];
+  /** Its kind: things poured or spooned convert between grams and millilitres. */
+  category?: Category;
+}
+
+/** Kinds weighed and poured alike (the API's rule): 300 g of milk ≈ 300 ml. */
+const POURABLE = new Set<Category>(['dairy', 'drinks', 'spices', 'pantry']);
+
+/** The word for one piece of a counted item ("slice" of bread, "pickle"), when it has one. */
+export function pieceName(product: Pick<Measured, 'unit' | 'units'>): CustomUnit | null {
+  if (product.unit !== 'pcs') return null;
+  return product.units?.find((u) => u.size === 1) ?? null;
+}
+
+const STANDARD = new Set(['pcs', 'g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup']);
+
+/** The item's packages (jar, bottle, loaf, can): its own units that hold more than one piece. */
+export function packageUnits(product: Pick<Measured, 'unit' | 'units'>): CustomUnit[] {
+  return (product.units ?? []).filter((u) => !STANDARD.has(u.name.toLowerCase()) && !(product.unit === 'pcs' && u.size === 1) && u.name !== 'shot' && u.name !== 'pump' && u.name !== 'glass');
+}
+
+/** Sizes to offer for a package: its own list, else its usual size. */
+export function packageSizes(unit: CustomUnit): number[] {
+  return unit.sizes?.length ? unit.sizes : [unit.size];
 }
 
 function customUnit(unit: string, product: Measured): CustomUnit | null {
@@ -37,7 +60,13 @@ function factorOf(unit: string, product: Measured): number | null {
   if (custom) return custom.size;
   const measure = FACTOR[unit as Unit];
   if (!measure) return null;
-  if (measure.family === BASE_FAMILY[product.unit]) return measure.factor;
+  const base = BASE_FAMILY[product.unit];
+  if (measure.family === base) return measure.factor;
+  // Spoons and cups of something weighed; grams of something poured: about 1 g per ml.
+  if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup')) return measure.factor;
+  if (product.category && POURABLE.has(product.category) && ((base === 'mass' && measure.family === 'volume') || (base === 'volume' && measure.family === 'mass'))) {
+    return measure.factor;
+  }
   if (!product.pieceSize) return null;
   if (product.unit === 'pcs') return measure.family === BASE_FAMILY[product.pieceUnit ?? 'g'] ? measure.factor / product.pieceSize : null;
   return measure.family === 'count' ? product.pieceSize : null;
@@ -55,8 +84,10 @@ export function fromBase(base: number, unit: string, product: Measured): number 
 
 /** The units an item can be entered in; `cooking` adds spoons and cups for liquids. */
 export function unitsFor(product: Measured, options: { cooking?: boolean } = {}): string[] {
-  const own: string[] = product.unit === 'g' ? ['g', 'kg'] : product.unit === 'ml' ? ['ml', 'l', ...(options.cooking ? ['tsp', 'tbsp', 'cup'] : [])] : ['pcs'];
-  const extra = (product.units ?? []).map((u) => u.name);
+  const spoons = options.cooking ? ['tsp', 'tbsp', 'cup'] : [];
+  const piece = pieceName(product);
+  const own: string[] = product.unit === 'g' ? ['g', 'kg', ...spoons] : product.unit === 'ml' ? ['ml', 'l', ...spoons] : [piece ? piece.name : 'pcs'];
+  const extra = (product.units ?? []).map((u) => u.name).filter((name) => !own.includes(name));
   if (!product.pieceSize) return [...own, ...extra];
   if (product.unit === 'pcs') return [...own, ...((product.pieceUnit ?? 'g') === 'g' ? ['g', 'kg'] : ['ml', 'l']), ...extra];
   return [...own, 'pcs', ...extra];
@@ -89,8 +120,29 @@ export function formatAmount(amount: number, unit: string): string {
   return `${number.format(amount)} ${unit}`;
 }
 
-/** A base quantity of an item, in the unit a person would say. */
-export function formatQty(base: number, product: Pick<Measured, 'unit'>): string {
+/** What a lot came in: "Jar of 400 g", "2 bottles of 500 ml" (null when loose). */
+export function packageLabel(
+  lot: { package: string; packageSize: number | null; initialQuantity: number },
+  product: Pick<Measured, 'unit' | 'units'>,
+): string | null {
+  if (!lot.package) return null;
+  const name = lot.package.charAt(0).toUpperCase() + lot.package.slice(1);
+  if (!lot.packageSize) return name;
+  const count = Math.max(1, Math.round(lot.initialQuantity / lot.packageSize));
+  const own = product.units?.find((u) => u.name === lot.package);
+  const many = own?.plural ?? `${lot.package}s`;
+  return count > 1 ? `${count} ${many} of ${formatQty(lot.packageSize, product)}` : `${name} of ${formatQty(lot.packageSize, product)}`;
+}
+
+/** The unit a person would use for this amount of this item: its piece name, kg, l, g, ml, pcs. */
+export function naturalUnit(base: number, product: Pick<Measured, 'unit' | 'units'>): string {
+  return pieceName(product)?.name ?? displayUnit(base, product.unit);
+}
+
+/** A base quantity of an item, in the unit a person would say ("20 slices" when it names its pieces). */
+export function formatQty(base: number, product: Pick<Measured, 'unit'> & { units?: CustomUnit[] }): string {
+  const piece = pieceName({ unit: product.unit, units: product.units });
+  if (piece) return formatAmount(round(base), base === 1 ? piece.name : (piece.plural ?? piece.name));
   const unit = displayUnit(base, product.unit);
   const factor = FACTOR[unit].factor;
   return formatAmount(round(base / factor), unit);

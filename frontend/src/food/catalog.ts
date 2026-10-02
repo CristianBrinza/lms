@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { foodApi, foodKeys } from './api';
-import type { BaseUnit, Category, Location, Preset, Product } from './types';
+import type { BaseUnit, Category, CustomUnit, Location, Preset, Product, TrackMode } from './types';
 
 /** The kitchen's item list and the built-in food catalog, searched the way the API matches names. */
 
@@ -16,6 +16,11 @@ export interface PickedProduct {
   pieceUnit: 'g' | 'ml' | null;
   location: Location;
   shelfLifeDays: number | null;
+  units: CustomUnit[];
+  variants: string[];
+  trackMode: TrackMode;
+  /** The type picked with it ("guava juice": Juice, Guava). */
+  variant?: string;
   /** Neither in the kitchen nor in the catalog: the person says how it is counted. */
   isNew?: boolean;
 }
@@ -51,6 +56,9 @@ export const fromProduct = (p: Product): PickedProduct => ({
   pieceUnit: p.pieceUnit,
   location: p.location,
   shelfLifeDays: p.shelfLifeDays,
+  units: p.units,
+  variants: p.variants,
+  trackMode: p.trackMode,
 });
 
 export const fromPreset = (p: Preset): PickedProduct => ({
@@ -62,6 +70,9 @@ export const fromPreset = (p: Preset): PickedProduct => ({
   pieceUnit: p.pieceUnit ?? null,
   location: p.location,
   shelfLifeDays: p.shelfLifeDays ?? null,
+  units: p.units ?? [],
+  variants: p.variants ?? [],
+  trackMode: p.track ?? 'exact',
 });
 
 export function usePresets() {

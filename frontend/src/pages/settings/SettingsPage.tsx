@@ -25,8 +25,11 @@ import {
   PersonIcon,
   LogoutIcon,
   PhoneIphoneIcon,
+  SparkleIcon,
   SyncIcon,
 } from '@/components/ui/icons';
+import { NotificationsIcon } from './icons';
+import { PeopleLink } from './PeopleLink';
 import { BUILD } from '@/build-info';
 import { newBuildOnServer } from '@/lib/appUpdate';
 import { errorMessage } from '@/lib/errors';
@@ -104,6 +107,22 @@ export default function SettingsPage() {
               icon={PersonIcon}
               label="Profile"
               detail="Your name and surname"
+            />
+          </ListGroup>
+
+          <ListGroup title="Kitchen">
+            <ListRowLink
+              to="/settings/reminders"
+              icon={NotificationsIcon}
+              label="Reminders"
+              detail="Shopping, expiring food, meals"
+            />
+            <PeopleLink />
+            <ListRowLink
+              to="/settings/ai"
+              icon={SparkleIcon}
+              label="Claude access"
+              detail="Keys for Claude to use the kitchen"
             />
           </ListGroup>
 

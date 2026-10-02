@@ -35,6 +35,8 @@ const foodRoutes: RouteObject = {
     { path: 'recipes/:id/edit', lazy: page(() => import('@/food/pages/RecipeEditorPage')) },
     { path: 'shopping', lazy: page(() => import('@/food/pages/ShoppingPage')) },
     { path: 'plan', lazy: page(() => import('@/food/pages/PlanPage')) },
+    { path: 'kitchenware', lazy: page(() => import('@/food/pages/KitchenwarePage')) },
+    { path: 'people', lazy: page(() => import('@/food/pages/PeoplePage')) },
   ],
 };
 
@@ -58,6 +60,8 @@ const routes: RouteObject[] = [
               { path: 'home', lazy: page(() => import('@/pages/home/HomePage')) },
               { path: 'utilities', lazy: page(() => import('@/pages/utilities/UtilitiesPage')) },
               { path: 'settings', lazy: page(() => import('@/pages/settings/SettingsPage')) },
+              { path: 'settings/reminders', lazy: page(() => import('@/pages/settings/RemindersPage')) },
+              { path: 'settings/ai', lazy: page(() => import('@/pages/settings/AiAccessPage')) },
               { path: 'profile', lazy: page(() => import('@/pages/profile/ProfilePage')) },
               foodRoutes,
               adminRoutes,

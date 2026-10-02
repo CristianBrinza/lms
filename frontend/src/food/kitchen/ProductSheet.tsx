@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Badge, Button, Sheet, Skeleton, Switch, toast } from '@/components/ui';
+import { Badge, Button, IconButton, Sheet, Skeleton, Switch, TextField, toast } from '@/components/ui';
 import {
   AddIcon,
   AddShoppingCartIcon,
+  CloseIcon,
   DeleteIcon,
   EditIcon,
   ExpandMoreIcon,
@@ -21,22 +22,73 @@ import { ExpiryPicker } from '../components/ExpiryPicker';
 import { fromProduct, type PickedProduct } from '../catalog';
 import { LocationPicker } from '../components/LocationPicker';
 import { QuantityInput } from '../components/QuantityInput';
-import { CATEGORY_LABEL, displayUnit, formatAmount, formatQty, fromBase, LOCATION_LABEL, localDate, money, parseAmount, plural, unitsFor } from '../format';
+import { CATEGORY_LABEL, formatAmount, formatQty, fromBase, LOCATION_LABEL, packageLabel, toBase, localDate, money, naturalUnit, parseAmount, pieceName, plural, unitsFor } from '../format';
 import { LOCATION_ICON } from '../places';
 import { FoodIconTile } from '../icons/FoodIcon';
 import type { Lot, StockedProduct, StockEvent } from '../types';
 import { EditItemSheet } from './EditItemSheet';
 
-type LotMode = 'use' | 'move' | 'edit';
+type LotMode = 'use' | 'pour' | 'move' | 'edit';
 
 /**
- * One item: every piece of it (each steak, each pack), what is left and until when, and quick
- * ways to use some, move it, correct it or throw it away — every change with an Undo. History and
- * the last prices paid sit underneath.
+ * One item: every piece of it (each steak, each jar), what is left and until when, and quick ways
+ * to use some, pour it into another container, move it, correct it or throw it away — every
+ * change with an Undo. Basics kept by level are just full, low or out. History and the last
+ * prices paid sit underneath. A sheet on phones; on tablets the same body stands in a panel
+ * beside the kitchen list (ProductPanel).
  */
 export function ProductSheet({ productId, onClose, onAddMore }: { productId: string | null; onClose: () => void; onAddMore: (pick: PickedProduct) => void }) {
-  const queryClient = useQueryClient();
   const detail = useQuery({ queryKey: foodKeys.product(productId ?? ''), queryFn: () => foodApi.product(productId!), enabled: Boolean(productId) });
+  const product = detail.data?.product;
+  return (
+    <Sheet open={Boolean(productId)} onClose={onClose} title={product?.name ?? 'Item'} size="lg" description={product ? <Summary product={product} /> : undefined}>
+      {productId ? <ProductBody productId={productId} onClose={onClose} onAddMore={onAddMore} /> : null}
+    </Sheet>
+  );
+}
+
+/** The same item, as a panel beside the list (tablets and wider). */
+export function ProductPanel({ productId, onClose, onAddMore }: { productId: string; onClose: () => void; onAddMore: (pick: PickedProduct) => void }) {
+  const detail = useQuery({ queryKey: foodKeys.product(productId), queryFn: () => foodApi.product(productId) });
+  const product = detail.data?.product;
+  return (
+    <section aria-label={product?.name ?? 'Item'} className="animate-fade-in rounded-[1.75rem] bg-white p-5 shadow-[var(--shadow-card)]">
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-h2 font-bold">{product?.name ?? ' '}</h2>
+          <div className="mt-1.5 text-[0.9375rem] text-ink-600">{product ? <Summary product={product} /> : null}</div>
+        </div>
+        <IconButton icon={CloseIcon} label="Close" size="sm" variant="outline" onClick={onClose} />
+      </header>
+      <ProductBody productId={productId} onClose={onClose} onAddMore={onAddMore} />
+    </section>
+  );
+}
+
+function Summary({ product }: { product: StockedProduct }) {
+  const amount =
+    product.trackMode === 'level'
+      ? `Kept as full, low or out · ${LEVEL_LABEL[product.level].toLowerCase()} now`
+      : product.trackMode === 'none'
+        ? 'Always there'
+        : product.total > 0
+          ? `${formatQty(product.total, product)} in ${plural(product.lots.length, 'piece')}`
+          : 'None left';
+  return (
+    <span className="flex items-center gap-2.5">
+      <FoodIconTile name={product.icon} tone="bg-butter-100" className="size-10 rounded-xl [&>svg]:size-7" />
+      <span>
+        {amount} · {CATEGORY_LABEL[product.category]}
+      </span>
+    </span>
+  );
+}
+
+const LEVEL_LABEL = { full: 'Full', low: 'Low', out: 'Out' } as const;
+
+function ProductBody({ productId, onClose, onAddMore }: { productId: string; onClose: () => void; onAddMore: (pick: PickedProduct) => void }) {
+  const queryClient = useQueryClient();
+  const detail = useQuery({ queryKey: foodKeys.product(productId), queryFn: () => foodApi.product(productId) });
   const [openLot, setOpenLot] = useState<{ id: string; mode: LotMode } | null>(null);
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -53,116 +105,134 @@ export function ProductSheet({ productId, onClose, onAddMore }: { productId: str
     onError: (error) => toast.error(errorMessage(error)),
   });
 
+  if (detail.isPending) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-16" />
+        <Skeleton className="h-24" />
+        <Skeleton className="h-24" />
+      </div>
+    );
+  }
+  if (detail.error || !product) return <p className="text-sm text-danger-600">{errorMessage(detail.error)}</p>;
+
   return (
     <>
-      <Sheet
-        open={Boolean(productId)}
-        onClose={onClose}
-        title={product?.name ?? 'Item'}
-        size="lg"
-        description={
-          product ? (
-            <span className="flex items-center gap-2.5">
-              <FoodIconTile name={product.icon} tone="bg-butter-100" className="size-10 rounded-xl [&>svg]:size-7" />
-              <span>
-                {product.trackStock ? (product.total > 0 ? `${formatQty(product.total, product)} in ${plural(product.lots.length, 'piece')}` : 'None left') : 'Always there'}
-                {' · '}
-                {CATEGORY_LABEL[product.category]}
-              </span>
-            </span>
-          ) : undefined
-        }
-      >
-        {detail.isPending ? (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-16" />
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-          </div>
-        ) : detail.error || !product ? (
-          <p className="text-sm text-danger-600">{errorMessage(detail.error)}</p>
+      <div className="flex flex-col gap-5">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+          <Button size="sm" icon={AddIcon} onClick={() => onAddMore(fromProduct(product))}>
+            {product.trackMode === 'level' ? 'Bought it' : 'Add more'}
+          </Button>
+          <Button size="sm" variant="tint" icon={AddShoppingCartIcon} onClick={() => toList.mutate()} loading={toList.isPending}>
+            To the list
+          </Button>
+          <Button size="sm" variant="tint" icon={EditIcon} onClick={() => setEditing(true)}>
+            Edit item
+          </Button>
+        </div>
+
+        {product.trackMode === 'level' ? <LevelPicker product={product} /> : null}
+
+        {product.low ? (
+          <p className="rounded-2xl bg-peach-100 px-4 py-3 text-sm font-medium text-peach-800">
+            Running low: you keep at least {formatQty(product.minStock!, product)}.
+          </p>
+        ) : null}
+
+        {product.note ? <p className="rounded-2xl bg-lav-50 px-4 py-3 text-sm text-ink-700">{product.note}</p> : null}
+
+        {product.trackMode !== 'exact' ? null : product.lots.length ? (
+          <ul className="flex flex-col gap-2.5">
+            {product.lots.map((lot, index) => (
+              <LotCard
+                key={lot.id}
+                lot={lot}
+                product={product}
+                index={index}
+                mode={openLot?.id === lot.id ? openLot.mode : null}
+                onMode={(mode) => setOpenLot(mode ? { id: lot.id, mode } : null)}
+                onDone={() => {
+                  setOpenLot(null);
+                  void refresh();
+                }}
+              />
+            ))}
+          </ul>
         ) : (
-          <div className="flex flex-col gap-5">
-
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
-              <Button size="sm" icon={AddIcon} onClick={() => onAddMore(fromProduct(product))}>
-                Add more
-              </Button>
-              <Button size="sm" variant="tint" icon={AddShoppingCartIcon} onClick={() => toList.mutate()} loading={toList.isPending}>
-                To the list
-              </Button>
-              <Button size="sm" variant="tint" icon={EditIcon} onClick={() => setEditing(true)}>
-                Edit item
-              </Button>
-            </div>
-
-            {product.low ? (
-              <p className="rounded-2xl bg-peach-100 px-4 py-3 text-sm font-medium text-peach-800">
-                Running low: you keep at least {formatQty(product.minStock!, product)}.
-              </p>
-            ) : null}
-
-            {product.lots.length ? (
-              <ul className="flex flex-col gap-2.5">
-                {product.lots.map((lot, index) => (
-                  <LotCard
-                    key={lot.id}
-                    lot={lot}
-                    product={product}
-                    index={index}
-                    mode={openLot?.id === lot.id ? openLot.mode : null}
-                    onMode={(mode) => setOpenLot(mode ? { id: lot.id, mode } : null)}
-                    onDone={() => {
-                      setOpenLot(null);
-                      void refresh();
-                    }}
-                  />
-                ))}
-              </ul>
-            ) : (
-              <div className="rounded-2xl bg-ink-50 p-4 text-center">
-                <p className="text-[0.9375rem] font-semibold">Nothing in the kitchen</p>
-                <p className="mt-0.5 text-sm text-ink-600">Add some, or put it on the shopping list.</p>
-              </div>
-            )}
-
-            {detail.data.prices.length ? (
-              <section>
-                <h3 className="text-h3 font-bold">Last paid</h3>
-                <ul className="mt-2 flex flex-col gap-1.5">
-                  {detail.data.prices.map((p) => (
-                    <li key={`${p.storeId}-${p.boughtAt}`} className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3 text-sm">
-                      <span className="min-w-0 truncate font-semibold">{p.storeName ?? 'A shop'}</span>
-                      <span className="tabular shrink-0 text-ink-600">
-                        {money(p.price)} for {formatQty(p.quantity, product)}
-                        <span className="ml-2 font-semibold text-ink-900">
-                          {money(p.unitPrice)}/{product.unit === 'pcs' ? 'pc' : product.unit === 'g' ? 'kg' : 'l'}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
-            <section>
-              <button
-                type="button"
-                aria-expanded={historyOpen}
-                onClick={() => setHistoryOpen((v) => !v)}
-                className="press flex w-full items-center gap-2 rounded-2xl py-1 text-left"
-              >
-                <HistoryIcon fontSize="inherit" className="text-[1.25rem] text-ink-600" />
-                <span className="flex-1 text-h3 font-bold">History</span>
-                <ExpandMoreIcon fontSize="inherit" className={cx('text-[1.4rem] text-ink-500 transition-transform duration-200', historyOpen && 'rotate-180')} />
-              </button>
-              {historyOpen ? <History events={detail.data.events} product={product} /> : null}
-            </section>
+          <div className="rounded-2xl bg-ink-50 p-4 text-center">
+            <p className="text-[0.9375rem] font-semibold">Nothing in the kitchen</p>
+            <p className="mt-0.5 text-sm text-ink-600">Add some, or put it on the shopping list.</p>
           </div>
         )}
-      </Sheet>
-      {product ? <EditItemSheet open={editing} product={product} onClose={() => setEditing(false)} onRemoved={onClose} /> : null}
+
+        {detail.data.prices.length ? (
+          <section>
+            <h3 className="text-h3 font-bold">Last paid</h3>
+            <ul className="mt-2 flex flex-col gap-1.5">
+              {detail.data.prices.map((p) => (
+                <li key={`${p.storeId}-${p.boughtAt}`} className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3 text-sm">
+                  <span className="min-w-0 truncate font-semibold">{p.storeName ?? 'A shop'}</span>
+                  <span className="tabular shrink-0 text-ink-600">
+                    {money(p.price)} for {formatQty(p.quantity, product)}
+                    <span className="ml-2 font-semibold text-ink-900">
+                      {money(p.unitPrice)}/{product.unit === 'pcs' ? (pieceName(product)?.name ?? 'pc') : product.unit === 'g' ? 'kg' : 'l'}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
+        <section>
+          <button
+            type="button"
+            aria-expanded={historyOpen}
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="press flex w-full items-center gap-2 rounded-2xl py-1 text-left"
+          >
+            <HistoryIcon fontSize="inherit" className="text-[1.25rem] text-ink-600" />
+            <span className="flex-1 text-h3 font-bold">History</span>
+            <ExpandMoreIcon fontSize="inherit" className={cx('text-[1.4rem] text-ink-500 transition-transform duration-200', historyOpen && 'rotate-180')} />
+          </button>
+          {historyOpen ? <History events={detail.data.events} product={product} /> : null}
+        </section>
+      </div>
+      <EditItemSheet open={editing} product={product} onClose={() => setEditing(false)} onRemoved={onClose} />
     </>
+  );
+}
+
+/** Full, low or out, one tap each (basics: oil, salt, soy sauce). */
+function LevelPicker({ product }: { product: StockedProduct }) {
+  const queryClient = useQueryClient();
+  const set = useMutation({
+    mutationFn: (level: 'full' | 'low' | 'out') => foodApi.setLevel(product.id, level),
+    onSuccess: (_p, level) => {
+      haptic('tap');
+      void queryClient.invalidateQueries({ queryKey: foodKeys.all });
+      if (level === 'out') toast.success(`${product.name} is out`, { description: 'Put it on the list from here or from Food.' });
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  return (
+    <div role="radiogroup" aria-label="How much is left" className="grid grid-cols-3 gap-1.5 rounded-[1.25rem] bg-ink-50 p-1.5">
+      {(['full', 'low', 'out'] as const).map((level) => (
+        <button
+          key={level}
+          type="button"
+          role="radio"
+          aria-checked={product.level === level}
+          onClick={() => product.level !== level && set.mutate(level)}
+          className={cx(
+            'press h-11 rounded-2xl text-[0.9375rem] font-semibold transition-colors',
+            product.level === level ? (level === 'out' ? 'bg-peach-200 text-ink-900' : level === 'low' ? 'bg-butter-300 text-ink-900' : 'bg-mint-200 text-ink-900') : 'text-ink-700 hover:bg-white',
+          )}
+        >
+          {LEVEL_LABEL[level]}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -183,7 +253,10 @@ function LotCard({
 }) {
   const today = localDate();
   const LocationIcon = LOCATION_ICON[lot.location];
-  const meta = [`Added ${formatAgo(lot.addedAt).toLowerCase()}`, lot.storeName, lot.price !== null ? money(lot.price) : null].filter(Boolean).join(' · ');
+  const meta = [lot.note || null, `Added ${formatAgo(lot.addedAt).toLowerCase()}`, lot.storeName, lot.price !== null ? money(lot.price) : null].filter(Boolean).join(' · ');
+  const holds = packageLabel(lot, product);
+  const fill = lot.initialQuantity > 0 ? Math.min(1, lot.quantity / lot.initialQuantity) : 1;
+  const canPour = product.unit !== 'pcs' && lot.quantity > 0;
   return (
     <li className={cx('rounded-[1.375rem] ring-1 ring-inset transition-colors', mode ? 'bg-white ring-ink-900' : 'bg-ink-50 ring-transparent')}>
       <button type="button" onClick={() => onMode(mode ? null : 'use')} aria-expanded={Boolean(mode)} className="press flex w-full items-center gap-3 p-3.5 text-left">
@@ -194,10 +267,18 @@ function LotCard({
               <LocationIcon fontSize="inherit" className="text-sm" />
               {LOCATION_LABEL[lot.location]}
             </Badge>
+            {holds ? <Badge tone="butter">{holds}</Badge> : null}
+            {lot.variant ? <Badge tone="muted">{lot.variant}</Badge> : null}
             {lot.openedAt ? <Badge tone="lav">Opened</Badge> : null}
             {index === 0 && product.lots.length > 1 ? <Badge tone="mint">Next up</Badge> : null}
           </span>
           <span className="mt-1 block truncate text-xs font-medium text-ink-600">{meta}</span>
+          {/* How full the jar, bottle or loaf still is. */}
+          {lot.openedAt && fill < 1 ? (
+            <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-ink-100" aria-label={`${Math.round(fill * 100)}% left`}>
+              <span className="block h-full rounded-full bg-mint-300" style={{ width: `${Math.max(4, fill * 100)}%` }} />
+            </span>
+          ) : null}
         </span>
         <ExpiryChip expiresOn={lot.expiresOn} today={today} />
       </button>
@@ -207,10 +288,13 @@ function LotCard({
             {(
               [
                 ['use', 'Use'],
+                ['pour', 'Pour'],
                 ['move', 'Move'],
                 ['edit', 'Correct'],
               ] as const
-            ).map(([value, label]) => (
+            )
+              .filter(([value]) => value !== 'pour' || canPour)
+              .map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -224,6 +308,7 @@ function LotCard({
             ))}
           </div>
           {mode === 'use' ? <UsePanel lot={lot} product={product} onDone={onDone} /> : null}
+          {mode === 'pour' ? <PourPanel lot={lot} product={product} onDone={onDone} /> : null}
           {mode === 'move' ? <MovePanel lot={lot} onDone={onDone} /> : null}
           {mode === 'edit' ? <CorrectPanel lot={lot} product={product} onDone={onDone} /> : null}
         </div>
@@ -234,8 +319,8 @@ function LotCard({
 
 function UsePanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct; onDone: () => void }) {
   const queryClient = useQueryClient();
-  const measured = { unit: product.unit, pieceSize: product.pieceSize, pieceUnit: product.pieceUnit };
-  const shown = displayUnit(lot.quantity, product.unit);
+  const measured = product;
+  const shown = naturalUnit(lot.quantity, product);
   const [amount, setAmount] = useState<number | null>(product.unit === 'pcs' ? Math.min(1, lot.quantity) : null);
   const [unit, setUnit] = useState<string>(shown);
   const inShown = (fraction: number) => fromBase(lot.quantity * fraction, shown, measured);
@@ -296,6 +381,103 @@ function UsePanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct;
   );
 }
 
+const CONTAINERS = ['dispenser', 'bottle', 'jar', 'container', 'jug'];
+
+/**
+ * Pouring from this piece into another: the big oil bottle into the small one on the desk, a jug
+ * into a bottle. Into one already there (topping it up), or into a new container.
+ */
+function PourPanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct; onDone: () => void }) {
+  const queryClient = useQueryClient();
+  const others = product.lots.filter((other) => other.id !== lot.id);
+  const shown = naturalUnit(lot.quantity, product);
+  const [amount, setAmount] = useState<number | null>(null);
+  const [unit, setUnit] = useState<string>(shown === 'l' ? 'ml' : shown === 'kg' ? 'g' : shown);
+  const [into, setInto] = useState<string>(others[0]?.id ?? 'new');
+  const [container, setContainer] = useState('dispenser');
+  const [holds, setHolds] = useState('');
+  const [location, setLocation] = useState<Lot['location']>('other');
+  const [note, setNote] = useState('');
+  const names = [...new Set([...CONTAINERS, ...(product.units ?? []).map((u) => u.name)])].filter((n) => !['tbsp', 'tsp', 'cup', 'shot', 'pump', 'glass'].includes(n));
+
+  const pour = useMutation({
+    mutationFn: () =>
+      foodApi.pour(lot.id, {
+        quantity: amount!,
+        unit,
+        ...(into === 'new'
+          ? { package: container, packageSize: parseAmount(holds) ? toBase(parseAmount(holds)!, unit, product) : undefined, location, note: note.trim() || undefined }
+          : { intoLotId: into }),
+      }),
+    onSuccess: ({ into: target }) => {
+      haptic('success');
+      toast.success(`Poured ${formatAmount(amount!, unit)}`, { description: `${target.package || 'It'} now has ${formatQty(target.quantity, product)}` });
+      void queryClient.invalidateQueries({ queryKey: foodKeys.all });
+      onDone();
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <QuantityInput label="How much to pour" value={amount} unit={unit} units={unitsFor(product)} onChange={(value, next) => {
+          setAmount(value);
+          setUnit(next);
+        }} autoFocus />
+      <div className="flex flex-col gap-2">
+        <span className="text-[0.8125rem] font-semibold text-ink-700">Into</span>
+        <div className="flex flex-wrap gap-1.5">
+          {others.map((other) => (
+            <button
+              key={other.id}
+              type="button"
+              aria-pressed={into === other.id}
+              onClick={() => setInto(other.id)}
+              className={cx('press h-9 rounded-pill px-3.5 text-sm font-semibold', into === other.id ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100')}
+            >
+              {(other.package || 'Piece').replace(/^./, (c) => c.toUpperCase())}
+              {other.note ? ` · ${other.note}` : ` · ${LOCATION_LABEL[other.location]}`} ({formatQty(other.quantity, product)})
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-pressed={into === 'new'}
+            onClick={() => setInto('new')}
+            className={cx('press h-9 rounded-pill px-3.5 text-sm font-semibold', into === 'new' ? 'bg-ink-900 text-white' : 'bg-butter-100 text-ink-900 hover:bg-butter-200')}
+          >
+            A new container
+          </button>
+        </div>
+      </div>
+      {into === 'new' ? (
+        <div className="flex flex-col gap-4 rounded-[1.25rem] bg-ink-50 p-3">
+          <div className="flex flex-wrap gap-1.5">
+            {names.map((name) => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={container === name}
+                onClick={() => setContainer(name)}
+                className={cx('press h-8 rounded-pill px-3 text-sm font-semibold capitalize', container === name ? 'bg-ink-900 text-white' : 'bg-white text-ink-700')}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <TextField label={`Holds (${unit})`} dense inputMode="decimal" placeholder="Optional" value={holds} onChange={(event) => setHolds(event.target.value)} />
+            <TextField label="Where exactly" dense placeholder="On the desk" value={note} maxLength={60} onChange={(event) => setNote(event.target.value)} />
+          </div>
+          <LocationPicker label="Kept in" value={location} onChange={setLocation} />
+        </div>
+      ) : null}
+      <Button fullWidth size="md" onClick={() => pour.mutate()} disabled={!amount} loading={pour.isPending}>
+        Pour {amount ? formatAmount(amount, unit) : ''}
+      </Button>
+    </div>
+  );
+}
+
 function MovePanel({ lot, onDone }: { lot: Lot; onDone: () => void }) {
   const queryClient = useQueryClient();
   const move = useMutation({
@@ -315,8 +497,8 @@ function MovePanel({ lot, onDone }: { lot: Lot; onDone: () => void }) {
 
 function CorrectPanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct; onDone: () => void }) {
   const queryClient = useQueryClient();
-  const measured = { unit: product.unit, pieceSize: product.pieceSize, pieceUnit: product.pieceUnit };
-  const shown = displayUnit(lot.quantity, product.unit);
+  const measured = product;
+  const shown = naturalUnit(lot.quantity, product);
   const [left, setLeft] = useState<number | null>(fromBase(lot.quantity, shown, measured));
   const [unit, setUnit] = useState<string>(shown);
   const [expiresOn, setExpiresOn] = useState<string | null>(lot.expiresOn);

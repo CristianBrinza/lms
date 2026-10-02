@@ -34,7 +34,7 @@ export function PageHeader({ title, subtitle, back, actions, centered, compact, 
   };
   if (compact) {
     return (
-      <header className={cx('gutter-x flex min-h-12 items-center gap-2.5 pt-[calc(var(--safe-top)+0.625rem)] lg:px-8 lg:pt-6', className)}>
+      <header className={cx('gutter-x flex min-h-12 items-center gap-2.5 pt-[calc(var(--safe-top)+0.625rem)] md:px-5 md:pt-4 lg:px-8 lg:pt-6', className)}>
         {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" size="sm" onClick={goBack} className="shrink-0" /> : null}
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-[-0.025em] lg:text-[1.75rem]">{title}</h1>
@@ -46,7 +46,7 @@ export function PageHeader({ title, subtitle, back, actions, centered, compact, 
   }
   if (centered) {
     return (
-      <header className={cx('gutter-x grid grid-cols-[minmax(3rem,auto)_minmax(0,1fr)_minmax(3rem,auto)] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-7', className)}>
+      <header className={cx('gutter-x grid grid-cols-[minmax(3rem,auto)_minmax(0,1fr)_minmax(3rem,auto)] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] md:px-6 md:pt-5 lg:px-8 lg:pt-7', className)}>
         {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} /> : <span />}
         <h1 className="truncate text-center text-[1.0625rem] font-semibold">{title}</h1>
         <div className="flex justify-end">{actions}</div>
@@ -54,7 +54,7 @@ export function PageHeader({ title, subtitle, back, actions, centered, compact, 
     );
   }
   return (
-    <header className={cx('gutter-x pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-7', className)}>
+    <header className={cx('gutter-x pt-[calc(var(--safe-top)+1rem)] md:px-6 md:pt-5 lg:px-8 lg:pt-7', className)}>
       {back || actions ? (
         <div className="flex min-h-12 items-center justify-between gap-3">
           {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} /> : <span />}

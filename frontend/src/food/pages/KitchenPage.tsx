@@ -9,6 +9,7 @@ import { AddIcon, RemoveIcon, SearchIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { useWide } from '@/lib/useMediaQuery';
 import { foodApi, foodKeys } from '../api';
 import { ExpiryChip } from '../components/ExpiryChip';
 import { normalize, type PickedProduct } from '../catalog';
@@ -20,18 +21,22 @@ import {
   formatQty,
   LOCATION_LABEL,
   localDate,
+  packageLabel,
+  pieceName,
   plural,
 } from '../format';
 import { FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { AddStockSheet } from '../kitchen/AddStockSheet';
-import { ProductSheet } from '../kitchen/ProductSheet';
+import { ProductPanel, ProductSheet } from '../kitchen/ProductSheet';
 import type { Location, StockedProduct } from '../types';
 
 type Place = 'all' | Location;
 
 /**
- * Everything in the kitchen, grouped like a shop's aisles, with what to use soon on top. A row
- * opens the item (each piece, its dates, quick actions); counted items have a one-tap "use 1".
+ * Everything in the kitchen, grouped like a shop's aisles, with what to use soon on top and the
+ * basics kept by level (oil, salt, sauces) at the end with one-tap full / low / out. A row opens
+ * the item (each piece, its dates, quick actions); counted items have a one-tap "use 1". On a
+ * tablet the item opens in a panel beside the list instead of over it.
  */
 export default function KitchenPage() {
   const [params, setParams] = useSearchParams();
@@ -45,6 +50,7 @@ export default function KitchenPage() {
   const openItem = params.get('item');
   const today = localDate();
   const soon = addDays(today, 3);
+  const wide = useWide();
 
   const setItem = (id: string | null) =>
     setParams(
@@ -60,7 +66,14 @@ export default function KitchenPage() {
 
   const products = useMemo(() => kitchen.data ?? [], [kitchen.data]);
   const counts = useMemo(() => {
-    const out: Record<Place, number> = { all: 0, fridge: 0, freezer: 0, pantry: 0, garden: 0, other: 0 };
+    const out: Record<Place, number> = {
+      all: 0,
+      fridge: 0,
+      freezer: 0,
+      pantry: 0,
+      garden: 0,
+      other: 0,
+    };
     for (const product of products) {
       if (product.total > 0) out.all += 1;
       for (const location of new Set(product.lots.map((lot) => lot.location))) out[location] += 1;
@@ -76,13 +89,19 @@ export default function KitchenPage() {
     )
     .filter((product) => (place === 'all' ? true : product.lots.length > 0))
     .filter((product) => !query.trim() || normalize(product.name).includes(normalize(query)));
-  const useSoon = shown.filter((p) => p.lots.some((lot) => lot.expiresOn && lot.expiresOn <= soon));
-  const rest = shown.filter((p) => !useSoon.includes(p));
+  const basics = shown.filter((p) => p.trackMode !== 'exact');
+  const measured = shown.filter((p) => p.trackMode === 'exact');
+  const useSoon = measured.filter((p) =>
+    p.lots.some((lot) => lot.expiresOn && lot.expiresOn <= soon),
+  );
+  const rest = measured.filter((p) => !useSoon.includes(p));
   const groups = CATEGORY_ORDER.map((category) => ({
     category,
     items: rest.filter((p) => p.category === category),
   })).filter((g) => g.items.length);
-  const stocked = products.filter((p) => p.total > 0).length;
+  const stocked = products.filter(
+    (p) => p.total > 0 || (p.trackMode === 'level' && p.level !== 'out'),
+  ).length;
 
   return (
     <Screen tone="white">
@@ -106,81 +125,130 @@ export default function KitchenPage() {
         }
       />
 
-      <div className="gutter-x mt-2.5 flex flex-col gap-2 lg:px-8">
-        <TextField
-          label="Search the kitchen"
-          hideLabel
-          dense
-          icon={SearchIcon}
-          surface="raised"
-          placeholder="Search the kitchen"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <Chips
-          label="Where"
-          tone="sheet"
-          dense
-          value={place}
-          onChange={setPlace}
-          options={[
-            { value: 'all' as const, label: 'All', count: counts.all },
-            ...LOCATION_OPTIONS.map((o) => ({ ...o, count: counts[o.value] })),
-          ]}
-        />
-      </div>
+      <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(21rem,0.95fr)] md:items-start md:gap-4 md:px-5 lg:gap-6 lg:px-8">
+        <div className="min-w-0">
+          <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-0">
+            <TextField
+              label="Search the kitchen"
+              hideLabel
+              dense
+              icon={SearchIcon}
+              surface="raised"
+              placeholder="Search the kitchen"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <Chips
+              label="Where"
+              tone="sheet"
+              dense
+              value={place}
+              onChange={setPlace}
+              options={[
+                { value: 'all' as const, label: 'All', count: counts.all },
+                ...LOCATION_OPTIONS.map((o) => ({ ...o, count: counts[o.value] })),
+              ]}
+            />
+          </div>
 
-      <div className="gutter-x mt-3 lg:px-8">
-        {kitchen.isPending ? (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-20 rounded-3xl" />
-            <Skeleton className="h-20 rounded-3xl" />
-            <Skeleton className="h-20 rounded-3xl" />
+          <div className="gutter-x mt-3 md:px-0">
+            {kitchen.isPending ? (
+              <div className="flex flex-col gap-3">
+                <Skeleton className="h-20 rounded-3xl" />
+                <Skeleton className="h-20 rounded-3xl" />
+                <Skeleton className="h-20 rounded-3xl" />
+              </div>
+            ) : kitchen.error ? (
+              <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
+                <p className="font-semibold text-danger-700">Couldn’t load the kitchen</p>
+                <p className="mt-1 text-sm text-ink-600">{errorMessage(kitchen.error)}</p>
+                <Button
+                  size="sm"
+                  variant="tint"
+                  className="mt-3"
+                  onClick={() => void kitchen.refetch()}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : !products.length ? (
+              <Empty onAdd={() => setAdding({ open: true, initial: null })} />
+            ) : !shown.length ? (
+              <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
+                {query
+                  ? `Nothing called “${query}”`
+                  : `Nothing in the ${place === 'all' ? 'kitchen' : LOCATION_LABEL[place as Location].toLowerCase()}`}
+              </p>
+            ) : (
+              <div className="2xl:columns-2 2xl:gap-6">
+                {useSoon.length ? (
+                  <Group
+                    title="Use soon"
+                    tone="peach"
+                    items={useSoon}
+                    onOpen={setItem}
+                    today={today}
+                    selected={wide ? openItem : null}
+                  />
+                ) : null}
+                {groups.map((group) => (
+                  <Group
+                    key={group.category}
+                    title={CATEGORY_LABEL[group.category]}
+                    items={group.items}
+                    onOpen={setItem}
+                    today={today}
+                    selected={wide ? openItem : null}
+                  />
+                ))}
+                {basics.length ? (
+                  <Group
+                    title="Basics · full, low, out"
+                    items={basics}
+                    onOpen={setItem}
+                    today={today}
+                    selected={wide ? openItem : null}
+                  />
+                ) : null}
+              </div>
+            )}
           </div>
-        ) : kitchen.error ? (
-          <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load the kitchen</p>
-            <p className="mt-1 text-sm text-ink-600">{errorMessage(kitchen.error)}</p>
-            <Button
-              size="sm"
-              variant="tint"
-              className="mt-3"
-              onClick={() => void kitchen.refetch()}
-            >
-              Try again
-            </Button>
-          </div>
-        ) : !products.length ? (
-          <Empty onAdd={() => setAdding({ open: true, initial: null })} />
-        ) : !shown.length ? (
-          <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
-            {query
-              ? `Nothing called “${query}”`
-              : `Nothing in the ${place === 'all' ? 'kitchen' : LOCATION_LABEL[place as Location].toLowerCase()}`}
-          </p>
-        ) : (
-          <div className="lg:columns-2 lg:gap-6 2xl:columns-3">
-            {useSoon.length ? (
-              <Group title="Use soon" tone="peach" items={useSoon} onOpen={setItem} today={today} />
-            ) : null}
-            {groups.map((group) => (
-              <Group
-                key={group.category}
-                title={CATEGORY_LABEL[group.category]}
-                items={group.items}
-                onOpen={setItem}
-                today={today}
+        </div>
+
+        {/* Tablets: the item stands beside the list. */}
+        {wide ? (
+          <aside className="sticky top-3 mt-2.5 max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[1.75rem] [scrollbar-width:thin]">
+            {openItem ? (
+              <ProductPanel
+                key={openItem}
+                productId={openItem}
+                onClose={() => setItem(null)}
+                onAddMore={(initial) => setAdding({ open: true, initial })}
               />
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="flex flex-col items-center rounded-[1.75rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
+                <SceneArt scene="kitchen" className="size-20" />
+                <p className="mt-3 text-[1.0625rem] font-bold">Tap an item</p>
+                <p className="mt-1 max-w-xs text-sm text-ink-600">
+                  Each piece, how much is left and until when, and quick ways to use, pour or move
+                  it.
+                </p>
+              </div>
+            )}
+          </aside>
+        ) : null}
       </div>
 
       {/* In <body>: the page's entrance animation transforms its box, which would re-anchor `fixed`. */}
       {products.length
         ? createPortal(
-            <div className="fixed bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.875rem)] right-4 z-30 animate-rise lg:hidden">
-              <Button icon={AddIcon} variant="accent" size="md" onClick={() => setAdding({ open: true, initial: null })}>
+            <div className="fixed bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.875rem)] right-4 z-30 animate-rise md:hidden">
+              <Button
+                icon={AddIcon}
+                variant="accent"
+                size="md"
+                onClick={() => setAdding({ open: true, initial: null })}
+              >
                 Add food
               </Button>
             </div>,
@@ -189,7 +257,7 @@ export default function KitchenPage() {
         : null}
 
       <ProductSheet
-        productId={openItem}
+        productId={wide ? null : openItem}
         onClose={() => setItem(null)}
         onAddMore={(initial) => setAdding({ open: true, initial })}
       />
@@ -208,12 +276,14 @@ function Group({
   onOpen,
   today,
   tone,
+  selected,
 }: {
   title: string;
   items: StockedProduct[];
   onOpen: (id: string) => void;
   today: string;
   tone?: 'peach';
+  selected?: string | null;
 }) {
   return (
     <section className="mb-3.5 break-inside-avoid">
@@ -228,14 +298,24 @@ function Group({
         <span className="tabular text-sm font-semibold text-ink-500">{items.length}</span>
       </h2>
       <ul className="divide-y divide-ink-100 overflow-hidden rounded-[1.25rem] bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
-        {items.map((product) => (
-          <ItemRow
-            key={product.id}
-            product={product}
-            onOpen={() => onOpen(product.id)}
-            today={today}
-          />
-        ))}
+        {items.map((product) =>
+          product.trackMode === 'exact' ? (
+            <ItemRow
+              key={product.id}
+              product={product}
+              onOpen={() => onOpen(product.id)}
+              today={today}
+              selected={selected === product.id}
+            />
+          ) : (
+            <BasicRow
+              key={product.id}
+              product={product}
+              onOpen={() => onOpen(product.id)}
+              selected={selected === product.id}
+            />
+          ),
+        )}
       </ul>
     </section>
   );
@@ -245,10 +325,12 @@ function ItemRow({
   product,
   onOpen,
   today,
+  selected,
 }: {
   product: StockedProduct;
   onOpen: () => void;
   today: string;
+  selected?: boolean;
 }) {
   const queryClient = useQueryClient();
   const useOne = useMutation({
@@ -256,22 +338,27 @@ function ItemRow({
     onSuccess: (result) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success(`Used 1 · ${product.name}`, {
+      toast.success(`Used ${piece ? `1 ${piece.name}` : '1'} · ${product.name}`, {
         description: `${formatQty(Math.max(0, product.total - result.used), product)} left`,
         action: {
           label: 'Undo',
           onClick: () =>
-            void foodApi.undo(result.events)
+            void foodApi
+              .undo(result.events)
               .then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
         },
       });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
+  const piece = pieceName(product);
   const total = product.lots.reduce((sum, lot) => sum + lot.quantity, 0);
   const places = [...new Set(product.lots.map((lot) => LOCATION_LABEL[lot.location]))].join(', ');
-  const pieces =
-    product.lots.length > 1 && product.unit !== 'pcs'
+  const only = product.lots.length === 1 ? product.lots[0]! : null;
+  // "Jar of 14, opened", "1.25 l + 1 l", else where it is.
+  const pieces = only?.package
+    ? `${packageLabel(only, product)}${only.openedAt ? ', opened' : ''} · ${LOCATION_LABEL[only.location]}`
+    : product.lots.length > 1 && (product.unit !== 'pcs' || product.lots.some((lot) => lot.package))
       ? product.lots
           .slice(0, 3)
           .map((lot) => formatQty(lot.quantity, product))
@@ -285,10 +372,11 @@ function ItemRow({
   const canUseOne = product.unit === 'pcs' && total >= 1;
 
   return (
-    <li className="flex items-center">
+    <li className={cx('flex items-center', selected && 'bg-butter-100')}>
       <button
         type="button"
         onClick={onOpen}
+        aria-current={selected ? 'true' : undefined}
         className="press flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 pr-2 text-left transition-colors hover:bg-ink-50"
       >
         <FoodIconTile name={product.icon} className="size-10 rounded-xl [&>svg]:size-7" />
@@ -315,8 +403,8 @@ function ItemRow({
           type="button"
           onClick={() => useOne.mutate()}
           disabled={useOne.isPending}
-          aria-label={`Use 1 ${product.name}`}
-          title="Use 1"
+          aria-label={`Use 1 ${piece?.name ?? ''} ${product.name}`.replace(/\s+/g, ' ')}
+          title={piece ? `Use 1 ${piece.name}` : 'Use 1'}
           className="press mr-2 grid size-10 shrink-0 place-items-center rounded-full bg-ink-50 text-[1.25rem] text-ink-800 transition-colors hover:bg-butter-200 disabled:opacity-50"
         >
           <RemoveIcon fontSize="inherit" />
@@ -324,6 +412,79 @@ function ItemRow({
       ) : (
         <span aria-hidden="true" className="mr-2 w-10 shrink-0" />
       )}
+    </li>
+  );
+}
+
+const LEVELS = [
+  ['full', 'Full'],
+  ['low', 'Low'],
+  ['out', 'Out'],
+] as const;
+
+/** A basic kept by level: full, low or out, one tap on the row. */
+function BasicRow({
+  product,
+  onOpen,
+  selected,
+}: {
+  product: StockedProduct;
+  onOpen: () => void;
+  selected?: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const set = useMutation({
+    mutationFn: (level: 'full' | 'low' | 'out') => foodApi.setLevel(product.id, level),
+    onMutate: () => haptic('tap'),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: foodKeys.all }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  const level = set.isPending && set.variables ? set.variables : product.level;
+  return (
+    <li className={cx('flex items-center gap-2 pr-2', selected && 'bg-butter-100')}>
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-current={selected ? 'true' : undefined}
+        className="press flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 text-left transition-colors hover:bg-ink-50"
+      >
+        <FoodIconTile name={product.icon} className="size-10 rounded-xl [&>svg]:size-7" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[0.9375rem] font-semibold">{product.name}</span>
+          <span className="block truncate text-sm text-ink-600">
+            {product.trackMode === 'none' ? 'Always there' : LOCATION_LABEL[product.location]}
+          </span>
+        </span>
+      </button>
+      {product.trackMode === 'level' ? (
+        <span
+          role="radiogroup"
+          aria-label={`${product.name}: how much is left`}
+          className="flex shrink-0 gap-0.5 rounded-pill bg-ink-50 p-0.5"
+        >
+          {LEVELS.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={level === value}
+              onClick={() => level !== value && set.mutate(value)}
+              className={cx(
+                'press h-8 min-w-11 rounded-pill px-2 text-xs font-semibold transition-colors',
+                level === value
+                  ? value === 'out'
+                    ? 'bg-peach-200 text-ink-900'
+                    : value === 'low'
+                      ? 'bg-butter-300 text-ink-900'
+                      : 'bg-mint-200 text-ink-900'
+                  : 'text-ink-600',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </span>
+      ) : null}
     </li>
   );
 }

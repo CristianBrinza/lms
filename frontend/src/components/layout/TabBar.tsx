@@ -8,7 +8,7 @@ import { isActivePath, NAV_ITEMS } from './nav';
 /**
  * The bottom menu: Rounded icons, each with its name underneath, every tab the full width of its
  * share of the bar so a thumb can't miss. A soft cyan pill sits behind the chosen icon
- * on the chosen tab; the icon darkens with a small pop. Phones and tablets; desktops get SideNav.
+ * on the chosen tab; the icon darkens with a small pop. Phones only; tablets and desktops get SideNav.
  */
 export function TabBar() {
   const items = NAV_ITEMS;
@@ -38,7 +38,7 @@ export function TabBar() {
     <nav
       ref={navRef}
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 bg-white px-1 pb-[max(0.25rem,var(--safe-bottom))] pt-1 shadow-[0_-1px_0_rgb(42_43_102/0.08),0_-10px_24px_-18px_rgb(42_43_102/0.4)] [view-transition-name:tabbar] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 bg-white px-1 pb-[max(0.25rem,var(--safe-bottom))] pt-1 shadow-[0_-1px_0_rgb(42_43_102/0.08),0_-10px_24px_-18px_rgb(42_43_102/0.4)] [view-transition-name:tabbar] md:hidden"
     >
       <ul className="mx-auto flex max-w-lg items-stretch">
         {items.map((item, index) => {

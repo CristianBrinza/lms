@@ -9,14 +9,16 @@ import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
 import { ExpiryChip } from '../components/ExpiryChip';
 import { MealStatus } from '../components/MealStatus';
-import { dayLong, formatQty, localDate, plural, SLOT_LABEL } from '../format';
+import { dayLong, formatQty, LOCATION_LABEL, localDate, plural, SLOT_LABEL } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
+import { KitchenwareEntry } from '../kitchenware/KitchenwareEntry';
 import type { FoodOverview } from '../types';
 
 /**
- * Food's front door. On a phone, "Today" comes first (what's for lunch, what to use up, what ran
- * low), then the four big cards: Kitchen, Recipes, Shopping, Plan. On desktop the cards lead on
- * the left and Today stands beside them.
+ * Food's front door. On a phone, "Today" comes first (what's for lunch, what's opened, what to use
+ * up, what ran low), then the four big cards: Kitchen, Recipes, Shopping, Plan. On an iPad held
+ * upright Today opens into two columns and the cards stand in one row; on wide screens the cards
+ * lead on the left and Today stands beside them.
  */
 export default function FoodHomePage() {
   const today = localDate();
@@ -29,13 +31,13 @@ export default function FoodHomePage() {
         <PageHeader compact back="/home" title="Food" subtitle={data ? data.kitchen.name : ' '} />
       </div>
 
-      <div className="gutter-x mt-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-6 lg:px-0 lg:sticky lg:top-4">
+      <div className="gutter-x mt-3 md:px-5 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-6 lg:px-0">
         <Today overview={overview.data} loading={overview.isPending} error={overview.error} onRetry={() => void overview.refetch()} today={today} />
         <AskClaude className="mt-3 hidden lg:flex" />
       </div>
 
-      <section aria-label="Sections" className="gutter-x mt-3 lg:col-start-1 lg:row-start-2 lg:mt-5 lg:px-8">
-        <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
+      <section aria-label="Sections" className="gutter-x mt-3 md:px-5 lg:col-start-1 lg:row-start-2 lg:mt-5 lg:px-8">
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3 lg:grid-cols-2 lg:gap-4">
           <SectionCard
             to="/food/kitchen"
             title="Kitchen"
@@ -77,7 +79,11 @@ export default function FoodHomePage() {
             detail={data ? 'planned this week' : null}
           />
         </div>
-        <AskClaude className="mt-3 lg:hidden" />
+        {/* Beside the four areas, not one of them: pots, pans, glasses — clean or in the wash. */}
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <KitchenwareEntry />
+          <AskClaude className="lg:hidden" />
+        </div>
       </section>
     </Screen>
   );
@@ -186,12 +192,18 @@ function Today({
           </Button>
         </div>
       ) : overview ? (
-        <>
-          <Meals overview={overview} />
-          <CookIdeas planned={new Set(overview.meals.today.map((m) => m.recipeId).filter((id): id is string => Boolean(id)))} />
-          <UseSoon overview={overview} today={today} />
-          <RunningLow overview={overview} />
-        </>
+        // Two columns on an iPad held upright: the day's meals beside what to use up.
+        <div className="md:grid md:grid-cols-2 md:gap-x-6 lg:block">
+          <div className="min-w-0">
+            <Meals overview={overview} />
+            <CookIdeas planned={new Set(overview.meals.today.map((m) => m.recipeId).filter((id): id is string => Boolean(id)))} />
+          </div>
+          <div className="min-w-0">
+            <Opened overview={overview} today={today} />
+            <UseSoon overview={overview} today={today} />
+            <RunningLow overview={overview} />
+          </div>
+        </div>
       ) : null}
     </section>
   );
@@ -224,15 +236,72 @@ function Meals({ overview }: { overview: FoodOverview }) {
             <FoodIconTile name={meal.icon} tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'} className="size-10 rounded-xl [&>svg]:size-7" />
             <span className="min-w-0 flex-1">
               <span className={cx('block truncate text-[0.9375rem] font-semibold', meal.status === 'done' && 'line-through decoration-ink-400')}>{meal.title}</span>
-              <span className="block text-sm text-ink-600">
+              <span className="block truncate text-sm text-ink-600">
                 {meal.time ?? SLOT_LABEL[meal.slot]} · {plural(meal.servings, 'serving')}
+                {meal.toGo ? ' · to go' : ''}
               </span>
+              <ToolWarning meal={meal} />
             </span>
             <MealStatus meal={meal} />
           </Link>
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Kitchenware a planned meal needs that is still dirty or in the dishwasher. */
+function ToolWarning({ meal }: { meal: FoodOverview['meals']['today'][number] }) {
+  if (meal.status !== 'planned') return null;
+  const dirty = meal.tools.filter((tool) => tool.status === 'dirty');
+  const washing = meal.tools.filter((tool) => tool.status === 'washing');
+  if (!dirty.length && !washing.length) return null;
+  return (
+    <span className="mt-0.5 block truncate text-xs font-semibold text-peach-800">
+      {dirty.length ? `Wash first: ${dirty.map((t) => t.name.toLowerCase()).join(', ')}` : `In the dishwasher: ${washing.map((t) => t.name.toLowerCase()).join(', ')}`}
+    </span>
+  );
+}
+
+/** Packages already started: use them before they spoil, rather than opening new ones. */
+function Opened({ overview, today }: { overview: FoodOverview; today: string }) {
+  const items = overview.stock.opened;
+  if (!items.length) return null;
+  return (
+    <div className="mt-3.5 md:mt-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[0.9375rem] font-bold">Opened, use first</h3>
+        <Link to="/food/kitchen" className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800">
+          Kitchen
+          <ChevronRightIcon fontSize="inherit" className="text-lg" />
+        </Link>
+      </div>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {items.slice(0, 4).map((item) => (
+          <li key={item.lotId} className="flex items-center gap-1">
+            <Link to={`/food/kitchen?item=${item.productId}`} className="press -mx-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50">
+              <FoodIconTile name={item.icon} tone="bg-peach-100" className="size-10 rounded-xl [&>svg]:size-7" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9375rem] font-semibold">{item.name}</span>
+                <span className="block truncate text-xs text-ink-600">
+                  {formatQty(item.quantity, item)} left · {LOCATION_LABEL[item.location]}
+                </span>
+              </span>
+              <ExpiryChip expiresOn={item.expiresOn} today={today} compact />
+            </Link>
+            {item.recipes ? (
+              <Link
+                to={`/food/recipes?uses=${item.productId}`}
+                className="press inline-flex h-8 shrink-0 items-center rounded-pill bg-ink-900 px-3 text-xs font-semibold text-white"
+                aria-label={`Recipes with ${item.name}`}
+              >
+                {plural(item.recipes, 'recipe')}
+              </Link>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -274,7 +343,9 @@ function CookIdeas({ planned }: { planned: Set<string> }) {
 }
 
 function UseSoon({ overview, today }: { overview: FoodOverview; today: string }) {
-  const items = overview.stock.expiring;
+  // Opened packages are listed above already.
+  const opened = new Set(overview.stock.opened.map((item) => item.lotId));
+  const items = overview.stock.expiring.filter((item) => !opened.has(item.lotId));
   if (!items.length) return null;
   return (
     <div className="mt-3.5">
@@ -285,7 +356,7 @@ function UseSoon({ overview, today }: { overview: FoodOverview; today: string })
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
       </div>
-      <ul className="-mx-3.5 mt-2 flex gap-2 overflow-x-auto px-3.5 pb-0.5 [scrollbar-width:none] lg:-mx-5 lg:px-5">
+      <ul className="-mx-3.5 mt-2 flex gap-2 overflow-x-auto px-3.5 pb-0.5 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 lg:-mx-5 lg:flex-nowrap lg:px-5">
         {items.map((item) => (
           <li key={item.lotId} className="shrink-0">
             <Link to={`/food/kitchen?item=${item.productId}`} className="press flex w-[7.5rem] flex-col gap-1.5 rounded-2xl bg-ink-50 p-2.5 transition-colors hover:bg-ink-100">

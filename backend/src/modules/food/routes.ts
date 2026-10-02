@@ -23,8 +23,8 @@ import { overview } from './overview';
 import { planNeeds } from './plan';
 import { addRestriction, kitchenPeople, listRestrictions, removeRestriction } from './restrictions';
 import { createRecipe, deleteRecipe, getRecipe, listRecipes, updateRecipe } from './recipes';
-import { CATEGORIES, FOOD_ICONS, LOCATIONS, PRESETS, presetOrGuess, type Location } from './presets';
-import { archiveProduct, createProduct, listProducts, refreshFromCatalog, updateProduct } from './products';
+import { CATEGORIES, findPreset, FOOD_ICONS, LOCATIONS, PRESETS, presetOrGuess, type Location } from './presets';
+import { archiveProduct, createProduct, listProducts, refreshFromCatalog, splitVariant, updateProduct } from './products';
 import {
   AddShoppingInput,
   AddStockInput,
@@ -70,7 +70,13 @@ export function foodRoutes(deps: AppDeps) {
   app.get('/presets', (c) => c.json({ presets: PRESETS, categories: CATEGORIES, icons: FOOD_ICONS, locations: LOCATIONS }));
 
   // What a name the catalog doesn't know probably is ("Smoked salt" → a spice, kept by level).
-  app.get('/guess', (c) => c.json({ guess: presetOrGuess((c.req.query('name') ?? '').slice(0, 80)) }));
+  app.get('/guess', async (c) => {
+    const name = (c.req.query('name') ?? '').slice(0, 80);
+    // "guava juice": Juice, a new type Guava — so the app offers the item instead of a new one.
+    const known = findPreset(name);
+    const match = known ? null : await splitVariant(ctx(c), name);
+    return c.json({ guess: presetOrGuess(name), match });
+  });
 
   app.put('/products/:id/level', async (c) => c.json({ product: await setLevel(ctx(c), c.req.param('id'), (await readJson(c, LevelInput)).level) }));
   app.get('/products', async (c) => c.json({ products: await listProducts(ctx(c), c.req.query('q') ?? '') }));

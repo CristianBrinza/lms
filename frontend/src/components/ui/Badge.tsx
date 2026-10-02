@@ -8,6 +8,7 @@ const TONES = {
   danger: 'bg-danger-50 text-danger-700',
   mint: 'bg-mint-100 text-mint-800',
   peach: 'bg-peach-100 text-peach-800',
+  butter: 'bg-butter-100 text-butter-800',
 } as const;
 
 export function Badge({ tone = 'lav', children, className }: { tone?: keyof typeof TONES; children: ReactNode; className?: string }) {

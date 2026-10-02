@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useDeferredValue, useState } from 'react';
 import { TextField } from '@/components/ui';
 import { AddIcon, SearchIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { foodApi, foodKeys } from '../api';
 import { COMMON, fromPreset, fromProduct, sameName, useProductSearch, type PickedProduct } from '../catalog';
 import { CATEGORY_LABEL, LOCATION_LABEL } from '../format';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
@@ -11,6 +13,18 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
   const [query, setQuery] = useState('');
   const { results, exact, products, presets } = useProductSearch(query);
   const typed = query.trim();
+  // Not known as typed: the API may know it as a type of an item ("guava juice" → Juice, Guava)
+  // and guess what a new name is (spices by level, juices on the shelf…).
+  const deferred = useDeferredValue(typed);
+  const guess = useQuery({
+    queryKey: [...foodKeys.all, 'guess', deferred.toLowerCase()],
+    queryFn: () => foodApi.guess(deferred),
+    enabled: deferred.length >= 3 && !exact,
+    staleTime: 5 * 60_000,
+  });
+  const matched = guess.data?.match ? findPick(guess.data.match.item, products, presets) : null;
+  const match = matched && guess.data?.match ? { ...matched, variant: guess.data.match.variant } : null;
+  const fresh = (name: string) => newItem(name, deferred === typed ? (guess.data?.guess ?? null) : null);
   const common = COMMON.map((name) => products.find((p) => sameName(p.name, name)) ?? presets.find((p) => p.name === name))
     .filter((p): p is Product | Preset => Boolean(p))
     .map((p) => ('id' in p ? fromProduct(p) : fromPreset(p)));
@@ -28,7 +42,8 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
           if (event.key !== 'Enter') return;
           event.preventDefault();
           if (results[0] && (exact || !typed)) onPick(results[0]);
-          else if (typed) onPick(newItem(typed));
+          else if (match) onPick(match);
+          else if (typed) onPick(fresh(typed));
         }}
         autoFocus={autoFocus}
         autoComplete="off"
@@ -42,9 +57,24 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
               <PickRow pick={pick} onPick={onPick} />
             </li>
           ))}
+          {match && !exact ? (
+            <li>
+              <button type="button" onClick={() => onPick(match)} className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50">
+                <FoodIconTile name={match.icon} tone="bg-butter-100" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[0.9375rem] font-semibold">
+                    {match.name} · {match.variant}
+                  </span>
+                  <span className="block truncate text-sm text-ink-600">
+                    {match.variants.some((v) => sameName(v, match.variant!)) ? `A kind of ${match.name.toLowerCase()}` : `A new kind of ${match.name.toLowerCase()}`}
+                  </span>
+                </span>
+              </button>
+            </li>
+          ) : null}
           {!exact ? (
             <li>
-              <button type="button" onClick={() => onPick(newItem(typed))} className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50">
+              <button type="button" onClick={() => onPick(fresh(typed))} className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50">
                 <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-lav-100 text-[1.4rem] text-lav-800">
                   <AddIcon fontSize="inherit" />
                 </span>
@@ -79,17 +109,29 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
   );
 }
 
-function newItem(name: string): PickedProduct {
+/** The kitchen's item, else the catalog food, with this name. */
+function findPick(name: string, products: Product[], presets: Preset[]): PickedProduct | null {
+  const own = products.find((p) => sameName(p.name, name));
+  if (own) return fromProduct(own);
+  const food = presets.find((p) => p.name === name);
+  return food ? fromPreset(food) : null;
+}
+
+/** A name nobody knows yet, shaped by the API's guess (a sauce is kept by level, juice on the shelf). */
+function newItem(name: string, guess: Preset | null): PickedProduct {
   const tidy = name.replace(/\s+/g, ' ').trim();
   return {
     name: tidy.charAt(0).toUpperCase() + tidy.slice(1),
-    icon: 'basket',
-    category: 'other',
-    unit: 'pcs',
-    pieceSize: null,
-    pieceUnit: null,
-    location: 'pantry',
-    shelfLifeDays: null,
+    icon: guess?.icon ?? 'basket',
+    category: guess?.category ?? 'other',
+    unit: guess?.unit ?? 'pcs',
+    pieceSize: guess?.pieceSize ?? null,
+    pieceUnit: guess?.pieceUnit ?? null,
+    location: guess?.location ?? 'pantry',
+    shelfLifeDays: guess?.shelfLifeDays ?? null,
+    units: guess?.units ?? [],
+    variants: guess?.variants ?? [],
+    trackMode: guess?.track ?? 'exact',
     isNew: true,
   };
 }
