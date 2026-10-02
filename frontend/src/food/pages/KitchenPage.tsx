@@ -60,7 +60,7 @@ export default function KitchenPage() {
 
   const products = useMemo(() => kitchen.data ?? [], [kitchen.data]);
   const counts = useMemo(() => {
-    const out: Record<Place, number> = { all: 0, fridge: 0, freezer: 0, pantry: 0, other: 0 };
+    const out: Record<Place, number> = { all: 0, fridge: 0, freezer: 0, pantry: 0, garden: 0, other: 0 };
     for (const product of products) {
       if (product.total > 0) out.all += 1;
       for (const location of new Set(product.lots.map((lot) => lot.location))) out[location] += 1;
@@ -261,8 +261,7 @@ function ItemRow({
         action: {
           label: 'Undo',
           onClick: () =>
-            void foodApi
-              .restore(result.lots.map((l) => ({ lotId: l.lotId, quantity: l.taken })))
+            void foodApi.undo(result.events)
               .then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
         },
       });

@@ -73,6 +73,7 @@ export { default as FavoriteBorderIcon } from '@mui/icons-material/FavoriteBorde
 export { default as FireIcon } from '@mui/icons-material/LocalFireDepartmentRounded';
 export { default as FreezerIcon } from '@mui/icons-material/AcUnitRounded';
 export { default as FridgeIcon } from '@mui/icons-material/KitchenRounded';
+export { default as GardenIcon } from '@mui/icons-material/GrassRounded';
 export { default as MenuBookIcon } from '@mui/icons-material/MenuBookRounded';
 export { default as PantryIcon } from '@mui/icons-material/Inventory2Rounded';
 export { default as PeopleIcon } from '@mui/icons-material/PeopleRounded';

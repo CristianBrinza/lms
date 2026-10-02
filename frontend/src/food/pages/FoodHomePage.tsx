@@ -188,7 +188,7 @@ function Today({
       ) : overview ? (
         <>
           <Meals overview={overview} />
-          <CookIdeas />
+          <CookIdeas planned={new Set(overview.meals.today.map((m) => m.recipeId).filter((id): id is string => Boolean(id)))} />
           <UseSoon overview={overview} today={today} />
           <RunningLow overview={overview} />
         </>
@@ -237,10 +237,10 @@ function Meals({ overview }: { overview: FoodOverview }) {
 }
 
 /** What can be cooked right now from the kitchen, the ones using up food first. */
-function CookIdeas() {
+function CookIdeas({ planned }: { planned: Set<string> }) {
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const ideas = (recipes.data ?? [])
-    .filter((r) => r.availability.ready && r.availability.total > 0)
+    .filter((r) => r.availability.ready && r.availability.total > 0 && !planned.has(r.id))
     .sort((a, b) => b.availability.useSoon - a.availability.useSoon || Number(b.favorite) - Number(a.favorite))
     .slice(0, 3);
   if (!ideas.length) return null;

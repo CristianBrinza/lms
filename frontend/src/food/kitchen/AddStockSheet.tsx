@@ -76,11 +76,13 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
         void queryClient.invalidateQueries({ queryKey: foodKeys.all });
         toast.success(`${product.name} added`, {
           description: `${formatAmount(amount, unit)} · ${location === 'fridge' ? 'in the fridge' : location === 'freezer' ? 'in the freezer' : location === 'pantry' ? 'in the pantry' : 'put away'}`,
-          action: {
-            label: 'Undo',
-            onClick: () =>
-              void foodApi.removeLot(lot.id).then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
-          },
+          // A level item has no piece to take back; anything else can be undone.
+          action: lot
+            ? {
+                label: 'Undo',
+                onClick: () => void foodApi.removeLot(lot.id).then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
+              }
+            : undefined,
         });
         if (another) choose(null);
         else onClose();

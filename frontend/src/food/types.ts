@@ -2,7 +2,9 @@
 
 export type BaseUnit = 'pcs' | 'g' | 'ml';
 export type Unit = 'pcs' | 'g' | 'kg' | 'ml' | 'l' | 'tsp' | 'tbsp' | 'cup';
-export type Location = 'fridge' | 'freezer' | 'pantry' | 'other';
+export type Location = 'fridge' | 'freezer' | 'pantry' | 'garden' | 'other';
+export type TrackMode = 'exact' | 'level' | 'none';
+export type Level = 'full' | 'low' | 'out';
 export type Category =
   | 'produce'
   | 'bakery'
@@ -32,7 +34,12 @@ export interface Product {
   location: Location;
   shelfLifeDays: number | null;
   openedDays: number | null;
+  trackMode: TrackMode;
+  level: Level;
+  levelAt: string | null;
   trackStock: boolean;
+  freezerDays: number | null;
+  thawedDays: number | null;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -59,6 +66,7 @@ export interface Lot {
 
 export interface StockedProduct extends Product {
   total: number;
+  totalHere?: number;
   lots: Lot[];
   nextExpiry: string | null;
   low: boolean;
@@ -66,7 +74,7 @@ export interface StockedProduct extends Product {
 
 export interface StockEvent {
   id: number;
-  kind: 'added' | 'used' | 'wasted' | 'adjusted' | 'moved' | 'restored';
+  kind: 'added' | 'used' | 'wasted' | 'adjusted' | 'moved' | 'restored' | 'level';
   delta: number;
   lotId: string | null;
   mealId: string | null;
@@ -96,7 +104,9 @@ export interface Preset {
   pieceSize?: number;
   pieceUnit?: 'g' | 'ml';
   openedDays?: number;
-  trackStock?: boolean;
+  track?: TrackMode;
+  freezerDays?: number;
+  thawedDays?: number;
 }
 
 export interface UseResult {
@@ -104,6 +114,7 @@ export interface UseResult {
   used: number;
   shortfall: number;
   lots: Array<{ lotId: string; taken: number; left: number }>;
+  events: number[];
 }
 
 export interface Store {
@@ -154,6 +165,7 @@ export interface IngredientLine {
   note: string;
   optional: boolean;
   inStock: number | null;
+  level: Level | null;
   baseUnit: BaseUnit | null;
   enough: boolean | null;
   missing: number;
@@ -222,6 +234,7 @@ export interface NeedLine {
   toBuyAmount: number;
   toBuyUnit: Unit;
   storeId: string | null;
+  level: 'low' | 'out' | null;
   meals: Array<{ id: string; title: string; date: string }>;
 }
 
@@ -231,7 +244,7 @@ export interface FoodOverview {
     products: number;
     expiring: Array<{ lotId: string; productId: string; name: string; icon: string; quantity: number; unit: BaseUnit; expiresOn: string }>;
     expired: number;
-    low: Array<{ productId: string; name: string; icon: string; total: number; minStock: number; unit: BaseUnit }>;
+    low: Array<{ productId: string; name: string; icon: string; total: number; minStock: number; unit: BaseUnit; level: Level | null }>;
   };
   recipes: { total: number; ready: number; favorites: number };
   shopping: { open: number; inCart: number; stores: Array<{ id: string; name: string; tone: StoreTone; open: number }>; anyStore: number };

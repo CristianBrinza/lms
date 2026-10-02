@@ -85,10 +85,12 @@ export const foodApi = {
   updateProduct: (id: string, body: Partial<Product>) => api.patch<{ product: Product }>(`/food/products/${id}`, body).then((r) => r.product),
   archiveProduct: (id: string) => api.delete<void>(`/food/products/${id}`),
 
-  addStock: (body: AddStockBody) => api.post<{ product: Product; lot: Lot }>('/food/stock', body),
+  addStock: (body: AddStockBody) => api.post<{ product: Product; lot: Lot | null }>('/food/stock', body),
   useStock: (body: { productId: string; quantity: number; unit?: Unit; lotId?: string; wasted?: boolean }) =>
     api.post<{ result: UseResult }>('/food/stock/use', body).then((r) => r.result),
-  restore: (lots: Array<{ lotId: string; quantity: number }>) => api.post<void>('/food/stock/restore', { lots }),
+  undo: (events: number[]) => api.post<{ undone: number }>('/food/stock/undo', { events }),
+  setLevel: (id: string, level: 'full' | 'low' | 'out') => api.put<{ product: Product }>(`/food/products/${id}/level`, { level }).then((r) => r.product),
+  guess: (name: string) => api.get<{ guess: Preset | null }>(`/food/guess${query({ name })}`).then((r) => r.guess),
   updateLot: (id: string, body: { quantity?: number; unit?: Unit; location?: Location; expiresOn?: string | null; opened?: boolean; price?: number | null; note?: string }) =>
     api.patch<{ lot: Lot }>(`/food/lots/${id}`, body).then((r) => r.lot),
   removeLot: (id: string) => api.delete<void>(`/food/lots/${id}`),
@@ -129,6 +131,7 @@ export const foodApi = {
   completeMeal: (id: string, body: { leftovers?: { portions: number } }) =>
     api.post<{ meal: Meal; shortfalls: Array<{ name: string; missing: number; unit: string }> }>(`/food/meals/${id}/done`, body),
   reopenMeal: (id: string) => api.post<{ meal: Meal }>(`/food/meals/${id}/reopen`).then((r) => r.meal),
+  uncook: (id: string) => api.post<void>(`/food/meals/${id}/uncook`),
   deleteMeal: (id: string) => api.delete<void>(`/food/meals/${id}`),
   needs: (from: string, to: string) => api.get<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }>(`/food/plan/needs${query({ from, to })}`),
 };

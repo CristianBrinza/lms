@@ -250,7 +250,7 @@ function UsePanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct;
         action: {
           label: 'Undo',
           onClick: () =>
-            void foodApi.restore(result.lots.map((l) => ({ lotId: l.lotId, quantity: l.taken }))).then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
+            void foodApi.undo(result.events).then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
         },
       });
       onDone();
@@ -387,6 +387,7 @@ const KIND_TEXT: Record<StockEvent['kind'], string> = {
   adjusted: 'Corrected',
   moved: 'Moved',
   restored: 'Put back',
+  level: 'Marked',
 };
 
 function History({ events, product }: { events: StockEvent[]; product: StockedProduct }) {

@@ -149,7 +149,7 @@ export function money(value: number, currency = 'MDL'): string {
   return new Intl.NumberFormat('en', { style: 'currency', currency, minimumFractionDigits: decimals }).format(value);
 }
 
-export const LOCATION_LABEL: Record<Location, string> = { fridge: 'Fridge', freezer: 'Freezer', pantry: 'Pantry', other: 'Other' };
+export const LOCATION_LABEL: Record<Location, string> = { fridge: 'Fridge', freezer: 'Freezer', pantry: 'Shelf', garden: 'Garden', other: 'Other' };
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   produce: 'Fruit & veg',
