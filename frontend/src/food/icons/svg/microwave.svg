@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="var(--color-ink-900, #1d1d24)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M9 37v2.5M39 37v2.5" stroke-width="2.4"/>
+  <rect x="4" y="10" width="40" height="27" rx="3" fill="#ffffff"/>
+  <rect x="8" y="14" width="23" height="19" rx="2" fill="#4a4a58"/>
+  <ellipse cx="19.5" cy="28.5" rx="7.5" ry="1.8" fill="#dedee6" stroke-width="1.4"/>
+  <path d="M15.5 27v-3.5c0-1 .8-1.8 1.8-1.8h4.4c1 0 1.8.8 1.8 1.8V27" fill="#f6a04d" stroke-width="1.4"/>
+  <path d="M34.5 10v27" stroke-width="2"/>
+  <rect x="36.5" y="14" width="5" height="3.5" rx="1" fill="#a6e2f1" stroke-width="1.4"/>
+  <circle cx="37.7" cy="22" r="1" fill="var(--color-ink-900, #1d1d24)" stroke="none"/>
+  <circle cx="40.3" cy="22" r="1" fill="var(--color-ink-900, #1d1d24)" stroke="none"/>
+  <circle cx="37.7" cy="25" r="1" fill="var(--color-ink-900, #1d1d24)" stroke="none"/>
+  <circle cx="40.3" cy="25" r="1" fill="var(--color-ink-900, #1d1d24)" stroke="none"/>
+  <circle cx="39" cy="31" r="2.3" fill="#dedee6" stroke-width="1.6"/>
+</svg>

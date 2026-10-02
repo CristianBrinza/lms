@@ -9,7 +9,8 @@ import { foodApi, foodKeys } from '../api';
 import { normalize } from '../catalog';
 import { addDays, dayAndMonth, plural, relativeDay, SLOT_LABEL, SLOT_TIME, weekdayShort } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
-import type { Recipe, Slot } from '../types';
+import type { OutKind, Recipe, Slot } from '../types';
+import { OUT_KINDS, OUT_LABEL } from './out';
 
 const SLOTS: Slot[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
@@ -47,11 +48,20 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
   const [title, setTitle] = useState('');
   const [query, setQuery] = useState('');
   const [servings, setServings] = useState<number | null>(null);
+  // Eating out, planned ahead (a restaurant on Saturday): nothing is taken from the kitchen.
+  const [out, setOut] = useState<OutKind | null>(null);
   const recipe = recipes.data?.find((r) => r.id === picked) ?? null;
   const shownServings = servings ?? recipe?.servings ?? 2;
 
   const add = useMutation({
-    mutationFn: () => foodApi.planMeal({ date: day, time, slot, ...(recipe ? { recipeId: recipe.id } : { title: title.trim() }), servings: shownServings }),
+    mutationFn: () =>
+      foodApi.planMeal({
+        date: day,
+        time,
+        slot,
+        ...(out ? { out: { kind: out, place: title.trim() }, title: title.trim() || OUT_LABEL[out] } : recipe ? { recipeId: recipe.id } : { title: title.trim() }),
+        servings: shownServings,
+      }),
     onSuccess: (meal) => {
       haptic('success');
       const missing = meal.availability.missing;
@@ -160,7 +170,28 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
               ))}
               {!list.length ? <li className="px-1 py-2 text-sm text-ink-500">{recipes.data?.length ? 'No recipe by that name' : 'No recipes yet'}</li> : null}
             </ul>
-            <TextField label="Or just a name" dense placeholder="Eat out, leftovers, pizza night…" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} />
+            <TextField
+              label={out ? 'Where' : 'Or just a name'}
+              dense
+              placeholder={out ? 'La Plăcinte, Ana’s birthday…' : 'Leftovers, pizza night…'}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={120}
+            />
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[0.8125rem] font-semibold text-ink-700">Eating out:</span>
+              {OUT_KINDS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={out === value}
+                  onClick={() => setOut(out === value ? null : value)}
+                  className={cx('press h-8 rounded-pill px-3 text-xs font-semibold', out === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100')}
+                >
+                  {OUT_LABEL[value]}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -178,7 +209,7 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
         </div>
       </div>
 
-      <Button fullWidth onClick={() => add.mutate()} loading={add.isPending} disabled={!recipe && !title.trim()}>
+      <Button fullWidth onClick={() => add.mutate()} loading={add.isPending} disabled={!recipe && !title.trim() && !out}>
         Add to {relativeDay(day, today).toLowerCase()}
       </Button>
     </div>

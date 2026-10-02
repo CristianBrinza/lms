@@ -44,12 +44,18 @@ export default function RecipePage() {
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [servings, setServings] = useState<number | null>(null);
-  const recipe = useQuery({ queryKey: foodKeys.recipe(id, servings ?? undefined), queryFn: () => foodApi.recipe(id, servings ?? undefined), placeholderData: keepPreviousData });
+  const recipe = useQuery({
+    queryKey: foodKeys.recipe(id, servings ?? undefined),
+    queryFn: () => foodApi.recipe(id, servings ?? undefined),
+    placeholderData: keepPreviousData,
+  });
   const [cooking, setCooking] = useState(false);
   // Milk or whipped cream: what was picked here, by the ingredient's place (else the recipe's pick).
   const [choices, setChoices] = useState<Record<number, number>>({});
   const data = recipe.data;
-  const lines = data ? data.ingredients.map((line, index) => withChoice(line, choices[index] ?? line.chosen)) : [];
+  const lines = data
+    ? data.ingredients.map((line, index) => withChoice(line, choices[index] ?? line.chosen))
+    : [];
 
   const favorite = useMutation({
     mutationFn: (value: boolean) => foodApi.updateRecipe(id, { favorite: value }),
@@ -97,7 +103,12 @@ export default function RecipePage() {
               onClick={() => favorite.mutate(!data.favorite)}
               className={data.favorite ? 'text-pink-800' : undefined}
             />
-            <IconLink to={`/food/recipes/${id}/edit`} icon={EditIcon} label="Edit recipe" variant="ink" />
+            <IconLink
+              to={`/food/recipes/${id}/edit`}
+              icon={EditIcon}
+              label="Edit recipe"
+              variant="ink"
+            />
           </div>
         }
       />
@@ -107,7 +118,9 @@ export default function RecipePage() {
           <section className="flex flex-col items-center rounded-[2rem] bg-butter-100 px-5 pb-5 pt-6 text-center">
             <FoodIcon name={data.icon} className="size-24 animate-pop" />
             <h2 className="mt-3 text-h1 font-bold">{data.title}</h2>
-            {data.description ? <p className="mt-2 max-w-md text-[0.9375rem] text-butter-800">{data.description}</p> : null}
+            {data.description ? (
+              <p className="mt-2 max-w-md text-[0.9375rem] text-butter-800">{data.description}</p>
+            ) : null}
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
               {minutes ? (
                 <Badge tone="muted" className="gap-1 bg-white">
@@ -127,11 +140,19 @@ export default function RecipePage() {
                   By Claude
                 </Badge>
               ) : null}
-              {data.timesCooked ? <Badge tone="mint">Cooked {plural(data.timesCooked, 'time')}</Badge> : null}
+              {data.timesCooked ? (
+                <Badge tone="mint">Cooked {plural(data.timesCooked, 'time')}</Badge>
+              ) : null}
             </div>
           </section>
 
-          <Ingredients recipe={data} lines={lines} servings={shown} onServings={setServings} onChoose={(index, choice) => setChoices((current) => ({ ...current, [index]: choice }))} />
+          <Ingredients
+            recipe={data}
+            lines={lines}
+            servings={shown}
+            onServings={setServings}
+            onChoose={(index, choice) => setChoices((current) => ({ ...current, [index]: choice }))}
+          />
           <Tools tools={data.tools} />
         </div>
 
@@ -144,7 +165,12 @@ export default function RecipePage() {
             </section>
           ) : null}
           {data.sourceUrl ? (
-            <a href={data.sourceUrl} target="_blank" rel="noreferrer noopener" className="mt-4 inline-block text-sm font-semibold text-lav-700 underline underline-offset-4">
+            <a
+              href={data.sourceUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-4 inline-block text-sm font-semibold text-lav-700 underline underline-offset-4"
+            >
               Original recipe
             </a>
           ) : null}
@@ -154,7 +180,13 @@ export default function RecipePage() {
       <DockBar tone="white">
         <Actions recipe={data} onCook={() => setCooking(true)} />
       </DockBar>
-      <CookSheet open={cooking} recipe={data} lines={lines} servings={shown} onClose={() => setCooking(false)} />
+      <CookSheet
+        open={cooking}
+        recipe={data}
+        lines={lines}
+        servings={shown}
+        onClose={() => setCooking(false)}
+      />
     </Screen>
   );
 }
@@ -163,7 +195,13 @@ function Actions({ recipe, onCook }: { recipe: Recipe; onCook: () => void }) {
   const navigate = useNavigate();
   return (
     <>
-      <Button variant="tint" size="md" icon={CalendarIcon} fullWidth onClick={() => navigate(`/food/plan?recipe=${recipe.id}`)}>
+      <Button
+        variant="tint"
+        size="md"
+        icon={CalendarIcon}
+        fullWidth
+        onClick={() => navigate(`/food/plan?recipe=${recipe.id}`)}
+      >
         Plan it
       </Button>
       <Button size="md" fullWidth onClick={onCook}>
@@ -196,14 +234,25 @@ function Ingredients({
           // What's missing of the picked option (the whipped cream), else of the item itself.
           const alt = i.using ? i.alternatives[i.chosen - 1] : undefined;
           return alt?.productId
-            ? { productId: alt.productId, amount: alt.missing || undefined, unit: alt.missing ? (alt.baseUnit ?? undefined) : undefined, ...(alt.variant ? { variant: alt.variant } : {}) }
-            : { productId: i.productId!, amount: i.amount ?? undefined, unit: i.amount ? (i.unit ?? i.baseUnit) : undefined };
+            ? {
+                productId: alt.productId,
+                amount: alt.missing || undefined,
+                unit: alt.missing ? (alt.baseUnit ?? undefined) : undefined,
+                ...(alt.variant ? { variant: alt.variant } : {}),
+              }
+            : {
+                productId: i.productId!,
+                amount: i.amount ?? undefined,
+                unit: i.amount ? (i.unit ?? i.baseUnit) : undefined,
+              };
         }),
         'recipe',
       ),
     onSuccess: (lines) => {
       haptic('success');
-      toast.success(`${plural(lines.length, 'item')} on the shopping list`, { description: 'Each to its usual store' });
+      toast.success(`${plural(lines.length, 'item')} on the shopping list`, {
+        description: 'Each to its usual store',
+      });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -214,11 +263,25 @@ function Ingredients({
       <div className="flex items-center justify-between gap-3 px-1">
         <h2 className="text-h3 font-bold">Ingredients</h2>
         <div className="flex items-center gap-1 rounded-pill bg-ink-50 p-1">
-          <button type="button" aria-label="Fewer servings" disabled={servings <= 1} onClick={() => onServings(servings - 1)} className="press grid size-8 place-items-center rounded-full bg-white text-base shadow-xs disabled:opacity-40">
+          <button
+            type="button"
+            aria-label="Fewer servings"
+            disabled={servings <= 1}
+            onClick={() => onServings(servings - 1)}
+            className="press grid size-8 place-items-center rounded-full bg-white text-base shadow-xs disabled:opacity-40"
+          >
             <RemoveIcon fontSize="inherit" />
           </button>
-          <span className="tabular min-w-[4.5rem] text-center text-sm font-semibold">{plural(servings, 'serving')}</span>
-          <button type="button" aria-label="More servings" disabled={servings >= 100} onClick={() => onServings(servings + 1)} className="press grid size-8 place-items-center rounded-full bg-ink-900 text-base text-white">
+          <span className="tabular min-w-[4.5rem] text-center text-sm font-semibold">
+            {plural(servings, 'serving')}
+          </span>
+          <button
+            type="button"
+            aria-label="More servings"
+            disabled={servings >= 100}
+            onClick={() => onServings(servings + 1)}
+            className="press grid size-8 place-items-center rounded-full bg-ink-900 text-base text-white"
+          >
             <AddIcon fontSize="inherit" />
           </button>
         </div>
@@ -226,20 +289,37 @@ function Ingredients({
       {recipe.ingredients.length ? (
         <ul className="mt-3 flex flex-col">
           {lines.map((line, index) => (
-            <IngredientRow key={line.id} line={line} onMissing={() => setMissingLine(line)} onChoose={(choice) => onChoose(index, choice)} />
+            <IngredientRow
+              key={line.id}
+              line={line}
+              onMissing={() => setMissingLine(line)}
+              onChoose={(choice) => onChoose(index, choice)}
+            />
           ))}
         </ul>
       ) : (
         <p className="mt-3 px-1 text-sm text-ink-600">No ingredients yet.</p>
       )}
       {missing.length ? (
-        <Button size="md" variant="tint" icon={AddShoppingCartIcon} fullWidth className="mt-3" onClick={() => toList.mutate()} loading={toList.isPending}>
+        <Button
+          size="md"
+          variant="tint"
+          icon={AddShoppingCartIcon}
+          fullWidth
+          className="mt-3"
+          onClick={() => toList.mutate()}
+          loading={toList.isPending}
+        >
           Add {plural(missing.length, 'missing item')} to the list
         </Button>
       ) : recipe.availability.total ? (
-        <p className="mt-3 rounded-2xl bg-mint-100 px-4 py-3 text-center text-sm font-semibold text-mint-800">Everything’s in the kitchen</p>
+        <p className="mt-3 rounded-2xl bg-mint-100 px-4 py-3 text-center text-sm font-semibold text-mint-800">
+          Everything’s in the kitchen
+        </p>
       ) : null}
-      {recipe.availability.warnings.length ? <Warnings warnings={recipe.availability.warnings} /> : null}
+      {recipe.availability.warnings.length ? (
+        <Warnings warnings={recipe.availability.warnings} />
+      ) : null}
       <AddToListSheet line={missingLine} onClose={() => setMissingLine(null)} />
     </section>
   );
@@ -258,7 +338,9 @@ function Warnings({ warnings }: { warnings: Recipe['availability']['warnings'] }
         </p>
       ) : null}
       {avoids.length ? (
-        <p className="rounded-2xl bg-peach-100 px-4 py-2.5 font-medium text-peach-800">{avoids.map((w) => `${w.person} doesn’t eat ${w.item.toLowerCase()}`).join('; ')}</p>
+        <p className="rounded-2xl bg-peach-100 px-4 py-2.5 font-medium text-peach-800">
+          {avoids.map((w) => `${w.person} doesn’t eat ${w.item.toLowerCase()}`).join('; ')}
+        </p>
       ) : null}
     </div>
   );
@@ -280,15 +362,39 @@ function Tools({ tools }: { tools: ToolNeed[] }) {
       <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-1.5">
         {tools.map((tool) => {
           const state = TOOL_STATE[tool.status];
+          const using = tool.options.find((o) => o.toolId === tool.using) ?? tool;
+          const others = tool.options
+            .filter((o) => o.toolId !== using.toolId)
+            .map((o) => o.name.toLowerCase());
           return (
-            <li key={tool.toolId} className="flex items-center gap-2 rounded-2xl bg-ink-50 p-1.5 pr-2">
-              <FoodIconTile name={tool.icon} tone="bg-white" className="size-9 rounded-xl [&>svg]:size-6" />
+            <li
+              key={tool.toolId}
+              className="flex items-center gap-2 rounded-2xl bg-ink-50 p-1.5 pr-2"
+            >
+              <FoodIconTile
+                name={using.icon}
+                tone="bg-white"
+                className="size-9 rounded-xl [&>svg]:size-6"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
                   {tool.count > 1 ? `${tool.count} × ` : ''}
-                  {tool.name}
+                  {using.name}
+                  {tool.perServing ? (
+                    <span className="font-medium text-ink-500"> · one each</span>
+                  ) : null}
                 </span>
-                <span className={cx('mt-0.5 inline-flex h-5 items-center rounded-pill px-1.5 text-[0.6875rem] font-semibold', state.tone)}>
+                {others.length ? (
+                  <span className="block truncate text-xs text-ink-600">
+                    or {others.join(', or ')}
+                  </span>
+                ) : null}
+                <span
+                  className={cx(
+                    'mt-0.5 inline-flex h-5 items-center rounded-pill px-1.5 text-[0.6875rem] font-semibold',
+                    state.tone,
+                  )}
+                >
                   {tool.status === 'washing' && tool.readyAt
                     ? `Clean at ${new Date(tool.readyAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
                     : state.label}
@@ -302,49 +408,84 @@ function Tools({ tools }: { tools: ToolNeed[] }) {
   );
 }
 
-function IngredientRow({ line, onMissing, onChoose }: { line: IngredientLine; onMissing?: () => void; onChoose?: (choice: number) => void }) {
+function IngredientRow({
+  line,
+  onMissing,
+  onChoose,
+}: {
+  line: IngredientLine;
+  onMissing?: () => void;
+  onChoose?: (choice: number) => void;
+}) {
   // Amounts missing are in the unit of the option used (grams of whipped cream, millilitres of milk).
-  const unit = line.using ? (line.alternatives[line.chosen - 1]?.baseUnit ?? line.baseUnit) : line.baseUnit;
+  const unit = line.using
+    ? (line.alternatives[line.chosen - 1]?.baseUnit ?? line.baseUnit)
+    : line.baseUnit;
   const measured = unit ? { unit } : null;
   const today = localDate();
   const allergy = line.warnings.some((w) => w.kind === 'allergy');
-  const amount = line.amount && line.unit ? formatAmount(line.amount, line.unit) : line.amount ? String(line.amount) : 'to taste';
+  const amount =
+    line.amount && line.unit
+      ? formatAmount(line.amount, line.unit)
+      : line.amount
+        ? String(line.amount)
+        : 'to taste';
   return (
     <li className="flex items-start gap-3 border-b border-ink-100 py-2.5 last:border-0">
-      <FoodIconTile name={line.using?.icon ?? line.icon} className="size-10 rounded-xl [&>svg]:size-7" />
+      <FoodIconTile
+        name={line.using?.icon ?? line.icon}
+        className="size-10 rounded-xl [&>svg]:size-7"
+      />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.9375rem] font-semibold">
           {line.name}
-          {line.variant ? <span className="font-medium text-ink-600"> · {line.variant}</span> : null}
+          {line.variant ? (
+            <span className="font-medium text-ink-600"> · {line.variant}</span>
+          ) : null}
           {line.warnings.length ? (
-            <span className={cx('ml-0.5 font-bold', allergy ? 'text-danger-600' : 'text-peach-800')} title={line.warnings.map((w) => `${w.person}: ${w.kind === 'allergy' ? 'allergic' : 'doesn’t eat it'}`).join(', ')}>
+            <span
+              className={cx('ml-0.5 font-bold', allergy ? 'text-danger-600' : 'text-peach-800')}
+              title={line.warnings
+                .map((w) => `${w.person}: ${w.kind === 'allergy' ? 'allergic' : 'doesn’t eat it'}`)
+                .join(', ')}
+            >
               *
             </span>
           ) : null}
           {line.optional ? <span className="font-medium text-ink-500"> (optional)</span> : null}
         </span>
         <span className="block truncate text-sm text-ink-600">
-          {[
-            amount,
-            line.note || null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
+          {[amount, line.note || null].filter(Boolean).join(' · ')}
         </span>
         {line.warnings.length ? (
-          <span className={cx('block truncate text-xs font-semibold', allergy ? 'text-danger-700' : 'text-peach-800')}>
-            {line.warnings.map((w) => `${w.person} ${w.kind === 'allergy' ? 'is allergic' : 'doesn’t eat it'}`).join(' · ')}
+          <span
+            className={cx(
+              'block truncate text-xs font-semibold',
+              allergy ? 'text-danger-700' : 'text-peach-800',
+            )}
+          >
+            {line.warnings
+              .map((w) => `${w.person} ${w.kind === 'allergy' ? 'is allergic' : 'doesn’t eat it'}`)
+              .join(' · ')}
           </span>
         ) : null}
         {line.reservedFor && line.enough === false ? (
           <span className="block truncate text-xs font-medium text-lav-800">
-            Kept for {line.reservedFor.title} · {relativeDay(line.reservedFor.date, today) === dayAndMonth(line.reservedFor.date) ? dayAndMonth(line.reservedFor.date) : relativeDay(line.reservedFor.date, today).toLowerCase()}
+            Kept for {line.reservedFor.title} ·{' '}
+            {relativeDay(line.reservedFor.date, today) === dayAndMonth(line.reservedFor.date)
+              ? dayAndMonth(line.reservedFor.date)
+              : relativeDay(line.reservedFor.date, today).toLowerCase()}
           </span>
         ) : null}
         {onChoose ? <OptionChips line={line} value={line.chosen} onChange={onChoose} /> : null}
       </span>
       {line.level && line.level !== 'full' ? (
-        <span className={cx('inline-flex h-7 items-center rounded-pill px-2.5 text-xs font-semibold', line.level === 'out' ? 'bg-peach-100 text-peach-800' : 'bg-butter-100 text-butter-800')}>
+        <span
+          className={cx(
+            'inline-flex h-7 items-center rounded-pill px-2.5 text-xs font-semibold',
+            line.level === 'out' ? 'bg-peach-100 text-peach-800' : 'bg-butter-100 text-butter-800',
+          )}
+        >
           {line.level === 'out' ? 'Out' : 'Low'}
         </span>
       ) : line.enough === true ? (
@@ -415,19 +556,35 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
                 onClick={() => toggle(index)}
                 className={cx(
                   'press flex w-full items-start gap-3.5 rounded-[1.5rem] p-4 text-left transition-colors',
-                  isDone ? 'bg-mint-100/60' : 'bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70',
+                  isDone
+                    ? 'bg-mint-100/60'
+                    : 'bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70',
                 )}
               >
-                <span className={cx('grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold', isDone ? 'bg-mint-200 text-mint-800' : 'bg-butter-300 text-ink-900')}>
+                <span
+                  className={cx(
+                    'grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold',
+                    isDone ? 'bg-mint-200 text-mint-800' : 'bg-butter-300 text-ink-900',
+                  )}
+                >
                   {isDone ? <CheckIcon fontSize="inherit" /> : index + 1}
                 </span>
-                <span className={cx('pt-1 text-[0.9375rem] leading-relaxed', isDone && 'text-ink-500 line-through decoration-ink-300')}>{step}</span>
+                <span
+                  className={cx(
+                    'pt-1 text-[0.9375rem] leading-relaxed',
+                    isDone && 'text-ink-500 line-through decoration-ink-300',
+                  )}
+                >
+                  {step}
+                </span>
               </button>
             </li>
           );
         })}
       </ol>
-      {cookMode ? <CookMode recipe={recipe} servings={servings} onClose={() => setCookMode(false)} /> : null}
+      {cookMode ? (
+        <CookMode recipe={recipe} servings={servings} onClose={() => setCookMode(false)} />
+      ) : null}
     </section>
   );
 }
@@ -437,14 +594,23 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
  * on, big Back / Next targets for a floury finger, and on a tablet the ingredients beside the step
  * to tick off as they go in.
  */
-function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: number; onClose: () => void }) {
+function CookMode({
+  recipe,
+  servings,
+  onClose,
+}: {
+  recipe: Recipe;
+  servings: number;
+  onClose: () => void;
+}) {
   const [step, setStep] = useState(0);
   const [added, setAdded] = useState<Set<string>>(new Set());
   useWakeLock(true);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
-      if (event.key === 'ArrowRight' || event.key === ' ') setStep((s) => Math.min(recipe.steps.length - 1, s + 1));
+      if (event.key === 'ArrowRight' || event.key === ' ')
+        setStep((s) => Math.min(recipe.steps.length - 1, s + 1));
       if (event.key === 'ArrowLeft') setStep((s) => Math.max(0, s - 1));
     };
     window.addEventListener('keydown', onKey);
@@ -453,7 +619,12 @@ function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: num
   const last = step === recipe.steps.length - 1;
 
   return createPortal(
-    <div role="dialog" aria-modal="true" aria-label={`Cooking ${recipe.title}`} className="fixed inset-0 z-50 flex flex-col bg-butter-100 pb-[max(1rem,var(--safe-bottom))] pt-[calc(var(--safe-top)+0.75rem)]">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Cooking ${recipe.title}`}
+      className="fixed inset-0 z-50 flex flex-col bg-butter-100 pb-[max(1rem,var(--safe-bottom))] pt-[calc(var(--safe-top)+0.75rem)]"
+    >
       <header className="flex items-center gap-3 px-4 md:px-6">
         <FoodIcon name={recipe.icon} className="size-10" />
         <div className="min-w-0 flex-1">
@@ -483,12 +654,25 @@ function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: num
                         return next;
                       })
                     }
-                    className={cx('press flex w-full items-center gap-2.5 rounded-2xl p-1.5 text-left', on && 'opacity-50')}
+                    className={cx(
+                      'press flex w-full items-center gap-2.5 rounded-2xl p-1.5 text-left',
+                      on && 'opacity-50',
+                    )}
                   >
-                    <FoodIconTile name={line.using?.icon ?? line.icon} className="size-9 rounded-xl [&>svg]:size-6" tone={on ? 'bg-mint-100' : 'bg-ink-50'} />
+                    <FoodIconTile
+                      name={line.using?.icon ?? line.icon}
+                      className="size-9 rounded-xl [&>svg]:size-6"
+                      tone={on ? 'bg-mint-100' : 'bg-ink-50'}
+                    />
                     <span className={cx('min-w-0 flex-1 text-[0.9375rem]', on && 'line-through')}>
                       <span className="font-semibold">{line.using?.name ?? line.name}</span>
-                      <span className="text-ink-600"> · {line.amount && line.unit ? formatAmount(line.amount, line.unit) : 'to taste'}</span>
+                      <span className="text-ink-600">
+                        {' '}
+                        ·{' '}
+                        {line.amount && line.unit
+                          ? formatAmount(line.amount, line.unit)
+                          : 'to taste'}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -502,13 +686,28 @@ function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: num
           className="flex min-w-0 flex-1 flex-col justify-center overflow-y-auto rounded-[2rem] bg-white p-6 text-left shadow-[var(--shadow-card)] md:p-10"
           aria-label="Next step"
         >
-          <span className="grid size-12 place-items-center rounded-full bg-butter-300 text-xl font-bold">{step + 1}</span>
-          <span className="mt-5 text-[1.5rem] font-semibold leading-snug tracking-[-0.01em] md:text-[2rem]">{recipe.steps[step]}</span>
-          {recipe.steps[step + 1] ? <span className="mt-6 text-base text-ink-500 md:text-lg">Next: {recipe.steps[step + 1]}</span> : null}
+          <span className="grid size-12 place-items-center rounded-full bg-butter-300 text-xl font-bold">
+            {step + 1}
+          </span>
+          <span className="mt-5 text-[1.5rem] font-semibold leading-snug tracking-[-0.01em] md:text-[2rem]">
+            {recipe.steps[step]}
+          </span>
+          {recipe.steps[step + 1] ? (
+            <span className="mt-6 text-base text-ink-500 md:text-lg">
+              Next: {recipe.steps[step + 1]}
+            </span>
+          ) : null}
         </button>
       </div>
       <footer className="mt-3 flex gap-3 px-4 md:px-6">
-        <Button size="lg" variant="tint" icon={ArrowBackIcon} onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="flex-1">
+        <Button
+          size="lg"
+          variant="tint"
+          icon={ArrowBackIcon}
+          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          disabled={step === 0}
+          className="flex-1"
+        >
           Back
         </Button>
         {last ? (
@@ -516,7 +715,12 @@ function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: num
             Done
           </Button>
         ) : (
-          <Button size="lg" icon={ArrowForwardIcon} onClick={() => setStep((s) => s + 1)} className="flex-1">
+          <Button
+            size="lg"
+            icon={ArrowForwardIcon}
+            onClick={() => setStep((s) => s + 1)}
+            className="flex-1"
+          >
             Next
           </Button>
         )}
@@ -526,14 +730,37 @@ function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: num
   );
 }
 
-function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; recipe: Recipe; lines: IngredientLine[]; servings: number; onClose: () => void }) {
+function CookSheet({
+  open,
+  recipe,
+  lines,
+  servings,
+  onClose,
+}: {
+  open: boolean;
+  recipe: Recipe;
+  lines: IngredientLine[];
+  servings: number;
+  onClose: () => void;
+}) {
   // Picked options must be there: cooking with whipped cream there isn't can't happen.
-  const blocked = lines.filter((line) => line.alternatives.length && !line.optional && line.enough === false);
-  const choices = Object.fromEntries(lines.flatMap((line, index) => (line.alternatives.length ? [[String(index), line.chosen]] : [])));
+  const blocked = lines.filter(
+    (line) => line.alternatives.length && !line.optional && line.enough === false,
+  );
+  const choices = Object.fromEntries(
+    lines.flatMap((line, index) =>
+      line.alternatives.length ? [[String(index), line.chosen]] : [],
+    ),
+  );
   const queryClient = useQueryClient();
   const [leftovers, setLeftovers] = useState(0);
   const cook = useMutation({
-    mutationFn: () => foodApi.cook(recipe.id, { servings, choices, ...(leftovers ? { leftovers: { portions: leftovers } } : {}) }),
+    mutationFn: () =>
+      foodApi.cook(recipe.id, {
+        servings,
+        choices,
+        ...(leftovers ? { leftovers: { portions: leftovers } } : {}),
+      }),
     onSuccess: ({ meal, shortfalls, opened }) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
@@ -541,7 +768,11 @@ function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; 
         duration: opened.length ? 9000 : undefined,
         description: [
           shortfalls.length ? `Not enough: ${shortfalls.map((s) => s.name).join(', ')}.` : null,
-          opened.length ? `Opened — ${openedText(opened, localDate())}.` : shortfalls.length ? null : 'The ingredients are out of the kitchen.',
+          opened.length
+            ? `Opened — ${openedText(opened, localDate())}.`
+            : shortfalls.length
+              ? null
+              : 'The ingredients are out of the kitchen.',
         ]
           .filter(Boolean)
           .join(' '),
@@ -559,7 +790,9 @@ function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; 
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
-  const missing = lines.filter((line) => line.enough === false && !line.optional && !line.alternatives.length);
+  const missing = lines.filter(
+    (line) => line.enough === false && !line.optional && !line.alternatives.length,
+  );
 
   return (
     <Sheet
@@ -568,7 +801,12 @@ function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; 
       title="Cook it now?"
       description={`For ${plural(servings, 'serving')}. The ingredients come out of the kitchen, first-expiring first.`}
       footer={
-        <Button fullWidth onClick={() => cook.mutate()} loading={cook.isPending} disabled={blocked.length > 0}>
+        <Button
+          fullWidth
+          onClick={() => cook.mutate()}
+          loading={cook.isPending}
+          disabled={blocked.length > 0}
+        >
           Cooked it
         </Button>
       }
@@ -576,8 +814,17 @@ function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; 
       <div className="flex flex-col gap-4">
         {blocked.length ? (
           <p className="rounded-2xl bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">
-            Not enough {blocked.map((line) => (line.using?.name ?? line.name).toLowerCase()).join(', ')}: pick {blocked.map((line) => (line.using ? line.name : (line.alternatives.find((alt) => alt.enough)?.name ?? 'another')).toLowerCase()).join(', ')} instead,
-            or buy some first.
+            Not enough{' '}
+            {blocked.map((line) => (line.using?.name ?? line.name).toLowerCase()).join(', ')}: pick{' '}
+            {blocked
+              .map((line) =>
+                (line.using
+                  ? line.name
+                  : (line.alternatives.find((alt) => alt.enough)?.name ?? 'another')
+                ).toLowerCase(),
+              )
+              .join(', ')}{' '}
+            instead, or buy some first.
           </p>
         ) : null}
         {lines.some((line) => line.alternatives.length) ? (
@@ -592,7 +839,8 @@ function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; 
         ) : null}
         {missing.length ? (
           <p className="rounded-2xl bg-peach-100 px-4 py-3 text-sm font-medium text-peach-800">
-            Not enough {missing.map((m) => m.name).join(', ')} in the kitchen — it will take what there is.
+            Not enough {missing.map((m) => m.name).join(', ')} in the kitchen — it will take what
+            there is.
           </p>
         ) : null}
         <div className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 p-3.5">
@@ -601,11 +849,22 @@ function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; 
             <span className="block text-sm text-ink-600">Portions to keep in the fridge</span>
           </span>
           <div className="flex items-center gap-1 rounded-pill bg-white p-1 shadow-xs">
-            <button type="button" aria-label="Fewer portions" disabled={!leftovers} onClick={() => setLeftovers((v) => Math.max(0, v - 1))} className="press grid size-9 place-items-center rounded-full bg-ink-50 text-lg disabled:opacity-40">
+            <button
+              type="button"
+              aria-label="Fewer portions"
+              disabled={!leftovers}
+              onClick={() => setLeftovers((v) => Math.max(0, v - 1))}
+              className="press grid size-9 place-items-center rounded-full bg-ink-50 text-lg disabled:opacity-40"
+            >
               <RemoveIcon fontSize="inherit" />
             </button>
             <span className="tabular w-8 text-center font-bold">{leftovers}</span>
-            <button type="button" aria-label="More portions" onClick={() => setLeftovers((v) => Math.min(20, v + 1))} className="press grid size-9 place-items-center rounded-full bg-ink-900 text-lg text-white">
+            <button
+              type="button"
+              aria-label="More portions"
+              onClick={() => setLeftovers((v) => Math.min(20, v + 1))}
+              className="press grid size-9 place-items-center rounded-full bg-ink-900 text-lg text-white"
+            >
               <AddIcon fontSize="inherit" />
             </button>
           </div>

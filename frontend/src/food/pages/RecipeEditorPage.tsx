@@ -5,7 +5,14 @@ import { ConfirmSheet } from '@/components/common/ConfirmSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, Skeleton, Switch, TextField, toast } from '@/components/ui';
-import { AddIcon, ArrowDownIcon, ArrowUpIcon, CloseIcon, DeleteIcon, RemoveIcon } from '@/components/ui/icons';
+import {
+  AddIcon,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CloseIcon,
+  DeleteIcon,
+  RemoveIcon,
+} from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -16,7 +23,22 @@ import { FOOD_ICON_KEYS } from '../icons/art';
 import { FoodIcon } from '../icons/FoodIcon';
 import type { Recipe, RecipeInput, ToolNeedInput, Unit } from '../types';
 
-const DISHES = ['pot', 'bowl', 'soup', 'salad', 'pizza', 'sandwich', 'cake', 'pancakes', 'omelette', 'spaghetti', 'steak', 'chicken', 'fish', 'container'];
+const DISHES = [
+  'pot',
+  'bowl',
+  'soup',
+  'salad',
+  'pizza',
+  'sandwich',
+  'cake',
+  'pancakes',
+  'omelette',
+  'spaghetti',
+  'steak',
+  'chicken',
+  'fish',
+  'container',
+];
 const ALL_UNITS: Unit[] = ['pcs', 'g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup'];
 
 interface Row {
@@ -36,13 +58,27 @@ interface Row {
 }
 
 let nextKey = 1;
-const blankRow = (): Row => ({ key: nextKey++, name: '', amount: '', unit: '', note: '', optional: false, variant: '', or: '', kept: true });
+const blankRow = (): Row => ({
+  key: nextKey++,
+  name: '',
+  amount: '',
+  unit: '',
+  note: '',
+  optional: false,
+  variant: '',
+  or: '',
+  kept: true,
+});
 
 interface ToolRow {
   toolId?: string;
   name: string;
   icon: string;
   count: number;
+  /** One each: times the servings (plates, cutlery, lunch boxes). */
+  perServing: boolean;
+  /** Or one of these instead (the grill for a frying pan). */
+  or: Array<{ toolId?: string; name: string }>;
 }
 
 /**
@@ -51,7 +87,11 @@ interface ToolRow {
  */
 export default function RecipeEditorPage() {
   const { id } = useParams();
-  const recipe = useQuery({ queryKey: foodKeys.recipe(id ?? '', undefined), queryFn: () => foodApi.recipe(id!), enabled: Boolean(id) });
+  const recipe = useQuery({
+    queryKey: foodKeys.recipe(id ?? '', undefined),
+    queryFn: () => foodApi.recipe(id!),
+    enabled: Boolean(id),
+  });
   if (id && recipe.isPending) {
     return (
       <Screen tone="white">
@@ -93,7 +133,21 @@ function Editor({ initial }: { initial?: Recipe }) {
         }))
       : [blankRow(), blankRow()],
   );
-  const [tools, setTools] = useState<ToolRow[]>(() => (initial?.tools ?? []).map((t) => ({ toolId: t.toolId, name: t.name, icon: t.icon, count: t.count })));
+  const [tools, setTools] = useState<ToolRow[]>(() =>
+    (initial?.tools ?? []).map((t) => ({
+      toolId: t.toolId,
+      name: t.name,
+      icon: t.icon,
+      // A per-serving need comes back times the servings shown: kept per person here.
+      count: t.perServing
+        ? Math.max(1, Math.round(t.count / Math.max(1, initial?.shownServings ?? 1)))
+        : t.count,
+      perServing: t.perServing,
+      or: t.options
+        .filter((o) => o.toolId !== t.toolId)
+        .map((o) => ({ toolId: o.toolId, name: o.name })),
+    })),
+  );
   const [steps, setSteps] = useState<string[]>(initial?.steps.length ? initial.steps : ['']);
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
@@ -106,7 +160,14 @@ function Editor({ initial }: { initial?: Recipe }) {
     servings,
     prepMinutes: parseAmount(prep) ? Math.round(parseAmount(prep)!) : null,
     cookMinutes: parseAmount(cook) ? Math.round(parseAmount(cook)!) : null,
-    tags: [...new Set(tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))],
+    tags: [
+      ...new Set(
+        tags
+          .split(',')
+          .map((t) => t.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ],
     steps: steps.map((s) => s.trim()).filter(Boolean),
     icon,
     sourceUrl: sourceUrl.trim(),
@@ -134,11 +195,17 @@ function Editor({ initial }: { initial?: Recipe }) {
             }
           : {}),
       })),
-    tools: tools.map((t): ToolNeedInput => (t.toolId ? { toolId: t.toolId, count: t.count } : { name: t.name, count: t.count })),
+    tools: tools.map((t): ToolNeedInput => ({
+      ...(t.toolId ? { toolId: t.toolId } : { name: t.name }),
+      count: t.count,
+      perServing: t.perServing,
+      or: t.or.map((o) => (o.toolId ? { toolId: o.toolId } : { name: o.name })),
+    })),
   });
 
   const save = useMutation({
-    mutationFn: () => (initial ? foodApi.updateRecipe(initial.id, body()) : foodApi.createRecipe(body())),
+    mutationFn: () =>
+      initial ? foodApi.updateRecipe(initial.id, body()) : foodApi.createRecipe(body()),
     onSuccess: (saved) => {
       haptic('success');
       toast.success(initial ? 'Recipe saved' : 'Recipe added');
@@ -161,7 +228,9 @@ function Editor({ initial }: { initial?: Recipe }) {
   const sentRows = rows.filter((r) => r.name.trim());
   const rowError = (row: Row) => {
     const index = sentRows.indexOf(row);
-    return index < 0 ? undefined : (fields[`ingredients.${index}.unit`] ?? fields[`ingredients.${index}.lotId`]);
+    return index < 0
+      ? undefined
+      : (fields[`ingredients.${index}.unit`] ?? fields[`ingredients.${index}.lotId`]);
   };
 
   const submit = (event: FormEvent) => {
@@ -169,17 +238,44 @@ function Editor({ initial }: { initial?: Recipe }) {
     save.mutate();
   };
 
-  const iconChoices = allIcons ? FOOD_ICON_KEYS : DISHES.includes(icon) ? DISHES : [icon, ...DISHES];
+  const iconChoices = allIcons
+    ? FOOD_ICON_KEYS
+    : DISHES.includes(icon)
+      ? DISHES
+      : [icon, ...DISHES];
 
   return (
     <Screen tone="white">
-      <PageHeader back={initial ? `/food/recipes/${initial.id}` : '/food/recipes'} title={initial ? 'Edit recipe' : 'New recipe'} centered />
-      <form onSubmit={submit} noValidate className="gutter-x mx-auto mt-6 flex max-w-2xl flex-col gap-6 md:max-w-3xl md:px-5 lg:px-8">
+      <PageHeader
+        back={initial ? `/food/recipes/${initial.id}` : '/food/recipes'}
+        title={initial ? 'Edit recipe' : 'New recipe'}
+        centered
+      />
+      <form
+        onSubmit={submit}
+        noValidate
+        className="gutter-x mx-auto mt-6 flex max-w-2xl flex-col gap-6 md:max-w-3xl md:px-5 lg:px-8"
+      >
         <section className="flex flex-col gap-4 rounded-[2rem] bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
-          <TextField label="Name" placeholder="Chicken soup" value={title} onChange={(event) => setTitle(event.target.value)} error={fields.title} maxLength={120} autoFocus={!initial} />
+          <TextField
+            label="Name"
+            placeholder="Chicken soup"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            error={fields.title}
+            maxLength={120}
+            autoFocus={!initial}
+          />
           <fieldset>
             <legend className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">Picture</legend>
-            <div role="radiogroup" aria-label="Picture" className={cx('grid grid-cols-7 gap-1.5', allIcons && 'max-h-60 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-10')}>
+            <div
+              role="radiogroup"
+              aria-label="Picture"
+              className={cx(
+                'grid grid-cols-7 gap-1.5',
+                allIcons && 'max-h-60 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-10',
+              )}
+            >
               {iconChoices.map((key) => (
                 <button
                   key={key}
@@ -188,13 +284,22 @@ function Editor({ initial }: { initial?: Recipe }) {
                   aria-checked={icon === key}
                   aria-label={key.replace('-', ' ')}
                   onClick={() => setIcon(key)}
-                  className={cx('press grid aspect-square place-items-center rounded-xl transition-colors', icon === key ? 'bg-butter-100 shadow-[inset_0_0_0_2px_var(--color-ink-900)]' : 'hover:bg-ink-50')}
+                  className={cx(
+                    'press grid aspect-square place-items-center rounded-xl transition-colors',
+                    icon === key
+                      ? 'bg-butter-100 shadow-[inset_0_0_0_2px_var(--color-ink-900)]'
+                      : 'hover:bg-ink-50',
+                  )}
                 >
                   <FoodIcon name={key} className="size-8" />
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setAllIcons((v) => !v)} className="mt-2 text-sm font-semibold text-lav-700 hover:text-lav-800">
+            <button
+              type="button"
+              onClick={() => setAllIcons((v) => !v)}
+              className="mt-2 text-sm font-semibold text-lav-700 hover:text-lav-800"
+            >
               {allIcons ? 'Fewer pictures' : 'All pictures'}
             </button>
           </fieldset>
@@ -213,19 +318,48 @@ function Editor({ initial }: { initial?: Recipe }) {
             <div className="flex flex-col gap-2">
               <span className="text-[0.8125rem] font-semibold text-ink-700">Serves</span>
               <div className="flex h-14 items-center justify-between rounded-[1.125rem] bg-ink-50 px-1.5">
-                <button type="button" aria-label="Fewer servings" disabled={servings <= 1} onClick={() => setServings((v) => v - 1)} className="press grid size-10 place-items-center rounded-xl bg-white text-lg shadow-xs disabled:opacity-40">
+                <button
+                  type="button"
+                  aria-label="Fewer servings"
+                  disabled={servings <= 1}
+                  onClick={() => setServings((v) => v - 1)}
+                  className="press grid size-10 place-items-center rounded-xl bg-white text-lg shadow-xs disabled:opacity-40"
+                >
                   <RemoveIcon fontSize="inherit" />
                 </button>
                 <span className="tabular font-bold">{servings}</span>
-                <button type="button" aria-label="More servings" onClick={() => setServings((v) => Math.min(100, v + 1))} className="press grid size-10 place-items-center rounded-xl bg-ink-900 text-lg text-white">
+                <button
+                  type="button"
+                  aria-label="More servings"
+                  onClick={() => setServings((v) => Math.min(100, v + 1))}
+                  className="press grid size-10 place-items-center rounded-xl bg-ink-900 text-lg text-white"
+                >
                   <AddIcon fontSize="inherit" />
                 </button>
               </div>
             </div>
-            <TextField label="Prep (min)" inputMode="numeric" placeholder="—" value={prep} onChange={(event) => setPrep(event.target.value)} />
-            <TextField label="Cook (min)" inputMode="numeric" placeholder="—" value={cook} onChange={(event) => setCook(event.target.value)} />
+            <TextField
+              label="Prep (min)"
+              inputMode="numeric"
+              placeholder="—"
+              value={prep}
+              onChange={(event) => setPrep(event.target.value)}
+            />
+            <TextField
+              label="Cook (min)"
+              inputMode="numeric"
+              placeholder="—"
+              value={cook}
+              onChange={(event) => setCook(event.target.value)}
+            />
           </div>
-          <TextField label="Tags" placeholder="dinner, quick, soup" value={tags} onChange={(event) => setTags(event.target.value)} hint="Separate with commas" />
+          <TextField
+            label="Tags"
+            placeholder="dinner, quick, soup"
+            value={tags}
+            onChange={(event) => setTags(event.target.value)}
+            hint="Separate with commas"
+          />
         </section>
 
         <section>
@@ -236,13 +370,22 @@ function Editor({ initial }: { initial?: Recipe }) {
                 key={row.key}
                 row={row}
                 error={rowError(row)}
-                onChange={(next) => setRows((current) => current.map((r) => (r.key === row.key ? next : r)))}
+                onChange={(next) =>
+                  setRows((current) => current.map((r) => (r.key === row.key ? next : r)))
+                }
                 onRemove={() => setRows((current) => current.filter((r) => r.key !== row.key))}
                 autoFocus={index === rows.length - 1 && rows.length > 2 && !row.name}
               />
             ))}
           </ul>
-          <Button type="button" variant="tint" size="md" icon={AddIcon} className="mt-3" onClick={() => setRows((current) => [...current, blankRow()])}>
+          <Button
+            type="button"
+            variant="tint"
+            size="md"
+            icon={AddIcon}
+            className="mt-3"
+            onClick={() => setRows((current) => [...current, blankRow()])}
+          >
             Add ingredient
           </Button>
         </section>
@@ -253,19 +396,34 @@ function Editor({ initial }: { initial?: Recipe }) {
           <h2 className="mb-2.5 px-1 text-h3 font-bold">Steps</h2>
           <ol className="flex flex-col gap-2.5">
             {steps.map((step, index) => (
-              <li key={index} className="flex items-start gap-2.5 rounded-[1.5rem] bg-white p-3 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
-                <span className="mt-2.5 grid size-8 shrink-0 place-items-center rounded-full bg-butter-300 text-sm font-bold">{index + 1}</span>
+              <li
+                key={index}
+                className="flex items-start gap-2.5 rounded-[1.5rem] bg-white p-3 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
+              >
+                <span className="mt-2.5 grid size-8 shrink-0 place-items-center rounded-full bg-butter-300 text-sm font-bold">
+                  {index + 1}
+                </span>
                 <textarea
                   aria-label={`Step ${index + 1}`}
                   rows={2}
                   value={step}
                   placeholder={index === 0 ? 'Chop the onion and fry it until soft.' : 'Next step'}
-                  onChange={(event) => setSteps((current) => current.map((s, i) => (i === index ? event.target.value : s)))}
+                  onChange={(event) =>
+                    setSteps((current) =>
+                      current.map((s, i) => (i === index ? event.target.value : s)),
+                    )
+                  }
                   maxLength={2000}
                   className="min-h-16 flex-1 resize-y rounded-xl bg-ink-50 px-3 py-2.5 text-[0.9375rem] outline-none placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
                 />
                 <div className="flex flex-col gap-1">
-                  <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => setSteps((current) => swap(current, index, index - 1))} className="press grid size-8 place-items-center rounded-full text-ink-600 hover:bg-ink-50 disabled:opacity-30">
+                  <button
+                    type="button"
+                    aria-label="Move up"
+                    disabled={index === 0}
+                    onClick={() => setSteps((current) => swap(current, index, index - 1))}
+                    className="press grid size-8 place-items-center rounded-full text-ink-600 hover:bg-ink-50 disabled:opacity-30"
+                  >
                     <ArrowUpIcon fontSize="inherit" />
                   </button>
                   <button
@@ -277,20 +435,44 @@ function Editor({ initial }: { initial?: Recipe }) {
                   >
                     <ArrowDownIcon fontSize="inherit" />
                   </button>
-                  <button type="button" aria-label="Remove step" onClick={() => setSteps((current) => (current.length > 1 ? current.filter((_, i) => i !== index) : ['']))} className="press grid size-8 place-items-center rounded-full text-ink-600 hover:bg-ink-50">
+                  <button
+                    type="button"
+                    aria-label="Remove step"
+                    onClick={() =>
+                      setSteps((current) =>
+                        current.length > 1 ? current.filter((_, i) => i !== index) : [''],
+                      )
+                    }
+                    className="press grid size-8 place-items-center rounded-full text-ink-600 hover:bg-ink-50"
+                  >
                     <CloseIcon fontSize="inherit" />
                   </button>
                 </div>
               </li>
             ))}
           </ol>
-          <Button type="button" variant="tint" size="md" icon={AddIcon} className="mt-3" onClick={() => setSteps((current) => [...current, ''])}>
+          <Button
+            type="button"
+            variant="tint"
+            size="md"
+            icon={AddIcon}
+            className="mt-3"
+            onClick={() => setSteps((current) => [...current, ''])}
+          >
             Add step
           </Button>
         </section>
 
         <section className="flex flex-col gap-4 rounded-[2rem] bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
-          <TextField label="Link to the original" type="url" inputMode="url" placeholder="https://…" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} error={fields.sourceUrl} />
+          <TextField
+            label="Link to the original"
+            type="url"
+            inputMode="url"
+            placeholder="https://…"
+            value={sourceUrl}
+            onChange={(event) => setSourceUrl(event.target.value)}
+            error={fields.sourceUrl}
+          />
           <label className="flex flex-col gap-2">
             <span className="text-[0.8125rem] font-semibold text-ink-700">Notes</span>
             <textarea
@@ -305,15 +487,28 @@ function Editor({ initial }: { initial?: Recipe }) {
           <Switch checked={favorite} onChange={setFavorite} label="Favourite" />
         </section>
 
-        {save.error && !Object.keys(fields).length ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
-        {Object.keys(fields).some((k) => k.startsWith('ingredients')) ? <p className="text-sm font-medium text-danger-600">Check the ingredients marked in red.</p> : null}
+        {save.error && !Object.keys(fields).length ? (
+          <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
+        ) : null}
+        {Object.keys(fields).some((k) => k.startsWith('ingredients')) ? (
+          <p className="text-sm font-medium text-danger-600">
+            Check the ingredients marked in red.
+          </p>
+        ) : null}
 
         <div className="flex flex-col gap-2.5 pb-4 sm:flex-row-reverse">
           <Button type="submit" fullWidth loading={save.isPending} disabled={!title.trim()}>
             {initial ? 'Save recipe' : 'Add recipe'}
           </Button>
           {initial ? (
-            <Button type="button" variant="ghost" fullWidth icon={DeleteIcon} className="text-danger-600" onClick={() => setConfirmDelete(true)}>
+            <Button
+              type="button"
+              variant="ghost"
+              fullWidth
+              icon={DeleteIcon}
+              className="text-danger-600"
+              onClick={() => setConfirmDelete(true)}
+            >
               Delete recipe
             </Button>
           ) : null}
@@ -341,7 +536,19 @@ function swap<T>(list: T[], a: number, b: number): T[] {
   return next;
 }
 
-function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: Row; error?: string; onChange: (row: Row) => void; onRemove: () => void; autoFocus?: boolean }) {
+function IngredientEditor({
+  row,
+  error,
+  onChange,
+  onRemove,
+  autoFocus,
+}: {
+  row: Row;
+  error?: string;
+  onChange: (row: Row) => void;
+  onRemove: () => void;
+  autoFocus?: boolean;
+}) {
   const [focused, setFocused] = useState(false);
   const blurTimer = useRef<number | undefined>(undefined);
   const catalog = useCatalog();
@@ -353,10 +560,22 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
   const suggestions = focused && row.name.trim().length > 1 && !exact ? results : [];
 
   return (
-    <li className={cx('relative rounded-[1.5rem] bg-white p-3 shadow-[var(--shadow-card)] ring-1 ring-inset', error ? 'ring-danger-600' : 'ring-ink-100/70')}>
+    <li
+      className={cx(
+        'relative rounded-[1.5rem] bg-white p-3 shadow-[var(--shadow-card)] ring-1 ring-inset',
+        error ? 'ring-danger-600' : 'ring-ink-100/70',
+      )}
+    >
       <div className="flex items-center gap-2">
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-ink-50">
-          <FoodIcon name={product?.icon ?? results.find((r) => r.name.toLowerCase() === row.name.toLowerCase())?.icon ?? 'basket'} className="size-7" />
+          <FoodIcon
+            name={
+              product?.icon ??
+              results.find((r) => r.name.toLowerCase() === row.name.toLowerCase())?.icon ??
+              'basket'
+            }
+            className="size-7"
+          />
         </span>
         <input
           aria-label="Ingredient"
@@ -374,11 +593,21 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
           onChange={(event) => {
             const name = event.target.value;
             const match = results.find((r) => r.name.toLowerCase() === name.trim().toLowerCase());
-            onChange({ ...row, name, productId: match?.productId, unit: row.unit || (match ? (match.unit === 'pcs' ? 'pcs' : match.unit) : '') });
+            onChange({
+              ...row,
+              name,
+              productId: match?.productId,
+              unit: row.unit || (match ? (match.unit === 'pcs' ? 'pcs' : match.unit) : ''),
+            });
           }}
           className="h-11 min-w-0 flex-1 rounded-xl bg-ink-50 px-3 text-[0.9375rem] font-semibold outline-none placeholder:font-medium placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
         />
-        <button type="button" aria-label="Remove ingredient" onClick={onRemove} className="press grid size-10 shrink-0 place-items-center rounded-full text-lg text-ink-500 hover:bg-ink-50">
+        <button
+          type="button"
+          aria-label="Remove ingredient"
+          onClick={onRemove}
+          className="press grid size-10 shrink-0 place-items-center rounded-full text-lg text-ink-500 hover:bg-ink-50"
+        >
           <CloseIcon fontSize="inherit" />
         </button>
       </div>
@@ -390,7 +619,12 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
                 type="button"
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => {
-                  onChange({ ...row, name: pick.name, productId: pick.productId, unit: row.unit || (pick.unit === 'pcs' ? 'pcs' : pick.unit) });
+                  onChange({
+                    ...row,
+                    name: pick.name,
+                    productId: pick.productId,
+                    unit: row.unit || (pick.unit === 'pcs' ? 'pcs' : pick.unit),
+                  });
                   setFocused(false);
                 }}
                 className="press flex w-full items-center gap-2.5 rounded-xl p-1.5 text-left hover:bg-ink-50"
@@ -415,7 +649,10 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
           aria-label="Unit"
           value={row.unit}
           onChange={(event) => onChange({ ...row, unit: event.target.value })}
-          className={cx('h-10 min-w-0 rounded-xl bg-ink-50 px-2 text-[0.9375rem] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]', error && 'bg-danger-50')}
+          className={cx(
+            'h-10 min-w-0 rounded-xl bg-ink-50 px-2 text-[0.9375rem] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]',
+            error && 'bg-danger-50',
+          )}
         >
           <option value="">unit</option>
           {units.map((unit) => (
@@ -442,7 +679,9 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
             className="h-10 min-w-0 rounded-xl bg-ink-50 px-2 text-[0.9375rem] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
           >
             <option value="">Any kind</option>
-            {[...new Set([...(product?.variants ?? []), ...(row.variant ? [row.variant] : [])])].map((v) => (
+            {[
+              ...new Set([...(product?.variants ?? []), ...(row.variant ? [row.variant] : [])]),
+            ].map((v) => (
               <option key={v} value={v}>
                 Only {v}
               </option>
@@ -462,29 +701,57 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
       </div>
       <div className="mt-2 ml-[3.25rem] flex flex-wrap gap-x-4 gap-y-1">
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink-600">
-          <input type="checkbox" checked={row.optional} onChange={(event) => onChange({ ...row, optional: event.target.checked })} className="size-4 accent-ink-900" />
+          <input
+            type="checkbox"
+            checked={row.optional}
+            onChange={(event) => onChange({ ...row, optional: event.target.checked })}
+            className="size-4 accent-ink-900"
+          />
           Optional
         </label>
         <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink-600">
-          <input type="checkbox" checked={!row.kept} onChange={(event) => onChange({ ...row, kept: !event.target.checked })} className="size-4 accent-ink-900" />
+          <input
+            type="checkbox"
+            checked={!row.kept}
+            onChange={(event) => onChange({ ...row, kept: !event.target.checked })}
+            className="size-4 accent-ink-900"
+          />
           Not kept in the kitchen (tap water)
         </label>
       </div>
-      {error ? <p className="mt-1.5 pl-[3.25rem] text-sm font-medium text-danger-600">{error}</p> : null}
+      {error ? (
+        <p className="mt-1.5 pl-[3.25rem] text-sm font-medium text-danger-600">{error}</p>
+      ) : null}
     </li>
   );
 }
 
 /** The kitchenware a recipe needs: picked from the kitchen's, or named (it is added then). */
-function ToolsEditor({ tools, onChange }: { tools: ToolRow[]; onChange: (tools: ToolRow[]) => void }) {
+function ToolsEditor({
+  tools,
+  onChange,
+}: {
+  tools: ToolRow[];
+  onChange: (tools: ToolRow[]) => void;
+}) {
   const kitchenware = useQuery({ queryKey: foodKeys.kitchenware, queryFn: kitchenwareApi.list });
   const [name, setName] = useState('');
   const have = new Set(tools.map((t) => t.toolId ?? t.name.toLowerCase()));
   const offer = [
     ...(kitchenware.data?.tools ?? []).map((t) => ({ toolId: t.id, name: t.name, icon: t.icon })),
-    ...(kitchenware.data?.presets ?? []).filter((p) => !(kitchenware.data?.tools ?? []).some((t) => t.name === p.name)).map((p) => ({ toolId: undefined, name: p.name, icon: p.icon })),
+    ...(kitchenware.data?.presets ?? [])
+      .filter((p) => !(kitchenware.data?.tools ?? []).some((t) => t.name === p.name))
+      .map((p) => ({ toolId: undefined, name: p.name, icon: p.icon })),
   ].filter((t) => !have.has(t.toolId ?? t.name.toLowerCase()));
-  const add = (tool: Omit<ToolRow, 'count'>) => onChange([...tools, { ...tool, count: 1 }]);
+  const kindOf = (tool: { toolId?: string; name: string }) =>
+    kitchenware.data?.tools.find((t) => t.id === tool.toolId)?.kind ??
+    kitchenware.data?.presets.find((p) => p.name === tool.name)?.kind ??
+    'other';
+  // Plates, cutlery, glasses, lunch boxes: one each, by default.
+  const add = (tool: Omit<ToolRow, 'count' | 'perServing' | 'or'>) =>
+    onChange([...tools, { ...tool, count: 1, perServing: kindOf(tool) === 'dishes', or: [] }]);
+  // Picking what can be used instead of this one (the grill for the frying pan).
+  const [orFor, setOrFor] = useState<number | null>(null);
   return (
     <section>
       <h2 className="mb-2.5 px-1 text-h3 font-bold">Kitchenware</h2>
@@ -492,29 +759,98 @@ function ToolsEditor({ tools, onChange }: { tools: ToolRow[]; onChange: (tools: 
         {tools.length ? (
           <ul className="flex flex-wrap gap-1.5">
             {tools.map((tool, index) => (
-              <li key={tool.toolId ?? tool.name} className="inline-flex h-10 items-center gap-1 rounded-pill bg-butter-100 pl-1 pr-1">
+              <li
+                key={tool.toolId ?? tool.name}
+                className="inline-flex h-10 items-center gap-1 rounded-pill bg-butter-100 pl-1 pr-1"
+              >
                 <FoodIcon name={tool.icon} className="size-7" />
-                <span className="text-sm font-semibold">{tool.name}</span>
+                <span className="text-sm font-semibold">
+                  {tool.name}
+                  {tool.or.length ? (
+                    <span className="font-medium text-ink-600">
+                      {' '}
+                      or {tool.or.map((o) => o.name.toLowerCase()).join(', or ')}
+                    </span>
+                  ) : null}
+                </span>
+                <button
+                  type="button"
+                  aria-pressed={tool.perServing}
+                  title="One for each serving"
+                  onClick={() =>
+                    onChange(
+                      tools.map((t, i) => (i === index ? { ...t, perServing: !t.perServing } : t)),
+                    )
+                  }
+                  className={cx(
+                    'press h-7 rounded-pill px-2 text-xs font-bold',
+                    tool.perServing ? 'bg-ink-900 text-white' : 'bg-white text-ink-600',
+                  )}
+                >
+                  each
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={orFor === index}
+                  onClick={() => setOrFor(orFor === index ? null : index)}
+                  className="press h-7 rounded-pill bg-white px-2 text-xs font-bold text-lav-800"
+                >
+                  or…
+                </button>
                 <button
                   type="button"
                   aria-label={`How many ${tool.name}: ${tool.count}; tap for more`}
-                  onClick={() => onChange(tools.map((t, i) => (i === index ? { ...t, count: t.count >= 4 ? 1 : t.count + 1 } : t)))}
+                  onClick={() =>
+                    onChange(
+                      tools.map((t, i) =>
+                        i === index ? { ...t, count: t.count >= 4 ? 1 : t.count + 1 } : t,
+                      ),
+                    )
+                  }
                   className="press tabular grid h-7 min-w-7 place-items-center rounded-full bg-white px-1.5 text-xs font-bold"
                 >
                   ×{tool.count}
                 </button>
-                <button type="button" aria-label={`Remove ${tool.name}`} onClick={() => onChange(tools.filter((_, i) => i !== index))} className="press grid size-7 place-items-center rounded-full text-ink-600 hover:bg-white">
+                <button
+                  type="button"
+                  aria-label={`Remove ${tool.name}`}
+                  onClick={() => onChange(tools.filter((_, i) => i !== index))}
+                  className="press grid size-7 place-items-center rounded-full text-ink-600 hover:bg-white"
+                >
                   <CloseIcon fontSize="inherit" />
                 </button>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="px-1 text-sm text-ink-600">What it’s cooked in: a big pot, a frying pan, a colander…</p>
+          <p className="px-1 text-sm text-ink-600">
+            What it’s cooked in: a big pot, a frying pan, a colander…
+          </p>
         )}
+        {orFor !== null && tools[orFor] ? (
+          <p className="mt-2.5 px-1 text-xs font-semibold text-lav-800">
+            Tap what can be used instead of the {tools[orFor].name.toLowerCase()}:
+          </p>
+        ) : null}
         <div className="-mx-1 mt-2.5 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] md:flex-wrap">
           {offer.slice(0, 16).map((tool) => (
-            <button key={tool.toolId ?? tool.name} type="button" onClick={() => add(tool)} className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-ink-50 pl-1 pr-3 text-sm font-semibold hover:bg-ink-100">
+            <button
+              key={tool.toolId ?? tool.name}
+              type="button"
+              onClick={() => {
+                if (orFor !== null && tools[orFor]) {
+                  onChange(
+                    tools.map((t, i) =>
+                      i === orFor
+                        ? { ...t, or: [...t.or, { toolId: tool.toolId, name: tool.name }] }
+                        : t,
+                    ),
+                  );
+                  setOrFor(null);
+                } else add(tool);
+              }}
+              className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-ink-50 pl-1 pr-3 text-sm font-semibold hover:bg-ink-100"
+            >
               <FoodIcon name={tool.icon} className="size-6" />
               {tool.name}
             </button>

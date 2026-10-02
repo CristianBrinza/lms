@@ -19,6 +19,8 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
   const [kind, setKind] = useState<ToolKind>('other');
   const [icon, setIcon] = useState('box');
   const [washable, setWashable] = useState(true);
+  const [dishwasherSafe, setDishwasherSafe] = useState(true);
+  const [minCount, setMinCount] = useState('');
   const [place, setPlace] = useState('');
   const [note, setNote] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -34,6 +36,8 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
       setKind(tool.kind);
       setIcon(tool.icon);
       setWashable(tool.washable);
+      setDishwasherSafe(tool.dishwasherSafe);
+      setMinCount(tool.minCount === null ? '' : String(tool.minCount));
       setPlace(tool.place);
       setNote(tool.note);
     }
@@ -42,7 +46,17 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
   const refresh = () => queryClient.invalidateQueries({ queryKey: foodKeys.kitchenware });
   const save = useMutation({
     mutationFn: () =>
-      kitchenwareApi.update(tool!.id, { name: name.trim(), count, kind, icon, washable, place: place.trim(), note: note.trim() }),
+      kitchenwareApi.update(tool!.id, {
+        name: name.trim(),
+        count,
+        kind,
+        icon,
+        washable,
+        dishwasherSafe,
+        ...(kind === 'disposable' ? { minCount: minCount.trim() === '' ? null : Math.max(0, Math.round(Number(minCount)) || 0) } : {}),
+        place: place.trim(),
+        note: note.trim(),
+      }),
     onSuccess: (saved) => {
       toast.success(`${saved.name} saved`);
       void refresh();
@@ -102,12 +116,33 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
                 ))}
               </div>
             </fieldset>
-            <Switch
-              checked={washable}
-              onChange={setWashable}
-              label="Gets washed"
-              hint={washable ? 'Using it makes it dirty' : 'Never dirty, like the oven or pens'}
-            />
+            {kind === 'disposable' ? (
+              <TextField
+                label="Running low at"
+                inputMode="numeric"
+                placeholder="2"
+                hint="Used up when cooking; at this many or fewer, it’s running low"
+                value={minCount}
+                onChange={(event) => setMinCount(event.target.value)}
+              />
+            ) : (
+              <>
+                <Switch
+                  checked={washable}
+                  onChange={setWashable}
+                  label="Gets washed"
+                  hint={washable ? 'Using it makes it dirty' : 'Never dirty, like an electric kettle or the oven'}
+                />
+                {washable ? (
+                  <Switch
+                    checked={dishwasherSafe}
+                    onChange={setDishwasherSafe}
+                    label="In the dishwasher"
+                    hint={dishwasherSafe ? 'The dishwasher takes it' : 'By hand only, like knives or the grill'}
+                  />
+                ) : null}
+              </>
+            )}
           </div>
           <div className="flex flex-col gap-4">
             <TextField label="Kept in" placeholder="Desk drawer" value={place} onChange={(event) => setPlace(event.target.value)} error={fields.place} maxLength={60} />

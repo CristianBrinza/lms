@@ -12,6 +12,7 @@ import type {
   Meal,
   MealPartInput,
   NeedLine,
+  OutKind,
   Opened,
   PackageInput,
   PartKind,
@@ -99,6 +100,7 @@ export interface MealBody {
   toGo?: boolean;
   ingredients?: IngredientInput[];
   parts?: MealPartInput[];
+  out?: { kind: OutKind; place?: string; cost?: number | null };
 }
 
 export interface CheckoutLine {
@@ -193,6 +195,7 @@ export const foodApi = {
   updatePart: (mealId: string, partId: string, body: { title?: string; kind?: PartKind; servings?: number }) =>
     api.patch<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}`, body).then((r) => r.meal),
   removePart: (mealId: string, partId: string) => api.delete<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}`).then((r) => r.meal),
+  eatOut: (id: string, body: { kind: OutKind; place?: string; cost?: number | null }) => api.post<{ meal: Meal }>(`/food/meals/${id}/out`, body).then((r) => r.meal),
   reopenMeal: (id: string) => api.post<{ meal: Meal }>(`/food/meals/${id}/reopen`).then((r) => r.meal),
   uncook: (id: string) => api.post<void>(`/food/meals/${id}/uncook`),
   deleteMeal: (id: string) => api.delete<void>(`/food/meals/${id}`),

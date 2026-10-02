@@ -309,6 +309,8 @@ export interface Meal {
   doneAt: string | null;
   createdVia: Via;
   leftoversLotId: string | null;
+  /** Eaten out (or planned to be): nothing is taken from the kitchen. */
+  eatenOut: { kind: OutKind; place: string; cost: number | null } | null;
   parts: MealPart[];
   tools: ToolNeed[];
   ingredients: IngredientLine[];
@@ -316,6 +318,7 @@ export interface Meal {
 }
 
 export type PartKind = 'dish' | 'side' | 'sauce' | 'drink';
+export type OutKind = 'restaurant' | 'delivery' | 'party' | 'work' | 'other';
 
 export interface MealPart {
   id: string;
@@ -334,7 +337,7 @@ export interface MealPartInput {
   ingredients?: IngredientInput[];
 }
 
-export type ToolKind = 'cookware' | 'bakeware' | 'utensil' | 'dishes' | 'bar' | 'appliance' | 'other';
+export type ToolKind = 'cookware' | 'bakeware' | 'utensil' | 'dishes' | 'bar' | 'appliance' | 'disposable' | 'other';
 
 export interface Tool {
   id: string;
@@ -347,23 +350,36 @@ export interface Tool {
   washing: number;
   washingUntil: string | null;
   washable: boolean;
+  /** False: washed by hand only (knives, the grill). */
+  dishwasherSafe: boolean;
+  /** Single-use things: at or below this many, running low. */
+  minCount: number | null;
+  low: boolean;
   place: string;
   note: string;
 }
+
+export type ToolStatus = 'ready' | 'washing' | 'dirty' | 'missing';
 
 export interface ToolNeed {
   toolId: string;
   name: string;
   icon: string;
   count: number;
-  status: 'ready' | 'washing' | 'dirty' | 'missing';
+  perServing: boolean;
+  status: ToolStatus;
   readyAt: string | null;
+  /** The tool and what can be used instead, each with its status; `using` is the one to use. */
+  options: Array<{ toolId: string; name: string; icon: string; status: ToolStatus; readyAt: string | null }>;
+  using: string;
 }
 
 export interface ToolNeedInput {
   toolId?: string;
   name?: string;
   count?: number;
+  perServing?: boolean;
+  or?: Array<{ toolId?: string; name?: string }>;
 }
 
 export interface ToolInput {
@@ -372,6 +388,8 @@ export interface ToolInput {
   kind?: ToolKind;
   count?: number;
   washable?: boolean;
+  dishwasherSafe?: boolean;
+  minCount?: number | null;
   place?: string;
   note?: string;
 }

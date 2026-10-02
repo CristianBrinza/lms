@@ -81,4 +81,8 @@ export const TOOL_ICON_KEYS = [
   'pot', 'big-pot', 'saucepan', 'pan', 'wok', 'tray', 'baking-dish', 'bowl', 'board', 'knife', 'colander', 'whisk', 'grater',
   'ladle', 'spatula', 'blender', 'mixer', 'kettle', 'toaster', 'oven', 'shaker', 'jigger', 'glass', 'wine-glass', 'mug', 'plate',
   'cutlery', 'lunchbox', 'ice-tray', 'pen', 'scissors', 'box',
+  'electric-kettle', 'grill', 'air-fryer', 'rice-cooker', 'microwave', 'coffee-machine', 'french-press', 'slow-cooker', 'pressure-cooker',
+  'steamer', 'thermos', 'water-bottle', 'scale', 'peeler', 'can-opener', 'garlic-press', 'rolling-pin', 'tongs', 'muffin-tin', 'cake-tin',
+  'salad-spinner', 'measuring-cup', 'ceramic-knife', 'bread-knife', 'baking-paper', 'foil', 'cling-film', 'zip-bag', 'paper-towel', 'napkins',
+  'toothpicks', 'skewers', 'muffin-cups', 'paper-cup',
 ];
