@@ -4,7 +4,7 @@ import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import { freezingFor, OPENED_BY_CATEGORY, type Level, type Location } from './presets';
 import { findProduct, PRODUCT_COLUMNS, rememberVariant, resolveNamed, toProduct, type Product, type ProductRow } from './products';
-import type { AddStockInput, LotPatch, UseStockInput } from './schemas';
+import type { AddStockInput, LotPatch, PourInput, UseStockInput } from './schemas';
 import { customUnit, round, toBase, UnitMismatchError } from './units';
 
 /**
@@ -257,8 +257,9 @@ export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: s
     }
     const { rows } = await tx.db.query<LotRow>(
       `${LOT_SELECT} WHERE l.product_id = $1 AND l.household_id = $2 AND l.finished_at IS NULL
+         AND ($4::text IS NULL OR l.id = $3 OR lower(l.variant) = lower($4))
         ORDER BY (l.id = $3) DESC, ${LOT_ORDER} FOR UPDATE OF l`,
-      [product.id, tx.actor.householdId, input.lotId ?? null],
+      [product.id, tx.actor.householdId, input.lotId ?? null, input.variant ?? null],
     );
     let remaining = wanted;
     const touched: UseResult['lots'] = [];
@@ -368,6 +369,65 @@ export async function updateLot(ctx: FoodCtx, id: string, patch: LotPatch): Prom
     if (patch.price !== undefined) await tx.db.query('UPDATE stock_lots SET price = $2 WHERE id = $1', [id, patch.price]);
     if (patch.note !== undefined && patch.quantity === undefined) await tx.db.query('UPDATE stock_lots SET note = $2 WHERE id = $1', [id, patch.note]);
     return toLot(await findLot(tx, id));
+  });
+}
+
+/**
+ * Pours from one piece into another of the same item: the big oil bottle into the small one on the
+ * desk, a 5 l jug into a bottle. The total stays; the source is opened, the new piece starts open.
+ */
+export async function pourLot(ctx: FoodCtx, fromId: string, input: PourInput): Promise<{ from: Lot; into: Lot }> {
+  return ctx.tx(async (tx) => {
+    const from = await findLot(tx, fromId, true);
+    if (from.finished_at) throw new AppError(409, 'FINISHED', 'That piece is used up');
+    const product = await findProduct(tx, from.product_id);
+    const amount = baseQuantity(input.quantity, input.unit, product, 'quantity');
+    if (amount > from.quantity + 1e-9) {
+      throw new AppError(400, 'VALIDATION', 'There isn’t that much in it', { fields: { quantity: `At most ${from.quantity} ${product.unit}` } });
+    }
+    let intoId = input.intoLotId;
+    if (intoId) {
+      const into = await findLot(tx, intoId, true);
+      if (into.product_id !== from.product_id || into.id === from.id) throw new AppError(400, 'VALIDATION', 'Pour into another piece of the same item', { fields: { intoLotId: 'Wrong piece' } });
+      const quantity = round(into.quantity + amount);
+      await tx.db.query(
+        `UPDATE stock_lots SET quantity = $2, initial_quantity = greatest(initial_quantity, $2), finished_at = NULL, opened_at = coalesce(opened_at, $3),
+                expires_on = CASE WHEN $4::date IS NOT NULL AND (expires_on IS NULL OR $4::date < expires_on) THEN $4::date ELSE expires_on END
+          WHERE id = $1`,
+        [intoId, quantity, tx.now, from.expires_on],
+      );
+    } else {
+      intoId = randomUUID();
+      await tx.db.query(
+        `INSERT INTO stock_lots (id, household_id, product_id, quantity, initial_quantity, location, added_at, expires_on, opened_at, note, created_by, variant, package, package_size)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $7, $9, $10, $11, $12, $13)`,
+        [
+          intoId,
+          tx.actor.householdId,
+          product.id,
+          amount,
+          Math.max(amount, input.packageSize ?? 0),
+          input.location ?? from.location,
+          tx.now,
+          from.expires_on,
+          input.note ?? '',
+          tx.actor.userId,
+          from.variant,
+          input.package ?? '',
+          input.packageSize ?? null,
+        ],
+      );
+    }
+    const left = round(from.quantity - amount);
+    await tx.db.query('UPDATE stock_lots SET quantity = $2, finished_at = $3, opened_at = coalesce(opened_at, $4) WHERE id = $1', [
+      from.id,
+      left,
+      left === 0 ? tx.now : null,
+      tx.now,
+    ]);
+    await recordEvent(tx, { productId: product.id, lotId: from.id, kind: 'moved', delta: -amount, note: 'Poured out' });
+    await recordEvent(tx, { productId: product.id, lotId: intoId, kind: 'moved', delta: amount, note: 'Poured in' });
+    return { from: toLot(await findLot(tx, from.id)), into: toLot(await findLot(tx, intoId)) };
   });
 }
 

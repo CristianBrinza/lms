@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import { allocatePlan } from './allocation';
+import { describeNeeds, dirtyAfterCooking, listTools, recipeTools, undoDirty, type ToolNeed } from './kitchenware';
 import { listRestrictions } from './restrictions';
 import { appendIngredientRows, describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type IngredientRow } from './ingredients';
 import type { FoodCtx } from './kitchen';
@@ -53,6 +54,8 @@ export interface Meal {
   leftoversLotId: string | null;
   /** What the meal is made of; its lines carry the part they belong to (partId). */
   parts: MealPart[];
+  /** Kitchenware its parts need, and whether it will be clean by the meal's time. */
+  tools: ToolNeed[];
   ingredients: IngredientLine[];
   availability: Availability;
 }
@@ -72,10 +75,11 @@ interface MealRow {
   done_at: Date | null;
   created_via: 'app' | 'ai';
   leftovers_lot_id: string | null;
+  dirtied: Array<{ toolId: string; count: number }> | null;
 }
 
 const MEAL_SELECT = `SELECT m.id, m.date, to_char(m.time, 'HH24:MI') AS time, m.slot, m.recipe_id, r.icon AS recipe_icon, m.title, m.servings, m.status, m.note,
-       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id
+       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id, m.dirtied
   FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id`;
 
 /** A day's meals in eating order: by time, a slot without a time standing at its usual hour. */
@@ -107,9 +111,22 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
 
 const PART_ICON: Record<PartKind, FoodIcon> = { dish: 'pot', side: 'bowl', sauce: 'sauce', drink: 'tea' };
 
+const SLOT_HOUR: Record<Slot, string> = { breakfast: '08:00', lunch: '13:00', snack: '16:30', dinner: '19:00' };
+
+/** When a meal is eaten, local time. */
+const mealTime = (row: Pick<MealRow, 'date' | 'time' | 'slot'>) => new Date(`${row.date}T${row.time ?? SLOT_HOUR[row.slot]}:00`);
+
+/** What the meal's parts need, per part's recipe. */
+async function mealNeeds(ctx: FoodCtx, parts: Map<string, MealPart[]>): Promise<Map<string, Array<{ toolId: string; count: number }>>> {
+  const recipes = await recipeTools(ctx, [...new Set([...parts.values()].flat().flatMap((p) => (p.recipeId ? [p.recipeId] : [])))]);
+  return new Map([...parts].map(([mealId, list]) => [mealId, list.flatMap((part) => (part.recipeId ? (recipes.get(part.recipeId) ?? []) : []))]));
+}
+
 async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
   const stock = await stockSnapshot(ctx);
   const parts = await partsOf(ctx, rows.map((r) => r.id));
+  const needs = await mealNeeds(ctx, parts);
+  const tools = [...needs.values()].some((n) => n.length) ? await listTools(ctx) : [];
   const ingredients = await ingredientRows(ctx, 'meal_ingredients', rows.map((r) => r.id));
   // Planned meals from today on share the kitchen in eating order.
   const allocation = await allocatePlan(ctx, stock, localDate(ctx.now));
@@ -132,6 +149,7 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       createdVia: row.created_via,
       leftoversLotId: row.leftovers_lot_id,
       parts: parts.get(row.id) ?? [],
+      tools: row.status === 'planned' ? describeNeeds(tools, needs.get(row.id) ?? [], mealTime(row)) : [],
       ingredients: lines,
       availability,
     };
@@ -166,6 +184,7 @@ async function recipeCopy(ctx: FoodCtx, recipeId: string, servings: number): Pro
     product_id: row.product_id,
     lot_id: null,
     name: row.name,
+    variant: row.variant ?? '',
     amount: row.amount === null ? null : round(row.amount * scale),
     unit: row.unit,
     note: row.note,
@@ -386,7 +405,14 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
       if (!row.product_id || row.amount === null) continue;
       const product = await findProduct(tx, row.product_id);
       if (product.trackMode !== 'exact') continue;
-      const result = await useStock(tx, { productId: product.id, quantity: row.amount, unit: row.unit ?? product.unit, lotId: row.lot_id ?? undefined, mealId: id });
+      const result = await useStock(tx, {
+        productId: product.id,
+        quantity: row.amount,
+        unit: row.unit ?? product.unit,
+        lotId: row.lot_id ?? undefined,
+        variant: row.variant || undefined,
+        mealId: id,
+      });
       if (result.shortfall > 0 && !row.optional) shortfalls.push({ name: row.name, missing: result.shortfall, unit: product.unit });
       for (const lot of result.lots) {
         if (lot.opened) opened.push({ productId: product.id, lotId: lot.lotId, name: product.name, left: lot.left, unit: product.unit, expiresOn: lot.expiresOn, location: lot.location });
@@ -408,7 +434,15 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
       });
       leftoversLotId = lot?.id ?? null;
     }
-    await tx.db.query(`UPDATE meals SET status = 'done', done_at = $2, leftovers_lot_id = $3, updated_at = $2 WHERE id = $1`, [id, tx.now, leftoversLotId]);
+    // What it was cooked with is dirty now.
+    const needs = (await mealNeeds(tx, await partsOf(tx, [id]))).get(id) ?? [];
+    const dirtied = needs.length ? await dirtyAfterCooking(tx, needs) : [];
+    await tx.db.query(`UPDATE meals SET status = 'done', done_at = $2, leftovers_lot_id = $3, updated_at = $2, dirtied = $4 WHERE id = $1`, [
+      id,
+      tx.now,
+      leftoversLotId,
+      dirtied.length ? JSON.stringify(dirtied) : null,
+    ]);
   });
   return { meal: await getMeal(ctx, id), shortfalls, opened };
 }
@@ -432,7 +466,8 @@ export async function reopenMeal(ctx: FoodCtx, id: string): Promise<Meal> {
       const lot = lots[0];
       if (lot && !lot.finished_at && lot.quantity === lot.initial_quantity) await removeLot(tx, meal.leftovers_lot_id);
     }
-    await tx.db.query(`UPDATE meals SET status = 'planned', done_at = NULL, leftovers_lot_id = NULL, updated_at = $2 WHERE id = $1`, [id, tx.now]);
+    if (meal.dirtied) await undoDirty(tx, meal.dirtied);
+    await tx.db.query(`UPDATE meals SET status = 'planned', done_at = NULL, leftovers_lot_id = NULL, dirtied = NULL, updated_at = $2 WHERE id = $1`, [id, tx.now]);
   });
   return getMeal(ctx, id);
 }

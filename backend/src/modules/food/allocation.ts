@@ -37,6 +37,7 @@ interface LotRow {
   product_id: string;
   quantity: number;
   expires_on: string | null;
+  variant: string;
 }
 
 const EATING_ORDER = `m.date, coalesce(m.time, CASE m.slot WHEN 'breakfast' THEN time '08:00' WHEN 'lunch' THEN time '13:00' WHEN 'snack' THEN time '16:30' ELSE time '19:00' END), m.created_at`;
@@ -48,7 +49,7 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
     [ctx.actor.householdId, today],
   );
   const { rows: lots } = await ctx.db.query<LotRow>(
-    `SELECT l.id, l.product_id, l.quantity, l.expires_on FROM stock_lots l
+    `SELECT l.id, l.product_id, l.quantity, l.expires_on, l.variant FROM stock_lots l
       WHERE l.household_id = $1 AND l.finished_at IS NULL AND l.quantity > 0
       ORDER BY l.opened_at IS NULL, l.expires_on NULLS LAST, l.added_at`,
     [ctx.actor.householdId],
@@ -69,8 +70,11 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
       if (!info || info.product.trackMode !== 'exact' || row.optional) continue;
       const need = wanted(row, info);
       if (need === null) continue;
-      // Good on the meal's day: no date, or not past it.
-      const usable = (lotsByProduct.get(info.product.id) ?? []).filter((lot) => !lot.expires_on || lot.expires_on >= meal.date);
+      // Good on the meal's day, and of the type the line asks for.
+      const kind = row.variant?.toLowerCase();
+      const usable = (lotsByProduct.get(info.product.id) ?? []).filter(
+        (lot) => (!lot.expires_on || lot.expires_on >= meal.date) && (!kind || lot.variant.toLowerCase() === kind),
+      );
       const ordered = row.lot_id ? [...usable.filter((l) => l.id === row.lot_id), ...usable.filter((l) => l.id !== row.lot_id)] : usable;
       let remaining = need;
       for (const lot of ordered) {

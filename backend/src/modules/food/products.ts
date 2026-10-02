@@ -254,15 +254,23 @@ function variantNamed(product: Product, word: string): string | null {
 /** "mango peach juice" → Juice + "Mango peach", when Juice is an item that comes in types. */
 async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: string; variant: string } | null> {
   const words = normalizeName(name).split(' ');
-  if (words.length < 2) return null;
-  const { rows } = await ctx.db.query<{ name: string }>(`SELECT name FROM products WHERE household_id = $1 AND cardinality(variants) > 0`, [ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<{ name: string; variants: string[] }>(`SELECT name, variants FROM products WHERE household_id = $1 AND cardinality(variants) > 0`, [
+    ctx.actor.householdId,
+  ]);
   const typed = [
-    ...rows.map((row) => ({ item: row.name, forms: [row.name] })),
-    ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({ item: preset.name, forms: [preset.name, ...(preset.aliases ?? [])] })),
+    ...rows.map((row) => ({ item: row.name, forms: [row.name], variants: row.variants })),
+    ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({ item: preset.name, forms: [preset.name, ...(preset.aliases ?? [])], variants: preset.variants! })),
   ];
+  // A type on its own ("Absolut", "Cheddar") finds its item, when only one item has it.
+  const owners = new Set(typed.filter((t) => t.variants.some((v) => normalizeName(v) === words.join(' '))).map((t) => normalizeName(t.item)));
+  if (owners.size === 1) {
+    const owner = typed.find((t) => owners.has(normalizeName(t.item)))!;
+    return { item: owner.item, variant: owner.variants.find((v) => normalizeName(v) === words.join(' '))! };
+  }
+  if (words.length < 2) return null;
   // The longest name wins; between equals, the name at the end ("apple juice" is juice, not apples).
   let best: { item: string; variant: string; score: number } | null = null;
-  for (const { item, forms } of typed) {
+  for (const { item, forms, variants } of typed) {
     for (const form of forms) {
       const size = normalizeName(form).split(' ').length;
       if (size >= words.length) continue;
@@ -273,6 +281,8 @@ async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: string;
       ];
       cuts.forEach(({ head, rest }, index) => {
         if (rest.length > 3 || !sameName(head.join(' '), form)) return;
+        // Through a loose alias ("oil"), only a type the item knows: "pumpkin seed oil" is its own item.
+        if (form !== item && !variants.some((v) => normalizeName(v) === rest.join(' '))) return;
         const score = size * 2 + (index === 0 ? 1 : 0);
         if (best && score <= best.score) return;
         const variant = rest.join(' ');

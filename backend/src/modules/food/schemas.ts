@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TOOL_ICONS, TOOL_KINDS } from './kitchenware';
 import { CATEGORIES, FOOD_ICONS, LEVELS, LOCATIONS, TRACK_MODES } from './presets';
 import { BASE_UNITS, UNITS } from './units';
 
@@ -112,12 +113,24 @@ export const AddStockInput = z
   .refine((body) => body.quantity !== undefined || body.packages, { message: 'Say how much', path: ['quantity'] });
 export type AddStockInput = z.infer<typeof AddStockInput>;
 
+export const PourInput = z.object({
+  quantity: quantityField.describe('How much to pour'),
+  unit: unitField.optional(),
+  intoLotId: idField.optional().describe('Top up this piece (the small oil bottle on the desk); omitted: a new one'),
+  package: z.string().trim().max(20).optional().describe('What the new one is (dispenser, bottle)'),
+  packageSize: z.number().positive().max(1_000_000).optional().describe('What the new one holds when full, in the base unit'),
+  location: locationField.optional(),
+  note: noteField.optional().describe('Where exactly ("on the desk")'),
+});
+export type PourInput = z.infer<typeof PourInput>;
+
 export const UseStockInput = z.object({
   productId: idField,
   quantity: quantityField,
   unit: unitField.optional(),
   lotId: idField.optional().describe('Take it from this piece/package; otherwise first-expiring first'),
   wasted: z.boolean().optional().describe('True when it was thrown away rather than eaten'),
+  variant: z.string().trim().max(40).optional().describe('Take only pieces of this type'),
   note: noteField.optional(),
 });
 export type UseStockInput = z.infer<typeof UseStockInput>;
@@ -226,8 +239,36 @@ export const IngredientInput = z.object({
   note: z.string().trim().max(120, 'Keep the note short').optional().describe('"diced", "room temperature"'),
   optional: z.boolean().optional(),
   link: z.boolean().optional().describe('False for things not kept in the kitchen (tap water): never checked or deducted'),
+  variant: z.string().trim().max(40).optional().describe('Only this type will do (Vodka: "Finlandia"); omit for any'),
 });
 export type IngredientInput = z.infer<typeof IngredientInput>;
+
+export const ToolInput = z.object({
+  name: z.string().trim().min(1, 'Name it').max(60).optional(),
+  icon: z.enum(TOOL_ICONS, { error: 'Pick an icon from the set' }).optional(),
+  kind: z.enum(TOOL_KINDS).optional().describe('cookware, bakeware, utensil, dishes, bar, appliance or other'),
+  count: z.number().int().min(0).max(500).optional().describe('How many the kitchen has'),
+  washable: z.boolean().optional().describe('False for things never washed (the oven, pens)'),
+  place: z.string().trim().max(60).optional().describe('Where it is kept'),
+  note: noteField.optional(),
+});
+export type ToolInput = z.infer<typeof ToolInput>;
+
+export const ToolNeedInput = z
+  .object({
+    toolId: idField.optional(),
+    name: z.string().trim().min(1).max(60).optional().describe('Kitchenware by name ("Big pot", "Frying pan"); added if the kitchen has none'),
+    count: z.number().int().min(1).max(20).optional(),
+  })
+  .refine((body) => Boolean(body.toolId || body.name), { message: 'Say which', path: ['name'] });
+export type ToolNeedInput = z.infer<typeof ToolNeedInput>;
+
+export const WashInput = z.object({
+  how: z.enum(['hand', 'machine']).describe('By hand: clean now; machine: clean when the dishwasher is done'),
+  toolIds: z.array(idField).max(100).optional().describe('Omit to wash everything dirty'),
+  minutes: z.number().int().min(10).max(600).optional().describe('This dishwasher run; default the kitchen’s setting'),
+});
+export type WashInput = z.infer<typeof WashInput>;
 
 export const RecipeInput = z.object({
   title: z.string().trim().min(1, 'Give the recipe a name').max(120, 'Keep the name under 120 characters'),
@@ -242,6 +283,7 @@ export const RecipeInput = z.object({
   notes: z.string().trim().max(2000).optional(),
   favorite: z.boolean().optional(),
   ingredients: z.array(IngredientInput).max(60, 'At most 60 ingredients').optional(),
+  tools: z.array(ToolNeedInput).max(20).optional().describe('Kitchenware it needs: [{ name: "Big pot" }, { name: "Colander" }]'),
 });
 export type RecipeInput = z.infer<typeof RecipeInput>;
 

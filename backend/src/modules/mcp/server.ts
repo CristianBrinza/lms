@@ -27,6 +27,13 @@ How it works
 - Names resolve loosely ("tomato" = Tomatoes; Romanian and Russian shop names work too). An unknown name creates a new item, so reuse the names you see in list_stock / find_items.
 - Items have their own units too (a jar of pickles = 12, a cake = 8 pieces, a can of Coca-Cola = 330 ml); when one holds a different amount this time, pass each (a jar of 14: quantity 1, unit "jar", each 14).
 - Types (variant): "apple juice" is Juice, type Apple; "Coca-Cola Zero" is Coca-Cola, type Zero; "Borjomi" is Mineral water, type Borjomi. A new type is remembered the first time it is used, so name new drinks, juices or flavours freely.
+- Packages: a jar, bottle, loaf or can says what it holds. add_stock with packages: [{ count, size, sizeUnit }] makes one lot per size (one 1 l bottle and two of 0.5 l; ice cubes in a pack of 3 and one of 4). Bread counts in slices, a loaf being its package.
+- Shopping lines ask for at least an amount. When ticking, record what was really bought (bought: packages); checkout keeps the rest on the list when less was bought.
+- An ingredient can ask for one type (variant "Finlandia"), and only that type counts; otherwise any type does.
+- pour moves some of one lot into another (the big oil bottle into the small one on the desk).
+- A meal can have several parts (add_meal_part): a dish, sides, sauces, drinks, each from a recipe or named with its own ingredients.
+- Opening a package (or cooking part of it) shortens its expiry and moves it where it belongs once open; complete_meal reports what it opened — suggest using those soon.
+- Kitchenware (list_kitchenware): pots, pans, glasses, even pens, with clean / dirty / in the dishwasher. Recipes list the kitchenware they need (tools); cooking makes it dirty; wash_kitchenware by hand or machine. Warn when a planned meal's kitchenware is dirty.
 - Stock is kept as lots: each steak or package is its own lot with its own expiry. Using stock takes the lot you name, else opened lots first, then the soonest to expire.
 - Spices, sauces, oil and similar are kept by level instead (trackedBy: level): full, low or out — set it with set_level; they are never weighed or deducted. Buying one makes it full again.
 - Moving a lot to the freezer (update_lot location: freezer) resets its expiry to the item's frozen days; taking it out gives it the thawed days.

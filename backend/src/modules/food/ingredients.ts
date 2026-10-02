@@ -4,7 +4,7 @@ import type { LineAllocation, PlannedMealRef } from './allocation';
 import { warningsFor, type Restriction, type Warning } from './restrictions';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
-import { findProduct, PRODUCT_COLUMNS, resolveProduct, toProduct, type Product, type ProductRow } from './products';
+import { findProduct, PRODUCT_COLUMNS, rememberVariant, resolveNamed, toProduct, type Product, type ProductRow } from './products';
 import type { IngredientInput, MealIngredientInput } from './schemas';
 import { localDate } from './stock';
 import { canConvert, round, toBase, type BaseUnit } from './units';
@@ -22,6 +22,8 @@ export interface IngredientLine {
   lotId: string | null;
   /** The meal part it belongs to (meals only). */
   partId: string | null;
+  /** Only this type will do (Finlandia); '' for any. */
+  variant: string;
   name: string;
   icon: FoodIcon;
   amount: number | null;
@@ -66,6 +68,8 @@ export interface IngredientRow {
   /** Which part of a meal the line belongs to (meals only; null: the meal's own). */
   part_id?: string | null;
   name: string;
+  /** Only this type will do; '' for any. */
+  variant?: string;
   amount: number | null;
   unit: string | null;
   note: string;
@@ -77,6 +81,8 @@ export interface StockInfo {
   product: Product;
   total: number;
   nextExpiry: string | null;
+  /** Stock per type, by lowercase type name. */
+  byVariant: Map<string, number>;
 }
 
 /** Every product of the kitchen with its stock total and soonest expiry. */
@@ -90,7 +96,19 @@ export async function stockSnapshot(ctx: FoodCtx): Promise<Map<string, StockInfo
       WHERE p.household_id = $1 GROUP BY p.id`,
     [ctx.actor.householdId],
   );
-  return new Map(rows.map((row) => [row.id, { product: toProduct(row), total: row.total, nextExpiry: row.next_expiry }]));
+  const map = new Map(rows.map((row) => [row.id, { product: toProduct(row), total: row.total, nextExpiry: row.next_expiry, byVariant: new Map<string, number>() }]));
+  const { rows: kinds } = await ctx.db.query<{ product_id: string; variant: string; total: number }>(
+    `SELECT product_id, lower(variant) AS variant, sum(quantity)::numeric AS total FROM stock_lots
+      WHERE household_id = $1 AND finished_at IS NULL AND variant <> '' GROUP BY product_id, lower(variant)`,
+    [ctx.actor.householdId],
+  );
+  for (const kind of kinds) map.get(kind.product_id)?.byVariant.set(kind.variant, kind.total);
+  return map;
+}
+
+/** What there is of what a line asks for: one type when it names one, else everything. */
+export function stockFor(info: StockInfo, variant: string | undefined): number {
+  return variant ? (info.byVariant.get(variant.toLowerCase()) ?? 0) : info.total;
 }
 
 /** The base quantity a line needs at `scale`, or null when it has no amount or the unit doesn't fit. */
@@ -126,7 +144,7 @@ export function describeLines(
     // Exact items are measured against stock; level items just need to not be out.
     const counted = mode === 'exact' || mode === 'level';
     const needed = info && mode === 'exact' ? neededBase(row, info.product, scale) : null;
-    const total = info?.total ?? 0;
+    const total = info ? stockFor(info, row.variant) : 0;
     const planned = options.allocation?.get(row.id);
     const claimed = mode === 'exact' && info ? (options.reserved?.get(info.product.id) ?? null) : null;
     // What is free for this: a planned meal gets its share of the plan; cooking now gets what no plan claims.
@@ -145,6 +163,7 @@ export function describeLines(
       productId: row.product_id,
       lotId: row.lot_id ?? null,
       partId: row.part_id ?? null,
+      variant: row.variant ?? '',
       name: row.name,
       icon: info?.product.icon ?? 'basket',
       amount: row.amount === null ? null : round(row.amount * scale),
@@ -179,8 +198,15 @@ export async function resolveIngredients(ctx: FoodCtx, inputs: Array<IngredientI
   const out: Array<Omit<IngredientRow, 'id' | 'owner_id'>> = [];
   for (const [index, input] of inputs.entries()) {
     let product: Product | null = null;
+    let variant = input.variant ?? '';
     if (input.productId) product = await findProduct(ctx, input.productId);
-    else if (input.link !== false) product = await resolveProduct(ctx, input.name, input.unit ?? undefined);
+    else if (input.link !== false) {
+      // "Finlandia vodka" is Vodka, only Finlandia.
+      const named = await resolveNamed(ctx, input.name, input.unit ?? undefined);
+      product = named.product;
+      variant ||= named.variant;
+    }
+    if (product && variant) product = await rememberVariant(ctx, product, variant);
     const unit = input.amount ? (input.unit ?? product?.unit ?? null) : null;
     // Only measured items need a unit they can be counted in ("2 tsp" of a spice kept by level is fine).
     if (product && product.trackMode === 'exact' && unit && !canConvert(unit, product)) {
@@ -196,7 +222,7 @@ export async function resolveIngredients(ctx: FoodCtx, inputs: Array<IngredientI
       lotId = input.lotId;
     }
     const partId = 'partId' in input ? (input.partId ?? null) : null;
-    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
+    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, variant, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
   }
   return out;
 }
@@ -221,7 +247,7 @@ export async function appendIngredientRows(
 ): Promise<void> {
   for (const row of rows) {
     if (table === 'recipe_ingredients') {
-      await ctx.db.query(`INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [
+      await ctx.db.query(`INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort, variant) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [
         randomUUID(),
         ownerId,
         row.product_id,
@@ -231,11 +257,12 @@ export async function appendIngredientRows(
         row.note,
         row.optional,
         row.sort,
+        row.variant ?? '',
       ]);
     } else {
       await ctx.db.query(
-        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [randomUUID(), ownerId, row.product_id, row.lot_id ?? null, row.name, row.amount, row.unit, row.note, row.optional, row.sort, row.part_id ?? null],
+        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [randomUUID(), ownerId, row.product_id, row.lot_id ?? null, row.name, row.amount, row.unit, row.note, row.optional, row.sort, row.part_id ?? null, row.variant ?? ''],
       );
     }
   }
@@ -247,7 +274,7 @@ export async function ingredientRows(ctx: FoodCtx, table: 'recipe_ingredients' |
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
   const lot = table === 'meal_ingredients' ? ', lot_id, part_id' : '';
   const { rows } = await ctx.db.query<IngredientRow>(
-    `SELECT id, ${owner} AS owner_id, product_id${lot}, name, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
+    `SELECT id, ${owner} AS owner_id, product_id${lot}, name, variant, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
     [ownerIds],
   );
   for (const row of rows) {

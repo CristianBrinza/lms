@@ -51,7 +51,7 @@ export const FOOD_ICONS = [
   // spices and sauces
   'salt', 'spice', 'sauce',
   // drinks
-  'water', 'juice', 'soda', 'wine', 'beer', 'soda-can', 'juice-box', 'mineral-water',
+  'water', 'juice', 'soda', 'wine', 'beer', 'soda-can', 'juice-box', 'mineral-water', 'spirit', 'syrup', 'cocktail', 'ice', 'puree', 'lime',
   // snacks
   'chocolate', 'cookie', 'chips',
   // dishes (recipes and leftovers)
@@ -121,12 +121,12 @@ export type Level = (typeof LEVELS)[number];
 
 /** Days once opened, for the presets where it matters. */
 const OPENED: Record<string, number> = {
-  Milk: 5, Cream: 4, Kefir: 4, 'Sour cream': 7, Juice: 5, Soda: 3, 'Coca-Cola': 3, Pepsi: 3, Sprite: 3, Fanta: 3, 'Iced tea': 3, 'Mineral water': 3, 'Sparkling water': 3, Kvass: 2, Wine: 5, Yogurt: 2, 'Cottage cheese': 3, Mozzarella: 3,
+  Milk: 5, Cream: 4, Kefir: 4, 'Sour cream': 7, Juice: 5, Soda: 3, 'Coca-Cola': 3, Pepsi: 3, Sprite: 3, Fanta: 3, 'Iced tea': 3, 'Mineral water': 3, 'Sparkling water': 3, Kvass: 2, Wine: 5, 'Sparkling wine': 1, 'Tonic water': 3, Syrup: 90, 'Fruit purée': 3, 'Sunflower oil': 120, 'Olive oil': 120, Yogurt: 2, 'Cottage cheese': 3, Mozzarella: 3,
   'Canned beans': 3, 'Canned tomatoes': 4, 'Chopped tomatoes': 4, 'Tomato sauce (canned)': 5, 'Canned corn': 3, 'Canned peas': 3, 'Canned mushrooms': 3, 'Canned pineapple': 3, 'Canned peaches': 3, 'Tuna (canned)': 2, Sprats: 2, 'Canned meat': 3, 'Liver pâté': 2, Zacuscă: 10, 'Eggplant caviar': 7, Lecho: 7, Ajvar: 10, 'Tomato paste': 7, Mayonnaise: 30, Ketchup: 60, Mustard: 60,
   Ham: 4, Bacon: 5, Pickles: 30, 'Pickled tomatoes': 14, Olives: 14, Sausages: 5, Cheese: 14, Feta: 7, Jam: 30,
 };
 /** Kept by level rather than weighed: everything in Spices & sauces, plus these. */
-const BY_LEVEL = new Set(['Sunflower oil', 'Olive oil', 'Jam', 'Tomato paste', 'Coffee', 'Tea', 'Instant coffee', 'Peanut butter', 'Chocolate spread']);
+const BY_LEVEL = new Set(['Jam', 'Tomato paste', 'Coffee', 'Tea', 'Instant coffee', 'Peanut butter', 'Chocolate spread']);
 
 const P = (
   name: string,
@@ -233,7 +233,7 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Canned tomatoes', 'can-tomato', 'pantry', 'g', 'pantry', 730, 400, ['roșii conservate', 'rosii conservate', 'whole peeled tomatoes', 'помидоры в собственном соку']),
   P('Tomato paste', 'jar', 'pantry', 'g', 'pantry', 365, undefined, ['pastă de tomate', 'pasta de tomate', 'томатная паста']),
   P('Sunflower oil', 'oil', 'pantry', 'ml', 'pantry', 365, undefined, ['ulei', 'масло подсолнечное', 'oil']),
-  P('Olive oil', 'oil', 'pantry', 'ml', 'pantry', 365, undefined, ['ulei de măsline']),
+  P('Olive oil', 'oil', 'pantry', 'ml', 'pantry', 365, undefined, ['ulei de măsline', 'оливковое масло']),
   P('Honey', 'honey', 'pantry', 'g', 'pantry', 730, undefined, ['miere', 'мёд', 'мед']),
   P('Walnuts', 'nuts', 'pantry', 'g', 'pantry', 180, undefined, ['nuci', 'грецкие орехи', 'nuts']),
   P('Coffee', 'coffee', 'pantry', 'g', 'pantry', 180, undefined, ['cafea', 'кофе']),
@@ -266,6 +266,19 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Compote', 'juice', 'drinks', 'ml', 'fridge', 4, undefined, ['compot', 'компот', 'kompot']),
   P('Kefir drink', 'milk', 'drinks', 'ml', 'fridge', 7, [500, 'ml'], ['ayran', 'айран', 'tan', 'тан']),
   P('Wine', 'wine', 'drinks', 'ml', 'pantry', 730, [750, 'ml'], ['vin', 'вино']),
+  P('Sparkling wine', 'wine', 'drinks', 'ml', 'pantry', 730, [750, 'ml'], ['vin spumant', 'spumant', 'champagne', 'prosecco', 'шампанское', 'игристое']),
+  P('Vodka', 'spirit', 'drinks', 'ml', 'pantry', 3650, [500, 'ml'], ['votcă', 'votca', 'водка']),
+  P('Divin', 'spirit', 'drinks', 'ml', 'pantry', 3650, [500, 'ml'], ['brandy', 'cognac', 'coniac', 'коньяк', 'дивин']),
+  P('Whisky', 'spirit', 'drinks', 'ml', 'pantry', 3650, [700, 'ml'], ['whiskey', 'виски']),
+  P('Rum', 'spirit', 'drinks', 'ml', 'pantry', 3650, [700, 'ml'], ['rom', 'ром']),
+  P('Gin', 'spirit', 'drinks', 'ml', 'pantry', 3650, [700, 'ml'], ['джин']),
+  P('Tequila', 'spirit', 'drinks', 'ml', 'pantry', 3650, [700, 'ml'], ['текила']),
+  P('Liqueur', 'spirit', 'drinks', 'ml', 'pantry', 1095, [500, 'ml'], ['lichior', 'ликёр', 'ликер']),
+  P('Vermouth', 'wine', 'drinks', 'ml', 'pantry', 1095, [1000, 'ml'], ['vermut', 'вермут', 'martini']),
+  P('Tonic water', 'soda-can', 'drinks', 'ml', 'pantry', 365, [330, 'ml'], ['tonic', 'apă tonică', 'тоник', 'schweppes']),
+  P('Syrup', 'syrup', 'drinks', 'ml', 'pantry', 730, undefined, ['sirop', 'сироп']),
+  P('Fruit purée', 'puree', 'pantry', 'g', 'fridge', 5, undefined, ['puree', 'piure', 'пюре', 'fruit puree']),
+  P('Ice cubes', 'ice', 'frozen', 'pcs', 'freezer', 365, 25, ['cuburi de gheață', 'gheata', 'лёд', 'лед', 'ice']),
   P('Beer', 'beer', 'drinks', 'ml', 'pantry', 180, [500, 'ml'], ['bere', 'пиво']),
   // Snacks
   P('Chocolate', 'chocolate', 'snacks', 'g', 'pantry', 180, undefined, ['ciocolată', 'ciocolata', 'шоколад']),
@@ -297,6 +310,8 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Celery', 'herbs', 'produce', 'pcs', 'fridge', 14, 400, ['țelină', 'telina', 'сельдерей']),
   P('Cilantro', 'herbs', 'produce', 'pcs', 'fridge', 5, 30, ['coriandru', 'кинза']),
   P('Mint', 'herbs', 'produce', 'pcs', 'fridge', 5, 20, ['mentă', 'menta', 'мята']),
+  P('Limes', 'lime', 'produce', 'pcs', 'fridge', 14, 60, ['lime', 'lămâie verde', 'лайм']),
+  P('Passion fruit', 'lime', 'produce', 'pcs', 'fridge', 7, 40, ['maracuya', 'maracuja', 'fructul pasiunii', 'маракуйя']),
   P('Ginger root', 'potato', 'produce', 'g', 'fridge', 30, undefined, ['ghimbir', 'имбирь']),
   P('Pumpkin', 'orange', 'produce', 'g', 'pantry', 60, undefined, ['dovleac', 'тыква']),
   P('Sweet potatoes', 'potato', 'produce', 'g', 'pantry', 21, undefined, ['cartofi dulci', 'батат']),
@@ -454,6 +469,22 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
   'Iced tea': { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Lemon', 'Peach', 'Green tea'] },
   'Energy drink': { units: [{ name: 'can', size: 250, sizes: [250, 330, 449, 500] }] },
   Lemonade: { variants: ['Lemon', 'Mint', 'Strawberry'] },
+  'Sunflower oil': { units: [{ name: 'bottle', size: 1000, sizes: [250, 500, 750, 1000, 2000, 3000, 5000] }, { name: 'dispenser', size: 250, sizes: [100, 200, 250, 500] }], variants: ['Refined', 'Unrefined'] },
+  'Olive oil': { units: [{ name: 'bottle', size: 1000, sizes: [250, 500, 750, 1000, 2000, 3000, 5000] }, { name: 'dispenser', size: 250, sizes: [100, 200, 250, 500] }], variants: ['Extra virgin', 'Refined'] },
+  Wine: { units: [{ name: 'bottle', size: 750, sizes: [187, 375, 750, 1000, 1500, 3000] }, { name: 'glass', plural: 'glasses', size: 150 }], variants: ['Red dry', 'White dry', 'Rosé', 'Red semi-sweet', 'White semi-sweet'] },
+  'Sparkling wine': { units: [{ name: 'bottle', size: 750, sizes: [200, 375, 750, 1500] }, { name: 'glass', plural: 'glasses', size: 150 }], variants: ['Brut', 'Semi-dry', 'Semi-sweet', 'Prosecco'] },
+  Vodka: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['Finlandia', 'Absolut', 'Nemiroff', 'Khortytsa', 'Green Mark', 'Russian Standard', 'Beluga'] },
+  Divin: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['3 years', '5 years', '10 years'] },
+  Whisky: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['Jameson', "Jack Daniel's", 'Johnnie Walker', 'Ballantine’s'] },
+  Rum: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['White', 'Dark', 'Spiced'] },
+  Gin: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }] },
+  Tequila: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['Silver', 'Gold'] },
+  Liqueur: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['Coffee', 'Amaretto', 'Cream', 'Blue Curaçao', 'Triple sec'] },
+  Vermouth: { units: [{ name: 'bottle', size: 1000, sizes: [500, 750, 1000] }], variants: ['Bianco', 'Rosso', 'Extra dry'] },
+  'Tonic water': { units: [{ name: 'can', size: 330, sizes: [250, 330] }, { name: 'bottle', size: 1000, sizes: [250, 500, 1000, 1500] }] },
+  Syrup: { units: [{ name: 'bottle', size: 700, sizes: [250, 500, 700, 1000] }], variants: ['Maracuya', 'Vanilla', 'Caramel', 'Grenadine', 'Mint', 'Strawberry', 'Coconut'] },
+  'Fruit purée': { units: [{ name: 'pack', size: 500, sizes: [250, 500, 1000] }], variants: ['Mango', 'Maracuya', 'Strawberry', 'Raspberry', 'Peach'] },
+  'Ice cubes': { units: [{ name: 'pack', size: 6, sizes: [3, 4, 5, 6, 8, 10, 12, 20] }, { name: 'tray', size: 12, sizes: [6, 8, 12, 14, 16] }, { name: 'cube', size: 1 }] },
   Compote: { variants: ['Cherry', 'Apple', 'Mixed fruit'] },
   Apples: { variants: ['Golden', 'Red', 'Green'] },
   'Sour cream': { units: [{ name: 'pack', size: 400 }] },

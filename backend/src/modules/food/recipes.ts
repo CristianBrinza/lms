@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import { allocatePlan } from './allocation';
+import { describeNeeds, listTools, recipeTools, setRecipeTools, type ToolNeed } from './kitchenware';
 import { listRestrictions } from './restrictions';
 import { localDate } from './stock';
 import { describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type StockInfo } from './ingredients';
@@ -34,6 +35,8 @@ export interface Recipe {
   shownServings: number;
   ingredients: IngredientLine[];
   availability: Availability;
+  /** Kitchenware it needs, and whether it is clean now. */
+  tools: ToolNeed[];
   timesCooked: number;
   lastCooked: string | null;
 }
@@ -64,7 +67,7 @@ const RECIPE_SELECT = `SELECT r.id, r.title, r.description, r.servings, r.prep_m
        (SELECT max(m.date) FROM meals m WHERE m.recipe_id = r.id AND m.status = 'done') AS last_cooked
   FROM recipes r`;
 
-function toRecipe(row: RecipeRow, lines: ReturnType<typeof describeLines>, shownServings: number): Recipe {
+function toRecipe(row: RecipeRow, lines: ReturnType<typeof describeLines>, shownServings: number, tools: ToolNeed[]): Recipe {
   return {
     id: row.id,
     title: row.title,
@@ -84,6 +87,7 @@ function toRecipe(row: RecipeRow, lines: ReturnType<typeof describeLines>, shown
     shownServings,
     ingredients: lines.lines,
     availability: lines.availability,
+    tools,
     timesCooked: row.times_cooked,
     lastCooked: row.last_cooked,
   };
@@ -95,9 +99,12 @@ async function build(ctx: FoodCtx, rows: RecipeRow[], stock?: Map<string, StockI
   // Cooking now may only use what planned meals haven't claimed.
   const { reserved } = await allocatePlan(ctx, snapshot, localDate(ctx.now));
   const restrictions = await listRestrictions(ctx);
+  const needs = await recipeTools(ctx, rows.map((r) => r.id));
+  const tools = needs.size ? await listTools(ctx) : [];
   return rows.map((row) => {
     const shown = servings ?? row.servings;
-    return toRecipe(row, describeLines(ingredients.get(row.id) ?? [], snapshot, ctx.now, shown / row.servings, { reserved, restrictions }), shown);
+    const lines = describeLines(ingredients.get(row.id) ?? [], snapshot, ctx.now, shown / row.servings, { reserved, restrictions });
+    return toRecipe(row, lines, shown, describeNeeds(tools, needs.get(row.id) ?? [], ctx.now));
   });
 }
 
@@ -142,6 +149,7 @@ export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Re
       ],
     );
     await insertIngredientRows(tx, 'recipe_ingredients', id, ingredients);
+    if (input.tools) await setRecipeTools(tx, id, input.tools);
   });
   return getRecipe(ctx, id);
 }
@@ -174,6 +182,7 @@ export async function updateRecipe(ctx: FoodCtx, id: string, patch: Partial<Reci
     sets.push(`updated_at = $${values.length}`);
     await tx.db.query(`UPDATE recipes SET ${sets.join(', ')} WHERE id = $1`, values);
     if (patch.ingredients) await insertIngredientRows(tx, 'recipe_ingredients', id, await resolveIngredients(tx, patch.ingredients));
+    if (patch.tools) await setRecipeTools(tx, id, patch.tools);
   });
   return getRecipe(ctx, id);
 }

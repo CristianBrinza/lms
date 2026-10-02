@@ -420,6 +420,50 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE products ADD COLUMN opened_location text CHECK (opened_location IN ('fridge', 'freezer', 'pantry', 'garden', 'other'));
     `,
   },
+  {
+    version: 11,
+    name: 'food: an ingredient can ask for one type (Vodka, Finlandia)',
+    sql: `
+      ALTER TABLE recipe_ingredients ADD COLUMN variant text NOT NULL DEFAULT '';
+      ALTER TABLE meal_ingredients ADD COLUMN variant text NOT NULL DEFAULT '';
+    `,
+  },
+  {
+    version: 12,
+    name: 'kitchenware: pots, pans and bowls, clean or dirty; what recipes need',
+    sql: `
+      CREATE TABLE tools (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        icon text NOT NULL DEFAULT 'box',
+        kind text NOT NULL DEFAULT 'cookware' CHECK (kind IN ('cookware', 'bakeware', 'utensil', 'dishes', 'bar', 'appliance', 'other')),
+        count integer NOT NULL DEFAULT 1 CHECK (count >= 0),
+        dirty integer NOT NULL DEFAULT 0 CHECK (dirty >= 0),
+        washing integer NOT NULL DEFAULT 0 CHECK (washing >= 0),
+        washing_until timestamptz,
+        washable boolean NOT NULL DEFAULT true,
+        place text NOT NULL DEFAULT '',
+        note text NOT NULL DEFAULT '',
+        archived_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX tools_household_idx ON tools (household_id);
+
+      CREATE TABLE recipe_tools (
+        recipe_id uuid NOT NULL REFERENCES recipes (id) ON DELETE CASCADE,
+        tool_id uuid NOT NULL REFERENCES tools (id) ON DELETE CASCADE,
+        count integer NOT NULL DEFAULT 1 CHECK (count BETWEEN 1 AND 20),
+        PRIMARY KEY (recipe_id, tool_id)
+      );
+      CREATE INDEX recipe_tools_tool_idx ON recipe_tools (tool_id);
+
+      -- What a meal made dirty, so reopening it can take that back.
+      ALTER TABLE meals ADD COLUMN dirtied jsonb;
+      ALTER TABLE households ADD COLUMN dishwasher_minutes integer NOT NULL DEFAULT 180 CHECK (dishwasher_minutes BETWEEN 10 AND 600);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

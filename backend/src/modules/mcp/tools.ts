@@ -16,6 +16,7 @@ import {
   updateMealPart,
   type Meal,
 } from '../food/meals';
+import { archiveTool, listTools, markDirty, saveTool, wash } from '../food/kitchenware';
 import { overview } from '../food/overview';
 import { planNeeds } from '../food/plan';
 import { createProduct, listProducts, updateProduct } from '../food/products';
@@ -42,6 +43,9 @@ import {
   MealPartInput,
   MealPartPatchFields,
   MealPatchFields,
+  PourInput,
+  ToolInput,
+  WashInput,
   ProductInput,
   RecipeInput,
   RestrictionInput,
@@ -63,6 +67,7 @@ import {
   productDetail,
   setLevel,
   undoEvents,
+  pourLot,
   updateLot,
   useStock,
   type StockedProduct,
@@ -377,6 +382,49 @@ export const TOOLS: Tool[] = [
     access: 'write',
     input: LotPatch.and(z.object({ lotId: idField })),
     run: async ({ ctx }, { lotId, ...patch }) => updateLot(ctx, lotId, patch),
+  }),
+  tool({
+    name: 'list_kitchenware',
+    title: 'Kitchenware',
+    description: 'Pots, pans, bowls, glasses and other things the kitchen counts: how many, how many are clean, dirty or in the dishwasher (and until when).',
+    access: 'read',
+    input: z.object({}),
+    run: async ({ ctx }) => ({ tools: await listTools(ctx) }),
+  }),
+  tool({
+    name: 'save_kitchenware',
+    title: 'Add or change kitchenware',
+    description:
+      'Adds kitchenware by name (or changes it with toolId): how many, kind, where it is kept. used: n marks that many dirty; remove: true takes it off.',
+    access: 'write',
+    input: ToolInput.extend({ toolId: idField.optional(), used: z.number().int().min(1).max(50).optional(), remove: z.boolean().optional() }),
+    run: async ({ ctx }, { toolId, used, remove, ...input }) => {
+      if (toolId && remove) {
+        await archiveTool(ctx, toolId);
+        return { removed: toolId };
+      }
+      let saved = toolId || input.name ? await saveTool(ctx, { ...input, ...(toolId ? { id: toolId } : {}) }) : null;
+      if (used && saved) saved = await markDirty(ctx, saved.id, used);
+      if (!saved) throw new AppError(400, 'VALIDATION', 'Say which: toolId or name');
+      return { tool: saved };
+    },
+  }),
+  tool({
+    name: 'wash_kitchenware',
+    title: 'Wash the dishes',
+    description: 'how: hand (clean now) or machine (clean when the dishwasher is done). toolIds omitted: everything dirty.',
+    access: 'write',
+    input: WashInput,
+    run: async ({ ctx }, input) => ({ tools: await wash(ctx, input) }),
+  }),
+  tool({
+    name: 'pour',
+    title: 'Pour into another container',
+    description:
+      'Moves some of one piece into another of the same item, or into a new one: the big oil bottle into the small one on the desk, a jug into a bottle. The total stays the same.',
+    access: 'write',
+    input: PourInput.extend({ lotId: idField.describe('The piece poured from') }),
+    run: async ({ ctx }, { lotId, ...input }) => pourLot(ctx, lotId, input),
   }),
   tool({
     name: 'save_item',
