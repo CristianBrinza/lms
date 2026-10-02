@@ -5,8 +5,25 @@ import { useUser } from '@/app/auth';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Avatar, Badge, Button, Chips, ListGroup, ListRowButton, Skeleton, TextField, toast } from '@/components/ui';
-import { BlockIcon, DeleteIcon, DevicesIcon, EmailIcon, LockOpenIcon, LockResetIcon } from '@/components/ui/icons';
+import {
+  Avatar,
+  Badge,
+  Button,
+  Chips,
+  ListGroup,
+  ListRowButton,
+  Skeleton,
+  TextField,
+  toast,
+} from '@/components/ui';
+import {
+  BlockIcon,
+  DeleteIcon,
+  DevicesIcon,
+  EmailIcon,
+  LockOpenIcon,
+  LockResetIcon,
+} from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { formatAgo, formatDate, fullName } from '@/lib/format';
@@ -37,7 +54,11 @@ export default function UserPage() {
   if (person.isError) {
     return (
       <Screen tone="white">
-        <PageHeader title="Person not found" subtitle={errorMessage(person.error)} back="/admin/users" />
+        <PageHeader
+          title="Person not found"
+          subtitle={errorMessage(person.error)}
+          back="/admin/users"
+        />
       </Screen>
     );
   }
@@ -80,7 +101,9 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
     onSuccess: (user) => {
       setConfirm(null);
       refresh(user);
-      toast.success(user.isActive ? `${user.name} can sign in again` : `${user.name} is switched off`);
+      toast.success(
+        user.isActive ? `${user.name} can sign in again` : `${user.name} is switched off`,
+      );
     },
     onError,
   });
@@ -99,25 +122,37 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
   return (
     <Screen tone="white">
       <PageHeader title={name} back="/admin/users" centered />
-      <div className="gutter-x mt-6 grid max-w-4xl gap-5 lg:grid-cols-[minmax(0,1fr)_21rem] lg:px-8">
-        <section className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 lg:col-start-1">
+      <div className="gutter-x mt-6 grid max-w-4xl gap-5 lg:mx-auto lg:px-8 xl:max-w-5xl xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-8">
+        <section className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 xl:col-start-1">
           <div className="flex items-center gap-4">
-            <Avatar person={person} size="lg" className={cx(!person.isActive && 'opacity-45 grayscale')} />
+            <Avatar
+              person={person}
+              size="lg"
+              className={cx(!person.isActive && 'opacity-45 grayscale')}
+            />
             <div className="min-w-0">
               <p className="truncate text-h3 font-bold">{name}</p>
               <p className="truncate text-sm text-ink-600">{person.email}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-              {isMe ? <Badge tone="lav">You</Badge> : null}
-              <Badge tone={person.role === 'admin' ? 'ink' : 'lav'}>{person.role === 'admin' ? 'Admin' : 'Member'}</Badge>
-              {person.isActive ? <Badge tone="mint">Can sign in</Badge> : <Badge tone="muted">Switched off</Badge>}
-              {person.mustChangePassword ? <Badge tone="peach">Password not chosen yet</Badge> : null}
+            {isMe ? <Badge tone="lav">You</Badge> : null}
+            <Badge tone={person.role === 'admin' ? 'ink' : 'lav'}>
+              {person.role === 'admin' ? 'Admin' : 'Member'}
+            </Badge>
+            {person.isActive ? (
+              <Badge tone="mint">Can sign in</Badge>
+            ) : (
+              <Badge tone="muted">Switched off</Badge>
+            )}
+            {person.mustChangePassword ? <Badge tone="peach">Password not chosen yet</Badge> : null}
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-ink-100 pt-4 text-sm">
             <div className="min-w-0">
               <dt className="text-ink-600">Last active</dt>
-              <dd className="mt-0.5 truncate font-semibold">{formatAgo(person.lastSeenAt ?? person.lastLoginAt)}</dd>
+              <dd className="mt-0.5 truncate font-semibold">
+                {formatAgo(person.lastSeenAt ?? person.lastLoginAt)}
+              </dd>
             </div>
             <div className="min-w-0">
               <dt className="text-ink-600">Devices</dt>
@@ -130,31 +165,53 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
           </dl>
         </section>
 
-        <ListGroup title="Account" className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
+        <ListGroup
+          title="Account"
+          className="xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start"
+        >
           {isMe ? (
-            <p className="px-4 py-4 text-sm text-ink-600">This is you. Change your password and devices from your Profile and Settings.</p>
+            <p className="px-4 py-4 text-sm text-ink-600">
+              This is you. Change your password and devices from your Profile and Settings.
+            </p>
           ) : (
             <>
-              <ListRowButton icon={LockResetIcon} label="Reset password" detail="Make a new one-time password" onClick={() => setConfirm('reset')} />
+              <ListRowButton
+                icon={LockResetIcon}
+                label="Reset password"
+                detail="Make a new one-time password"
+                onClick={() => setConfirm('reset')}
+              />
               <ListRowButton
                 icon={DevicesIcon}
                 label="Sign out everywhere"
-                detail={person.activeSessions ? `${person.activeSessions} signed-in device${person.activeSessions === 1 ? '' : 's'}` : 'Not signed in anywhere'}
+                detail={
+                  person.activeSessions
+                    ? `${person.activeSessions} signed-in device${person.activeSessions === 1 ? '' : 's'}`
+                    : 'Not signed in anywhere'
+                }
                 onClick={() => setConfirm('signOut')}
                 disabled={person.activeSessions === 0}
               />
               <ListRowButton
                 icon={person.isActive ? BlockIcon : LockOpenIcon}
                 label={person.isActive ? 'Switch off' : 'Switch back on'}
-                detail={person.isActive ? 'Keeps the account, blocks sign-in' : 'Let them sign in again'}
+                detail={
+                  person.isActive ? 'Keeps the account, blocks sign-in' : 'Let them sign in again'
+                }
                 onClick={() => setConfirm('toggle')}
               />
-              <ListRowButton icon={DeleteIcon} label="Delete account" detail="Can’t be undone" tone="danger" onClick={() => setConfirm('delete')} />
+              <ListRowButton
+                icon={DeleteIcon}
+                label="Delete account"
+                detail="Can’t be undone"
+                tone="danger"
+                onClick={() => setConfirm('delete')}
+              />
             </>
           )}
         </ListGroup>
 
-        <div className="lg:col-start-1">
+        <div className="xl:col-start-1">
           {/* Keyed by the saved version: a save (or a change elsewhere) starts the form from the new values. */}
           <DetailsForm key={person.updatedAt} person={person} isMe={isMe} onSaved={refresh} />
         </div>
@@ -203,13 +260,28 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
         tone="danger"
       />
       {credentials ? (
-        <CredentialsSheet open reason="reset" name={person.name} email={person.email} password={credentials} onClose={() => setCredentials(null)} />
+        <CredentialsSheet
+          open
+          reason="reset"
+          name={person.name}
+          email={person.email}
+          password={credentials}
+          onClose={() => setCredentials(null)}
+        />
       ) : null}
     </Screen>
   );
 }
 
-function DetailsForm({ person, isMe, onSaved }: { person: AdminUser; isMe: boolean; onSaved: (user: AdminUser) => void }) {
+function DetailsForm({
+  person,
+  isMe,
+  onSaved,
+}: {
+  person: AdminUser;
+  isMe: boolean;
+  onSaved: (user: AdminUser) => void;
+}) {
   const [name, setName] = useState(person.name);
   const [surname, setSurname] = useState(person.surname);
   const [email, setEmail] = useState(person.email);
@@ -229,7 +301,11 @@ function DetailsForm({ person, isMe, onSaved }: { person: AdminUser; isMe: boole
       toast.success('Saved');
     },
   });
-  const changed = name.trim() !== person.name || surname.trim() !== person.surname || email.trim().toLowerCase() !== person.email || role !== person.role;
+  const changed =
+    name.trim() !== person.name ||
+    surname.trim() !== person.surname ||
+    email.trim().toLowerCase() !== person.email ||
+    role !== person.role;
   const fields = fieldErrors(save.error);
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -237,11 +313,27 @@ function DetailsForm({ person, isMe, onSaved }: { person: AdminUser; isMe: boole
   };
 
   return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
+    <form
+      onSubmit={submit}
+      noValidate
+      className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
+    >
       <h2 className="text-h3 font-bold">Details</h2>
       <div className="grid gap-4 sm:grid-cols-2">
-        <TextField label="Name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} />
-        <TextField label="Surname" autoComplete="off" value={surname} onChange={(e) => setSurname(e.target.value)} error={fields.surname} />
+        <TextField
+          label="Name"
+          autoComplete="off"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          error={fields.name}
+        />
+        <TextField
+          label="Surname"
+          autoComplete="off"
+          value={surname}
+          onChange={(e) => setSurname(e.target.value)}
+          error={fields.surname}
+        />
       </div>
       <TextField
         label="Email"
@@ -268,11 +360,21 @@ function DetailsForm({ person, isMe, onSaved }: { person: AdminUser; isMe: boole
           ]}
         />
         {isMe && role === 'member' && person.role === 'admin' ? (
-          <p className="pl-1 text-sm font-medium text-peach-800">You’ll lose access to People as soon as you save.</p>
+          <p className="pl-1 text-sm font-medium text-peach-800">
+            You’ll lose access to People as soon as you save.
+          </p>
         ) : null}
       </fieldset>
-      {save.error && Object.keys(fields).length === 0 ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
-      <Button type="submit" size="md" className="self-start" loading={save.isPending} disabled={!changed || !name.trim() || !email.trim()}>
+      {save.error && Object.keys(fields).length === 0 ? (
+        <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
+      ) : null}
+      <Button
+        type="submit"
+        size="md"
+        className="self-start"
+        loading={save.isPending}
+        disabled={!changed || !name.trim() || !email.trim()}
+      >
         Save changes
       </Button>
     </form>

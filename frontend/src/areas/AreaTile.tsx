@@ -14,7 +14,7 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   const tone = TONES[area.tone];
   const Icon = area.icon;
   const classes = cx(
-    'group/tile relative flex aspect-[4/5] w-full flex-col rounded-[1.75rem] p-4 text-left sm:aspect-[5/5] sm:p-5',
+    'group/tile relative flex aspect-[4/5] w-full flex-col rounded-[1.75rem] p-4 text-left sm:aspect-[5/5] sm:p-5 lg:aspect-[6/5] lg:p-6',
     'animate-deal transition-[translate,box-shadow] duration-300 ease-(--ease-lift)',
     'hover:-translate-y-1 focus-visible:-translate-y-1 active:translate-y-0 active:duration-100',
     tone.surface,
@@ -59,10 +59,10 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   );
 }
 
-/** Every area, two to a row on phones, more on wider screens: built for 10+. */
+/** Every area: two to a row on phones, three on tablets, as many as fit on desktop (at least 12rem, a lone pair stretching to fill the row). Built for 10+. */
 export function AreaGrid({ areas, className }: { areas: readonly Area[]; className?: string }) {
   return (
-    <ul className={cx('grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4', className)} aria-label="Your areas">
+    <ul className={cx('grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] lg:gap-4', className)} aria-label="Your areas">
       {areas.map((area, index) => (
         <li key={area.id}>
           <AreaTile area={area} index={index} />

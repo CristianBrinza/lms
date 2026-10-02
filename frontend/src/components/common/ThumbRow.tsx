@@ -41,7 +41,7 @@ export function ThumbRow({ to, thumb, thumbClassName, title, detail, trailing, c
       <span className={cx('flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full', thumbClassName)}>{thumb}</span>
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{title}</span>
-        {detail ? <span className="mt-0.5 block truncate text-sm text-ink-600">{detail}</span> : null}
+        {detail ? <span className="mt-0.5 line-clamp-2 text-sm leading-snug text-ink-600">{detail}</span> : null}
       </span>
       {trailing ?? <ChevronCircle />}
     </Link>

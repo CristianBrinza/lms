@@ -18,7 +18,7 @@ function Inner({ icon: Icon, label, detail, trailing, tone = 'default', chevron 
       {Icon ? <Icon fontSize="inherit" className={cx('shrink-0 text-[1.45rem]', tone === 'danger' ? 'text-danger-600' : 'text-ink-800')} /> : null}
       <span className="min-w-0 flex-1">
         <span className={cx('block truncate text-[0.9375rem] font-semibold', tone === 'danger' ? 'text-danger-600' : 'text-ink-900')}>{label}</span>
-        {detail ? <span className="mt-0.5 block truncate text-sm text-ink-600">{detail}</span> : null}
+        {detail ? <span className="mt-0.5 line-clamp-2 text-sm leading-snug text-ink-600">{detail}</span> : null}
       </span>
       {trailing ?? (chevron ? <ChevronRightIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-400" /> : null)}
     </>

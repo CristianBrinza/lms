@@ -5,8 +5,28 @@ import { ConfirmSheet } from '@/components/common/ConfirmSheet';
 import { PasswordSheet } from '@/components/common/PasswordSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Badge, Button, ListGroup, ListRow, ListRowButton, ListRowLink, Skeleton, toast } from '@/components/ui';
-import { AdminIcon, CloseIcon, DevicesIcon, InstallIcon, LaptopIcon, LockIcon, LogoutIcon, PersonOutlinedIcon, PhoneIphoneIcon, SyncIcon } from '@/components/ui/icons';
+import {
+  Badge,
+  Button,
+  ListGroup,
+  ListRow,
+  ListRowButton,
+  ListRowLink,
+  Skeleton,
+  toast,
+} from '@/components/ui';
+import {
+  AdminIcon,
+  CloseIcon,
+  DevicesIcon,
+  InstallIcon,
+  LaptopIcon,
+  LockIcon,
+  LogoutIcon,
+  PersonOutlinedIcon,
+  PhoneIphoneIcon,
+  SyncIcon,
+} from '@/components/ui/icons';
 import { BUILD } from '@/build-info';
 import { newBuildOnServer } from '@/lib/appUpdate';
 import { errorMessage } from '@/lib/errors';
@@ -45,38 +65,71 @@ export default function SettingsPage() {
   return (
     <Screen tone="white">
       <PageHeader title="Settings" />
-      <div className="gutter-x mt-7 lg:px-8 flex max-w-2xl flex-col gap-7">
-        <ListGroup title="This device">
-          {standalone ? (
-            <ListRow icon={InstallIcon} label="LMS app" detail="Installed and running from your Home Screen" trailing={<Badge tone="mint">Installed</Badge>} />
-          ) : (
-            <ListRowLink to="/app" icon={InstallIcon} label="Add to Home Screen" detail="Full screen, stays signed in, updates by itself" />
-          )}
-          <ListRowButton
-            icon={SyncIcon}
-            label="Check for updates"
-            detail={`Version ${BUILD.version}`}
-            onClick={() => void checkForUpdate()}
-            disabled={checking}
-          />
-        </ListGroup>
-
-        <ListGroup title="Your account">
-          <ListRowButton icon={LockIcon} label="Change password" detail="Other devices sign out; this one stays" onClick={() => setPasswordOpen(true)} />
-          <ListRowLink to="/profile" icon={PersonOutlinedIcon} label="Profile" detail="Your name and surname" />
-        </ListGroup>
-
-        <Devices />
-
-        {isAdmin ? (
-          <ListGroup title="Admin">
-            <ListRowLink to="/admin/users" icon={AdminIcon} label="People and access" detail="Create accounts, reset passwords, switch people off" />
+      <div className="gutter-x mt-7 grid max-w-2xl gap-7 lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-8 lg:px-8 xl:max-w-6xl">
+        <div className="flex flex-col gap-7">
+          <ListGroup title="This device">
+            {standalone ? (
+              <ListRow
+                icon={InstallIcon}
+                label="LMS app"
+                detail="Installed and running from your Home Screen"
+                trailing={<Badge tone="mint">Installed</Badge>}
+              />
+            ) : (
+              <ListRowLink
+                to="/app"
+                icon={InstallIcon}
+                label="Add to Home Screen"
+                detail="Full screen, stays signed in, updates by itself"
+              />
+            )}
+            <ListRowButton
+              icon={SyncIcon}
+              label="Check for updates"
+              detail={`Version ${BUILD.version}`}
+              onClick={() => void checkForUpdate()}
+              disabled={checking}
+            />
           </ListGroup>
-        ) : null}
 
-        <ListGroup>
-          <ListRowButton icon={LogoutIcon} label="Sign out" detail="On this device only" onClick={() => setConfirmSignOut(true)} />
-        </ListGroup>
+          <ListGroup title="Your account">
+            <ListRowButton
+              icon={LockIcon}
+              label="Change password"
+              detail="Other devices sign out; this one stays"
+              onClick={() => setPasswordOpen(true)}
+            />
+            <ListRowLink
+              to="/profile"
+              icon={PersonOutlinedIcon}
+              label="Profile"
+              detail="Your name and surname"
+            />
+          </ListGroup>
+
+          {isAdmin ? (
+            <ListGroup title="Admin">
+              <ListRowLink
+                to="/admin/users"
+                icon={AdminIcon}
+                label="People and access"
+                detail="Create accounts, reset passwords, switch people off"
+              />
+            </ListGroup>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-7">
+          <Devices />
+          <ListGroup>
+            <ListRowButton
+              icon={LogoutIcon}
+              label="Sign out"
+              detail="On this device only"
+              onClick={() => setConfirmSignOut(true)}
+            />
+          </ListGroup>
+        </div>
       </div>
 
       <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
@@ -92,6 +145,9 @@ export default function SettingsPage() {
     </Screen>
   );
 }
+
+/** Rows shown before "Show all": this device and the four most recent others. */
+const DEVICES_SHOWN = 5;
 
 function Devices() {
   const queryClient = useQueryClient();
@@ -117,15 +173,18 @@ function Devices() {
     onError: (error) => toast.error(errorMessage(error)),
   });
 
-  const list = sessions.data ?? [];
+  const [showAll, setShowAll] = useState(false);
+  // This device first, then the rest as the API orders them (most recent first).
+  const list = [...(sessions.data ?? [])].sort((a, b) => Number(b.current) - Number(a.current));
   const hasOthers = list.some((session) => !session.current);
+  const shown = showAll ? list : list.slice(0, DEVICES_SHOWN);
 
   return (
     <section>
-      <div className="mb-2.5 flex items-end justify-between gap-3 px-1">
+      <div className="mb-2.5 flex items-center justify-between gap-3 px-1">
         <h2 className="text-h3 font-bold text-ink-900">Signed in on</h2>
         {hasOthers ? (
-          <Button variant="soft" size="sm" onClick={() => setConfirmOthers(true)}>
+          <Button variant="soft" size="sm" className="-my-2" onClick={() => setConfirmOthers(true)}>
             Sign out others
           </Button>
         ) : null}
@@ -137,9 +196,32 @@ function Devices() {
             <Skeleton className="h-10 w-2/3" />
           </div>
         ) : sessions.isError ? (
-          <ListRow icon={DevicesIcon} label="Couldn’t load your devices" detail={errorMessage(sessions.error)} />
+          <ListRow
+            icon={DevicesIcon}
+            label="Couldn’t load your devices"
+            detail={errorMessage(sessions.error)}
+          />
         ) : (
-          list.map((session) => <DeviceRow key={session.id} session={session} onEnd={() => end.mutate(session.id)} ending={end.isPending && end.variables === session.id} />)
+          <>
+            {shown.map((session) => (
+              <DeviceRow
+                key={session.id}
+                session={session}
+                onEnd={() => end.mutate(session.id)}
+                ending={end.isPending && end.variables === session.id}
+              />
+            ))}
+            {list.length > DEVICES_SHOWN ? (
+              <button
+                type="button"
+                onClick={() => setShowAll((value) => !value)}
+                aria-expanded={showAll}
+                className="flex min-h-12 w-full items-center justify-center text-sm font-semibold text-lav-700 transition-colors hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lav-600 active:bg-ink-100"
+              >
+                {showAll ? 'Show fewer' : `Show all ${list.length}`}
+              </button>
+            ) : null}
+          </>
         )}
       </div>
       <ConfirmSheet
@@ -155,14 +237,26 @@ function Devices() {
   );
 }
 
-function DeviceRow({ session, onEnd, ending }: { session: DeviceSession; onEnd: () => void; ending: boolean }) {
+function DeviceRow({
+  session,
+  onEnd,
+  ending,
+}: {
+  session: DeviceSession;
+  onEnd: () => void;
+  ending: boolean;
+}) {
   const name = describeDevice(session.userAgent);
   const mobile = /iPhone|iPad|Android/.test(name);
   return (
     <ListRow
       icon={mobile ? PhoneIphoneIcon : LaptopIcon}
       label={name}
-      detail={session.current ? `Signed in ${formatDate(session.createdAt)}` : `Last used ${formatAgo(session.lastUsedAt).toLowerCase()}`}
+      detail={
+        session.current
+          ? `Signed in ${formatDate(session.createdAt)}`
+          : `Last used ${formatAgo(session.lastUsedAt).toLowerCase()}`
+      }
       trailing={
         session.current ? (
           <Badge tone="ink">This device</Badge>

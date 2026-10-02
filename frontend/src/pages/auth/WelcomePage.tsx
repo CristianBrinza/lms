@@ -47,19 +47,21 @@ export default function WelcomePage() {
     <div className="min-h-dvh bg-butter-300">
       <main
         id="main"
-        className="gutter-x mx-auto flex min-h-dvh max-w-md flex-col pb-[calc(var(--safe-bottom)+1.25rem)] pt-[calc(var(--safe-top)+1.5rem)] animate-page"
+        className="gutter-x mx-auto flex min-h-dvh max-w-md flex-col pb-[calc(var(--safe-bottom)+1.25rem)] pt-[calc(var(--safe-top)+1.5rem)] animate-page lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_28rem] lg:content-center lg:items-center lg:gap-20"
       >
-        <LogoTile className="mx-auto size-14" />
-        <h1 className="mt-7 text-center text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em]">
-          {user.name}, choose
-          <br />
-          your password.
-        </h1>
-        <p className="mx-auto mt-3 max-w-xs text-center text-base font-medium text-butter-800">
-          You signed in with a one-time password. Pick your own to finish.
-        </p>
+        <div>
+          <LogoTile className="mx-auto size-14 lg:mx-0" />
+          <h1 className="mt-7 text-center text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] lg:text-left lg:text-[4.25rem] lg:font-extrabold lg:leading-[0.98] lg:tracking-[-0.045em]">
+            {user.name}, choose
+            <br />
+            your password.
+          </h1>
+          <p className="mx-auto mt-3 max-w-xs text-center text-base font-medium text-butter-800 lg:mx-0 lg:mt-5 lg:max-w-md lg:text-left lg:text-lg">
+            You signed in with a one-time password. Pick your own to finish.
+          </p>
+        </div>
 
-        <form onSubmit={submit} noValidate className="mt-7 flex flex-1 flex-col gap-4">
+        <form onSubmit={submit} noValidate className="mt-7 flex flex-1 flex-col gap-4 lg:mt-0 lg:flex-none">
           <div className="flex flex-col gap-4 rounded-[1.75rem] bg-white p-5 shadow-[0_20px_40px_-28px_rgb(110_80_0/0.6)]">
             <input
               type="email"

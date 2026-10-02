@@ -100,13 +100,13 @@ export default function InstallPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="gutter-x mx-auto box-content flex h-16 w-full max-w-3xl items-center justify-between pt-[var(--safe-top)]">
+      <header className="gutter-x mx-auto box-content flex h-16 w-full max-w-3xl items-center justify-between pt-[var(--safe-top)] lg:max-w-5xl lg:pt-4">
         <IconButton icon={ArrowBackIcon} label="Back" onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate(user ? '/home' : '/', { replace: true }))} />
         <Lockup />
         <span className="size-12" aria-hidden="true" />
       </header>
 
-      <section className="gutter-x mx-auto w-full max-w-3xl animate-page pt-5">
+      <section className="gutter-x mx-auto w-full max-w-3xl animate-page pt-5 lg:max-w-5xl">
         <h1 className="text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] sm:text-[2.75rem]">
           {installed ? (
             <>
@@ -168,7 +168,7 @@ export default function InstallPage() {
         <main
           id="main"
           key={device}
-          className="mt-8 flex-1 rounded-t-[2rem] bg-white px-5 pb-[calc(var(--safe-bottom)+2.5rem)] pt-3 shadow-sheet sm:px-8 md:mx-auto md:mb-10 md:w-full md:max-w-3xl md:flex-none md:rounded-[2rem] md:pt-8"
+          className="mt-8 flex-1 rounded-t-[2rem] bg-white px-5 pb-[calc(var(--safe-bottom)+2.5rem)] pt-3 shadow-sheet sm:px-8 md:mx-auto md:mb-10 md:w-full md:max-w-3xl md:flex-none md:rounded-[2rem] md:pt-8 lg:max-w-5xl lg:p-10"
         >
           <span aria-hidden="true" className="mx-auto block h-1.5 w-10 rounded-pill bg-ink-200 md:hidden" />
           <h2 className="mt-5 text-h2 font-bold md:mt-0">{SHEET_TITLE[device]}</h2>
@@ -291,16 +291,16 @@ function DeviceTiles({ value, onChange }: { value: Device; onChange: (device: De
 /** The steps as a numbered path: butter numbers joined by a dashed line, each with a drawing of what you'll see. */
 function Timeline({ texts, alts, picture }: { texts: string[]; alts: string[]; picture: (step: number, alt: string) => ReactNode }) {
   return (
-    <ol className="mt-6 flex max-w-2xl flex-col">
+    <ol className="mt-6 flex max-w-2xl flex-col lg:max-w-none">
       {texts.map((text, index) => (
         <li key={text} className="relative grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3.5 pb-8 last:pb-0 animate-rise" style={{ animationDelay: `${index * 60}ms` }}>
           {index < texts.length - 1 ? (
             <span aria-hidden="true" className="absolute bottom-1.5 left-[1.25rem] top-12 border-l-2 border-dashed border-ink-200" />
           ) : null}
           <span className="tabular relative flex size-10 items-center justify-center rounded-full bg-butter-300 text-[0.9375rem] font-bold text-ink-900">{index + 1}</span>
-          <div className="min-w-0 pt-2">
-            <p className="text-[0.9375rem] font-semibold leading-snug">{text}</p>
-            <div className="mt-3 max-w-md">{picture(index, alts[index] ?? '')}</div>
+          <div className="min-w-0 pt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-8">
+            <p className="text-[0.9375rem] font-semibold leading-snug lg:text-base">{text}</p>
+            <div className="mt-3 max-w-md lg:mt-0">{picture(index, alts[index] ?? '')}</div>
           </div>
         </li>
       ))}

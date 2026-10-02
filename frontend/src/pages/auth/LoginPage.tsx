@@ -1,7 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { useAuth } from '@/app/auth';
+import { StarBurst } from '@/components/brand/Doodles';
 import { Lockup } from '@/components/brand/Logo';
+import { Sticker } from '@/components/brand/Sticker';
 import { Button, ButtonLink, Checkbox, PasswordField, Sheet, TextField } from '@/components/ui';
 import { EmailIcon, ErrorIcon, InstallIcon, LockIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
@@ -52,23 +54,46 @@ export default function LoginPage() {
   };
 
   const fields = fieldErrors(login.error);
-  const formError = login.error && !fields.email && !fields.password ? errorMessage(login.error) : null;
+  const formError =
+    login.error && !fields.email && !fields.password ? errorMessage(login.error) : null;
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="gutter-x mx-auto flex w-full max-w-md items-center pt-[calc(var(--safe-top)+1.25rem)]">
+      <header className="gutter-x mx-auto flex w-full max-w-md items-center pt-[calc(var(--safe-top)+1.25rem)] lg:max-w-6xl lg:pt-8">
         <Lockup />
       </header>
-      <main id="main" className="gutter-x mx-auto flex w-full max-w-md flex-1 flex-col pb-[calc(var(--safe-bottom)+1.25rem)]">
-        <h1 className="mt-8 text-center text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em]">
-          <span className="text-lav-800">Welcome</span> back.
-        </h1>
-        <p className="mx-auto mt-2 max-w-xs text-center text-base font-medium text-lav-900">Sign in with the email the admin set up for you.</p>
+      <main
+        id="main"
+        className="gutter-x mx-auto flex w-full max-w-md flex-1 flex-col pb-[calc(var(--safe-bottom)+1.25rem)] lg:grid lg:max-w-6xl lg:grid-cols-[minmax(0,1fr)_28rem] lg:items-center lg:gap-20 lg:pb-12"
+      >
+        <div className="relative">
+          <StarBurst className="pointer-events-none absolute -left-10 -top-12 hidden w-16 -rotate-12 animate-pop text-cyan-500 lg:block" />
+          <h1 className="mt-8 text-center text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] lg:mt-0 lg:text-left lg:text-[4.75rem] lg:font-extrabold lg:leading-[0.98] lg:tracking-[-0.045em]">
+            <span className="text-lav-800">Welcome</span> back.
+            <Sticker
+              className="ml-3 hidden -rotate-[8deg] bg-butter-300 align-[0.6em] lg:inline-block"
+              delay={200}
+            >
+              Private
+            </Sticker>
+          </h1>
+          <p className="mx-auto mt-2 max-w-xs text-center text-base font-medium text-lav-900 lg:mx-0 lg:mt-5 lg:max-w-md lg:text-left lg:text-lg">
+            Sign in with the email the admin set up for you.
+          </p>
+        </div>
 
-        <form onSubmit={submit} noValidate className={cx('mt-7 flex flex-col gap-4', shake && 'animate-shake')} key={shake}>
+        <form
+          onSubmit={submit}
+          noValidate
+          className={cx('mt-7 flex flex-col gap-4 lg:mt-0', shake && 'animate-shake')}
+          key={shake}
+        >
           <div className="flex flex-col gap-4 rounded-[1.75rem] bg-white p-5 shadow-[0_20px_40px_-28px_rgb(42_43_102/0.6)]">
             {formError ? (
-              <p role="alert" className="flex items-start gap-2 rounded-2xl bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700">
+              <p
+                role="alert"
+                className="flex items-start gap-2 rounded-2xl bg-danger-50 px-4 py-3 text-sm font-medium text-danger-700"
+              >
                 <ErrorIcon fontSize="inherit" className="mt-0.5 shrink-0 text-base" />
                 {formError}
               </p>
@@ -117,7 +142,13 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-auto flex flex-col gap-3 pt-2">
-            <Button type="submit" size="lg" fullWidth loading={login.isPending} disabled={!email || !password}>
+            <Button
+              type="submit"
+              size="lg"
+              fullWidth
+              loading={login.isPending}
+              disabled={!email || !password}
+            >
               Sign in
             </Button>
             {!standalone ? (
@@ -125,7 +156,10 @@ export default function LoginPage() {
                 Add LMS to your Home Screen
               </ButtonLink>
             ) : null}
-            <p className="px-2 text-center text-sm text-lav-900">No account yet? Ask the admin to add you. Forgot your password? The admin can reset it.</p>
+            <p className="px-2 text-center text-sm text-lav-900">
+              No account yet? Ask the admin to add you. Forgot your password? The admin can reset
+              it.
+            </p>
           </div>
         </form>
         <Sheet
@@ -140,7 +174,10 @@ export default function LoginPage() {
         >
           <div className="flex flex-col gap-3 text-[0.9375rem] text-ink-700">
             <p>LMS is private, so passwords are reset by the admin, not by email.</p>
-            <p>Ask them for a new one-time password. Sign in with it, and LMS asks you to choose your own straight away.</p>
+            <p>
+              Ask them for a new one-time password. Sign in with it, and LMS asks you to choose your
+              own straight away.
+            </p>
           </div>
         </Sheet>
       </main>
