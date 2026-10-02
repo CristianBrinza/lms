@@ -4,6 +4,7 @@ import { AppError } from './lib/errors';
 import { apiSecurityHeaders, jsonBodyLimit, noStore, originGuard, proxyGuard, requestContext } from './middleware/security';
 import { adminRoutes } from './modules/admin/routes';
 import { authRoutes } from './modules/auth/routes';
+import { foodRoutes } from './modules/food/routes';
 import { healthRoutes } from './modules/health';
 import { meRoutes } from './modules/me/routes';
 
@@ -17,6 +18,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/auth', authRoutes(deps));
   app.route('/api/me', meRoutes(deps));
   app.route('/api/admin', adminRoutes(deps));
+  app.route('/api/food', foodRoutes(deps));
 
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404));
 

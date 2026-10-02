@@ -3,10 +3,15 @@ import type { AppConfig } from '../config';
 
 /**
  * PostgreSQL access: one pool, parameterised queries only, and a transaction helper.
- * Timestamps come back as Date; bigint counts are parsed to numbers (they stay small here).
+ * Timestamps come back as Date, calendar dates as "YYYY-MM-DD"; bigint and numeric are parsed
+ * to numbers (they stay small here).
  */
 
 pg.types.setTypeParser(pg.types.builtins.INT8, (value) => Number(value));
+// Quantities and prices (numeric) are small enough for a JS number.
+pg.types.setTypeParser(pg.types.builtins.NUMERIC, (value) => Number(value));
+// Calendar days (expiry, meal date) stay "YYYY-MM-DD": a Date would shift with the time zone.
+pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
 
 /** Anything that runs a parameterised query: the pool, or the client inside a transaction. */
 export interface Queryable {

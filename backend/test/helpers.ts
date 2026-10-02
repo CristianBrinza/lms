@@ -35,7 +35,7 @@ export function setupTestApp(overrides: Record<string, string> = {}) {
   beforeEach(async () => {
     clock = null;
     await migrate(db);
-    await db.query('TRUNCATE users, sessions, rate_limits, audit_log RESTART IDENTITY CASCADE');
+    await db.query('TRUNCATE users, sessions, rate_limits, audit_log, households RESTART IDENTITY CASCADE');
   });
   afterAll(() => db.close());
 

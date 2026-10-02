@@ -16,6 +16,8 @@ export interface User {
   tokenVersion: number;
   lastLoginAt: Date | null;
   createdBy: string | null;
+  /** The kitchen whose food this person shares; set on their first visit to Food. */
+  householdId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,12 +34,13 @@ interface UserRow {
   token_version: number;
   last_login_at: Date | null;
   created_by: string | null;
+  household_id: string | null;
   created_at: Date;
   updated_at: Date;
 }
 
 export const USER_COLUMNS =
-  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, created_at, updated_at';
+  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at';
 
 export function toUser(row: UserRow): User {
   return {
@@ -52,6 +55,7 @@ export function toUser(row: UserRow): User {
     tokenVersion: row.token_version,
     lastLoginAt: row.last_login_at,
     createdBy: row.created_by,
+    householdId: row.household_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

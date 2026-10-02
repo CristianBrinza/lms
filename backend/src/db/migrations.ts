@@ -64,6 +64,203 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE INDEX audit_log_created_idx ON audit_log (created_at DESC);
     `,
   },
+  {
+    version: 2,
+    name: 'food: kitchens, products, stock, stores, shopping, recipes, meals; AI access keys',
+    sql: `
+      CREATE TABLE households (
+        id uuid PRIMARY KEY,
+        name text NOT NULL,
+        currency text NOT NULL DEFAULT 'MDL',
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      ALTER TABLE users ADD COLUMN household_id uuid REFERENCES households (id) ON DELETE SET NULL;
+      CREATE INDEX users_household_idx ON users (household_id);
+
+      CREATE TABLE stores (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        tone text NOT NULL DEFAULT 'butter',
+        sort integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        archived_at timestamptz
+      );
+      CREATE UNIQUE INDEX stores_name_key ON stores (household_id, lower(name));
+
+      CREATE TABLE products (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        icon text NOT NULL DEFAULT 'basket',
+        category text NOT NULL DEFAULT 'other',
+        unit text NOT NULL CHECK (unit IN ('pcs', 'g', 'ml')),
+        piece_size numeric(12, 3) CHECK (piece_size > 0),
+        piece_unit text CHECK (piece_unit IN ('g', 'ml')),
+        location text NOT NULL DEFAULT 'pantry' CHECK (location IN ('fridge', 'freezer', 'pantry', 'other')),
+        shelf_life_days integer CHECK (shelf_life_days > 0),
+        min_stock numeric(12, 3) CHECK (min_stock >= 0),
+        store_id uuid REFERENCES stores (id) ON DELETE SET NULL,
+        note text NOT NULL DEFAULT '',
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        archived_at timestamptz
+      );
+      CREATE UNIQUE INDEX products_name_key ON products (household_id, lower(name));
+
+      CREATE TABLE shopping_trips (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        store_id uuid REFERENCES stores (id) ON DELETE SET NULL,
+        store_name text NOT NULL DEFAULT '',
+        total numeric(12, 2),
+        item_count integer NOT NULL DEFAULT 0,
+        finished_at timestamptz NOT NULL DEFAULT now(),
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL
+      );
+      CREATE INDEX shopping_trips_household_idx ON shopping_trips (household_id, finished_at DESC);
+
+      CREATE TABLE stock_lots (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+        quantity numeric(12, 3) NOT NULL CHECK (quantity >= 0),
+        initial_quantity numeric(12, 3) NOT NULL CHECK (initial_quantity >= 0),
+        location text NOT NULL CHECK (location IN ('fridge', 'freezer', 'pantry', 'other')),
+        added_at timestamptz NOT NULL DEFAULT now(),
+        expires_on date,
+        opened_at timestamptz,
+        price numeric(12, 2) CHECK (price >= 0),
+        store_id uuid REFERENCES stores (id) ON DELETE SET NULL,
+        trip_id uuid REFERENCES shopping_trips (id) ON DELETE SET NULL,
+        note text NOT NULL DEFAULT '',
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        finished_at timestamptz
+      );
+      CREATE INDEX stock_lots_active_idx ON stock_lots (household_id, product_id) WHERE finished_at IS NULL;
+
+      CREATE TABLE recipes (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        title text NOT NULL,
+        description text NOT NULL DEFAULT '',
+        servings integer NOT NULL DEFAULT 2 CHECK (servings BETWEEN 1 AND 100),
+        prep_minutes integer CHECK (prep_minutes >= 0),
+        cook_minutes integer CHECK (cook_minutes >= 0),
+        tags text[] NOT NULL DEFAULT '{}',
+        steps text[] NOT NULL DEFAULT '{}',
+        icon text NOT NULL DEFAULT 'pot',
+        source_url text NOT NULL DEFAULT '',
+        notes text NOT NULL DEFAULT '',
+        favorite boolean NOT NULL DEFAULT false,
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_via text NOT NULL DEFAULT 'app' CHECK (created_via IN ('app', 'ai')),
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        archived_at timestamptz
+      );
+      CREATE INDEX recipes_household_idx ON recipes (household_id) WHERE archived_at IS NULL;
+
+      CREATE TABLE recipe_ingredients (
+        id uuid PRIMARY KEY,
+        recipe_id uuid NOT NULL REFERENCES recipes (id) ON DELETE CASCADE,
+        product_id uuid REFERENCES products (id) ON DELETE SET NULL,
+        name text NOT NULL,
+        amount numeric(12, 3) CHECK (amount > 0),
+        unit text,
+        note text NOT NULL DEFAULT '',
+        optional boolean NOT NULL DEFAULT false,
+        sort integer NOT NULL DEFAULT 0
+      );
+      CREATE INDEX recipe_ingredients_recipe_idx ON recipe_ingredients (recipe_id, sort);
+
+      CREATE TABLE meals (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        date date NOT NULL,
+        time time,
+        slot text NOT NULL DEFAULT 'dinner' CHECK (slot IN ('breakfast', 'lunch', 'dinner', 'snack')),
+        recipe_id uuid REFERENCES recipes (id) ON DELETE SET NULL,
+        title text NOT NULL,
+        servings integer NOT NULL DEFAULT 2 CHECK (servings BETWEEN 1 AND 100),
+        status text NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'done', 'skipped')),
+        note text NOT NULL DEFAULT '',
+        done_at timestamptz,
+        leftovers_lot_id uuid REFERENCES stock_lots (id) ON DELETE SET NULL,
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_via text NOT NULL DEFAULT 'app' CHECK (created_via IN ('app', 'ai')),
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX meals_household_date_idx ON meals (household_id, date);
+
+      CREATE TABLE meal_ingredients (
+        id uuid PRIMARY KEY,
+        meal_id uuid NOT NULL REFERENCES meals (id) ON DELETE CASCADE,
+        product_id uuid REFERENCES products (id) ON DELETE SET NULL,
+        lot_id uuid REFERENCES stock_lots (id) ON DELETE SET NULL,
+        name text NOT NULL,
+        amount numeric(12, 3) CHECK (amount > 0),
+        unit text,
+        note text NOT NULL DEFAULT '',
+        optional boolean NOT NULL DEFAULT false,
+        sort integer NOT NULL DEFAULT 0
+      );
+      CREATE INDEX meal_ingredients_meal_idx ON meal_ingredients (meal_id, sort);
+
+      CREATE TABLE stock_events (
+        id bigserial PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+        lot_id uuid REFERENCES stock_lots (id) ON DELETE SET NULL,
+        kind text NOT NULL CHECK (kind IN ('added', 'used', 'wasted', 'adjusted', 'moved', 'restored')),
+        delta numeric(12, 3) NOT NULL,
+        meal_id uuid REFERENCES meals (id) ON DELETE SET NULL,
+        actor_id uuid REFERENCES users (id) ON DELETE SET NULL,
+        via text NOT NULL DEFAULT 'app' CHECK (via IN ('app', 'ai')),
+        note text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX stock_events_product_idx ON stock_events (product_id, created_at DESC);
+      CREATE INDEX stock_events_meal_idx ON stock_events (meal_id) WHERE meal_id IS NOT NULL;
+      CREATE INDEX stock_events_household_idx ON stock_events (household_id, created_at DESC);
+
+      CREATE TABLE shopping_items (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        store_id uuid REFERENCES stores (id) ON DELETE SET NULL,
+        product_id uuid REFERENCES products (id) ON DELETE SET NULL,
+        name text NOT NULL,
+        amount numeric(12, 3) CHECK (amount > 0),
+        unit text,
+        note text NOT NULL DEFAULT '',
+        source text NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'plan', 'low_stock', 'recipe', 'ai')),
+        checked_at timestamptz,
+        price numeric(12, 2) CHECK (price >= 0),
+        trip_id uuid REFERENCES shopping_trips (id) ON DELETE CASCADE,
+        lot_id uuid REFERENCES stock_lots (id) ON DELETE SET NULL,
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX shopping_items_active_idx ON shopping_items (household_id, store_id) WHERE trip_id IS NULL;
+      CREATE INDEX shopping_items_trip_idx ON shopping_items (trip_id) WHERE trip_id IS NOT NULL;
+
+      CREATE TABLE api_tokens (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        token_hash text NOT NULL UNIQUE,
+        prefix text NOT NULL,
+        scope text NOT NULL CHECK (scope IN ('food:read', 'food', 'admin')),
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_used_at timestamptz,
+        revoked_at timestamptz
+      );
+      CREATE INDEX api_tokens_user_idx ON api_tokens (user_id) WHERE revoked_at IS NULL;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

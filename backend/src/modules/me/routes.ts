@@ -6,7 +6,7 @@ import { AppError } from '../../lib/errors';
 import { enforceRateLimits } from '../../lib/rate-limit';
 import { maskIp } from '../../lib/text';
 import { nameField, newPasswordField, readJson, surnameField } from '../../lib/validation';
-import { requireAuth } from '../../middleware/auth';
+import { requireAuth, sessionOf } from '../../middleware/auth';
 import { setAccessCookie } from '../auth/cookies';
 import { issueAccessToken, listActiveSessions, revokeAllSessions } from '../auth/sessions';
 import { findUserById, isUuid, toPublicUser } from '../users';
@@ -50,7 +50,7 @@ export function meRoutes(deps: AppDeps) {
     }
 
     const now = deps.now();
-    const sessionId = c.get('sessionId');
+    const sessionId = sessionOf(c);
     const hash = await deps.passwords.hash(body.newPassword);
     await deps.db.tx(async (tx) => {
       await tx.query('UPDATE users SET password_hash = $2, must_change_password = false, updated_at = $3 WHERE id = $1', [user.id, hash, now]);
@@ -64,13 +64,13 @@ export function meRoutes(deps: AppDeps) {
   });
 
   app.get('/sessions', async (c) => {
-    return c.json({ sessions: await listActiveSessions(deps, c.get('user').id, c.get('sessionId')) });
+    return c.json({ sessions: await listActiveSessions(deps, c.get('user').id, sessionOf(c)) });
   });
 
   app.delete('/sessions/:id', async (c) => {
     const id = c.req.param('id');
     if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Device not found');
-    if (id === c.get('sessionId')) throw new AppError(400, 'CURRENT_SESSION', 'Use “Sign out” to end this device’s session');
+    if (id === sessionOf(c)) throw new AppError(400, 'CURRENT_SESSION', 'Use “Sign out” to end this device’s session');
     const { rowCount } = await deps.db.query('UPDATE sessions SET revoked_at = $3 WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL', [
       id,
       c.get('user').id,
@@ -82,7 +82,7 @@ export function meRoutes(deps: AppDeps) {
 
   app.post('/sessions/sign-out-others', async (c) => {
     const user = c.get('user');
-    const sessionId = c.get('sessionId');
+    const sessionId = sessionOf(c);
     const now = deps.now();
     await revokeAllSessions(deps.db, user.id, now, sessionId);
     const updated = (await findUserById(deps.db, user.id))!;
