@@ -9,6 +9,7 @@ import { nameField, newPasswordField, readJson, surnameField } from '../../lib/v
 import { requireAuth, sessionOf } from '../../middleware/auth';
 import { setAccessCookie } from '../auth/cookies';
 import { issueAccessToken, listActiveSessions, revokeAllSessions } from '../auth/sessions';
+import { createToken, listTokens, revokeToken, TOKEN_SCOPES } from '../tokens';
 import { findUserById, isUuid, toPublicUser } from '../users';
 
 const ProfileBody = z.object({ name: nameField('Name'), surname: surnameField });
@@ -19,7 +20,12 @@ const PasswordBody = z.object({
   newPassword: newPasswordField,
 });
 
-/** The signed-in person: profile, password, and the devices they are signed in on. */
+const KeyBody = z.object({
+  name: z.string().trim().min(1, 'Name the key, e.g. “Claude on my Mac”').max(60, 'Keep the name under 60 characters'),
+  scope: z.enum(TOKEN_SCOPES, { error: 'Pick what the assistant may do' }),
+});
+
+/** The signed-in person: profile, password, devices, and AI access keys. */
 export function meRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
@@ -87,6 +93,30 @@ export function meRoutes(deps: AppDeps) {
     await revokeAllSessions(deps.db, user.id, now, sessionId);
     const updated = (await findUserById(deps.db, user.id))!;
     setAccessCookie(c, deps.config, await issueAccessToken(deps, updated, sessionId));
+    return c.body(null, 204);
+  });
+
+  app.get('/tokens', async (c) => {
+    sessionOf(c);
+    return c.json({ keys: await listTokens(deps.db, c.get('user').id) });
+  });
+
+  app.post('/tokens', async (c) => {
+    sessionOf(c);
+    const body = await readJson(c, KeyBody);
+    const user = c.get('user');
+    await enforceRateLimits(deps, [{ key: `keys:${user.id}`, limit: 20, windowSec: 60 * 60 }]);
+    const { token, key } = await createToken(deps, user, body);
+    await audit(deps, { actorId: user.id, action: 'key.created', targetId: user.id, ip: maskIp(c.get('ip')), meta: { name: key.name, scope: key.scope } });
+    return c.json({ token, key }, 201);
+  });
+
+  app.delete('/tokens/:id', async (c) => {
+    sessionOf(c);
+    const id = c.req.param('id');
+    const user = c.get('user');
+    if (!isUuid(id) || !(await revokeToken(deps, user.id, id))) throw new AppError(404, 'NOT_FOUND', 'Key not found');
+    await audit(deps, { actorId: user.id, action: 'key.revoked', targetId: user.id, ip: maskIp(c.get('ip')) });
     return c.body(null, 204);
   });
 

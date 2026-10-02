@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppDeps, AppEnv } from '../../context';
@@ -35,6 +36,11 @@ const UpdateBody = z
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 
+const KitchenBody = z.object({
+  /** Seat them in this kitchen; null gives them a kitchen of their own. */
+  householdId: z.uuid('Not a valid kitchen').nullable(),
+});
+
 const ResetBody = z.object({
   password: newPasswordField.optional(),
   mustChangePassword: z.boolean().default(true),
@@ -42,19 +48,22 @@ const ResetBody = z.object({
 
 export interface AdminUser extends PublicUser {
   isActive: boolean;
+  /** The kitchen whose food they share (null until their first visit to Food). */
+  kitchen: { id: string; name: string; members: number } | null;
   lastLoginAt: string | null;
   lastSeenAt: string | null;
   activeSessions: number;
   updatedAt: string;
 }
 
-type AdminRow = Parameters<typeof toUser>[0] & { active_sessions: number; last_seen_at: Date | null };
+type AdminRow = Parameters<typeof toUser>[0] & { active_sessions: number; last_seen_at: Date | null; household_name: string | null; household_members: number };
 
 function toAdminUser(row: AdminRow): AdminUser {
   const user = toUser(row);
   return {
     ...toPublicUser(user),
     isActive: user.isActive,
+    kitchen: user.householdId ? { id: user.householdId, name: row.household_name ?? 'Kitchen', members: row.household_members } : null,
     lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
     lastSeenAt: row.last_seen_at?.toISOString() ?? null,
     activeSessions: row.active_sessions,
@@ -67,8 +76,10 @@ const ADMIN_SELECT = `
     .map((column) => `u.${column}`)
     .join(', ')},
     (SELECT count(*)::int FROM sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > $1) AS active_sessions,
-    (SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen_at
-  FROM users u`;
+    (SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen_at,
+    h.name AS household_name,
+    (SELECT count(*)::int FROM users x WHERE x.household_id = u.household_id) AS household_members
+  FROM users u LEFT JOIN households h ON h.id = u.household_id`;
 
 const isUniqueViolation = (error: unknown) => (error as { code?: string }).code === '23505';
 const EMAIL_TAKEN = () =>
@@ -180,6 +191,33 @@ export function adminRoutes(deps: AppDeps) {
     const changed = (['email', 'name', 'surname'] as const).filter((key) => body[key] !== undefined && body[key] !== target[key]);
     if (changed.length > 0) await audit(deps, { actorId: actor.id, action: 'user.updated', targetId: target.id, ip, meta: { fields: changed } });
 
+    return c.json({ user: await adminUser(target.id) });
+  });
+
+  /** Kitchens and who shares each one: family members who share a fridge share one kitchen. */
+  app.get('/households', async (c) => {
+    const { rows } = await deps.db.query<{ id: string; name: string; members: Array<{ id: string; name: string; surname: string }> }>(
+      `SELECT h.id, h.name, coalesce(json_agg(json_build_object('id', u.id, 'name', u.name, 'surname', u.surname) ORDER BY u.created_at)
+                                     FILTER (WHERE u.id IS NOT NULL), '[]') AS members
+         FROM households h LEFT JOIN users u ON u.household_id = h.id
+        GROUP BY h.id ORDER BY h.created_at`,
+    );
+    return c.json({ households: rows });
+  });
+
+  app.put('/users/:id/kitchen', async (c) => {
+    const body = await readJson(c, KitchenBody);
+    const target = await loadTarget(c.req.param('id'));
+    let householdId = body.householdId;
+    if (householdId) {
+      const { rowCount } = await deps.db.query('SELECT 1 FROM households WHERE id = $1', [householdId]);
+      if (!rowCount) throw new AppError(404, 'NOT_FOUND', 'That kitchen was not found');
+    } else {
+      householdId = randomUUID();
+      await deps.db.query('INSERT INTO households (id, name) VALUES ($1, $2)', [householdId, `${target.name}’s kitchen`]);
+    }
+    await deps.db.query('UPDATE users SET household_id = $2, updated_at = $3 WHERE id = $1', [target.id, householdId, deps.now()]);
+    await audit(deps, { actorId: c.get('user').id, action: 'user.kitchen_changed', targetId: target.id, ip: maskIp(c.get('ip')), meta: { householdId } });
     return c.json({ user: await adminUser(target.id) });
   });
 

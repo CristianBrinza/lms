@@ -12,7 +12,10 @@ export type AuditAction =
   | 'user.password_reset'
   | 'user.password_changed'
   | 'user.signed_out'
-  | 'user.deleted';
+  | 'user.deleted'
+  | 'user.kitchen_changed'
+  | 'key.created'
+  | 'key.revoked';
 
 /** Appends to the activity log the admin console shows. Never throws: logging must not break a request. */
 export async function audit(

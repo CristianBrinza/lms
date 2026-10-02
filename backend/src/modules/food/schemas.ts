@@ -212,8 +212,7 @@ export const MealInput = z
   .refine((body) => Boolean(body.recipeId || body.title), { message: 'Pick a recipe or name the meal', path: ['title'] });
 export type MealInput = z.infer<typeof MealInput>;
 
-export const MealPatch = z
-  .object({
+export const MealPatchFields = z.object({
     date: dateField,
     time: timeField.nullable(),
     slot: slotField,
@@ -222,9 +221,8 @@ export const MealPatch = z
     servings: z.number().int().min(1).max(100).describe('Ingredients scale with it'),
     note: noteField,
     status: z.enum(['planned', 'skipped']),
-  })
-  .partial()
-  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+});
+export const MealPatch = MealPatchFields.partial().refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type MealPatch = z.infer<typeof MealPatch>;
 
 export const MealIngredientsInput = z.object({ ingredients: z.array(MealIngredientInput).max(60) });

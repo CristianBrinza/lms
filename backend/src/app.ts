@@ -6,6 +6,7 @@ import { adminRoutes } from './modules/admin/routes';
 import { authRoutes } from './modules/auth/routes';
 import { foodRoutes } from './modules/food/routes';
 import { healthRoutes } from './modules/health';
+import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
 
 export function createApp(deps: AppDeps) {
@@ -19,6 +20,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/me', meRoutes(deps));
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/food', foodRoutes(deps));
+  app.route('/api/mcp', mcpRoutes(deps, () => app));
 
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404));
 
@@ -31,7 +33,9 @@ export function createApp(deps: AppDeps) {
       );
     }
     const requestId = c.get('requestId');
-    console.error(`[api] ${c.req.method} ${new URL(c.req.url).pathname} failed (request ${requestId})`, error);
+    // An MCP key in the path never reaches the logs.
+    const path = new URL(c.req.url).pathname.replace(/\/api\/mcp\/k\/[^/]+/, '/api/mcp/k/…');
+    console.error(`[api] ${c.req.method} ${path} failed (request ${requestId})`, error);
     return c.json({ error: { code: 'INTERNAL', message: 'Something went wrong', requestId } }, 500);
   });
 

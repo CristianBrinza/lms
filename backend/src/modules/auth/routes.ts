@@ -23,6 +23,12 @@ const INVALID = () => new AppError(401, 'INVALID_CREDENTIALS', 'That email and p
 export function authRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
 
+  // Sign-in, refresh and sign-out are for people; an AI access key has no business here.
+  app.use('*', async (c, next) => {
+    if (c.req.header('authorization')) throw new AppError(403, 'KEY_SCOPE', 'Access keys can’t sign in or out');
+    await next();
+  });
+
   app.post('/login', async (c) => {
     const body = await readJson(c, LoginBody);
     const ip = c.get('ip');
