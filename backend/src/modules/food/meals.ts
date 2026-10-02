@@ -99,7 +99,7 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
   if (!mealIds.length) return map;
   const { rows } = await ctx.db.query<{ id: string; meal_id: string; recipe_id: string | null; title: string; kind: PartKind; servings: number; icon: FoodIcon | null }>(
     `SELECT p.id, p.meal_id, p.recipe_id, p.title, p.kind, p.servings, r.icon FROM meal_parts p LEFT JOIN recipes r ON r.id = p.recipe_id
-      WHERE p.meal_id = ANY($1::uuid[]) ORDER BY p.sort, p.id`,
+      WHERE p.meal_id = ANY($1::uuid[]) ORDER BY array_position(ARRAY['dish', 'side', 'sauce', 'drink'], p.kind), p.sort, p.id`,
     [mealIds],
   );
   for (const row of rows) {

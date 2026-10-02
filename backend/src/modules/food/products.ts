@@ -302,6 +302,33 @@ export async function rememberVariant(ctx: FoodCtx, product: Product, variant: s
   return { ...product, variants: [...product.variants, name] };
 }
 
+/**
+ * Brings the catalog's newer knowledge to items already in the kitchen: its package units (when the
+ * item has none and counts the same way), its types (added to the item's own) and where it goes
+ * once opened. Never changes how an item is counted. Returns how many items changed.
+ */
+export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
+  const { rows } = await ctx.db.query<ProductRow>(`SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`, [ctx.actor.householdId]);
+  let changed = 0;
+  for (const row of rows) {
+    const product = toProduct(row);
+    const preset = findPreset(product.name);
+    if (!preset) continue;
+    const sameCount = preset.unit === product.unit && (preset.pieceSize ?? null) === (product.pieceSize ?? null);
+    const units = !product.units.length && sameCount && preset.units?.length ? preset.units : null;
+    const known = new Set(product.variants.map((v) => normalizeName(v)));
+    const variants = (preset.variants ?? []).filter((v) => !known.has(normalizeName(v)));
+    const openedLocation = !product.openedLocation && preset.openedLocation ? preset.openedLocation : null;
+    if (!units && !variants.length && !openedLocation) continue;
+    await ctx.db.query(
+      `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location), updated_at = $5 WHERE id = $1`,
+      [product.id, units ? JSON.stringify(units) : null, variants, openedLocation, ctx.now],
+    );
+    changed += 1;
+  }
+  return changed;
+}
+
 async function resolveExact(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<Product> {
   const preset = findPreset(name);
   // "roșii" and "steak" find the Tomatoes and Beef steak already in the kitchen.

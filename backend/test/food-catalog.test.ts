@@ -151,4 +151,16 @@ describe('food: drinks, jars and types', () => {
     expect(bread.lots[0]).toMatchObject({ quantity: 8, variant: 'White', package: 'loaf', packageSize: 8 });
     expect((await b.get('/api/food/shopping')).body.items).toHaveLength(0);
   });
+
+  it('brings the catalog’s newer units and types to items already in the kitchen', async () => {
+    const b = await cook();
+    const corn = (await b.post('/api/food/products', { name: 'Canned corn', units: [], variants: ['Organic'] })).body.product;
+    expect(corn.units).toEqual([]);
+    expect((await b.post('/api/food/products/refresh')).body.changed).toBeGreaterThan(0);
+    const after = (await b.get('/api/food/products')).body.products.find((p: any) => p.id === corn.id);
+    expect(after.units[0]).toMatchObject({ name: 'can', size: 340 });
+    expect(after.variants).toEqual(['Organic', 'Sweet', 'Baby corn']);
+    expect(after.openedLocation).toBe('fridge');
+    expect((await b.post('/api/food/products/refresh')).body.changed).toBe(0);
+  });
 });

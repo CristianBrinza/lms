@@ -24,7 +24,7 @@ import { planNeeds } from './plan';
 import { addRestriction, kitchenPeople, listRestrictions, removeRestriction } from './restrictions';
 import { createRecipe, deleteRecipe, getRecipe, listRecipes, updateRecipe } from './recipes';
 import { CATEGORIES, FOOD_ICONS, LOCATIONS, PRESETS, presetOrGuess, type Location } from './presets';
-import { archiveProduct, createProduct, listProducts, updateProduct } from './products';
+import { archiveProduct, createProduct, listProducts, refreshFromCatalog, updateProduct } from './products';
 import {
   AddShoppingInput,
   AddStockInput,
@@ -87,6 +87,7 @@ export function foodRoutes(deps: AppDeps) {
     if (location && !(LOCATIONS as readonly string[]).includes(location)) throw new AppError(400, 'VALIDATION', 'Unknown place');
     return c.json({ products: await kitchen(ctx(c), { location: location as Location | undefined }) });
   });
+  app.post('/products/refresh', async (c) => c.json({ changed: await refreshFromCatalog(ctx(c)) }));
   app.post('/stock', async (c) => c.json(await addStock(ctx(c), await readJson(c, AddStockInput)), 201));
   app.post('/stock/use', async (c) => c.json({ result: await useStock(ctx(c), await readJson(c, UseStockInput)) }));
   app.post('/stock/undo', async (c) => c.json({ undone: await undoEvents(ctx(c), (await readJson(c, UndoInput)).events) }));

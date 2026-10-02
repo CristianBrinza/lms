@@ -35,33 +35,35 @@ describe('food: meals of several parts', () => {
     ).body.meal;
     expect(meal.title).toBe('Cheese omelette + Coffee + Bread with Philadelphia and salmon');
     expect(meal.recipeId).toBe(omelette.id);
+    // Eating order: the dish, then sides, sauces, drinks.
     expect(meal.parts.map((p: any) => [p.title, p.kind, p.servings])).toEqual([
       ['Cheese omelette', 'dish', 2],
-      ['Coffee', 'drink', 2],
       ['Bread with Philadelphia and salmon', 'side', 2],
+      ['Coffee', 'drink', 2],
     ]);
+    const part = (m: any, title: string) => m.parts.find((p: any) => p.title === title);
     // The omelette is scaled to two people; each line knows its part.
     const eggs = meal.ingredients.find((i: any) => i.name === 'Eggs');
     expect(eggs).toMatchObject({ amount: 4, partId: meal.parts[0].id });
-    expect(meal.ingredients.find((i: any) => i.name === 'Salmon').partId).toBe(meal.parts[2].id);
+    expect(meal.ingredients.find((i: any) => i.name === 'Salmon').partId).toBe(part(meal, 'Bread with Philadelphia and salmon').id);
 
     // A sauce made apart joins the meal; one serving of it each.
     const withSauce = (await b.post(`/api/food/meals/${meal.id}/parts`, { recipeId: sauce.id, kind: 'sauce' })).body.meal;
-    expect(withSauce.parts[3]).toMatchObject({ title: 'Garlic sauce', kind: 'sauce', servings: 2 });
+    expect(withSauce.parts[2]).toMatchObject({ title: 'Garlic sauce', kind: 'sauce', servings: 2 });
     expect(withSauce.ingredients.find((i: any) => i.name === 'Sour cream').amount).toBe(100);
 
     // Just the coffee for one person.
-    const lighter = (await b.patch(`/api/food/meals/${meal.id}/parts/${meal.parts[1].id}`, { servings: 1 })).body.meal;
+    const lighter = (await b.patch(`/api/food/meals/${meal.id}/parts/${part(meal, 'Coffee').id}`, { servings: 1 })).body.meal;
     expect(lighter.ingredients.find((i: any) => i.name === 'Coffee').amount).toBe(10);
 
-    const noSide = (await b.delete(`/api/food/meals/${meal.id}/parts/${meal.parts[2].id}`)).body.meal;
+    const noSide = (await b.delete(`/api/food/meals/${meal.id}/parts/${part(meal, 'Bread with Philadelphia and salmon').id}`)).body.meal;
     expect(noSide.parts).toHaveLength(3);
     expect(noSide.ingredients.some((i: any) => i.name === 'Salmon')).toBe(false);
 
     // Swapping the recipe swaps the main dish only.
     const pancakes = (await b.post('/api/food/recipes', { title: 'Pancakes', servings: 2, ingredients: [{ name: 'Flour', amount: 200, unit: 'g' }] })).body.recipe;
     const swapped = (await b.patch(`/api/food/meals/${meal.id}`, { recipeId: pancakes.id })).body.meal;
-    expect(swapped.parts.map((p: any) => p.title)).toEqual(['Pancakes', 'Coffee', 'Garlic sauce']);
+    expect(swapped.parts.map((p: any) => p.title)).toEqual(['Pancakes', 'Garlic sauce', 'Coffee']);
     expect(swapped.recipeId).toBe(pancakes.id);
     expect(swapped.ingredients.some((i: any) => i.name === 'Eggs')).toBe(false);
   });
