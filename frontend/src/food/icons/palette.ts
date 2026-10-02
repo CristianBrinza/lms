@@ -25,3 +25,23 @@ export const PEACH = '#f4cfac';
 export const MEAT = '#df7b70';
 export const FAT = '#f8dcd2';
 
+
+/*
+ * The icons themselves live as SVG files in ./svg and carry their colours as hex. These are the
+ * extra tones the files use beyond the set above, kept here so new drawings reuse them.
+ */
+export const STEEL = '#c8c8d3';
+export const STEEL_L = '#efeff4';
+export const GLASS = '#eef9fc';
+export const ICE = '#dcf3f9';
+export const IRON = '#4a4a58';
+export const IRON_L = '#6e6e84';
+export const LIME = '#a5d36a';
+export const LIME_L = '#dff0b0';
+export const OLIVE = '#a9bc5c';
+export const OLIVE_OIL = '#7aa84a';
+export const BEAN = '#b8503f';
+export const AMBER = '#d9893a';
+export const SOY = '#4a2c20';
+export const TERRACOTTA = '#d9825b';
+export const BEET = '#a8325e';

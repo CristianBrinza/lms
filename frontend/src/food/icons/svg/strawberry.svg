@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="var(--color-ink-900, #1d1d24)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M24 41c-6.5-3.5-14-11-14-18.5 0-4.5 3.5-7 7-7 3 0 5 1 7 1s4-1 7-1c3.5 0 7 2.5 7 7C38 30 30.5 37.5 24 41z" fill="#f0705f"/>
+  <circle cx="18" cy="22" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="24" cy="21.5" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="30" cy="22" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="16.5" cy="28" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="22" cy="27" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="27.5" cy="27" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="32" cy="28" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="20" cy="33" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="26" cy="33" r="1" fill="#f6d47a" stroke="none"/>
+  <circle cx="23.5" cy="37.5" r="1" fill="#f6d47a" stroke="none"/>
+  <path d="M16.6 16.2c2-2 4.4-2.6 7.4-2.6s5.4.6 7.4 2.6c-2 1.5-4.4 2-7.4 1.5-3 .5-5.4 0-7.4-1.5z" fill="#69b86b" stroke-width="1.8"/>
+  <path d="M24 13.6V9"/>
+</svg>

@@ -1,14 +1,10 @@
 import { cx } from '@/lib/cx';
-import { FOOD_ART, SCENE_ART } from './art';
+import { SCENE_ART } from './art';
+import { Icon } from './Icon';
 
 /** A drawn food icon by key (tomato, steak, water…); unknown keys fall back to a basket. */
 export function FoodIcon({ name, className, label }: { name: string; className?: string; label?: string }) {
-  return (
-    <svg viewBox="0 0 48 48" className={cx('shrink-0 overflow-visible', className)} role={label ? 'img' : undefined} aria-hidden={label ? undefined : true}>
-      {label ? <title>{label}</title> : null}
-      {FOOD_ART[name] ?? FOOD_ART.basket}
-    </svg>
-  );
+  return <Icon name={name} className={className} label={label} />;
 }
 
 /** A food icon on its own soft tile, for rows and pickers. */

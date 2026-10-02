@@ -6,9 +6,17 @@ import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
-import { formatAmount, money, parseAmount } from '../format';
+import { useCatalog } from '../catalog';
+import { formatAmount, formatQty, money, parseAmount } from '../format';
 import { FoodIcon } from '../icons/FoodIcon';
-import type { ShoppingItem, Store } from '../types';
+import type { Product, ShoppingItem, Store } from '../types';
+
+/** "2 × 300 g · " for a line whose packages were recorded in the shop. */
+function gotText(line: ShoppingItem, products: Product[] | undefined): string | null {
+  const product = products?.find((p) => p.id === line.productId);
+  if (!line.bought?.length || !product) return null;
+  return `${line.bought.map((pack) => `${pack.count} × ${formatQty(pack.size, product)}`).join(' + ')} · `;
+}
 
 /**
  * Finishing a shop: the cart's lines with what each cost (filled from what was typed in the shop)
@@ -30,6 +38,10 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
     Object.fromEntries(cart.map((line) => [line.id, line.price !== null ? String(line.price) : line.estimate !== null ? '' : ''])),
   );
   const [stock, setStock] = useState<Record<string, boolean>>(() => Object.fromEntries(cart.map((line) => [line.id, line.category !== 'household'])));
+  // Less than needed was bought: the rest stays on the list unless told otherwise.
+  const short = (line: ShoppingItem) => line.need !== null && line.boughtTotal !== null && line.boughtTotal + 1e-6 < line.need;
+  const [keepRest, setKeepRest] = useState<Record<string, boolean>>(() => Object.fromEntries(cart.filter(short).map((line) => [line.id, true])));
+  const catalog = useCatalog();
   const total = cart.reduce((sum, line) => sum + (parseAmount(prices[line.id] ?? '') ?? 0), 0);
   const estimated = cart.reduce((sum, line) => sum + (parseAmount(prices[line.id] ?? '') === null ? (line.estimate ?? 0) : 0), 0);
 
@@ -37,13 +49,21 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
     mutationFn: () =>
       foodApi.checkout({
         storeId: store?.id ?? null,
-        lines: cart.map((line) => ({ id: line.id, price: parseAmount(prices[line.id] ?? ''), addToKitchen: stock[line.id] ?? true })),
+        lines: cart.map((line) => ({
+          id: line.id,
+          price: parseAmount(prices[line.id] ?? ''),
+          addToKitchen: stock[line.id] ?? true,
+          ...(short(line) ? { keepRest: keepRest[line.id] ?? true } : {}),
+        })),
       }),
-    onSuccess: ({ trip, stocked }) => {
+    onSuccess: ({ trip, stocked, leftOver }) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       toast.success(`Shop saved${trip.total !== null ? ` · ${money(trip.total)}` : ''}`, {
-        description: stocked ? `${stocked} ${stocked === 1 ? 'item is' : 'items are'} in your kitchen` : undefined,
+        description:
+          [stocked ? `${stocked} ${stocked === 1 ? 'item is' : 'items are'} in your kitchen` : null, leftOver.length ? `Still to buy: ${leftOver.join(', ')}` : null]
+            .filter(Boolean)
+            .join('. ') || undefined,
         action: stocked ? { label: 'Kitchen', onClick: () => navigate('/food/kitchen') } : undefined,
       });
       onClose();
@@ -68,8 +88,19 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
                   onChange={(event) => setStock((current) => ({ ...current, [line.id]: event.target.checked }))}
                   className="size-4 accent-ink-900"
                 />
-                {line.amount && line.unit ? `${formatAmount(line.amount, line.unit)} · ` : ''}into the kitchen
+                {gotText(line, catalog.data) ?? (line.amount && line.unit ? `${formatAmount(line.amount, line.unit)} · ` : '')}into the kitchen
               </label>
+              {short(line) ? (
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-peach-800">
+                  <input
+                    type="checkbox"
+                    checked={keepRest[line.id] ?? true}
+                    onChange={(event) => setKeepRest((current) => ({ ...current, [line.id]: event.target.checked }))}
+                    className="size-4 accent-ink-900"
+                  />
+                  Keep the rest on the list
+                </label>
+              ) : null}
             </span>
             <label className="flex w-28 shrink-0 items-center rounded-xl bg-white px-3 shadow-xs focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
               <span className="sr-only">Price of {line.name} in lei</span>
