@@ -240,6 +240,19 @@ export const IngredientInput = z.object({
   optional: z.boolean().optional(),
   link: z.boolean().optional().describe('False for things not kept in the kitchen (tap water): never checked or deducted'),
   variant: z.string().trim().max(40).optional().describe('Only this type will do (Vodka: "Finlandia"); omit for any'),
+  or: z
+    .array(
+      z.object({
+        productId: idField.optional(),
+        name: nameField,
+        amount: quantityField.nullable().optional().describe('Omit for the same amount as the main one'),
+        unit: unitField.nullable().optional(),
+        variant: z.string().trim().max(40).optional(),
+      }),
+    )
+    .max(4)
+    .optional()
+    .describe('Or one of these instead, in this order: milk, or whipped cream'),
 });
 export type IngredientInput = z.infer<typeof IngredientInput>;
 

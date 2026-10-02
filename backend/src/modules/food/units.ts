@@ -43,7 +43,12 @@ export interface Measured {
   pieceSize: number | null;
   pieceUnit: 'g' | 'ml' | null;
   units?: CustomUnit[];
+  /** Its kind: things poured or spooned (dairy, drinks, sauces, pantry) convert between grams and millilitres. */
+  category?: string;
 }
+
+/** Kinds weighed and poured alike: 300 g of milk is about 300 ml; a litre of steak is nothing. */
+const POURABLE = new Set(['dairy', 'drinks', 'spices', 'pantry']);
 
 /** The item's own unit a word names ("slice", "Slices"), if any. */
 export function customUnit(unit: string, product: Measured): CustomUnit | null {
@@ -71,6 +76,10 @@ function factorOf(unit: string, product: Measured): number | null {
   if (measure.family === base) return measure.factor;
   // Spoons and cups of something weighed: about a gram per millilitre, unless the item says (honey: 21 g a tablespoon).
   if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup')) return measure.factor;
+  // Grams of milk, millilitres of honey: about the same, for things poured or spooned.
+  if (product.category && POURABLE.has(product.category) && ((base === 'mass' && measure.family === 'volume') || (base === 'volume' && measure.family === 'mass'))) {
+    return measure.factor;
+  }
   if (!product.pieceSize || product.pieceSize <= 0) return null;
   if (product.unit === 'pcs') {
     // 240 g of tomatoes = 2 pieces, when one piece is 120 g.

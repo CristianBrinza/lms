@@ -15,6 +15,20 @@ export interface FoodOverview {
     products: number;
     expiring: Array<{ lotId: string; productId: string; name: string; icon: FoodIcon; quantity: number; unit: BaseUnit; expiresOn: string }>;
     expired: number;
+    /** Started packages (an opened can, a cut cake): use these first, so nothing is thrown away. */
+    opened: Array<{
+      lotId: string;
+      productId: string;
+      name: string;
+      icon: FoodIcon;
+      quantity: number;
+      unit: BaseUnit;
+      expiresOn: string | null;
+      location: string;
+      package: string;
+      /** Recipes that use it. */
+      recipes: number;
+    }>;
     low: Array<{ productId: string; name: string; icon: FoodIcon; total: number; minStock: number; unit: BaseUnit; level: 'full' | 'low' | 'out' | null }>;
   };
   recipes: { total: number; ready: number; favorites: number };
@@ -43,12 +57,34 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
     )
     .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn));
 
+  const usedIn = new Map<string, number>();
+  for (const recipe of recipes) for (const id of new Set(recipe.ingredients.map((i) => i.productId).filter(Boolean))) usedIn.set(id!, (usedIn.get(id!) ?? 0) + 1);
+  const opened = products
+    .flatMap((product) =>
+      product.lots
+        .filter((lot) => lot.openedAt && lot.quantity > 0 && product.trackMode === 'exact')
+        .map((lot) => ({
+          lotId: lot.id,
+          productId: product.id,
+          name: product.name,
+          icon: product.icon,
+          quantity: lot.quantity,
+          unit: product.unit,
+          expiresOn: lot.expiresOn,
+          location: lot.location,
+          package: lot.package,
+          recipes: usedIn.get(product.id) ?? 0,
+        })),
+    )
+    .sort((a, b) => (a.expiresOn ?? '9999').localeCompare(b.expiresOn ?? '9999'));
+
   return {
     kitchen: kitchenRow[0] ?? { name: 'Kitchen', currency: 'MDL' },
     stock: {
       products: products.filter((p) => p.total > 0 || (p.trackMode === 'level' && p.level !== 'out')).length,
       expiring: expiring.slice(0, 12),
       expired: expiring.filter((lot) => lot.expiresOn < today).length,
+      opened: opened.slice(0, 12),
       low: products
         .filter((p) => p.low)
         .map((p) => ({ productId: p.id, name: p.name, icon: p.icon, total: p.total, minStock: p.minStock ?? 0, unit: p.unit, level: p.trackMode === 'level' ? p.level : null })),

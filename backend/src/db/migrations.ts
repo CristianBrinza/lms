@@ -464,6 +464,14 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE households ADD COLUMN dishwasher_minutes integer NOT NULL DEFAULT 180 CHECK (dishwasher_minutes BETWEEN 10 AND 600);
     `,
   },
+  {
+    version: 13,
+    name: 'food: an ingredient can be one of several (milk or whipped cream)',
+    sql: `
+      ALTER TABLE recipe_ingredients ADD COLUMN alternatives jsonb NOT NULL DEFAULT '[]'::jsonb;
+      ALTER TABLE meal_ingredients ADD COLUMN alternatives jsonb NOT NULL DEFAULT '[]'::jsonb;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

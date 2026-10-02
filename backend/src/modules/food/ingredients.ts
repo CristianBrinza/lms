@@ -24,6 +24,10 @@ export interface IngredientLine {
   partId: string | null;
   /** Only this type will do (Finlandia); '' for any. */
   variant: string;
+  /** Or one of these instead, in order. */
+  alternatives: Array<{ productId: string | null; name: string; icon: FoodIcon; amount: number | null; unit: string | null; variant: string; enough: boolean | null }>;
+  /** Covered by one of the alternatives rather than the main item (null: the main item, or nothing). */
+  using: { productId: string; name: string; icon: FoodIcon } | null;
   name: string;
   icon: FoodIcon;
   amount: number | null;
@@ -70,11 +74,21 @@ export interface IngredientRow {
   name: string;
   /** Only this type will do; '' for any. */
   variant?: string;
+  /** Or one of these instead, in order (an amount of null: the same as the main one). */
+  alternatives?: Alternative[];
   amount: number | null;
   unit: string | null;
   note: string;
   optional: boolean;
   sort: number;
+}
+
+export interface Alternative {
+  product_id: string | null;
+  name: string;
+  amount: number | null;
+  unit: string | null;
+  variant: string;
 }
 
 export interface StockInfo {
@@ -120,7 +134,7 @@ export function neededBase(row: Pick<IngredientRow, 'amount' | 'unit'>, product:
 }
 
 export interface DescribeOptions {
-  /** A planned meal's lines: how the plan played forward covers each one. */
+  /** A planned meal's lines: how the plan played forward covers each one (and with which alternative). */
   allocation?: Map<string, LineAllocation>;
   /** For cooking now (a recipe): what planned meals already claim, per product. */
   reserved?: Map<string, { amount: number; first: PlannedMealRef }>;
@@ -157,6 +171,34 @@ export function describeLines(
       missing = planned.short;
       reservedFor = planned.short > 0 ? planned.takenBy : null;
     }
+    // Not enough of it: one of the alternatives will do (milk, or whipped cream).
+    const alternatives = (row.alternatives ?? []).map((alt) => {
+      const altInfo = alt.product_id ? stock.get(alt.product_id) : undefined;
+      const altMode = altInfo?.product.trackMode ?? 'none';
+      const altNeeded = altInfo && altMode === 'exact' ? neededBase(alt.amount === null ? row : alt, altInfo.product, alt.amount === null ? scale : scale) : null;
+      const altClaimed = altMode === 'exact' && altInfo ? (options.reserved?.get(altInfo.product.id)?.amount ?? 0) : 0;
+      const altFree = altInfo ? Math.max(0, round(stockFor(altInfo, alt.variant) - altClaimed)) : 0;
+      const altEnough =
+        altMode === 'level' ? altInfo!.product.level !== 'out' : altMode === 'exact' ? (altNeeded === null ? altFree > 0 : altFree + 1e-9 >= altNeeded) : null;
+      return {
+        productId: alt.product_id,
+        name: alt.name,
+        icon: altInfo?.product.icon ?? 'basket',
+        amount: alt.amount === null ? null : round(alt.amount * scale),
+        unit: alt.unit,
+        variant: alt.variant,
+        enough: altEnough,
+      };
+    });
+    let using: IngredientLine['using'] = null;
+    const plannedAlt = planned?.using ? alternatives.find((alt) => alt.productId === planned.using) : undefined;
+    const pick = planned ? plannedAlt : enough === false ? alternatives.find((alt) => alt.enough) : undefined;
+    if (pick?.productId) {
+      using = { productId: pick.productId, name: pick.name, icon: pick.icon };
+      enough = true;
+      missing = 0;
+      reservedFor = null;
+    }
     const expiresSoon = Boolean(info?.nextExpiry && info.nextExpiry <= soon && total > 0);
     lines.push({
       id: row.id,
@@ -164,6 +206,8 @@ export function describeLines(
       lotId: row.lot_id ?? null,
       partId: row.part_id ?? null,
       variant: row.variant ?? '',
+      alternatives,
+      using,
       name: row.name,
       icon: info?.product.icon ?? 'basket',
       amount: row.amount === null ? null : round(row.amount * scale),
@@ -222,7 +266,13 @@ export async function resolveIngredients(ctx: FoodCtx, inputs: Array<IngredientI
       lotId = input.lotId;
     }
     const partId = 'partId' in input ? (input.partId ?? null) : null;
-    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, variant, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
+    const alternatives: Alternative[] = [];
+    for (const alt of input.or ?? []) {
+      const named = alt.productId ? { product: await findProduct(ctx, alt.productId), variant: '' } : await resolveNamed(ctx, alt.name, alt.unit ?? undefined);
+      const altUnit = alt.amount ? (alt.unit ?? named.product.unit) : null;
+      alternatives.push({ product_id: named.product.id, name: alt.name, amount: alt.amount ?? null, unit: altUnit, variant: alt.variant || named.variant });
+    }
+    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, variant, alternatives, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
   }
   return out;
 }
@@ -247,7 +297,7 @@ export async function appendIngredientRows(
 ): Promise<void> {
   for (const row of rows) {
     if (table === 'recipe_ingredients') {
-      await ctx.db.query(`INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort, variant) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, [
+      await ctx.db.query(`INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort, variant, alternatives) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [
         randomUUID(),
         ownerId,
         row.product_id,
@@ -258,11 +308,27 @@ export async function appendIngredientRows(
         row.optional,
         row.sort,
         row.variant ?? '',
+        JSON.stringify(row.alternatives ?? []),
       ]);
     } else {
       await ctx.db.query(
-        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [randomUUID(), ownerId, row.product_id, row.lot_id ?? null, row.name, row.amount, row.unit, row.note, row.optional, row.sort, row.part_id ?? null, row.variant ?? ''],
+        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant, alternatives)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        [
+          randomUUID(),
+          ownerId,
+          row.product_id,
+          row.lot_id ?? null,
+          row.name,
+          row.amount,
+          row.unit,
+          row.note,
+          row.optional,
+          row.sort,
+          row.part_id ?? null,
+          row.variant ?? '',
+          JSON.stringify(row.alternatives ?? []),
+        ],
       );
     }
   }
@@ -274,7 +340,7 @@ export async function ingredientRows(ctx: FoodCtx, table: 'recipe_ingredients' |
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
   const lot = table === 'meal_ingredients' ? ', lot_id, part_id' : '';
   const { rows } = await ctx.db.query<IngredientRow>(
-    `SELECT id, ${owner} AS owner_id, product_id${lot}, name, variant, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
+    `SELECT id, ${owner} AS owner_id, product_id${lot}, name, variant, alternatives, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
     [ownerIds],
   );
   for (const row of rows) {

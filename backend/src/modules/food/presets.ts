@@ -121,12 +121,12 @@ export type Level = (typeof LEVELS)[number];
 
 /** Days once opened, for the presets where it matters. */
 const OPENED: Record<string, number> = {
-  Milk: 5, Cream: 4, Kefir: 4, 'Sour cream': 7, Juice: 5, Soda: 3, 'Coca-Cola': 3, Pepsi: 3, Sprite: 3, Fanta: 3, 'Iced tea': 3, 'Mineral water': 3, 'Sparkling water': 3, Kvass: 2, Wine: 5, 'Sparkling wine': 1, 'Tonic water': 3, Syrup: 90, 'Fruit purée': 3, 'Sunflower oil': 120, 'Olive oil': 120, Yogurt: 2, 'Cottage cheese': 3, Mozzarella: 3,
+  Milk: 5, Cream: 4, Kefir: 4, 'Sour cream': 7, Juice: 5, Soda: 3, 'Coca-Cola': 3, Pepsi: 3, Sprite: 3, Fanta: 3, 'Iced tea': 3, 'Mineral water': 3, 'Sparkling water': 3, Kvass: 2, Wine: 5, 'Sparkling wine': 1, 'Whipped cream': 14, Coffee: 30, 'Tonic water': 3, Syrup: 90, 'Fruit purée': 3, 'Sunflower oil': 120, 'Olive oil': 120, Yogurt: 2, 'Cottage cheese': 3, Mozzarella: 3,
   'Canned beans': 3, 'Canned tomatoes': 4, 'Chopped tomatoes': 4, 'Tomato sauce (canned)': 5, 'Canned corn': 3, 'Canned peas': 3, 'Canned mushrooms': 3, 'Canned pineapple': 3, 'Canned peaches': 3, 'Tuna (canned)': 2, Sprats: 2, 'Canned meat': 3, 'Liver pâté': 2, Zacuscă: 10, 'Eggplant caviar': 7, Lecho: 7, Ajvar: 10, 'Tomato paste': 7, Mayonnaise: 30, Ketchup: 60, Mustard: 60,
   Ham: 4, Bacon: 5, Pickles: 30, 'Pickled tomatoes': 14, Olives: 14, Sausages: 5, Cheese: 14, Feta: 7, Jam: 30,
 };
 /** Kept by level rather than weighed: everything in Spices & sauces, plus these. */
-const BY_LEVEL = new Set(['Jam', 'Tomato paste', 'Coffee', 'Tea', 'Instant coffee', 'Peanut butter', 'Chocolate spread']);
+const BY_LEVEL = new Set(['Jam', 'Tomato paste', 'Tea', 'Instant coffee', 'Peanut butter', 'Chocolate spread']);
 
 const P = (
   name: string,
@@ -210,7 +210,11 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Butter', 'butter', 'dairy', 'g', 'fridge', 30, undefined, ['unt', 'масло сливочное']),
   P('Yogurt', 'yogurt', 'dairy', 'pcs', 'fridge', 14, 150, ['iaurt', 'йогурт']),
   P('Sour cream', 'yogurt', 'dairy', 'g', 'fridge', 10, undefined, ['smântână', 'smantana', 'сметана']),
-  P('Cream', 'milk', 'dairy', 'ml', 'fridge', 7, undefined, ['frișcă', 'frisca', 'сливки']),
+  P('Cream', 'milk', 'dairy', 'ml', 'fridge', 7, undefined, ['smântână lichidă', 'сливки', 'cooking cream']),
+  P('Whipped cream', 'milk', 'dairy', 'g', 'fridge', 21, undefined, ['frișcă', 'frisca', 'взбитые сливки', 'cream spray']),
+  P('Sprinkles', 'box', 'snacks', 'g', 'pantry', 365, undefined, ['ornamente', 'посыпка', 'topping', 'coffee topping']),
+  P('Chocolate chips', 'chocolate', 'snacks', 'g', 'pantry', 365, undefined, ['picături de ciocolată', 'шоколадные капли']),
+  P('Marshmallows', 'box', 'snacks', 'g', 'pantry', 180, undefined, ['bezele', 'зефир маршмеллоу']),
   P('Cottage cheese', 'cottage', 'dairy', 'g', 'fridge', 5, undefined, ['brânză de vaci', 'branza de vaci', 'творог']),
   P('Kefir', 'milk', 'dairy', 'ml', 'fridge', 7, [1000, 'ml'], ['chefir', 'кефир']),
   // Frozen
@@ -236,7 +240,7 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Olive oil', 'oil', 'pantry', 'ml', 'pantry', 365, undefined, ['ulei de măsline', 'оливковое масло']),
   P('Honey', 'honey', 'pantry', 'g', 'pantry', 730, undefined, ['miere', 'мёд', 'мед']),
   P('Walnuts', 'nuts', 'pantry', 'g', 'pantry', 180, undefined, ['nuci', 'грецкие орехи', 'nuts']),
-  P('Coffee', 'coffee', 'pantry', 'g', 'pantry', 180, undefined, ['cafea', 'кофе']),
+  P('Coffee', 'coffee', 'pantry', 'g', 'pantry', 180, undefined, ['cafea', 'кофе', 'coffee beans', 'boabe de cafea', 'кофе в зернах', 'ground coffee']),
   P('Tea', 'tea', 'pantry', 'pcs', 'pantry', 365, undefined, ['ceai', 'чай', 'tea bags']),
   P('Jam', 'jar', 'pantry', 'g', 'pantry', 365, undefined, ['gem', 'dulceață', 'варенье']),
   P('Breakfast cereal', 'box', 'pantry', 'g', 'pantry', 180, undefined, ['cereals', 'cereale']),
@@ -451,7 +455,10 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
   Sugar: { units: [{ name: 'bag', size: 1000, sizes: [500, 1000, 2000] }, { name: 'cup', size: 200 }, { name: 'tbsp', plural: 'tbsp', size: 12 }] },
   Eggs: { units: [{ name: 'pack', size: 10, sizes: [6, 10, 12, 15, 20, 30] }, { name: 'dozen', plural: 'dozen', size: 12 }] },
   Chocolate: { units: [{ name: 'bar', size: 100, sizes: [50, 90, 100, 200, 300] }], variants: ['Milk', 'Dark', 'White'] },
-  Milk: { units: [{ name: 'bottle', size: 1000, sizes: [500, 900, 1000, 1500, 2000] }], variants: ['1.5%', '2.5%', '3.2%', 'Lactose-free'] },
+  Milk: { units: [{ name: 'bottle', size: 1000, sizes: [500, 900, 1000, 1500, 2000] }], variants: ['1.5%', '2.5%', '3.2%', 'Barista', 'Lactose-free', 'Oat'] },
+  Cream: { units: [{ name: 'pack', size: 200, sizes: [200, 250, 500, 1000] }], variants: ['10%', '20%', '33% (for whipping)'] },
+  'Whipped cream': { units: [{ name: 'can', size: 250, sizes: [180, 250, 500] }] },
+  Sprinkles: { units: [{ name: 'pack', size: 50, sizes: [30, 50, 100] }], variants: ['Chocolate', 'Cinnamon sugar', 'Colourful'] },
   Yogurt: { variants: ['Plain', 'Greek', 'Fruit'] },
   Sausages: { units: [{ name: 'pack', size: 400, sizes: [300, 400, 500, 1000] }], variants: ['Boiled', 'Smoked', 'Hot dogs'] },
   'Minced meat': { units: [{ name: 'pack', size: 500, sizes: [400, 500, 800, 1000] }], variants: ['Beef', 'Pork', 'Mixed', 'Chicken'] },
@@ -482,14 +489,17 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
   Liqueur: { units: [{ name: 'bottle', size: 500, sizes: [50, 100, 200, 250, 350, 500, 700, 750, 1000] }, { name: 'shot', size: 50 }], variants: ['Coffee', 'Amaretto', 'Cream', 'Blue Curaçao', 'Triple sec'] },
   Vermouth: { units: [{ name: 'bottle', size: 1000, sizes: [500, 750, 1000] }], variants: ['Bianco', 'Rosso', 'Extra dry'] },
   'Tonic water': { units: [{ name: 'can', size: 330, sizes: [250, 330] }, { name: 'bottle', size: 1000, sizes: [250, 500, 1000, 1500] }] },
-  Syrup: { units: [{ name: 'bottle', size: 700, sizes: [250, 500, 700, 1000] }], variants: ['Maracuya', 'Vanilla', 'Caramel', 'Grenadine', 'Mint', 'Strawberry', 'Coconut'] },
+  Syrup: {
+    units: [{ name: 'bottle', size: 700, sizes: [250, 500, 700, 1000] }, { name: 'pump', size: 10 }],
+    variants: ['Vanilla', 'Caramel', 'Salted caramel', 'Hazelnut', 'Irish cream', 'Coconut', 'Maracuya', 'Grenadine', 'Mint', 'Strawberry'],
+  },
   'Fruit purée': { units: [{ name: 'pack', size: 500, sizes: [250, 500, 1000] }], variants: ['Mango', 'Maracuya', 'Strawberry', 'Raspberry', 'Peach'] },
   'Ice cubes': { units: [{ name: 'pack', size: 6, sizes: [3, 4, 5, 6, 8, 10, 12, 20] }, { name: 'tray', size: 12, sizes: [6, 8, 12, 14, 16] }, { name: 'cube', size: 1 }] },
   Compote: { variants: ['Cherry', 'Apple', 'Mixed fruit'] },
   Apples: { variants: ['Golden', 'Red', 'Green'] },
   'Sour cream': { units: [{ name: 'pack', size: 400 }] },
   'Cottage cheese': { units: [{ name: 'pack', size: 400 }] },
-  Coffee: { variants: ['Beans', 'Ground', 'Capsules'] },
+  Coffee: { units: [{ name: 'bag', size: 1000, sizes: [250, 500, 1000] }, { name: 'shot', size: 10 }], variants: ['Beans', 'Ground', 'Capsules'] },
   'Tuna (canned)': { units: [{ name: 'can', size: 160, sizes: [80, 120, 160, 185, 240] }], variants: ['In oil', 'In water', 'Chunks', 'Salad'] },
   'Canned beans': { units: [{ name: 'can', size: 400, sizes: [240, 400, 425, 800] }], variants: ['White', 'Red', 'Mixed'] },
   'Chopped tomatoes': { units: [{ name: 'can', size: 400, sizes: [400, 500, 680, 800] }], variants: ['Plain', 'With basil', 'With garlic', 'With chili'] },

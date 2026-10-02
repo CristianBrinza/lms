@@ -1,4 +1,4 @@
-import { ingredientRows, neededBase, type IngredientRow, type StockInfo } from './ingredients';
+import { ingredientRows, neededBase, type Alternative, type IngredientRow, type StockInfo } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import { round } from './units';
 
@@ -20,6 +20,8 @@ export interface LineAllocation {
   short: number;
   /** The earlier meal that took what this one would have used. */
   takenBy: PlannedMealRef | null;
+  /** Covered by this alternative instead of the main item (its product id). */
+  using?: string;
 }
 
 export interface PlanAllocation {
@@ -63,6 +65,28 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
   /** Who last took from each product, to explain a shortage. */
   const lastTaker = new Map<string, PlannedMealRef>();
 
+  /** Takes `need` of a product for a meal from its lots still good that day (or only says how much it could). */
+  const take = (productId: string, need: number, date: string, variant: string | undefined, lotId: string | null | undefined, dry: boolean): number => {
+    const kind = variant?.toLowerCase();
+    const usable = (lotsByProduct.get(productId) ?? []).filter((lot) => (!lot.expires_on || lot.expires_on >= date) && (!kind || lot.variant.toLowerCase() === kind));
+    const ordered = lotId ? [...usable.filter((l) => l.id === lotId), ...usable.filter((l) => l.id !== lotId)] : usable;
+    let remaining = need;
+    for (const lot of ordered) {
+      if (remaining <= 0) break;
+      const got = Math.min(left.get(lot.id) ?? 0, remaining);
+      if (got <= 0) continue;
+      if (!dry) left.set(lot.id, round((left.get(lot.id) ?? 0) - got));
+      remaining = round(remaining - got);
+    }
+    return round(need - remaining);
+  };
+  const claim = (productId: string, amount: number, ref: PlannedMealRef) => {
+    if (amount <= 0) return;
+    const reserved = result.reserved.get(productId);
+    result.reserved.set(productId, { amount: round((reserved?.amount ?? 0) + amount), first: reserved?.first ?? ref });
+    lastTaker.set(productId, ref);
+  };
+
   for (const meal of meals) {
     const ref = { id: meal.id, title: meal.title, date: meal.date };
     for (const row of ingredients.get(meal.id) ?? []) {
@@ -70,27 +94,20 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
       if (!info || info.product.trackMode !== 'exact' || row.optional) continue;
       const need = wanted(row, info);
       if (need === null) continue;
-      // Good on the meal's day, and of the type the line asks for.
-      const kind = row.variant?.toLowerCase();
-      const usable = (lotsByProduct.get(info.product.id) ?? []).filter(
-        (lot) => (!lot.expires_on || lot.expires_on >= meal.date) && (!kind || lot.variant.toLowerCase() === kind),
-      );
-      const ordered = row.lot_id ? [...usable.filter((l) => l.id === row.lot_id), ...usable.filter((l) => l.id !== row.lot_id)] : usable;
-      let remaining = need;
-      for (const lot of ordered) {
-        if (remaining <= 0) break;
-        const take = Math.min(left.get(lot.id) ?? 0, remaining);
-        if (take <= 0) continue;
-        left.set(lot.id, round((left.get(lot.id) ?? 0) - take));
-        remaining = round(remaining - take);
+      // The main item when there is enough of it; else the first alternative that covers it all.
+      if (take(info.product.id, need, meal.date, row.variant, row.lot_id, true) + 1e-9 < need) {
+        const alt = coveringAlternative(row, stock, (id, amount, variant) => take(id, amount, meal.date, variant, null, true) + 1e-9 >= amount);
+        if (alt) {
+          take(alt.productId, alt.need, meal.date, alt.variant, null, false);
+          claim(alt.productId, alt.need, ref);
+          result.lines.set(row.id, { allocated: need, short: 0, takenBy: null, using: alt.productId });
+          continue;
+        }
       }
-      const allocated = round(need - remaining);
+      const allocated = take(info.product.id, need, meal.date, row.variant, row.lot_id, false);
+      const remaining = round(need - allocated);
       result.lines.set(row.id, { allocated, short: remaining, takenBy: remaining > 0 ? (lastTaker.get(info.product.id) ?? null) : null });
-      if (allocated > 0) {
-        const reserved = result.reserved.get(info.product.id);
-        result.reserved.set(info.product.id, { amount: round((reserved?.amount ?? 0) + allocated), first: reserved?.first ?? ref });
-        lastTaker.set(info.product.id, ref);
-      }
+      claim(info.product.id, allocated, ref);
       if (remaining > 0) {
         const shortage = result.shortages.get(info.product.id);
         result.shortages.set(info.product.id, {
@@ -111,4 +128,20 @@ function wanted(row: IngredientRow, info: StockInfo): number | null {
   if (row.amount !== null) return null;
   if (info.product.unit === 'pcs') return 1;
   return info.product.pieceSize ?? null;
+}
+
+/** The first alternative of a line that `covers` (enough of it), with how much of it is needed. */
+export function coveringAlternative(
+  row: IngredientRow,
+  stock: Map<string, StockInfo>,
+  covers: (productId: string, amount: number, variant: string | undefined) => boolean,
+): { productId: string; need: number; variant: string | undefined; alt: Alternative } | null {
+  for (const alt of row.alternatives ?? []) {
+    const info = alt.product_id ? stock.get(alt.product_id) : undefined;
+    if (!info || info.product.trackMode !== 'exact') continue;
+    const need = neededBase(alt.amount === null ? row : alt, info.product);
+    if (need === null) continue;
+    if (covers(info.product.id, need, alt.variant || undefined)) return { productId: info.product.id, need, variant: alt.variant || undefined, alt };
+  }
+  return null;
 }

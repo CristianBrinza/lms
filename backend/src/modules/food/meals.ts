@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
-import { allocatePlan } from './allocation';
+import { allocatePlan, coveringAlternative } from './allocation';
 import { describeNeeds, dirtyAfterCooking, listTools, recipeTools, undoDirty, type ToolNeed } from './kitchenware';
 import { listRestrictions } from './restrictions';
-import { appendIngredientRows, describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type IngredientRow } from './ingredients';
+import { appendIngredientRows, describeLines, ingredientRows, insertIngredientRows, neededBase, resolveIngredients, stockFor, stockSnapshot, type Availability, type IngredientLine, type IngredientRow } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import { findProduct, resolveProduct, updateProduct } from './products';
@@ -109,6 +109,9 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
   return map;
 }
 
+/** Scales the amounts an ingredient's alternatives give (by $2), leaving "the same amount" ones alone. */
+const SCALE_ALTERNATIVES = `alternatives = (SELECT coalesce(jsonb_agg(CASE WHEN a->>'amount' IS NULL THEN a ELSE jsonb_set(a, '{amount}', to_jsonb(round((a->>'amount')::numeric * $2::numeric, 3))) END), '[]'::jsonb) FROM jsonb_array_elements(alternatives) a)`;
+
 const PART_ICON: Record<PartKind, FoodIcon> = { dish: 'pot', side: 'bowl', sauce: 'sauce', drink: 'tea' };
 
 const SLOT_HOUR: Record<Slot, string> = { breakfast: '08:00', lunch: '13:00', snack: '16:30', dinner: '19:00' };
@@ -185,6 +188,7 @@ async function recipeCopy(ctx: FoodCtx, recipeId: string, servings: number): Pro
     lot_id: null,
     name: row.name,
     variant: row.variant ?? '',
+    alternatives: (row.alternatives ?? []).map((alt) => ({ ...alt, amount: alt.amount === null ? null : round(alt.amount * scale) })),
     amount: row.amount === null ? null : round(row.amount * scale),
     unit: row.unit,
     note: row.note,
@@ -284,7 +288,10 @@ export async function updateMealPart(ctx: FoodCtx, mealId: string, partId: strin
     if (meal.status === 'done') throw new AppError(409, 'DONE', 'This meal is done; reopen it to change it');
     const part = await findPart(tx, mealId, partId);
     if (patch.servings && patch.servings !== part.servings) {
-      await tx.db.query('UPDATE meal_ingredients SET amount = round(amount * $2::numeric, 3) WHERE part_id = $1 AND amount IS NOT NULL', [partId, patch.servings / part.servings]);
+      await tx.db.query(`UPDATE meal_ingredients SET amount = CASE WHEN amount IS NULL THEN NULL ELSE round(amount * $2::numeric, 3) END, ${SCALE_ALTERNATIVES} WHERE part_id = $1`, [
+        partId,
+        patch.servings / part.servings,
+      ]);
     }
     await tx.db.query('UPDATE meal_parts SET title = coalesce($2, title), kind = coalesce($3, kind), servings = coalesce($4, servings) WHERE id = $1', [
       partId,
@@ -332,7 +339,7 @@ export async function updateMeal(ctx: FoodCtx, id: string, patch: MealPatch): Pr
       await tx.db.query('UPDATE meal_ingredients SET sort = sort - 100000 WHERE part_id = $1', [partId]);
     } else if (patch.servings && patch.servings !== meal.servings) {
       const factor = patch.servings / meal.servings;
-      await tx.db.query('UPDATE meal_ingredients SET amount = round(amount * $2::numeric, 3) WHERE meal_id = $1 AND amount IS NOT NULL', [id, factor]);
+      await tx.db.query(`UPDATE meal_ingredients SET amount = CASE WHEN amount IS NULL THEN NULL ELSE round(amount * $2::numeric, 3) END, ${SCALE_ALTERNATIVES} WHERE meal_id = $1`, [id, factor]);
       await tx.db.query('UPDATE meal_parts SET servings = greatest(1, least(100, round(servings * $2::numeric))) WHERE meal_id = $1', [id, factor]);
     }
     await tx.db.query(
@@ -401,10 +408,25 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
     const meal = await findMealRow(tx, id, true);
     if (meal.status === 'done') throw new AppError(409, 'DONE', 'This meal is already done');
     const rows = (await ingredientRows(tx, 'meal_ingredients', [id])).get(id) ?? [];
+    const stock = await stockSnapshot(tx);
     for (const row of rows) {
       if (!row.product_id || row.amount === null) continue;
       const product = await findProduct(tx, row.product_id);
       if (product.trackMode !== 'exact') continue;
+      // Not enough of it: the first alternative there is enough of (milk, or whipped cream).
+      const need = neededBase(row, product);
+      const main = stock.get(product.id);
+      if (need !== null && main && stockFor(main, row.variant) + 1e-9 < need) {
+        const alt = coveringAlternative(row, stock, (productId, amount, variant) => stockFor(stock.get(productId)!, variant) + 1e-9 >= amount);
+        if (alt) {
+          const altProduct = stock.get(alt.productId)!.product;
+          const result = await useStock(tx, { productId: alt.productId, quantity: alt.need, unit: altProduct.unit, variant: alt.variant, mealId: id });
+          for (const lot of result.lots) {
+            if (lot.opened) opened.push({ productId: alt.productId, lotId: lot.lotId, name: altProduct.name, left: lot.left, unit: altProduct.unit, expiresOn: lot.expiresOn, location: lot.location });
+          }
+          continue;
+        }
+      }
       const result = await useStock(tx, {
         productId: product.id,
         quantity: row.amount,
