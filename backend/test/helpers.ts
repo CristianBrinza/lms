@@ -84,6 +84,7 @@ export function setupTestApp(overrides: Record<string, string> = {}) {
       get: (path: string, headers?: Record<string, string>) => request('GET', path, undefined, headers),
       post: (path: string, body?: unknown, headers?: Record<string, string>) => request('POST', path, body, headers),
       patch: (path: string, body?: unknown) => request('PATCH', path, body),
+      put: (path: string, body?: unknown) => request('PUT', path, body),
       delete: (path: string) => request('DELETE', path),
       login: (email: string, password = PASSWORD, remember = true) => request('POST', '/api/auth/login', { email, password, remember }),
     };

@@ -69,7 +69,19 @@ export interface Preset {
   /** One piece, in grams or millilitres (pieceUnit, default g). */
   pieceSize?: number;
   pieceUnit?: 'g' | 'ml';
+  /** Days it keeps once opened. */
+  openedDays?: number;
+  /** False: always there, not counted (salt). */
+  trackStock?: boolean;
 }
+
+/** Days once opened, for the presets where it matters. */
+const OPENED: Record<string, number> = {
+  Milk: 5, Cream: 4, Kefir: 4, 'Sour cream': 7, Juice: 5, Soda: 3, Wine: 5, Yogurt: 2, 'Cottage cheese': 3, Mozzarella: 3,
+  'Canned beans': 3, 'Canned tomatoes': 4, 'Tuna (canned)': 2, 'Tomato paste': 7, Mayonnaise: 30, Ketchup: 60, Mustard: 60,
+  Ham: 4, Bacon: 5, Sausages: 5, Cheese: 14, Feta: 7, Jam: 30,
+};
+const UNTRACKED = new Set(['Salt', 'Black pepper']);
 
 const P = (
   name: string,
@@ -91,7 +103,7 @@ const P = (
   ...(aliases ? { aliases } : {}),
 });
 
-export const PRESETS: readonly Preset[] = [
+const RAW_PRESETS: readonly Preset[] = [
   // Produce
   P('Tomatoes', 'tomato', 'produce', 'pcs', 'fridge', 7, 120, ['roșii', 'rosii', 'помидоры']),
   P('Cherry tomatoes', 'tomato', 'produce', 'g', 'fridge', 7),
@@ -208,6 +220,12 @@ export const PRESETS: readonly Preset[] = [
   P('Laundry detergent', 'detergent', 'household', 'ml', 'other'),
   P('Trash bags', 'box', 'household', 'pcs', 'other', undefined, undefined, ['saci de gunoi', 'мешки для мусора']),
 ];
+
+export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
+  ...preset,
+  ...(OPENED[preset.name] ? { openedDays: OPENED[preset.name] } : {}),
+  ...(UNTRACKED.has(preset.name) ? { trackStock: false } : {}),
+}));
 
 /** Lowercase, no diacritics, single spaces. */
 export function normalizeName(value: string): string {

@@ -167,17 +167,35 @@ export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: s
       const taken = round(Math.min(lot.quantity, remaining));
       if (taken <= 0) continue;
       const left = round(lot.quantity - taken);
-      await tx.db.query('UPDATE stock_lots SET quantity = $2, finished_at = $3, opened_at = COALESCE(opened_at, $4) WHERE id = $1', [
-        lot.id,
-        left,
-        left === 0 ? tx.now : null,
-        left === 0 ? null : tx.now,
-      ]);
+      // A lot that is started is opened; opening shortens its expiry to the product's "once opened" days.
+      await tx.db.query(
+        `UPDATE stock_lots SET quantity = $2, finished_at = $3, opened_at = COALESCE(opened_at, $4),
+                expires_on = CASE WHEN opened_at IS NULL AND $5::date IS NOT NULL THEN LEAST(COALESCE(expires_on, $5::date), $5::date) ELSE expires_on END
+          WHERE id = $1`,
+        [lot.id, left, left === 0 ? tx.now : null, left === 0 ? null : tx.now, left > 0 && product.openedDays ? localDate(tx.now, product.openedDays) : null],
+      );
       await recordEvent(tx, { productId: product.id, lotId: lot.id, kind: input.wasted ? 'wasted' : 'used', delta: -taken, mealId: input.mealId, note: input.note });
       touched.push({ lotId: lot.id, taken, left });
       remaining = round(remaining - taken);
     }
     return { productId: product.id, used: round(wanted - remaining), shortfall: remaining, lots: touched };
+  });
+}
+
+/**
+ * Puts taken stock back into the lots it came from: the undo for a use, and for a cooked meal
+ * reopened. Each lot gets back at most what it started with.
+ */
+export async function restoreStock(ctx: FoodCtx, lots: Array<{ lotId: string; quantity: number }>, options: { mealId?: string | null; note?: string } = {}): Promise<void> {
+  await ctx.tx(async (tx) => {
+    for (const { lotId, quantity } of lots) {
+      if (quantity <= 0) continue;
+      const lot = await findLot(tx, lotId, true);
+      const back = round(Math.min(quantity, lot.initial_quantity - lot.quantity));
+      if (back <= 0) continue;
+      await tx.db.query('UPDATE stock_lots SET quantity = quantity + $2, finished_at = NULL WHERE id = $1', [lotId, back]);
+      await recordEvent(tx, { productId: lot.product_id, lotId, kind: 'restored', delta: back, mealId: options.mealId, note: options.note ?? 'Undone' });
+    }
   });
 }
 
@@ -203,7 +221,15 @@ export async function updateLot(ctx: FoodCtx, id: string, patch: LotPatch): Prom
       await recordEvent(tx, { productId: product.id, lotId: id, kind: 'moved', delta: 0, note: `${lot.location} → ${patch.location}` });
     }
     if (patch.expiresOn !== undefined) await tx.db.query('UPDATE stock_lots SET expires_on = $2 WHERE id = $1', [id, patch.expiresOn]);
-    if (patch.opened !== undefined) await tx.db.query('UPDATE stock_lots SET opened_at = $2 WHERE id = $1', [id, patch.opened ? (lot.opened_at ?? tx.now) : null]);
+    if (patch.opened !== undefined) {
+      const shorten = patch.opened && !lot.opened_at && product.openedDays && patch.expiresOn === undefined ? localDate(tx.now, product.openedDays) : null;
+      await tx.db.query(
+        `UPDATE stock_lots SET opened_at = $2,
+                expires_on = CASE WHEN $3::date IS NOT NULL THEN LEAST(COALESCE(expires_on, $3::date), $3::date) ELSE expires_on END
+          WHERE id = $1`,
+        [id, patch.opened ? (lot.opened_at ?? tx.now) : null, shorten],
+      );
+    }
     if (patch.price !== undefined) await tx.db.query('UPDATE stock_lots SET price = $2 WHERE id = $1', [id, patch.price]);
     if (patch.note !== undefined && patch.quantity === undefined) await tx.db.query('UPDATE stock_lots SET note = $2 WHERE id = $1', [id, patch.note]);
     return toLot(await findLot(tx, id));

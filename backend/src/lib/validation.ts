@@ -22,6 +22,17 @@ export async function readJson<T extends z.ZodType>(c: Context, schema: T): Prom
   return result.data;
 }
 
+/** Parses query parameters with a zod schema; 400 with per-field messages when they don't fit. */
+export function readQuery<T extends z.ZodType>(c: Context, schema: T): z.infer<T> {
+  const result = schema.safeParse(c.req.query());
+  if (!result.success) {
+    const fields: Record<string, string> = {};
+    for (const issue of result.error.issues) fields[issue.path.join('.') || 'query'] ??= issue.message;
+    throw new AppError(400, 'VALIDATION', 'Some fields need attention', { fields });
+  }
+  return result.data;
+}
+
 export const emailField = z
   .string()
   .trim()

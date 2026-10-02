@@ -1,0 +1,67 @@
+import type { FoodCtx } from './kitchen';
+import { listMeals, type Meal } from './meals';
+import type { FoodIcon } from './presets';
+import { listRecipes } from './recipes';
+import { listShopping } from './shopping';
+import { kitchen, localDate } from './stock';
+import { listStores } from './stores';
+import type { BaseUnit } from './units';
+
+/** The Food home in one request: what to use soon, what ran low, the lists, and today's meals. */
+
+export interface FoodOverview {
+  kitchen: { name: string; currency: string };
+  stock: {
+    products: number;
+    expiring: Array<{ lotId: string; productId: string; name: string; icon: FoodIcon; quantity: number; unit: BaseUnit; expiresOn: string }>;
+    expired: number;
+    low: Array<{ productId: string; name: string; icon: FoodIcon; total: number; minStock: number; unit: BaseUnit }>;
+  };
+  recipes: { total: number; ready: number; favorites: number };
+  shopping: { open: number; inCart: number; stores: Array<{ id: string; name: string; tone: string; open: number }>; anyStore: number };
+  meals: { today: Meal[]; upcoming: Meal[]; plannedThisWeek: number };
+}
+
+export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promise<FoodOverview> {
+  const day = new Date(`${today}T12:00:00`);
+  const soon = localDate(day, 3);
+  const weekEnd = localDate(day, 6);
+  const [{ rows: kitchenRow }, products, recipes, items, stores, meals] = await Promise.all([
+    ctx.db.query<{ name: string; currency: string }>('SELECT name, currency FROM households WHERE id = $1', [ctx.actor.householdId]),
+    kitchen(ctx),
+    listRecipes(ctx),
+    listShopping(ctx),
+    listStores(ctx),
+    listMeals(ctx, today, weekEnd),
+  ]);
+
+  const expiring = products
+    .flatMap((product) =>
+      product.lots
+        .filter((lot) => lot.expiresOn && lot.expiresOn <= soon)
+        .map((lot) => ({ lotId: lot.id, productId: product.id, name: product.name, icon: product.icon, quantity: lot.quantity, unit: product.unit, expiresOn: lot.expiresOn! })),
+    )
+    .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn));
+
+  return {
+    kitchen: kitchenRow[0] ?? { name: 'Kitchen', currency: 'MDL' },
+    stock: {
+      products: products.filter((p) => p.total > 0).length,
+      expiring: expiring.slice(0, 12),
+      expired: expiring.filter((lot) => lot.expiresOn < today).length,
+      low: products.filter((p) => p.low).map((p) => ({ productId: p.id, name: p.name, icon: p.icon, total: p.total, minStock: p.minStock!, unit: p.unit })),
+    },
+    recipes: { total: recipes.length, ready: recipes.filter((r) => r.availability.ready).length, favorites: recipes.filter((r) => r.favorite).length },
+    shopping: {
+      open: items.filter((i) => !i.checked).length,
+      inCart: items.filter((i) => i.checked).length,
+      stores: stores.map((s) => ({ id: s.id, name: s.name, tone: s.tone, open: s.open })),
+      anyStore: items.filter((i) => !i.storeId && !i.checked).length,
+    },
+    meals: {
+      today: meals.filter((m) => m.date === today),
+      upcoming: meals.filter((m) => m.date > today && m.status === 'planned').slice(0, 5),
+      plannedThisWeek: meals.filter((m) => m.status === 'planned').length,
+    },
+  };
+}

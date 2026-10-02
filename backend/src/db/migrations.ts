@@ -261,6 +261,14 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE INDEX api_tokens_user_idx ON api_tokens (user_id) WHERE revoked_at IS NULL;
     `,
   },
+  {
+    version: 3,
+    name: 'food: shelf life once opened; staples that are not tracked',
+    sql: `
+      ALTER TABLE products ADD COLUMN opened_days integer CHECK (opened_days > 0);
+      ALTER TABLE products ADD COLUMN track_stock boolean NOT NULL DEFAULT true;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

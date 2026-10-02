@@ -14,6 +14,10 @@ export interface Product extends Measured {
   category: Category;
   location: Location;
   shelfLifeDays: number | null;
+  /** Days it keeps once opened (milk: 5); opening shortens its expiry to this. */
+  openedDays: number | null;
+  /** False for staples that are simply always there (salt): never deducted or put on a list. */
+  trackStock: boolean;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -32,6 +36,8 @@ export interface ProductRow {
   piece_unit: 'g' | 'ml' | null;
   location: Location;
   shelf_life_days: number | null;
+  opened_days: number | null;
+  track_stock: boolean;
   min_stock: number | null;
   store_id: string | null;
   note: string;
@@ -41,7 +47,7 @@ export interface ProductRow {
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, archived_at, created_at, updated_at';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, track_stock, min_stock, store_id, note, archived_at, created_at, updated_at';
 
 export const productColumns = (alias: string) =>
   PRODUCT_COLUMNS.split(', ')
@@ -59,6 +65,8 @@ export function toProduct(row: ProductRow): Product {
     pieceUnit: row.piece_unit,
     location: row.location,
     shelfLifeDays: row.shelf_life_days,
+    openedDays: row.opened_days,
+    trackStock: row.track_stock,
     minStock: row.min_stock,
     storeId: row.store_id,
     note: row.note,
@@ -122,8 +130,8 @@ function baseFor(unit: Unit | undefined): BaseUnit {
 async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUnit }): Promise<Product> {
   const preset = findPreset(input.name);
   const { rows } = await ctx.db.query<ProductRow>(
-    `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
+    `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at, opened_days, track_stock)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17)
      RETURNING ${PRODUCT_COLUMNS}`,
     [
       randomUUID(),
@@ -141,6 +149,8 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
       input.note ?? '',
       ctx.actor.userId,
       ctx.now,
+      input.openedDays === undefined ? (preset?.openedDays ?? null) : input.openedDays,
+      input.trackStock ?? preset?.trackStock ?? true,
     ],
   );
   return toProduct(rows[0]!);
@@ -205,6 +215,8 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
     piece_unit: patch.pieceUnit,
     location: patch.location,
     shelf_life_days: patch.shelfLifeDays,
+    opened_days: patch.openedDays,
+    track_stock: patch.trackStock,
     min_stock: patch.minStock,
     store_id: patch.storeId,
     note: patch.note,
