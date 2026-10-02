@@ -163,4 +163,14 @@ describe('food: drinks, jars and types', () => {
     expect(after.openedLocation).toBe('fridge');
     expect((await b.post('/api/food/products/refresh')).body.changed).toBe(0);
   });
+
+  it('brings an existing kitchen up to a newer catalog by itself, once', async () => {
+    const b = await cook();
+    const honey = (await b.post('/api/food/products', { name: 'Honey', units: [] })).body.product;
+    await t.db.query('UPDATE households SET catalog_version = 0');
+    const after = (await b.get('/api/food/products')).body.products.find((p: any) => p.id === honey.id);
+    expect(after.units[0]).toMatchObject({ name: 'jar', size: 400 });
+    const { rows } = await t.db.query<{ catalog_version: number }>('SELECT catalog_version FROM households');
+    expect(rows[0]!.catalog_version).toBeGreaterThan(0);
+  });
 });

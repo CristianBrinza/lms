@@ -62,7 +62,8 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
   const opened = products
     .flatMap((product) =>
       product.lots
-        .filter((lot) => lot.openedAt && lot.quantity > 0 && product.trackMode === 'exact')
+        // Packages, or things that keep less once opened: a started tomato or steak isn't "opened".
+        .filter((lot) => lot.openedAt && lot.quantity > 0 && product.trackMode === 'exact' && (lot.package || product.openedDays))
         .map((lot) => ({
           lotId: lot.id,
           productId: product.id,

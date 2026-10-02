@@ -154,7 +154,11 @@ export function expiry(expiresOn: string | null, today = localDate()): { tone: E
   if (days === 1) return { tone: 'soon', label: 'Tomorrow', days };
   if (days <= 3) return { tone: 'soon', label: `${days} days`, days };
   if (days <= 14) return { tone: 'later', label: `${days} days`, days };
-  return { tone: 'later', label: dayAndMonth(expiresOn), days };
+  if (days <= 120) return { tone: 'later', label: dayAndMonth(expiresOn), days };
+  // Far off: months or years, never a bare date that reads like this year's.
+  if (days < 365) return { tone: 'later', label: `${Math.round(days / 30)} months`, days };
+  const years = Math.floor(days / 365);
+  return { tone: 'later', label: years === 1 ? '1 year' : `${years} years`, days };
 }
 
 // ---------------------------------------------------------------- money and words

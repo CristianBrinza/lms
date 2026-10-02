@@ -304,8 +304,8 @@ export async function rememberVariant(ctx: FoodCtx, product: Product, variant: s
 
 /**
  * Brings the catalog's newer knowledge to items already in the kitchen: its package units (when the
- * item has none and counts the same way), its types (added to the item's own) and where it goes
- * once opened. Never changes how an item is counted. Returns how many items changed.
+ * item has none and counts the same way), its types (added to the item's own), how long it keeps
+ * and where it goes once opened. Never changes how an item is counted. Returns how many items changed.
  */
 export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
   const { rows } = await ctx.db.query<ProductRow>(`SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`, [ctx.actor.householdId]);
@@ -319,10 +319,12 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
     const known = new Set(product.variants.map((v) => normalizeName(v)));
     const variants = (preset.variants ?? []).filter((v) => !known.has(normalizeName(v)));
     const openedLocation = !product.openedLocation && preset.openedLocation ? preset.openedLocation : null;
-    if (!units && !variants.length && !openedLocation) continue;
+    const openedDays = product.openedDays === null && preset.openedDays ? preset.openedDays : null;
+    if (!units && !variants.length && !openedLocation && !openedDays) continue;
     await ctx.db.query(
-      `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location), updated_at = $5 WHERE id = $1`,
-      [product.id, units ? JSON.stringify(units) : null, variants, openedLocation, ctx.now],
+      `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location),
+              opened_days = coalesce($6, opened_days), updated_at = $5 WHERE id = $1`,
+      [product.id, units ? JSON.stringify(units) : null, variants, openedLocation, ctx.now, openedDays],
     );
     changed += 1;
   }

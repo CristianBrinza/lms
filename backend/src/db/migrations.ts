@@ -472,6 +472,11 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE meal_ingredients ADD COLUMN alternatives jsonb NOT NULL DEFAULT '[]'::jsonb;
     `,
   },
+  {
+    version: 14,
+    name: 'food: which catalog a kitchen has been brought up to',
+    sql: `ALTER TABLE households ADD COLUMN catalog_version integer NOT NULL DEFAULT 0;`,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

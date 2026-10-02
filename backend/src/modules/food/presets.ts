@@ -538,8 +538,11 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
 /** Drawings of things that, once opened, belong in the fridge. */
 const FRIDGE_ONCE_OPEN = new Set<string>(['can', 'can-fish', 'can-tomato', 'can-corn', 'can-beans', 'can-peas', 'can-fruit', 'can-meat', 'can-mushroom', 'pate', 'pickles', 'jar-spread', 'jar', 'juice', 'juice-box']);
 
-/** Days a package keeps once opened, by kind, for items that don't say. */
-export const OPENED_BY_CATEGORY: Partial<Record<Category, number>> = { dairy: 5, meat: 3, fish: 2, drinks: 5, pantry: 5, snacks: 7, bakery: 4, meals: 3, produce: 4 };
+/**
+ * Days a package keeps once opened, by kind, for items that don't say. Not for the pantry: an
+ * opened bag of rice or bottle of oil keeps for months (cans and jars carry their own days).
+ */
+export const OPENED_BY_CATEGORY: Partial<Record<Category, number>> = { dairy: 5, meat: 3, fish: 2, drinks: 5, snacks: 14, bakery: 4, meals: 3, produce: 4 };
 
 export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
   ...preset,
@@ -641,3 +644,9 @@ export function guessPreset(name: string): Preset | null {
 export function presetOrGuess(name: string): Preset | null {
   return findPreset(name) ?? guessPreset(name);
 }
+
+/**
+ * Bump when the catalog learns something existing kitchens should get (package units, types,
+ * keeping times): each kitchen is brought up to it once, on its next request.
+ */
+export const CATALOG_VERSION = 1;
