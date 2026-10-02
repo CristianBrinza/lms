@@ -177,7 +177,7 @@ export const foodApi = {
   createRecipe: (body: RecipeInput) => api.post<{ recipe: Recipe }>('/food/recipes', body).then((r) => r.recipe),
   updateRecipe: (id: string, body: Partial<RecipeInput>) => api.patch<{ recipe: Recipe }>(`/food/recipes/${id}`, body).then((r) => r.recipe),
   deleteRecipe: (id: string) => api.delete<void>(`/food/recipes/${id}`),
-  cook: (id: string, body: { servings?: number; leftovers?: { portions: number } }) =>
+  cook: (id: string, body: { servings?: number; leftovers?: { portions: number }; choices?: Record<string, number> }) =>
     api.post<{ meal: Meal; shortfalls: Shortfall[]; opened: Opened[] }>(`/food/recipes/${id}/cook`, body),
 
   meals: (from: string, to: string) => api.get<{ meals: Meal[] }>(`/food/meals${query({ from, to })}`).then((r) => r.meals),
@@ -187,6 +187,8 @@ export const foodApi = {
   setMealIngredients: (id: string, ingredients: IngredientInput[]) => api.put<{ meal: Meal }>(`/food/meals/${id}/ingredients`, { ingredients }).then((r) => r.meal),
   completeMeal: (id: string, body: { leftovers?: { portions: number } }) =>
     api.post<{ meal: Meal; shortfalls: Shortfall[]; opened: Opened[] }>(`/food/meals/${id}/done`, body),
+  setChoice: (mealId: string, lineId: string, choice: number | null) =>
+    api.put<{ meal: Meal }>(`/food/meals/${mealId}/ingredients/${lineId}/choice`, { choice }).then((r) => r.meal),
   addPart: (mealId: string, body: MealPartInput) => api.post<{ meal: Meal }>(`/food/meals/${mealId}/parts`, body).then((r) => r.meal),
   updatePart: (mealId: string, partId: string, body: { title?: string; kind?: PartKind; servings?: number }) =>
     api.patch<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}`, body).then((r) => r.meal),

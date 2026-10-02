@@ -413,10 +413,25 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
       if (!row.product_id || row.amount === null) continue;
       const product = await findProduct(tx, row.product_id);
       if (product.trackMode !== 'exact') continue;
-      // Not enough of it: the first alternative there is enough of (milk, or whipped cream).
+      // The option picked for this meal; not picked and not enough of it: the first alternative
+      // there is enough of (milk, or whipped cream).
       const need = neededBase(row, product);
       const main = stock.get(product.id);
-      if (need !== null && main && stockFor(main, row.variant) + 1e-9 < need) {
+      const picked = row.choice ? (row.alternatives ?? [])[row.choice - 1] : undefined;
+      const pickedInfo = picked?.product_id ? stock.get(picked.product_id) : undefined;
+      if (picked && pickedInfo && pickedInfo.product.trackMode === 'exact') {
+        const pickedNeed = neededBase(picked.amount === null ? row : picked, pickedInfo.product);
+        if (pickedNeed !== null) {
+          const result = await useStock(tx, { productId: pickedInfo.product.id, quantity: pickedNeed, unit: pickedInfo.product.unit, variant: picked.variant || undefined, mealId: id });
+          if (result.shortfall > 0 && !row.optional) shortfalls.push({ name: pickedInfo.product.name, missing: result.shortfall, unit: pickedInfo.product.unit });
+          for (const lot of result.lots) {
+            if (lot.opened) opened.push({ productId: pickedInfo.product.id, lotId: lot.lotId, name: pickedInfo.product.name, left: lot.left, unit: pickedInfo.product.unit, expiresOn: lot.expiresOn, location: lot.location });
+          }
+          continue;
+        }
+      }
+      const automatic = row.choice === null || row.choice === undefined;
+      if (automatic && need !== null && main && stockFor(main, row.variant) + 1e-9 < need) {
         const alt = coveringAlternative(row, stock, (productId, amount, variant) => stockFor(stock.get(productId)!, variant) + 1e-9 >= amount);
         if (alt) {
           const altProduct = stock.get(alt.productId)!.product;
@@ -500,13 +515,44 @@ export async function deleteMeal(ctx: FoodCtx, id: string): Promise<void> {
 }
 
 /** "Cook now" from a recipe: a meal for today, at this time, marked done at once. */
-export async function cookRecipe(ctx: FoodCtx, recipeId: string, input: { servings?: number; leftovers?: CompleteMealInput['leftovers'] }) {
+export async function cookRecipe(
+  ctx: FoodCtx,
+  recipeId: string,
+  input: { servings?: number; leftovers?: CompleteMealInput['leftovers']; choices?: Record<string, number> },
+) {
   const time = `${String(ctx.now.getHours()).padStart(2, '0')}:${String(ctx.now.getMinutes()).padStart(2, '0')}`;
   // One transaction: a failed cook leaves no stray planned meal behind.
   return ctx.tx(async (tx) => {
-    const meal = await planMeal(tx, { date: localDate(tx.now), time, recipeId, servings: input.servings });
-    return completeMeal(tx, meal.id, { leftovers: input.leftovers });
+    const planned = await planMeal(tx, { date: localDate(tx.now), time, recipeId, servings: input.servings });
+    if (input.choices && Object.keys(input.choices).length) {
+      // Milk or whipped cream, as picked: by the ingredient's place in the recipe.
+      for (const [position, choice] of Object.entries(input.choices)) {
+        await tx.db.query('UPDATE meal_ingredients SET choice = $3 WHERE meal_id = $1 AND sort = $2 AND jsonb_array_length(alternatives) >= $3', [planned.id, Number(position), choice]);
+      }
+      // What was picked must be there: cooking with whipped cream there isn't is refused, not half-done.
+      const meal = await getMeal(tx, planned.id);
+      const short = meal.ingredients.filter((line) => line.choice !== null && line.enough === false && !line.optional);
+      if (short.length) {
+        const names = short.map((line) => (line.using ? line.using.name : line.name)).join(', ');
+        throw new AppError(409, 'NOT_ENOUGH', `Not enough ${names.toLowerCase()} for what you picked`, { fields: { choices: names } });
+      }
+    }
+    return completeMeal(tx, planned.id, { leftovers: input.leftovers });
   });
+}
+
+/** Picks which option a planned meal's line takes (0 the main item, 1… an alternative), or back to automatic. */
+export async function setLineChoice(ctx: FoodCtx, mealId: string, lineId: string, choice: number | null): Promise<Meal> {
+  await ctx.tx(async (tx) => {
+    const meal = await findMealRow(tx, mealId, true);
+    if (meal.status === 'done') throw new AppError(409, 'DONE', 'This meal is done; reopen it to change it');
+    if (!isUuid(lineId)) throw new AppError(404, 'NOT_FOUND', 'That line is not in this meal');
+    const { rows } = await tx.db.query<{ options: number }>('SELECT jsonb_array_length(alternatives) AS options FROM meal_ingredients WHERE id = $1 AND meal_id = $2', [lineId, mealId]);
+    if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'That line is not in this meal');
+    if (choice !== null && choice > rows[0].options) throw new AppError(400, 'VALIDATION', 'That line has no such option', { fields: { choice: 'No such option' } });
+    await tx.db.query('UPDATE meal_ingredients SET choice = $3 WHERE id = $1 AND meal_id = $2', [lineId, mealId, choice]);
+  });
+  return getMeal(ctx, mealId);
 }
 
 /** The undo for "Cook now": everything goes back into the kitchen and the meal is gone. */

@@ -20,8 +20,8 @@ export interface LineAllocation {
   short: number;
   /** The earlier meal that took what this one would have used. */
   takenBy: PlannedMealRef | null;
-  /** Covered by this alternative instead of the main item (its product id). */
-  using?: string;
+  /** Covered by this option: 0 (or absent) the main item, 1… an alternative. */
+  option?: number;
   /** Short because what there is goes off before the meal's day (not because it was taken). */
   spoils?: boolean;
 }
@@ -97,13 +97,35 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
       if (!info || info.product.trackMode !== 'exact' || row.optional) continue;
       const need = wanted(row, info);
       if (need === null) continue;
-      // The main item when there is enough of it; else the first alternative that covers it all.
-      if (take(info.product.id, need, meal.date, row.variant, row.lot_id, true) + 1e-9 < need) {
+      // Picked for this meal: that option, enough or not.
+      const choice = row.choice ?? null;
+      if (choice !== null && choice > 0) {
+        const alt = row.alternatives?.[choice - 1];
+        const altInfo = alt?.product_id ? stock.get(alt.product_id) : undefined;
+        const altNeed = alt && altInfo && altInfo.product.trackMode === 'exact' ? neededBase(alt.amount === null ? row : alt, altInfo.product) : null;
+        if (alt && altInfo && altNeed !== null) {
+          const got = take(altInfo.product.id, altNeed, meal.date, alt.variant || undefined, null, false);
+          const short = round(altNeed - got);
+          claim(altInfo.product.id, got, ref);
+          result.lines.set(row.id, { allocated: got, short, takenBy: short > 0 ? (lastTaker.get(altInfo.product.id) ?? null) : null, option: choice });
+          if (short > 0) {
+            const shortage = result.shortages.get(altInfo.product.id);
+            result.shortages.set(altInfo.product.id, {
+              short: round((shortage?.short ?? 0) + short),
+              needBy: shortage?.needBy ?? meal.date,
+              meals: shortage?.meals.some((m) => m.id === meal.id) ? shortage.meals : [...(shortage?.meals ?? []), ref],
+            });
+          }
+        }
+        continue;
+      }
+      // Not picked: the main item when there is enough of it; else the first alternative that covers it all.
+      if (choice === null && take(info.product.id, need, meal.date, row.variant, row.lot_id, true) + 1e-9 < need) {
         const alt = coveringAlternative(row, stock, (id, amount, variant) => take(id, amount, meal.date, variant, null, true) + 1e-9 >= amount);
         if (alt) {
           take(alt.productId, alt.need, meal.date, alt.variant, null, false);
           claim(alt.productId, alt.need, ref);
-          result.lines.set(row.id, { allocated: need, short: 0, takenBy: null, using: alt.productId });
+          result.lines.set(row.id, { allocated: need, short: 0, takenBy: null, option: (row.alternatives ?? []).indexOf(alt.alt) + 1 });
           continue;
         }
       }

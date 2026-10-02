@@ -30,7 +30,7 @@ How it works
 - Packages: a jar, bottle, loaf or can says what it holds. add_stock with packages: [{ count, size, sizeUnit }] makes one lot per size (one 1 l bottle and two of 0.5 l; ice cubes in a pack of 3 and one of 4). Bread counts in slices, a loaf being its package.
 - Shopping lines ask for at least an amount. When ticking, record what was really bought (bought: packages); checkout keeps the rest on the list when less was bought.
 - An ingredient can ask for one type (variant "Finlandia"), and only that type counts; otherwise any type does.
-- An ingredient can have alternatives (or: [{ name: "Whipped cream" }]): used, in order, when there isn't enough of the main one. Lines show which one will be used (using).
+- An ingredient can have alternatives (or: [{ name: "Whipped cream" }]). Each line shows every option and whether there is enough (alternatives[].enough, mainEnough). A planned meal can pick one (pick_option); unpicked, the first there is enough of is used. cook_recipe takes choices by ingredient position and refuses when a picked option isn't there.
 - Weighed and poured things convert at about 1 g per ml (300 g of milk ≈ 300 ml) for dairy, drinks, sauces and pantry; spoons and cups work for anything weighed.
 - Real portions: coffee is weighed (about 10 g a cup; 20 g of beans and 300 g of milk make two lattes); a recipe for drinks is a recipe like any other (tags: drink).
 - pour moves some of one lot into another (the big oil bottle into the small one on the desk).

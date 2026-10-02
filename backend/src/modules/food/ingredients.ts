@@ -25,7 +25,26 @@ export interface IngredientLine {
   /** Only this type will do (Finlandia); '' for any. */
   variant: string;
   /** Or one of these instead, in order. */
-  alternatives: Array<{ productId: string | null; name: string; icon: FoodIcon; amount: number | null; unit: string | null; variant: string; enough: boolean | null }>;
+  alternatives: Array<{
+    productId: string | null;
+    name: string;
+    icon: FoodIcon;
+    amount: number | null;
+    unit: string | null;
+    variant: string;
+    enough: boolean | null;
+    /** How much of it is missing, in its own base unit. */
+    missing: number;
+    inStock: number | null;
+    baseUnit: BaseUnit | null;
+  }>;
+  /** Enough of the main item itself (whatever is chosen), and how much of it is missing. */
+  mainEnough: boolean | null;
+  mainMissing: number;
+  /** Which option was chosen for this meal: 0 the main item, 1… an alternative; null: the first there is. */
+  choice: number | null;
+  /** The option that will be used: the chosen one, else the first with enough. */
+  chosen: number;
   /** Short because what there is goes off before the meal (planned meals). */
   spoilsBefore: boolean;
   /** Covered by one of the alternatives rather than the main item (null: the main item, or nothing). */
@@ -78,6 +97,8 @@ export interface IngredientRow {
   variant?: string;
   /** Or one of these instead, in order (an amount of null: the same as the main one). */
   alternatives?: Alternative[];
+  /** Planned meals: which option was picked (0 the main item, 1… an alternative); null: automatic. */
+  choice?: number | null;
   amount: number | null;
   unit: string | null;
   note: string;
@@ -173,15 +194,24 @@ export function describeLines(
       missing = planned.short;
       reservedFor = planned.short > 0 ? planned.takenBy : null;
     }
-    // Not enough of it: one of the alternatives will do (milk, or whipped cream).
-    const alternatives = (row.alternatives ?? []).map((alt) => {
+    // The other options (milk, or whipped cream), each with whether there is enough of it.
+    const mainEnough = enough;
+    const mainMissing = missing;
+    const alternatives = (row.alternatives ?? []).map((alt, index) => {
       const altInfo = alt.product_id ? stock.get(alt.product_id) : undefined;
       const altMode = altInfo?.product.trackMode ?? 'none';
-      const altNeeded = altInfo && altMode === 'exact' ? neededBase(alt.amount === null ? row : alt, altInfo.product, alt.amount === null ? scale : scale) : null;
+      const altNeeded = altInfo && altMode === 'exact' ? neededBase(alt.amount === null ? row : alt, altInfo.product, scale) : null;
       const altClaimed = altMode === 'exact' && altInfo ? (options.reserved?.get(altInfo.product.id)?.amount ?? 0) : 0;
-      const altFree = altInfo ? Math.max(0, round(stockFor(altInfo, alt.variant) - altClaimed)) : 0;
-      const altEnough =
+      const altTotal = altInfo ? stockFor(altInfo, alt.variant) : 0;
+      const altFree = Math.max(0, round(altTotal - altClaimed));
+      let altEnough =
         altMode === 'level' ? altInfo!.product.level !== 'out' : altMode === 'exact' ? (altNeeded === null ? altFree > 0 : altFree + 1e-9 >= altNeeded) : null;
+      let altMissing = altMode === 'exact' && !altEnough && altNeeded !== null ? round(altNeeded - altFree) : 0;
+      // A planned meal that uses this one: the plan says how it is covered.
+      if (planned && planned.option === index + 1) {
+        altEnough = planned.short <= 0;
+        altMissing = planned.short;
+      }
       return {
         productId: alt.product_id,
         name: alt.name,
@@ -190,15 +220,21 @@ export function describeLines(
         unit: alt.unit,
         variant: alt.variant,
         enough: altEnough,
+        missing: altMissing,
+        inStock: altMode === 'exact' ? altTotal : null,
+        baseUnit: altInfo?.product.unit ?? null,
       };
     });
+    // Chosen for this meal, or how the plan covered it, or the first option there is enough of.
+    const choice = row.choice !== undefined && row.choice !== null && row.choice <= alternatives.length ? row.choice : null;
+    const auto = mainEnough === false ? alternatives.findIndex((alt) => alt.enough) + 1 : 0;
+    const chosen = choice ?? (planned ? (planned.option ?? 0) : auto);
     let using: IngredientLine['using'] = null;
-    const plannedAlt = planned?.using ? alternatives.find((alt) => alt.productId === planned.using) : undefined;
-    const pick = planned ? plannedAlt : enough === false ? alternatives.find((alt) => alt.enough) : undefined;
+    const pick = chosen > 0 ? alternatives[chosen - 1] : undefined;
     if (pick?.productId) {
       using = { productId: pick.productId, name: pick.name, icon: pick.icon };
-      enough = true;
-      missing = 0;
+      enough = pick.enough;
+      missing = pick.missing;
       reservedFor = null;
     }
     const expiresSoon = Boolean(info?.nextExpiry && info.nextExpiry <= soon && total > 0);
@@ -209,6 +245,10 @@ export function describeLines(
       partId: row.part_id ?? null,
       variant: row.variant ?? '',
       alternatives,
+      mainEnough,
+      mainMissing,
+      choice,
+      chosen,
       using,
       spoilsBefore: Boolean(planned?.spoils && !using),
       name: row.name,
@@ -231,6 +271,7 @@ export function describeLines(
     if (!counted || row.optional) continue;
     availability.total += 1;
     if (enough) availability.have += 1;
+    else if (pick?.productId) availability.missing.push({ productId: pick.productId, name: pick.name, missing, unit: pick.baseUnit ?? info!.product.unit });
     else availability.missing.push({ productId: row.product_id!, name: row.name, missing, unit: info!.product.unit });
   }
   availability.ready = availability.have === availability.total;
@@ -275,7 +316,8 @@ export async function resolveIngredients(ctx: FoodCtx, inputs: Array<IngredientI
       const altUnit = alt.amount ? (alt.unit ?? named.product.unit) : null;
       alternatives.push({ product_id: named.product.id, name: alt.name, amount: alt.amount ?? null, unit: altUnit, variant: alt.variant || named.variant });
     }
-    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, variant, alternatives, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
+    const choice = 'choice' in input && input.choice !== undefined && input.choice !== null && input.choice <= alternatives.length ? input.choice : null;
+    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, variant, alternatives, choice, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
   }
   return out;
 }
@@ -315,8 +357,8 @@ export async function appendIngredientRows(
       ]);
     } else {
       await ctx.db.query(
-        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant, alternatives)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant, alternatives, choice)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           randomUUID(),
           ownerId,
@@ -331,6 +373,7 @@ export async function appendIngredientRows(
           row.part_id ?? null,
           row.variant ?? '',
           JSON.stringify(row.alternatives ?? []),
+          row.choice ?? null,
         ],
       );
     }
@@ -341,7 +384,7 @@ export async function ingredientRows(ctx: FoodCtx, table: 'recipe_ingredients' |
   const map = new Map<string, IngredientRow[]>();
   if (!ownerIds.length) return map;
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
-  const lot = table === 'meal_ingredients' ? ', lot_id, part_id' : '';
+  const lot = table === 'meal_ingredients' ? ', lot_id, part_id, choice' : '';
   const { rows } = await ctx.db.query<IngredientRow>(
     `SELECT id, ${owner} AS owner_id, product_id${lot}, name, variant, alternatives, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
     [ownerIds],

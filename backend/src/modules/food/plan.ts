@@ -68,7 +68,10 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
     const ref = { id: meal.id, title: meal.title, date: meal.date };
     for (const row of ingredients.get(meal.id) ?? []) {
       if (row.optional) continue;
-      const info = row.product_id ? stock.get(row.product_id) : undefined;
+      // The option this meal takes (milk, or the whipped cream picked or used instead).
+      const option = allocation.lines.get(row.id)?.option ?? 0;
+      const productId = option > 0 ? (row.alternatives?.[option - 1]?.product_id ?? row.product_id) : row.product_id;
+      const info = productId ? stock.get(productId) : undefined;
       if (!info || info.product.trackMode === 'none') continue;
       const product = info.product;
       if (product.trackMode === 'level') {

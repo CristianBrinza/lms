@@ -132,4 +132,44 @@ describe('food: meals of several parts', () => {
     expect(after.find((p: any) => p.name === 'Milk').total).toBe(100);
     expect(after.find((p: any) => p.name === 'Whipped cream').total).toBe(200);
   });
+
+  it('lets you pick milk or whipped cream, for a planned meal and for cooking now', async () => {
+    t.setNow(NOW);
+    const b = await cook();
+    await b.post('/api/food/stock', { name: 'coffee beans', quantity: 250, unit: 'g' });
+    await b.post('/api/food/stock', { name: 'Milk', quantity: 1000, unit: 'ml' });
+    const latte = (
+      await b.post('/api/food/recipes', {
+        title: 'Latte',
+        servings: 2,
+        ingredients: [
+          { name: 'Coffee', amount: 20, unit: 'g' },
+          { name: 'Milk', amount: 300, unit: 'g', or: [{ name: 'Whipped cream' }] },
+        ],
+      })
+    ).body.recipe;
+    // Both options, each with whether there is enough.
+    expect(latte.ingredients[1]).toMatchObject({ mainEnough: true, chosen: 0, choice: null, alternatives: [expect.objectContaining({ name: 'Whipped cream', enough: false })] });
+
+    // Planned with whipped cream: that's what is missing and what goes on the list.
+    const planned = (await b.post('/api/food/meals', { date: '2026-10-03', time: '09:00', recipeId: latte.id })).body.meal;
+    const line = planned.ingredients[1];
+    const picked = (await b.put(`/api/food/meals/${planned.id}/ingredients/${line.id}/choice`, { choice: 1 })).body.meal;
+    expect(picked.ingredients[1]).toMatchObject({ choice: 1, chosen: 1, enough: false, using: expect.objectContaining({ name: 'Whipped cream' }) });
+    expect(picked.availability.missing).toEqual([expect.objectContaining({ name: 'Whipped cream', missing: 300 })]);
+    const needs = (await b.get('/api/food/plan/needs?from=2026-10-03&to=2026-10-03')).body.lines;
+    expect(needs.filter((n: any) => n.toBuy > 0).map((n: any) => n.name)).toEqual(['Whipped cream']);
+    expect(needs.some((n: any) => n.name === 'Milk')).toBe(false);
+    // The milk isn't claimed by that meal.
+    expect((await b.get(`/api/food/recipes/${latte.id}`)).body.recipe.ingredients[1].reservedFor).toBeNull();
+    expect((await b.put(`/api/food/meals/${planned.id}/ingredients/${line.id}/choice`, { choice: 3 })).status).toBe(400);
+
+    // Cooking now with whipped cream there isn't: refused, nothing taken.
+    const refused = await b.post(`/api/food/recipes/${latte.id}/cook`, { choices: { '1': 1 } });
+    expect(refused.status).toBe(409);
+    expect((await b.get('/api/food/kitchen')).body.products.find((p: any) => p.name === 'Milk').total).toBe(1000);
+    // With milk, as picked.
+    expect((await b.post(`/api/food/recipes/${latte.id}/cook`, { choices: { '1': 0 } })).status).toBe(201);
+    expect((await b.get('/api/food/kitchen')).body.products.find((p: any) => p.name === 'Milk').total).toBe(700);
+  });
 });

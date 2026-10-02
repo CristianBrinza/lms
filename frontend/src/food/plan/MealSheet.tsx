@@ -10,7 +10,8 @@ import { foodApi, foodKeys } from '../api';
 import { normalize, useCatalog } from '../catalog';
 import { AddToListSheet } from '../components/AddToListSheet';
 import { MealStatus } from '../components/MealStatus';
-import { altLabel, dayLong, formatAmount, formatQty, LOCATION_LABEL, parseAmount, plural, SLOT_LABEL } from '../format';
+import { OptionChips } from '../components/OptionChips';
+import { dayLong, formatAmount, formatQty, LOCATION_LABEL, parseAmount, plural, SLOT_LABEL } from '../format';
 import { openedText } from '../opened';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { parseLine } from '../shopping/parseLine';
@@ -378,6 +379,7 @@ function PartBlock({
           {lines.map((line) => (
             <IngredientRow
               key={line.id}
+              mealId={meal.id}
               line={line}
               product={kitchen.find((p) => p.id === line.productId)}
               draft={draft[line.id]!}
@@ -395,6 +397,7 @@ function PartBlock({
 }
 
 function IngredientRow({
+  mealId,
   line,
   product,
   draft,
@@ -402,6 +405,7 @@ function IngredientRow({
   onChange,
   onMissing,
 }: {
+  mealId: string;
   line: IngredientLine;
   product?: StockedProduct;
   draft: { amount: string; lotId: string | null };
@@ -409,11 +413,19 @@ function IngredientRow({
   onChange: (next: { amount: string; lotId: string | null }) => void;
   onMissing: () => void;
 }) {
+  const queryClient = useQueryClient();
+  // Milk or whipped cream for this meal: saved on the meal, so the plan and the lists follow.
+  const choose = useMutation({
+    mutationFn: (choice: number) => foodApi.setChoice(mealId, line.id, choice),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: foodKeys.all }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
   const lots = product?.trackMode === 'exact' ? product.lots.filter((lot) => !line.variant || lot.variant.toLowerCase() === line.variant.toLowerCase()) : [];
   // Which piece to use (the 2 kg steak, the opened jar): only when asked, or already chosen.
   const [choosing, setChoosing] = useState(Boolean(draft.lotId));
   const allergy = line.warnings.some((w) => w.kind === 'allergy');
-  const measured = product ?? (line.baseUnit ? { unit: line.baseUnit } : null);
+  const altUnit = line.using ? line.alternatives[line.chosen - 1]?.baseUnit : null;
+  const measured = altUnit ? { unit: altUnit } : (product ?? (line.baseUnit ? { unit: line.baseUnit } : null));
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2">
       <div className="flex items-center gap-2.5">
@@ -427,7 +439,9 @@ function IngredientRow({
           </span>
           <span className={cx('block truncate text-xs', line.enough === false ? 'font-semibold text-peach-800' : 'text-ink-600')}>
             {line.using
-              ? `Instead of ${line.name.toLowerCase()}, there isn’t enough`
+              ? line.enough === false
+                ? `Missing ${line.missing && measured ? formatQty(line.missing, measured) : 'some'} of ${line.using.name.toLowerCase()}`
+                : `${line.using.name} instead of ${line.name.toLowerCase()}`
               : line.level
                 ? line.level === 'full'
                   ? 'In the kitchen'
@@ -437,7 +451,7 @@ function IngredientRow({
                 : line.enough === false
                   ? `Missing ${line.missing && measured ? formatQty(line.missing, measured) : 'some'}${line.spoilsBefore ? ' · what’s there goes off before then' : line.reservedFor ? ` · kept for ${line.reservedFor.title}` : ''}`
                   : line.inStock !== null && measured
-                    ? `${formatQty(line.inStock, measured)} in the kitchen${line.alternatives.length ? ` · or ${line.alternatives.map(altLabel).join(', ')}` : ''}`
+                    ? `${formatQty(line.inStock, measured)} in the kitchen`
                     : line.note || 'Not kept in the kitchen'}
           </span>
         </span>
@@ -461,6 +475,11 @@ function IngredientRow({
           <span className="tabular shrink-0 text-sm font-semibold">{formatAmount(line.amount, line.unit)}</span>
         ) : null}
       </div>
+      {line.alternatives.length ? (
+        <div className="ml-[2.875rem]">
+          <OptionChips line={line} value={line.chosen} onChange={(choice) => choose.mutate(choice)} disabled={disabled || choose.isPending} />
+        </div>
+      ) : null}
       {lots.length > 1 && !disabled && !line.using && !choosing ? (
         <button type="button" onClick={() => setChoosing(true)} className="ml-[2.875rem] w-fit text-xs font-semibold text-lav-700 hover:text-lav-800">
           Which one?

@@ -222,7 +222,25 @@ export interface IngredientLine {
   /** Only this type will do ('' for any). */
   variant: string;
   /** Or one of these instead, in order. */
-  alternatives: Array<{ productId: string | null; name: string; icon: string; amount: number | null; unit: string | null; variant: string; enough: boolean | null }>;
+  alternatives: Array<{
+    productId: string | null;
+    name: string;
+    icon: string;
+    amount: number | null;
+    unit: string | null;
+    variant: string;
+    enough: boolean | null;
+    missing: number;
+    inStock: number | null;
+    baseUnit: BaseUnit | null;
+  }>;
+  /** Enough of the main item itself, and how much of it is missing. */
+  mainEnough: boolean | null;
+  mainMissing: number;
+  /** Picked for this meal: 0 the main item, 1… an alternative; null: the first there is. */
+  choice: number | null;
+  /** The option that will be used. */
+  chosen: number;
   /** Short because what there is goes off before the meal (planned meals). */
   spoilsBefore: boolean;
   /** Covered by an alternative rather than the main item. */

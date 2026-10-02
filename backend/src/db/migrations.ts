@@ -477,6 +477,11 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
     name: 'food: which catalog a kitchen has been brought up to',
     sql: `ALTER TABLE households ADD COLUMN catalog_version integer NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 15,
+    name: 'food: which option a planned meal takes (milk, or whipped cream)',
+    sql: `ALTER TABLE meal_ingredients ADD COLUMN choice smallint CHECK (choice BETWEEN 0 AND 4);`,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

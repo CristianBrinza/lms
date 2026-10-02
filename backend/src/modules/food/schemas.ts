@@ -308,6 +308,7 @@ export const slotField = z.enum(MEAL_SLOTS, { error: 'Breakfast, lunch, dinner o
 export const MealIngredientInput = IngredientInput.extend({
   lotId: idField.nullable().optional().describe('Use this exact piece (e.g. the 2 kg steak) when cooking'),
   partId: idField.nullable().optional().describe('The meal part this line belongs to; keep it when sending lines back'),
+  choice: z.number().int().min(0).max(4).nullable().optional().describe('Which option to use: 0 the main item, 1… an alternative (or); null: the first there is'),
 });
 export type MealIngredientInput = z.infer<typeof MealIngredientInput>;
 
@@ -376,8 +377,16 @@ export const CompleteMealInput = z.object({
 });
 export type CompleteMealInput = z.infer<typeof CompleteMealInput>;
 
+export const ChoiceInput = z.object({
+  choice: z.number().int().min(0).max(4).nullable().describe('0 the main item, 1… an alternative; null: the first there is'),
+});
+
 export const CookInput = z.object({
   servings: z.number().int().min(1).max(100).optional(),
+  choices: z
+    .record(z.string().regex(/^\d+$/), z.number().int().min(0).max(4))
+    .optional()
+    .describe('Per ingredient (its position, from 0), which option to use: 0 the main item, 1… an alternative'),
   leftovers: CompleteMealInput.shape.leftovers,
 });
 

@@ -5,7 +5,7 @@ import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
 import { foodCtx, requireKitchen } from './kitchen';
-import { addMealPart, completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, removeMealPart, reopenMeal, setMealIngredients, uncookMeal, updateMeal, updateMealPart } from './meals';
+import { addMealPart, completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, removeMealPart, reopenMeal, setLineChoice, setMealIngredients, uncookMeal, updateMeal, updateMealPart } from './meals';
 import {
   archiveTool,
   dishwasherMinutes,
@@ -34,6 +34,7 @@ import {
   dateField,
   LevelInput,
   LotPatch,
+  ChoiceInput,
   MealIngredientsInput,
   MealInput,
   MealPartInput,
@@ -158,6 +159,9 @@ export function foodRoutes(deps: AppDeps) {
   app.patch('/meals/:id', async (c) => c.json({ meal: await updateMeal(ctx(c), c.req.param('id'), await readJson(c, MealPatch)) }));
   app.put('/meals/:id/ingredients', async (c) =>
     c.json({ meal: await setMealIngredients(ctx(c), c.req.param('id'), (await readJson(c, MealIngredientsInput)).ingredients) }),
+  );
+  app.put('/meals/:id/ingredients/:lineId/choice', async (c) =>
+    c.json({ meal: await setLineChoice(ctx(c), c.req.param('id'), c.req.param('lineId'), (await readJson(c, ChoiceInput)).choice) }),
   );
   app.post('/meals/:id/parts', async (c) => c.json({ meal: await addMealPart(ctx(c), c.req.param('id'), await readJson(c, MealPartInput)) }, 201));
   app.patch('/meals/:id/parts/:partId', async (c) =>

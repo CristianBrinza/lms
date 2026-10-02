@@ -11,6 +11,7 @@ import {
   planMeal,
   removeMealPart,
   reopenMeal,
+  setLineChoice,
   setMealIngredients,
   updateMeal,
   updateMealPart,
@@ -549,6 +550,15 @@ export const TOOLS: Tool[] = [
       if (!result) throw new AppError(400, 'VALIDATION', 'Nothing to change');
       return meal(result);
     },
+  }),
+  tool({
+    name: 'pick_option',
+    title: 'Pick milk or cream',
+    description:
+      'For a planned meal’s line with alternatives (or), picks which one it takes: choice 0 the main item, 1… an alternative, null back to the first there is. The plan and the shopping needs follow.',
+    access: 'write',
+    input: z.object({ mealId: idField, lineId: idField, choice: z.number().int().min(0).max(4).nullable() }),
+    run: async ({ ctx }, { mealId, lineId, choice }) => meal(await setLineChoice(ctx, mealId, lineId, choice)),
   }),
   tool({
     name: 'add_meal_part',

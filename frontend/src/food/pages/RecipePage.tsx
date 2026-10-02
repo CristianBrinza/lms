@@ -25,8 +25,10 @@ import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
 import { DockBar } from '../components/DockBar';
-import { altLabel, dayAndMonth, formatAmount, formatQty, localDate, plural, relativeDay } from '../format';
+import { dayAndMonth, formatAmount, formatQty, localDate, plural, relativeDay } from '../format';
 import { AddToListSheet } from '../components/AddToListSheet';
+import { OptionChips } from '../components/OptionChips';
+import { withChoice } from '../options';
 import { openedText } from '../opened';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import type { IngredientLine, Recipe, ToolNeed } from '../types';
@@ -44,7 +46,10 @@ export default function RecipePage() {
   const [servings, setServings] = useState<number | null>(null);
   const recipe = useQuery({ queryKey: foodKeys.recipe(id, servings ?? undefined), queryFn: () => foodApi.recipe(id, servings ?? undefined), placeholderData: keepPreviousData });
   const [cooking, setCooking] = useState(false);
+  // Milk or whipped cream: what was picked here, by the ingredient's place (else the recipe's pick).
+  const [choices, setChoices] = useState<Record<number, number>>({});
   const data = recipe.data;
+  const lines = data ? data.ingredients.map((line, index) => withChoice(line, choices[index] ?? line.chosen)) : [];
 
   const favorite = useMutation({
     mutationFn: (value: boolean) => foodApi.updateRecipe(id, { favorite: value }),
@@ -126,7 +131,7 @@ export default function RecipePage() {
             </div>
           </section>
 
-          <Ingredients recipe={data} servings={shown} onServings={setServings} />
+          <Ingredients recipe={data} lines={lines} servings={shown} onServings={setServings} onChoose={(index, choice) => setChoices((current) => ({ ...current, [index]: choice }))} />
           <Tools tools={data.tools} />
         </div>
 
@@ -149,7 +154,7 @@ export default function RecipePage() {
       <DockBar tone="white">
         <Actions recipe={data} onCook={() => setCooking(true)} />
       </DockBar>
-      <CookSheet open={cooking} recipe={data} servings={shown} onClose={() => setCooking(false)} />
+      <CookSheet open={cooking} recipe={data} lines={lines} servings={shown} onClose={() => setCooking(false)} />
     </Screen>
   );
 }
@@ -168,14 +173,32 @@ function Actions({ recipe, onCook }: { recipe: Recipe; onCook: () => void }) {
   );
 }
 
-function Ingredients({ recipe, servings, onServings }: { recipe: Recipe; servings: number; onServings: (value: number) => void }) {
+function Ingredients({
+  recipe,
+  lines,
+  servings,
+  onServings,
+  onChoose,
+}: {
+  recipe: Recipe;
+  lines: IngredientLine[];
+  servings: number;
+  onServings: (value: number) => void;
+  onChoose: (index: number, choice: number) => void;
+}) {
   const queryClient = useQueryClient();
   const [missingLine, setMissingLine] = useState<IngredientLine | null>(null);
-  const missing = recipe.ingredients.filter((i) => i.enough === false && !i.optional);
+  const missing = lines.filter((i) => i.enough === false && !i.optional);
   const toList = useMutation({
     mutationFn: () =>
       foodApi.addLines(
-        missing.map((i) => ({ productId: i.productId!, amount: i.amount ?? undefined, unit: i.amount ? (i.unit ?? i.baseUnit) : undefined })),
+        missing.map((i) => {
+          // What's missing of the picked option (the whipped cream), else of the item itself.
+          const alt = i.using ? i.alternatives[i.chosen - 1] : undefined;
+          return alt?.productId
+            ? { productId: alt.productId, amount: alt.missing || undefined, unit: alt.missing ? (alt.baseUnit ?? undefined) : undefined, ...(alt.variant ? { variant: alt.variant } : {}) }
+            : { productId: i.productId!, amount: i.amount ?? undefined, unit: i.amount ? (i.unit ?? i.baseUnit) : undefined };
+        }),
         'recipe',
       ),
     onSuccess: (lines) => {
@@ -202,8 +225,8 @@ function Ingredients({ recipe, servings, onServings }: { recipe: Recipe; serving
       </div>
       {recipe.ingredients.length ? (
         <ul className="mt-3 flex flex-col">
-          {recipe.ingredients.map((line) => (
-            <IngredientRow key={line.id} line={line} onMissing={() => setMissingLine(line)} />
+          {lines.map((line, index) => (
+            <IngredientRow key={line.id} line={line} onMissing={() => setMissingLine(line)} onChoose={(choice) => onChoose(index, choice)} />
           ))}
         </ul>
       ) : (
@@ -279,13 +302,15 @@ function Tools({ tools }: { tools: ToolNeed[] }) {
   );
 }
 
-function IngredientRow({ line, onMissing }: { line: IngredientLine; onMissing?: () => void }) {
-  const measured = line.baseUnit ? { unit: line.baseUnit } : null;
+function IngredientRow({ line, onMissing, onChoose }: { line: IngredientLine; onMissing?: () => void; onChoose?: (choice: number) => void }) {
+  // Amounts missing are in the unit of the option used (grams of whipped cream, millilitres of milk).
+  const unit = line.using ? (line.alternatives[line.chosen - 1]?.baseUnit ?? line.baseUnit) : line.baseUnit;
+  const measured = unit ? { unit } : null;
   const today = localDate();
   const allergy = line.warnings.some((w) => w.kind === 'allergy');
   const amount = line.amount && line.unit ? formatAmount(line.amount, line.unit) : line.amount ? String(line.amount) : 'to taste';
   return (
-    <li className="flex items-center gap-3 border-b border-ink-100 py-2.5 last:border-0">
+    <li className="flex items-start gap-3 border-b border-ink-100 py-2.5 last:border-0">
       <FoodIconTile name={line.using?.icon ?? line.icon} className="size-10 rounded-xl [&>svg]:size-7" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.9375rem] font-semibold">
@@ -301,7 +326,6 @@ function IngredientRow({ line, onMissing }: { line: IngredientLine; onMissing?: 
         <span className="block truncate text-sm text-ink-600">
           {[
             amount,
-            line.alternatives.length ? `or ${line.alternatives.map(altLabel).join(', or ')}` : null,
             line.note || null,
           ]
             .filter(Boolean)
@@ -317,13 +341,9 @@ function IngredientRow({ line, onMissing }: { line: IngredientLine; onMissing?: 
             Kept for {line.reservedFor.title} · {relativeDay(line.reservedFor.date, today) === dayAndMonth(line.reservedFor.date) ? dayAndMonth(line.reservedFor.date) : relativeDay(line.reservedFor.date, today).toLowerCase()}
           </span>
         ) : null}
+        {onChoose ? <OptionChips line={line} value={line.chosen} onChange={onChoose} /> : null}
       </span>
-      {line.using ? (
-        <span className="inline-flex h-7 max-w-[8.5rem] items-center gap-1 truncate rounded-pill bg-mint-100 px-2.5 text-xs font-semibold text-mint-800">
-          <CheckIcon fontSize="inherit" className="shrink-0 text-sm" />
-          {line.using.name}
-        </span>
-      ) : line.level && line.level !== 'full' ? (
+      {line.level && line.level !== 'full' ? (
         <span className={cx('inline-flex h-7 items-center rounded-pill px-2.5 text-xs font-semibold', line.level === 'out' ? 'bg-peach-100 text-peach-800' : 'bg-butter-100 text-butter-800')}>
           {line.level === 'out' ? 'Out' : 'Low'}
         </span>
@@ -506,11 +526,14 @@ function CookMode({ recipe, servings, onClose }: { recipe: Recipe; servings: num
   );
 }
 
-function CookSheet({ open, recipe, servings, onClose }: { open: boolean; recipe: Recipe; servings: number; onClose: () => void }) {
+function CookSheet({ open, recipe, lines, servings, onClose }: { open: boolean; recipe: Recipe; lines: IngredientLine[]; servings: number; onClose: () => void }) {
+  // Picked options must be there: cooking with whipped cream there isn't can't happen.
+  const blocked = lines.filter((line) => line.alternatives.length && !line.optional && line.enough === false);
+  const choices = Object.fromEntries(lines.flatMap((line, index) => (line.alternatives.length ? [[String(index), line.chosen]] : [])));
   const queryClient = useQueryClient();
   const [leftovers, setLeftovers] = useState(0);
   const cook = useMutation({
-    mutationFn: () => foodApi.cook(recipe.id, { servings, ...(leftovers ? { leftovers: { portions: leftovers } } : {}) }),
+    mutationFn: () => foodApi.cook(recipe.id, { servings, choices, ...(leftovers ? { leftovers: { portions: leftovers } } : {}) }),
     onSuccess: ({ meal, shortfalls, opened }) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
@@ -536,7 +559,7 @@ function CookSheet({ open, recipe, servings, onClose }: { open: boolean; recipe:
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
-  const missing = recipe.availability.missing;
+  const missing = lines.filter((line) => line.enough === false && !line.optional && !line.alternatives.length);
 
   return (
     <Sheet
@@ -545,12 +568,28 @@ function CookSheet({ open, recipe, servings, onClose }: { open: boolean; recipe:
       title="Cook it now?"
       description={`For ${plural(servings, 'serving')}. The ingredients come out of the kitchen, first-expiring first.`}
       footer={
-        <Button fullWidth onClick={() => cook.mutate()} loading={cook.isPending}>
+        <Button fullWidth onClick={() => cook.mutate()} loading={cook.isPending} disabled={blocked.length > 0}>
           Cooked it
         </Button>
       }
     >
       <div className="flex flex-col gap-4">
+        {blocked.length ? (
+          <p className="rounded-2xl bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">
+            Not enough {blocked.map((line) => (line.using?.name ?? line.name).toLowerCase()).join(', ')}: pick {blocked.map((line) => (line.using ? line.name : (line.alternatives.find((alt) => alt.enough)?.name ?? 'another')).toLowerCase()).join(', ')} instead,
+            or buy some first.
+          </p>
+        ) : null}
+        {lines.some((line) => line.alternatives.length) ? (
+          <p className="text-sm text-ink-600">
+            Using{' '}
+            {lines
+              .filter((line) => line.alternatives.length)
+              .map((line) => (line.using?.name ?? line.name).toLowerCase())
+              .join(', ')}
+            .
+          </p>
+        ) : null}
         {missing.length ? (
           <p className="rounded-2xl bg-peach-100 px-4 py-3 text-sm font-medium text-peach-800">
             Not enough {missing.map((m) => m.name).join(', ')} in the kitchen — it will take what there is.
