@@ -20,6 +20,8 @@ export interface IngredientLine {
   productId: string | null;
   /** The exact piece to use (planned meals only). */
   lotId: string | null;
+  /** The meal part it belongs to (meals only). */
+  partId: string | null;
   name: string;
   icon: FoodIcon;
   amount: number | null;
@@ -61,6 +63,8 @@ export interface IngredientRow {
   owner_id: string;
   product_id: string | null;
   lot_id?: string | null;
+  /** Which part of a meal the line belongs to (meals only; null: the meal's own). */
+  part_id?: string | null;
   name: string;
   amount: number | null;
   unit: string | null;
@@ -140,6 +144,7 @@ export function describeLines(
       id: row.id,
       productId: row.product_id,
       lotId: row.lot_id ?? null,
+      partId: row.part_id ?? null,
       name: row.name,
       icon: info?.product.icon ?? 'basket',
       amount: row.amount === null ? null : round(row.amount * scale),
@@ -190,7 +195,8 @@ export async function resolveIngredients(ctx: FoodCtx, inputs: Array<IngredientI
       }
       lotId = input.lotId;
     }
-    out.push({ product_id: product?.id ?? null, lot_id: lotId, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
+    const partId = 'partId' in input ? (input.partId ?? null) : null;
+    out.push({ product_id: product?.id ?? null, lot_id: lotId, part_id: partId, name: input.name, amount: input.amount ?? null, unit, note: input.note ?? '', optional: input.optional ?? false, sort: index });
   }
   return out;
 }
@@ -203,6 +209,16 @@ export async function insertIngredientRows(
 ): Promise<void> {
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
   await ctx.db.query(`DELETE FROM ${table} WHERE ${owner} = $1`, [ownerId]);
+  await appendIngredientRows(ctx, table, ownerId, rows);
+}
+
+/** Adds lines without touching the ones already there (a new part of a meal). */
+export async function appendIngredientRows(
+  ctx: FoodCtx,
+  table: 'recipe_ingredients' | 'meal_ingredients',
+  ownerId: string,
+  rows: Array<Omit<IngredientRow, 'id' | 'owner_id'>>,
+): Promise<void> {
   for (const row of rows) {
     if (table === 'recipe_ingredients') {
       await ctx.db.query(`INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [
@@ -218,8 +234,8 @@ export async function insertIngredientRows(
       ]);
     } else {
       await ctx.db.query(
-        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [randomUUID(), ownerId, row.product_id, row.lot_id ?? null, row.name, row.amount, row.unit, row.note, row.optional, row.sort],
+        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [randomUUID(), ownerId, row.product_id, row.lot_id ?? null, row.name, row.amount, row.unit, row.note, row.optional, row.sort, row.part_id ?? null],
       );
     }
   }
@@ -229,7 +245,7 @@ export async function ingredientRows(ctx: FoodCtx, table: 'recipe_ingredients' |
   const map = new Map<string, IngredientRow[]>();
   if (!ownerIds.length) return map;
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
-  const lot = table === 'meal_ingredients' ? ', lot_id' : '';
+  const lot = table === 'meal_ingredients' ? ', lot_id, part_id' : '';
   const { rows } = await ctx.db.query<IngredientRow>(
     `SELECT id, ${owner} AS owner_id, product_id${lot}, name, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
     [ownerIds],

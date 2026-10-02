@@ -51,7 +51,8 @@ describe('food: drinks, jars and types', () => {
   it('counts a jar of pickles and a cake by what is inside', async () => {
     const b = await cook();
     const jar = (await b.post('/api/food/stock', { name: 'Pickles', quantity: 1, unit: 'jar' })).body;
-    expect(jar.product).toMatchObject({ unit: 'pcs', units: [{ name: 'jar', size: 12 }] });
+    expect(jar.product).toMatchObject({ unit: 'pcs' });
+    expect(jar.product.units[0]).toMatchObject({ name: 'jar', size: 12 });
     expect(jar.lot.quantity).toBe(12);
 
     // This jar holds 14.
@@ -84,5 +85,70 @@ describe('food: drinks, jars and types', () => {
       Zacuscă: 'jar-spread',
       'Liver pâté': 'pate',
     });
+  });
+
+  it('adds packages of different sizes, each its own lot, sharing the price', async () => {
+    const b = await cook();
+    const honey = (await b.post('/api/food/stock', { name: 'Honey', packages: [{ count: 1, size: 500, sizeUnit: 'g' }], price: 120 })).body;
+    expect(honey.product).toMatchObject({ unit: 'g', trackMode: 'exact' });
+    expect(honey.lot).toMatchObject({ quantity: 500, package: 'jar', packageSize: 500, price: 120 });
+
+    // One 1 l bottle and two of 0.5 l, 40 lei for all.
+    const cola = (await b.post('/api/food/stock', { name: 'Coca-Cola', package: 'bottle', packages: [{ count: 1, size: 1, sizeUnit: 'l' }, { count: 2, size: 500 }], price: 40 })).body;
+    expect(cola.lots).toHaveLength(2);
+    expect(cola.lots[0]).toMatchObject({ quantity: 1000, package: 'bottle', packageSize: 1000, price: 20 });
+    expect(cola.lots[1]).toMatchObject({ quantity: 1000, package: 'bottle', packageSize: 500, price: 20 });
+
+    // A recipe's spoon of honey is weighed.
+    const recipe = (await b.post('/api/food/recipes', { title: 'Tea with honey', ingredients: [{ name: 'Honey', amount: 2, unit: 'tbsp' }] })).body.recipe;
+    expect(recipe.availability.ready).toBe(true);
+  });
+
+  it('buys what the shop has: more in two small cans, more in one big one, or less', async () => {
+    const b = await cook();
+    const store = (await b.post('/api/food/stores', { name: 'Linella' })).body.store;
+    const [corn, beans, peas] = (
+      await b.post('/api/food/shopping/items', {
+        items: [
+          { name: 'Canned corn', amount: 500, unit: 'g', storeId: store.id },
+          { name: 'Canned beans', amount: 0.5, unit: 'kg', storeId: store.id },
+          { name: 'Canned peas', amount: 800, unit: 'g', storeId: store.id },
+        ],
+      })
+    ).body.items;
+    expect(corn).toMatchObject({ need: 500, bought: null, baseUnit: 'g' });
+
+    // No half-kilo can: two of 300 g instead.
+    const ticked = (await b.patch(`/api/food/shopping/items/${corn.id}`, { checked: true, package: 'can', bought: [{ count: 2, size: 300, sizeUnit: 'g' }], price: 36 })).body.item;
+    expect(ticked).toMatchObject({ checked: true, bought: [{ count: 2, size: 300 }], boughtTotal: 600, need: 500 });
+    // One kilo can.
+    await b.patch(`/api/food/shopping/items/${beans.id}`, { checked: true, bought: [{ count: 1, size: 1, sizeUnit: 'kg' }] });
+    // Only one 400 g can of peas: 400 g more still needed.
+    await b.patch(`/api/food/shopping/items/${peas.id}`, { checked: true, bought: [{ count: 1, size: 400 }] });
+
+    const done = (await b.post('/api/food/shopping/checkout', { storeId: store.id, lines: [] })).body;
+    expect(done).toMatchObject({ stocked: 3, leftOver: ['Canned peas'] });
+    const kitchen = (await b.get('/api/food/kitchen')).body.products;
+    expect(kitchen.find((p: any) => p.name === 'Canned corn')).toMatchObject({ total: 600 });
+    expect(kitchen.find((p: any) => p.name === 'Canned corn').lots[0]).toMatchObject({ package: 'can', packageSize: 300, price: 36 });
+    expect(kitchen.find((p: any) => p.name === 'Canned beans')).toMatchObject({ total: 1000 });
+
+    const left = (await b.get('/api/food/shopping')).body.items;
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({ name: 'Canned peas', amount: 400, unit: 'g', checked: false, storeId: store.id });
+  });
+
+  it('can leave the rest off the list, and record another type than the one asked for', async () => {
+    const b = await cook();
+    const added = await b.post('/api/food/shopping/items', { items: [{ name: 'Bread', amount: 10, unit: 'slices', storeId: null, variant: 'Rye' }] });
+    const [line] = added.body.items;
+    await b.patch(`/api/food/shopping/items/${line.id}`, { checked: true });
+    const done = (
+      await b.post('/api/food/shopping/checkout', { storeId: null, lines: [{ id: line.id, package: 'loaf', bought: [{ count: 1, size: 8 }], variant: 'White', keepRest: false }] })
+    ).body;
+    expect(done.leftOver).toEqual([]);
+    const bread = (await b.get('/api/food/kitchen')).body.products.find((p: any) => p.name === 'Bread');
+    expect(bread.lots[0]).toMatchObject({ quantity: 8, variant: 'White', package: 'loaf', packageSize: 8 });
+    expect((await b.get('/api/food/shopping')).body.items).toHaveLength(0);
   });
 });

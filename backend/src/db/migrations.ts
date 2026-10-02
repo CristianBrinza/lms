@@ -382,6 +382,44 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE INDEX food_restrictions_household_idx ON food_restrictions (household_id);
     `,
   },
+  {
+    version: 9,
+    name: 'food: packages (a jar of 400 g, a loaf of 20 slices) on lots and on what was bought',
+    sql: `
+      ALTER TABLE stock_lots ADD COLUMN package text NOT NULL DEFAULT '';
+      ALTER TABLE stock_lots ADD COLUMN package_size numeric(12, 3) CHECK (package_size > 0);
+      ALTER TABLE shopping_items ADD COLUMN package text NOT NULL DEFAULT '';
+      ALTER TABLE shopping_items ADD COLUMN bought jsonb;
+      -- Bread was counted in loaves with a slice of 1/20; it is now counted in slices, a loaf being 20.
+      UPDATE stock_lots SET quantity = quantity * 20, initial_quantity = initial_quantity * 20, package = 'loaf', package_size = 20
+       WHERE product_id IN (SELECT id FROM products WHERE units = '[{"name": "slice", "size": 0.05}]'::jsonb);
+      UPDATE products SET units = '[{"name": "loaf", "plural": "loaves", "size": 20, "sizes": [12, 16, 20, 24, 30]}, {"name": "slice", "size": 1}]'::jsonb, piece_size = 25, piece_unit = 'g'
+       WHERE units = '[{"name": "slice", "size": 0.05}]'::jsonb;
+    `,
+  },
+  {
+    version: 10,
+    name: 'food: meals of several parts (dish, sauce, side, drink); where an item goes once opened',
+    sql: `
+      CREATE TABLE meal_parts (
+        id uuid PRIMARY KEY,
+        meal_id uuid NOT NULL REFERENCES meals (id) ON DELETE CASCADE,
+        recipe_id uuid REFERENCES recipes (id) ON DELETE SET NULL,
+        title text NOT NULL,
+        kind text NOT NULL DEFAULT 'dish' CHECK (kind IN ('dish', 'side', 'sauce', 'drink')),
+        servings integer NOT NULL DEFAULT 2 CHECK (servings BETWEEN 1 AND 100),
+        sort integer NOT NULL DEFAULT 0
+      );
+      CREATE INDEX meal_parts_meal_idx ON meal_parts (meal_id, sort);
+      ALTER TABLE meal_ingredients ADD COLUMN part_id uuid REFERENCES meal_parts (id) ON DELETE CASCADE;
+      -- Every meal made from a recipe gets that recipe as its first part, holding its lines.
+      INSERT INTO meal_parts (id, meal_id, recipe_id, title, kind, servings, sort)
+        SELECT gen_random_uuid(), m.id, m.recipe_id, m.title, 'dish', m.servings, 0 FROM meals m WHERE m.recipe_id IS NOT NULL;
+      UPDATE meal_ingredients i SET part_id = p.id FROM meal_parts p WHERE p.meal_id = i.meal_id;
+
+      ALTER TABLE products ADD COLUMN opened_location text CHECK (opened_location IN ('fridge', 'freezer', 'pantry', 'garden', 'other'));
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

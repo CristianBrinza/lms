@@ -3,14 +3,17 @@ import type { AppDeps } from '../../context';
 import { AppError } from '../../lib/errors';
 import type { FoodCtx } from '../food/kitchen';
 import {
+  addMealPart,
   completeMeal,
   cookRecipe,
   deleteMeal,
   listMeals,
   planMeal,
+  removeMealPart,
   reopenMeal,
   setMealIngredients,
   updateMeal,
+  updateMealPart,
   type Meal,
 } from '../food/meals';
 import { overview } from '../food/overview';
@@ -36,6 +39,8 @@ import {
   LotPatch,
   MealIngredientInput,
   MealInput,
+  MealPartInput,
+  MealPartPatchFields,
   MealPatchFields,
   ProductInput,
   RecipeInput,
@@ -498,6 +503,27 @@ export const TOOLS: Tool[] = [
     },
   }),
   tool({
+    name: 'add_meal_part',
+    title: 'Add to a meal',
+    description:
+      'Adds a dish, side, sauce or drink to a meal: a recipe (its lines scaled to servings) or named with its own ingredients — coffee, bread with Philadelphia and salmon, a sauce.',
+    access: 'write',
+    input: MealPartInput.and(z.object({ mealId: idField })),
+    run: async ({ ctx }, { mealId, ...input }) => meal(await addMealPart(ctx, mealId, input)),
+  }),
+  tool({
+    name: 'update_meal_part',
+    title: 'Change part of a meal',
+    description: 'Renames a part, changes its kind, or rescales it (its lines follow). Use remove: true to take it off the meal.',
+    access: 'write',
+    input: MealPartPatchFields.partial().extend({ mealId: idField, partId: idField, remove: z.boolean().optional() }),
+    run: async ({ ctx }, { mealId, partId, remove, ...patch }) => {
+      if (remove) return meal(await removeMealPart(ctx, mealId, partId));
+      if (!Object.keys(patch).length) throw new AppError(400, 'VALIDATION', 'Nothing to change');
+      return meal(await updateMealPart(ctx, mealId, partId, patch));
+    },
+  }),
+  tool({
     name: 'complete_meal',
     title: 'Mark a meal eaten',
     description:
@@ -506,7 +532,7 @@ export const TOOLS: Tool[] = [
     input: CompleteMealInput.and(z.object({ mealId: idField })),
     run: async ({ ctx }, { mealId, ...input }) => {
       const result = await completeMeal(ctx, mealId, input);
-      return { meal: meal(result.meal), shortfalls: result.shortfalls };
+      return { meal: meal(result.meal), shortfalls: result.shortfalls, opened: result.opened };
     },
   }),
   tool({

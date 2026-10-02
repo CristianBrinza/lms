@@ -30,8 +30,10 @@ export interface CustomUnit {
   name: string;
   /** Plural, when it isn't name + "s" (e.g. "boxes"). */
   plural?: string;
-  /** How much one is, in the item's base unit (a slice = 0.05 of a loaf; a pack = 500 g). */
+  /** How much one usually holds, in the item's base unit (a loaf = 20 slices; a jar of honey = 400 g). */
   size: number;
+  /** The sizes it comes in, to pick from when adding one (a bottle of cola: 500, 1000, 1250… ml). */
+  sizes?: number[];
 }
 
 /** What a product says about its own unit: the base, how big one piece is, and its own units. */
@@ -67,6 +69,8 @@ function factorOf(unit: string, product: Measured): number | null {
   if (!measure) return null;
   const base = BASE_FAMILY[product.unit];
   if (measure.family === base) return measure.factor;
+  // Spoons and cups of something weighed: about a gram per millilitre, unless the item says (honey: 21 g a tablespoon).
+  if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup')) return measure.factor;
   if (!product.pieceSize || product.pieceSize <= 0) return null;
   if (product.unit === 'pcs') {
     // 240 g of tomatoes = 2 pieces, when one piece is 120 g.

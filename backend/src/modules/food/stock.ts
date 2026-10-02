@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
-import { freezingFor, type Level, type Location } from './presets';
+import { freezingFor, OPENED_BY_CATEGORY, type Level, type Location } from './presets';
 import { findProduct, PRODUCT_COLUMNS, rememberVariant, resolveNamed, toProduct, type Product, type ProductRow } from './products';
 import type { AddStockInput, LotPatch, UseStockInput } from './schemas';
-import { round, toBase, UnitMismatchError } from './units';
+import { customUnit, round, toBase, UnitMismatchError } from './units';
 
 /**
  * Stock is kept as lots: one physical batch each — a 1.3 kg steak, another of 2 kg, a pack of six
@@ -32,6 +32,9 @@ export interface Lot {
   note: string;
   /** Which kind it is (Cheddar), when the item has kinds. */
   variant: string;
+  /** The package it came in (jar, bottle, loaf) and what one held, in the base unit; '' and null when loose. */
+  package: string;
+  packageSize: number | null;
 }
 
 interface LotRow {
@@ -49,11 +52,13 @@ interface LotRow {
   trip_id: string | null;
   note: string;
   variant: string;
+  package: string;
+  package_size: number | null;
   finished_at: Date | null;
 }
 
 const LOT_SELECT = `SELECT l.id, l.product_id, l.quantity, l.initial_quantity, l.location, l.added_at, l.expires_on, l.opened_at,
-       l.price, l.store_id, s.name AS store_name, l.trip_id, l.note, l.variant, l.finished_at
+       l.price, l.store_id, s.name AS store_name, l.trip_id, l.note, l.variant, l.package, l.package_size, l.finished_at
   FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id`;
 
 /** Opened first, then soonest to expire, then oldest: the order stock is used in. */
@@ -75,6 +80,8 @@ export function toLot(row: LotRow): Lot {
     tripId: row.trip_id,
     note: row.note,
     variant: row.variant,
+    package: row.package,
+    packageSize: row.package_size,
   };
 }
 
@@ -140,7 +147,26 @@ export async function setLevel(ctx: FoodCtx, productId: string, level: Level): P
   });
 }
 
-export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: string | null }): Promise<{ product: Product; lot: Lot | null }> {
+/** What an addition becomes: one lot per package size ("2 cans of 300 g" and "1 of 1 kg"), or one loose lot. */
+function piecesOf(input: AddStockInput, product: Product): Array<{ quantity: number; package: string; packageSize: number | null }> {
+  const named = input.unit ? customUnit(input.unit, product) : null;
+  if (input.packages) {
+    const name = input.package?.trim() || named?.name || product.units[0]?.name || '';
+    return input.packages.map((pack) => {
+      const size = pack.sizeUnit ? baseQuantity(pack.size, pack.sizeUnit, product, 'packages') : round(pack.size);
+      return { quantity: round(pack.count * size), package: name, packageSize: size };
+    });
+  }
+  const quantity = input.quantity!;
+  if (named) {
+    // "A jar of 14": this jar's own count rather than the usual jar size.
+    const size = input.each ?? named.size;
+    return [{ quantity: round(quantity * size), package: named.name, packageSize: size }];
+  }
+  return [{ quantity: baseQuantity(quantity, input.unit, product), package: input.package?.trim() ?? '', packageSize: null }];
+}
+
+export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: string | null }): Promise<{ product: Product; lot: Lot | null; lots: Lot[] }> {
   return ctx.tx(async (tx) => {
     const named = input.productId ? null : await resolveNamed(tx, input.name!, input.unit);
     let product = named ? named.product : await findProduct(tx, input.productId!, { lock: true });
@@ -155,33 +181,44 @@ export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: s
       if (!rowCount) throw new AppError(400, 'VALIDATION', 'That store is not in your kitchen', { fields: { storeId: 'Unknown store' } });
     }
     // A level item bought is simply full again; it keeps no lots.
-    if (product.trackMode === 'level') return { product: await setLevel(tx, product.id, 'full'), lot: null };
-    // "A jar of 14": this jar's own count rather than the usual jar size.
-    const quantity = input.each && input.unit && input.unit !== product.unit ? round(input.quantity * input.each) : baseQuantity(input.quantity, input.unit, product);
+    if (product.trackMode === 'level') return { product: await setLevel(tx, product.id, 'full'), lot: null, lots: [] };
+    const pieces = piecesOf(input, product);
     const location = input.location ?? product.location;
     const expiresOn = input.expiresOn === undefined ? defaultExpiry(product, location, tx.now) : input.expiresOn;
-    const id = randomUUID();
-    await tx.db.query(
-      `INSERT INTO stock_lots (id, household_id, product_id, quantity, initial_quantity, location, added_at, expires_on, price, store_id, trip_id, note, created_by, variant)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-      [
-        id,
-        tx.actor.householdId,
-        product.id,
-        quantity,
-        location,
-        tx.now,
-        expiresOn,
-        input.price ?? null,
-        input.storeId ?? null,
-        input.tripId ?? null,
-        input.note ?? '',
-        tx.actor.userId,
-        variant,
-      ],
-    );
-    await recordEvent(tx, { productId: product.id, lotId: id, kind: 'added', delta: quantity });
-    return { product, lot: toLot(await findLot(tx, id)) };
+    // The price is for everything; each lot carries its share by amount.
+    const total = pieces.reduce((sum, piece) => sum + piece.quantity, 0);
+    let priceLeft = input.price ?? null;
+    const lots: Lot[] = [];
+    for (const [index, piece] of pieces.entries()) {
+      const last = index === pieces.length - 1;
+      const price = priceLeft === null ? null : last ? priceLeft : Math.round(((input.price! * piece.quantity) / (total || 1)) * 100) / 100;
+      if (priceLeft !== null && price !== null) priceLeft = Math.round((priceLeft - price) * 100) / 100;
+      const id = randomUUID();
+      await tx.db.query(
+        `INSERT INTO stock_lots (id, household_id, product_id, quantity, initial_quantity, location, added_at, expires_on, price, store_id, trip_id, note, created_by, variant, package, package_size)
+         VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        [
+          id,
+          tx.actor.householdId,
+          product.id,
+          piece.quantity,
+          location,
+          tx.now,
+          expiresOn,
+          price,
+          input.storeId ?? null,
+          input.tripId ?? null,
+          input.note ?? '',
+          tx.actor.userId,
+          variant,
+          piece.package,
+          piece.packageSize,
+        ],
+      );
+      await recordEvent(tx, { productId: product.id, lotId: id, kind: 'added', delta: piece.quantity });
+      lots.push(toLot(await findLot(tx, id)));
+    }
+    return { product, lot: lots[0] ?? null, lots };
   });
 }
 
@@ -191,7 +228,15 @@ export interface UseResult {
   used: number;
   /** How much was asked for but not there. */
   shortfall: number;
-  lots: Array<{ lotId: string; taken: number; left: number }>;
+  lots: Array<{
+    lotId: string;
+    taken: number;
+    left: number;
+    /** Opened by this use: it now keeps until `expiresOn`, in `location`. */
+    opened: boolean;
+    expiresOn: string | null;
+    location: Location;
+  }>;
   /** The history entries this use wrote: pass them to undo it (once). */
   events: number[];
 }
@@ -223,15 +268,19 @@ export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: s
       const taken = round(Math.min(lot.quantity, remaining));
       if (taken <= 0) continue;
       const left = round(lot.quantity - taken);
-      // A lot that is started is opened; opening shortens its expiry to the product's "once opened" days.
+      // A lot that is started is opened: its expiry shortens to the "once opened" days (a package's
+      // kind decides when the item doesn't), and it moves to where it is kept once open.
+      const opening = left > 0 && !lot.opened_at;
+      const openedDays = product.openedDays ?? (lot.package ? (OPENED_BY_CATEGORY[product.category] ?? null) : null);
+      const openedUntil = opening && openedDays ? localDate(tx.now, openedDays) : null;
+      const expiresOn = openedUntil && (!lot.expires_on || openedUntil < lot.expires_on) ? openedUntil : lot.expires_on;
+      const location = opening && product.openedLocation && lot.location !== 'freezer' ? product.openedLocation : lot.location;
       await tx.db.query(
-        `UPDATE stock_lots SET quantity = $2, finished_at = $3, opened_at = COALESCE(opened_at, $4),
-                expires_on = CASE WHEN opened_at IS NULL AND $5::date IS NOT NULL THEN LEAST(COALESCE(expires_on, $5::date), $5::date) ELSE expires_on END
-          WHERE id = $1`,
-        [lot.id, left, left === 0 ? tx.now : null, left === 0 ? null : tx.now, left > 0 && product.openedDays ? localDate(tx.now, product.openedDays) : null],
+        `UPDATE stock_lots SET quantity = $2, finished_at = $3, opened_at = COALESCE(opened_at, $4), expires_on = $5, location = $6 WHERE id = $1`,
+        [lot.id, left, left === 0 ? tx.now : null, left === 0 ? null : tx.now, expiresOn, location],
       );
       events.push(await recordEvent(tx, { productId: product.id, lotId: lot.id, kind: input.wasted ? 'wasted' : 'used', delta: -taken, mealId: input.mealId, note: input.note }));
-      touched.push({ lotId: lot.id, taken, left });
+      touched.push({ lotId: lot.id, taken, left, opened: opening, expiresOn, location });
       remaining = round(remaining - taken);
     }
     return { productId: product.id, used: round(wanted - remaining), shortfall: remaining, lots: touched, events };
@@ -303,12 +352,17 @@ export async function updateLot(ctx: FoodCtx, id: string, patch: LotPatch): Prom
     }
     if (patch.expiresOn !== undefined) await tx.db.query('UPDATE stock_lots SET expires_on = $2 WHERE id = $1', [id, patch.expiresOn]);
     if (patch.opened !== undefined) {
-      const shorten = patch.opened && !lot.opened_at && product.openedDays && patch.expiresOn === undefined ? localDate(tx.now, product.openedDays) : null;
+      const opening = patch.opened && !lot.opened_at;
+      const openedDays = product.openedDays ?? (lot.package ? (OPENED_BY_CATEGORY[product.category] ?? null) : null);
+      const shorten = opening && openedDays && patch.expiresOn === undefined ? localDate(tx.now, openedDays) : null;
+      // Opened by hand: same as by use — shorter keeping, and to where it is kept once open.
+      const moveTo = opening && product.openedLocation && patch.location === undefined && lot.location !== 'freezer' ? product.openedLocation : null;
       await tx.db.query(
         `UPDATE stock_lots SET opened_at = $2,
-                expires_on = CASE WHEN $3::date IS NOT NULL THEN LEAST(COALESCE(expires_on, $3::date), $3::date) ELSE expires_on END
+                expires_on = CASE WHEN $3::date IS NOT NULL THEN LEAST(COALESCE(expires_on, $3::date), $3::date) ELSE expires_on END,
+                location = coalesce($4, location)
           WHERE id = $1`,
-        [id, patch.opened ? (lot.opened_at ?? tx.now) : null, shorten],
+        [id, patch.opened ? (lot.opened_at ?? tx.now) : null, shorten, moveTo],
       );
     }
     if (patch.price !== undefined) await tx.db.query('UPDATE stock_lots SET price = $2 WHERE id = $1', [id, patch.price]);

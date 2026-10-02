@@ -4,7 +4,7 @@ import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import type { Category, FoodIcon } from './presets';
 import { findProduct, rememberVariant, resolveNamed, type Product } from './products';
-import type { CheckoutInput, ShoppingItemInput, ShoppingItemPatch, TripItemPatch } from './schemas';
+import type { CheckoutInput, Packages, ShoppingItemInput, ShoppingItemPatch, TripItemPatch } from './schemas';
 import { addStock, baseQuantity, updateLot } from './stock';
 import { amountIn, canConvert, round, type CustomUnit, type Unit } from './units';
 
@@ -40,7 +40,21 @@ export interface ShoppingItem {
   lastPrice: { price: number; storeName: string | null; boughtAt: string } | null;
   /** Expected cost of this line from that last price, when the amount is known. */
   estimate: number | null;
+  /** What is needed, at least, in the item's base unit (null: no amount asked). */
+  need: number | null;
+  /** What was actually bought, package by package (sizes in the base unit), and what they are called. */
+  bought: BoughtPackage[] | null;
+  package: string;
+  /** All of what was bought, in the base unit. */
+  boughtTotal: number | null;
+  /** The item's base unit, for the amounts above. */
+  baseUnit: string | null;
   createdAt: string;
+}
+
+export interface BoughtPackage {
+  count: number;
+  size: number;
 }
 
 interface ItemRow {
@@ -66,11 +80,13 @@ interface ItemRow {
   piece_size: number | null;
   piece_unit: 'g' | 'ml' | null;
   p_units: CustomUnit[] | null;
+  package: string;
+  bought: BoughtPackage[] | null;
 }
 
 const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.category, i.amount, i.unit, i.note, i.variant, i.priority,
        to_char(i.need_by, 'YYYY-MM-DD') AS need_by, i.source, i.checked_at,
-       i.price, i.trip_id, i.lot_id, i.created_at, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units
+       i.price, i.trip_id, i.lot_id, i.created_at, i.package, i.bought, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units
   FROM shopping_items i LEFT JOIN products p ON p.id = i.product_id`;
 
 interface PriceRow {
@@ -90,10 +106,14 @@ function lineBase(row: Pick<ItemRow, 'amount' | 'unit' | 'p_unit' | 'piece_size'
   return canConvert(unit, product) ? baseQuantity(row.amount, unit, product as Product) : null;
 }
 
+const boughtTotal = (bought: BoughtPackage[] | null) => (bought ? round(bought.reduce((sum, pack) => sum + pack.count * pack.size, 0)) : null);
+
 function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
   const mine = prices.filter((p) => p.product_id === row.product_id);
   const last = mine.find((p) => p.store_id === row.store_id) ?? mine.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())[0];
-  const base = lineBase(row);
+  const need = lineBase(row);
+  const got = boughtTotal(row.bought);
+  const base = got ?? need;
   return {
     id: row.id,
     storeId: row.store_id,
@@ -112,6 +132,11 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     price: row.price,
     lastPrice: last ? { price: last.price, storeName: last.store_name, boughtAt: last.added_at.toISOString() } : null,
     estimate: last && base !== null && last.initial_quantity > 0 ? Math.round((last.price / last.initial_quantity) * base * 100) / 100 : null,
+    need,
+    bought: row.bought,
+    package: row.package,
+    boughtTotal: got,
+    baseUnit: row.p_unit,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -229,10 +254,9 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
     await checkStore(tx, patch.storeId);
     const amount = patch.amount === undefined ? item.amount : patch.amount;
     const unit = patch.unit === undefined ? item.unit : patch.unit;
-    if (amount !== null && item.product_id) {
-      const product = await findProduct(tx, item.product_id);
-      if (product.trackMode === 'exact') baseQuantity(amount, unit ?? product.unit, product, 'amount');
-    }
+    const product = item.product_id ? await findProduct(tx, item.product_id) : null;
+    if (amount !== null && product?.trackMode === 'exact') baseQuantity(amount, unit ?? product.unit, product, 'amount');
+    const bought = patch.bought === undefined ? undefined : patch.bought && product ? boughtIn(patch.bought, product) : null;
     await tx.db.query(
       `UPDATE shopping_items SET
          checked_at = CASE WHEN $2::boolean IS NULL THEN checked_at WHEN $2 THEN coalesce(checked_at, $9) ELSE NULL END,
@@ -243,6 +267,8 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
          variant = coalesce($11, variant),
          priority = coalesce($12, priority),
          need_by = CASE WHEN $13::boolean THEN $14::date ELSE need_by END,
+         package = coalesce($15, package),
+         bought = CASE WHEN $16::boolean THEN $17::jsonb ELSE bought END,
          updated_at = $9
        WHERE id = $1`,
       [
@@ -260,10 +286,18 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
         patch.priority ?? null,
         patch.needBy !== undefined,
         patch.needBy ?? null,
+        patch.package ?? null,
+        bought !== undefined,
+        bought ? JSON.stringify(bought) : null,
       ],
     );
   });
   return getItem(ctx, id);
+}
+
+/** Packages as given ("2 × 0.3 kg") in the item's base unit ("2 × 300 g"). */
+function boughtIn(packages: Packages, product: Product): BoughtPackage[] {
+  return packages.map((pack) => ({ count: pack.count, size: pack.sizeUnit ? baseQuantity(pack.size, pack.sizeUnit, product, 'bought') : round(pack.size) }));
 }
 
 export async function removeShoppingItem(ctx: FoodCtx, id: string): Promise<void> {
@@ -304,7 +338,7 @@ const toTrip = (row: TripRow): Trip => ({
  * (with its price, store and expiry) unless told otherwise; a line without an amount counts as one
  * piece when the item has a piece size, else it is recorded but not stocked.
  */
-export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ trip: Trip; stocked: number; notStocked: string[] }> {
+export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ trip: Trip; stocked: number; notStocked: string[]; leftOver: string[] }> {
   return ctx.tx(async (tx) => {
     await checkStore(tx, input.storeId);
     const { rows: cart } = await tx.db.query<ItemRow>(
@@ -330,44 +364,64 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
 
     let stocked = 0;
     const notStocked: string[] = [];
+    const leftOver: string[] = [];
     for (const row of cart) {
       const line = lines.get(row.id);
       const price = line?.price === undefined ? row.price : line.price;
-      const amount = line?.amount === undefined ? row.amount : line.amount;
-      const unit = line?.unit === undefined ? row.unit : line.unit;
+      let amount = line?.amount === undefined ? row.amount : line.amount;
+      let unit = line?.unit === undefined ? row.unit : line.unit;
+      const variant = line?.variant ?? row.variant;
+      const packageName = line?.package ?? row.package;
+      const product = row.product_id ? await findProduct(tx, row.product_id) : null;
+      const bought = line?.bought === undefined ? row.bought : line.bought && product ? boughtIn(line.bought, product) : null;
       let lotId: string | null = null;
-      if (row.product_id && line?.addToKitchen !== false) {
-        const product = await findProduct(tx, row.product_id);
-        // Level items are simply full again; others need an amount (one piece when they come in pieces).
-        const quantity = product.trackMode === 'level' ? 1 : (amount ?? (product.unit === 'pcs' || product.pieceSize ? 1 : null));
-        const quantityUnit = product.trackMode === 'level' ? product.unit : amount ? (unit ?? product.unit) : 'pcs';
-        if (quantity !== null) {
-          const { lot } = await addStock(tx, {
-            productId: product.id,
-            quantity,
-            unit: quantityUnit,
-            price,
-            storeId: input.storeId,
-            tripId,
-            ...(line?.expiresOn !== undefined ? { expiresOn: line.expiresOn } : {}),
-            ...(line?.location ? { location: line.location } : {}),
-          });
+      if (product && line?.addToKitchen !== false) {
+        const where = {
+          productId: product.id,
+          price,
+          storeId: input.storeId,
+          tripId,
+          variant,
+          ...(line?.expiresOn !== undefined ? { expiresOn: line.expiresOn } : {}),
+          ...(line?.location ? { location: line.location } : {}),
+        };
+        if (bought && product.trackMode === 'exact') {
+          // What was really bought: "2 cans of 300 g" for "at least 500 g".
+          const { lot } = await addStock(tx, { ...where, package: packageName || undefined, packages: bought });
           lotId = lot?.id ?? null;
           stocked += 1;
-        } else notStocked.push(row.name);
+          const got = boughtTotal(bought) ?? 0;
+          const need = lineBase(row);
+          if (need !== null && got < need && line?.keepRest !== false) {
+            // Less than needed: the rest stays on this store's list.
+            const shown = row.unit ?? product.unit;
+            await tx.db.query(
+              `INSERT INTO shopping_items (id, household_id, store_id, product_id, name, amount, unit, note, source, created_by, created_at, updated_at, variant, priority, need_by)
+               SELECT $2, household_id, store_id, product_id, name, $3, $4, note, source, $5, $6, $6, variant, priority, need_by FROM shopping_items WHERE id = $1`,
+              [row.id, randomUUID(), amountIn(round(need - got), shown, product), shown, tx.actor.userId, tx.now],
+            );
+            leftOver.push(row.name);
+          }
+          amount = got;
+          unit = product.unit;
+        } else {
+          // Level items are simply full again; others need an amount (one piece when they come in pieces).
+          const quantity = product.trackMode === 'level' ? 1 : (amount ?? (product.unit === 'pcs' || product.pieceSize ? 1 : null));
+          const quantityUnit = product.trackMode === 'level' ? product.unit : amount ? (unit ?? product.unit) : 'pcs';
+          if (quantity !== null) {
+            const { lot } = await addStock(tx, { ...where, quantity, unit: quantityUnit });
+            lotId = lot?.id ?? null;
+            stocked += 1;
+          } else notStocked.push(row.name);
+        }
       } else notStocked.push(row.name);
-      await tx.db.query('UPDATE shopping_items SET trip_id = $2, price = $3, amount = $4, unit = $5, lot_id = $6, updated_at = $7 WHERE id = $1', [
-        row.id,
-        tripId,
-        price,
-        amount,
-        amount === null ? null : unit,
-        lotId,
-        tx.now,
-      ]);
+      await tx.db.query(
+        'UPDATE shopping_items SET trip_id = $2, price = $3, amount = $4, unit = $5, lot_id = $6, updated_at = $7, variant = $8, package = $9, bought = $10 WHERE id = $1',
+        [row.id, tripId, price, amount, amount === null ? null : unit, lotId, tx.now, variant, packageName, bought ? JSON.stringify(bought) : null],
+      );
     }
     const trip = await refreshTripTotal(tx, tripId);
-    return { trip, stocked, notStocked };
+    return { trip, stocked, notStocked, leftOver };
   });
 }
 

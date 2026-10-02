@@ -74,13 +74,15 @@ export interface Preset {
   pieceUnit?: 'g' | 'ml';
   /** Days it keeps once opened. */
   openedDays?: number;
+  /** Where it goes once opened, when that differs (an opened can: the fridge). */
+  openedLocation?: Location;
   /** How it is kept track of; exact (amounts) when not given. */
   track?: TrackMode;
   /** Days it keeps in the freezer, and once thawed. */
   freezerDays?: number;
   thawedDays?: number;
   /** Its own units, sizes in its base unit. */
-  units?: Array<{ name: string; plural?: string; size: number }>;
+  units?: Array<{ name: string; plural?: string; size: number; sizes?: number[] }>;
   /** Kinds of it, offered when adding. */
   variants?: string[];
 }
@@ -124,7 +126,7 @@ const OPENED: Record<string, number> = {
   Ham: 4, Bacon: 5, Pickles: 30, 'Pickled tomatoes': 14, Olives: 14, Sausages: 5, Cheese: 14, Feta: 7, Jam: 30,
 };
 /** Kept by level rather than weighed: everything in Spices & sauces, plus these. */
-const BY_LEVEL = new Set(['Sunflower oil', 'Olive oil', 'Honey', 'Jam', 'Tomato paste', 'Coffee', 'Tea', 'Instant coffee', 'Peanut butter', 'Chocolate spread']);
+const BY_LEVEL = new Set(['Sunflower oil', 'Olive oil', 'Jam', 'Tomato paste', 'Coffee', 'Tea', 'Instant coffee', 'Peanut butter', 'Chocolate spread']);
 
 const P = (
   name: string,
@@ -181,7 +183,7 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Spinach', 'lettuce', 'produce', 'g', 'fridge', 4, undefined, ['spanac', 'шпинат']),
   P('Beetroot', 'potato', 'produce', 'pcs', 'fridge', 30, 200, ['sfeclă', 'sfecla', 'свёкла', 'beets']),
   // Bakery
-  P('Bread', 'bread', 'bakery', 'pcs', 'pantry', 4, 500, ['pâine', 'paine', 'хлеб', 'loaf']),
+  P('Bread', 'bread', 'bakery', 'pcs', 'pantry', 4, 25, ['pâine', 'paine', 'хлеб', 'loaf', 'slices of bread']),
   P('Baguette', 'baguette', 'bakery', 'pcs', 'pantry', 2, 250),
   P('Croissants', 'croissant', 'bakery', 'pcs', 'pantry', 2, 60),
   P('Tortillas', 'bread', 'bakery', 'pcs', 'pantry', 14, 60, ['lavash', 'lavaș']),
@@ -198,7 +200,7 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Salmon', 'fish', 'fish', 'g', 'fridge', 2, undefined, ['somon', 'лосось']),
   P('Fish fillet', 'fish', 'fish', 'g', 'fridge', 2, undefined, ['pește', 'peste', 'рыба', 'fish']),
   P('Shrimp', 'shrimp', 'fish', 'g', 'freezer', 90, undefined, ['creveți', 'creveti', 'креветки', 'prawns']),
-  P('Tuna (canned)', 'can-fish', 'fish', 'pcs', 'pantry', 730, 160, ['ton', 'тунец', 'tuna']),
+  P('Tuna (canned)', 'can-fish', 'fish', 'g', 'pantry', 730, 160, ['ton', 'тунец', 'tuna']),
   // Dairy and eggs
   P('Milk', 'milk', 'dairy', 'ml', 'fridge', 7, [1000, 'ml'], ['lapte', 'молоко']),
   P('Eggs', 'egg', 'dairy', 'pcs', 'fridge', 21, 60, ['ouă', 'oua', 'яйца']),
@@ -227,8 +229,8 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Buckwheat', 'grain', 'pantry', 'g', 'pantry', 365, undefined, ['hrișcă', 'hrisca', 'гречка']),
   P('Lentils', 'grain', 'pantry', 'g', 'pantry', 365, undefined, ['linte', 'чечевица']),
   P('Corn grits', 'grain', 'pantry', 'g', 'pantry', 365, undefined, ['mălai', 'malai', 'кукурузная крупа', 'polenta']),
-  P('Canned beans', 'can-beans', 'pantry', 'pcs', 'pantry', 730, 400, ['fasole', 'фасоль', 'beans']),
-  P('Canned tomatoes', 'can-tomato', 'pantry', 'pcs', 'pantry', 730, 400, ['roșii conservate', 'rosii conservate', 'whole peeled tomatoes', 'помидоры в собственном соку']),
+  P('Canned beans', 'can-beans', 'pantry', 'g', 'pantry', 730, 400, ['fasole', 'фасоль', 'beans']),
+  P('Canned tomatoes', 'can-tomato', 'pantry', 'g', 'pantry', 730, 400, ['roșii conservate', 'rosii conservate', 'whole peeled tomatoes', 'помидоры в собственном соку']),
   P('Tomato paste', 'jar', 'pantry', 'g', 'pantry', 365, undefined, ['pastă de tomate', 'pasta de tomate', 'томатная паста']),
   P('Sunflower oil', 'oil', 'pantry', 'ml', 'pantry', 365, undefined, ['ulei', 'масло подсолнечное', 'oil']),
   P('Olive oil', 'oil', 'pantry', 'ml', 'pantry', 365, undefined, ['ulei de măsline']),
@@ -314,7 +316,7 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Salami', 'sausage', 'meat', 'g', 'fridge', 21, undefined, ['salam', 'салями']),
   P('Smoked meat', 'bacon', 'meat', 'g', 'fridge', 14, undefined, ['pastramă', 'pastrama', 'копчёности']),
   P('Herring', 'fish', 'fish', 'g', 'fridge', 5, undefined, ['scrumbie', 'hering', 'сельдь', 'селёдка']),
-  P('Canned sardines', 'can-fish', 'fish', 'pcs', 'pantry', 730, 120, ['sardine', 'сардины']),
+  P('Canned sardines', 'can-fish', 'fish', 'g', 'pantry', 730, 120, ['sardine', 'сардины']),
   P('Crab sticks', 'fish', 'fish', 'g', 'fridge', 10, undefined, ['bețișoare de crab', 'крабовые палочки']),
 
   // More dairy
@@ -330,9 +332,9 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Quinoa', 'grain', 'pantry', 'g', 'pantry', 365, undefined, ['киноа']),
   P('Semolina', 'flour', 'pantry', 'g', 'pantry', 365, undefined, ['griș', 'gris', 'манка']),
   P('Breadcrumbs', 'flour', 'pantry', 'g', 'pantry', 180, undefined, ['pesmet', 'панировочные сухари']),
-  P('Canned chickpeas', 'can-beans', 'pantry', 'pcs', 'pantry', 730, 400, ['năut', 'naut', 'нут', 'chickpeas']),
-  P('Canned corn', 'can-corn', 'pantry', 'pcs', 'pantry', 730, 340, ['porumb conservat', 'кукуруза консервированная']),
-  P('Canned peas', 'can-peas', 'pantry', 'pcs', 'pantry', 730, 400, ['mazăre', 'mazare', 'горошек']),
+  P('Canned chickpeas', 'can-beans', 'pantry', 'g', 'pantry', 730, 400, ['năut', 'naut', 'нут', 'chickpeas']),
+  P('Canned corn', 'can-corn', 'pantry', 'g', 'pantry', 730, 340, ['porumb conservat', 'кукуруза консервированная']),
+  P('Canned peas', 'can-peas', 'pantry', 'g', 'pantry', 730, 400, ['mazăre', 'mazare', 'горошек']),
   P('Olives', 'jar', 'pantry', 'g', 'pantry', 365, undefined, ['măsline', 'masline', 'оливки', 'маслины']),
   P('Pickles', 'pickles', 'pantry', 'pcs', 'pantry', 365, 60, ['castraveți murați', 'castraveti murati', 'солёные огурцы', 'маринованные огурцы', 'gherkins']),
   P('Pickled tomatoes', 'jar', 'pantry', 'pcs', 'pantry', 365, 90, ['roșii murate', 'rosii murate', 'солёные помидоры']),
@@ -341,25 +343,25 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Plăcintă', 'cake', 'bakery', 'pcs', 'fridge', 3, 150, ['placinta', 'plăcinte', 'placinte', 'пирог', 'pie']),
   P('Pizza', 'pizza', 'meals', 'pcs', 'fridge', 3, 110, ['пицца']),
   P('Sauerkraut', 'jar', 'pantry', 'g', 'fridge', 60, undefined, ['varză murată', 'varza murata', 'квашеная капуста']),
-  P('Coconut milk', 'can', 'pantry', 'pcs', 'pantry', 730, [400, 'ml']),
+  P('Coconut milk', 'can', 'pantry', 'ml', 'pantry', 730, [400, 'ml']),
   // More cans and jars
-  P('Chopped tomatoes', 'can-tomato', 'pantry', 'pcs', 'pantry', 730, 400, ['diced tomatoes', 'roșii tăiate', 'rosii taiate', 'roșii cuburi', 'помидоры резаные']),
-  P('Tomato sauce (canned)', 'can-tomato', 'pantry', 'pcs', 'pantry', 730, 400, ['passata', 'pasata', 'sos de roșii', 'sos de rosii', 'томатный соус']),
-  P('Canned red beans', 'can-beans', 'pantry', 'pcs', 'pantry', 730, 400, ['fasole roșie', 'fasole rosie', 'kidney beans', 'красная фасоль']),
-  P('Beans in tomato sauce', 'can-beans', 'pantry', 'pcs', 'pantry', 730, 400, ['baked beans', 'fasole în sos tomat', 'фасоль в томате']),
-  P('Canned lentils', 'can-beans', 'pantry', 'pcs', 'pantry', 730, 400, ['linte conservată', 'чечевица консервированная']),
-  P('Canned mushrooms', 'can-mushroom', 'pantry', 'pcs', 'pantry', 730, 400, ['ciuperci conservate', 'champignons in jar', 'консервированные грибы']),
-  P('Canned pineapple', 'can-fruit', 'pantry', 'pcs', 'pantry', 730, 580, ['ananas conservat', 'ананасы консервированные']),
-  P('Canned peaches', 'can-fruit', 'pantry', 'pcs', 'pantry', 730, 820, ['piersici conservate', 'персики консервированные']),
-  P('Canned salmon', 'can-fish', 'fish', 'pcs', 'pantry', 730, 240, ['somon conservat', 'горбуша консервированная', 'pink salmon']),
-  P('Mackerel (canned)', 'can-fish', 'fish', 'pcs', 'pantry', 730, 240, ['scrumbie', 'scrumbie conservată', 'скумбрия', 'mackerel']),
-  P('Sprats', 'can-fish', 'fish', 'pcs', 'pantry', 730, 160, ['șprot', 'sprot', 'шпроты']),
-  P('Canned meat', 'can-meat', 'meat', 'pcs', 'pantry', 1095, 325, ['conservă de carne', 'conserva de carne', 'тушёнка', 'тушенка', 'stewed meat']),
-  P('Liver pâté', 'pate', 'meat', 'pcs', 'pantry', 730, 100, ['pate', 'pateu', 'pateu de ficat', 'паштет']),
-  P('Zacuscă', 'jar-spread', 'pantry', 'pcs', 'pantry', 730, 300, ['zacusca', 'закуска']),
-  P('Eggplant caviar', 'jar-spread', 'pantry', 'pcs', 'pantry', 730, 450, ['icre de vinete', 'baclajan caviar', 'кабачковая икра', 'баклажанная икра', 'ikra']),
-  P('Lecho', 'jar-spread', 'pantry', 'pcs', 'pantry', 730, 450, ['lecio', 'лечо']),
-  P('Ajvar', 'jar-spread', 'pantry', 'pcs', 'pantry', 730, 350, ['айвар']),
+  P('Chopped tomatoes', 'can-tomato', 'pantry', 'g', 'pantry', 730, 400, ['diced tomatoes', 'roșii tăiate', 'rosii taiate', 'roșii cuburi', 'помидоры резаные']),
+  P('Tomato sauce (canned)', 'can-tomato', 'pantry', 'g', 'pantry', 730, 400, ['passata', 'pasata', 'sos de roșii', 'sos de rosii', 'томатный соус']),
+  P('Canned red beans', 'can-beans', 'pantry', 'g', 'pantry', 730, 400, ['fasole roșie', 'fasole rosie', 'kidney beans', 'красная фасоль']),
+  P('Beans in tomato sauce', 'can-beans', 'pantry', 'g', 'pantry', 730, 400, ['baked beans', 'fasole în sos tomat', 'фасоль в томате']),
+  P('Canned lentils', 'can-beans', 'pantry', 'g', 'pantry', 730, 400, ['linte conservată', 'чечевица консервированная']),
+  P('Canned mushrooms', 'can-mushroom', 'pantry', 'g', 'pantry', 730, 400, ['ciuperci conservate', 'champignons in jar', 'консервированные грибы']),
+  P('Canned pineapple', 'can-fruit', 'pantry', 'g', 'pantry', 730, 580, ['ananas conservat', 'ананасы консервированные']),
+  P('Canned peaches', 'can-fruit', 'pantry', 'g', 'pantry', 730, 820, ['piersici conservate', 'персики консервированные']),
+  P('Canned salmon', 'can-fish', 'fish', 'g', 'pantry', 730, 240, ['somon conservat', 'горбуша консервированная', 'pink salmon']),
+  P('Mackerel (canned)', 'can-fish', 'fish', 'g', 'pantry', 730, 240, ['scrumbie', 'scrumbie conservată', 'скумбрия', 'mackerel']),
+  P('Sprats', 'can-fish', 'fish', 'g', 'pantry', 730, 160, ['șprot', 'sprot', 'шпроты']),
+  P('Canned meat', 'can-meat', 'meat', 'g', 'pantry', 1095, 325, ['conservă de carne', 'conserva de carne', 'тушёнка', 'тушенка', 'stewed meat']),
+  P('Liver pâté', 'pate', 'meat', 'g', 'pantry', 730, 100, ['pate', 'pateu', 'pateu de ficat', 'паштет']),
+  P('Zacuscă', 'jar-spread', 'pantry', 'g', 'pantry', 730, 300, ['zacusca', 'закуска']),
+  P('Eggplant caviar', 'jar-spread', 'pantry', 'g', 'pantry', 730, 450, ['icre de vinete', 'baclajan caviar', 'кабачковая икра', 'баклажанная икра', 'ikra']),
+  P('Lecho', 'jar-spread', 'pantry', 'g', 'pantry', 730, 450, ['lecio', 'лечо']),
+  P('Ajvar', 'jar-spread', 'pantry', 'g', 'pantry', 730, 350, ['айвар']),
   P('Peanut butter', 'jar', 'pantry', 'g', 'pantry', 180, undefined, ['unt de arahide', 'арахисовая паста']),
   P('Chocolate spread', 'jar', 'pantry', 'g', 'pantry', 180, undefined, ['nutella', 'cremă de ciocolată']),
   P('Sunflower seeds', 'nuts', 'pantry', 'g', 'pantry', 180, undefined, ['semințe', 'seminte', 'семечки']),
@@ -422,58 +424,85 @@ const RAW_PRESETS: readonly Preset[] = [
 
 /** Units and kinds for the foods where people count or choose that way. */
 const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
-  Bread: { units: [{ name: 'slice', size: 0.05 }], variants: ['White', 'Rye', 'Whole grain', 'Toast', 'Black'] },
+  Bread: { units: [{ name: 'loaf', plural: 'loaves', size: 20, sizes: [12, 16, 20, 24, 30] }, { name: 'slice', size: 1 }], variants: ['White', 'Rye', 'Whole grain', 'Toast', 'Black'] },
   Baguette: { units: [{ name: 'slice', size: 0.1 }] },
-  Cheese: { units: [{ name: 'slice', size: 20 }, { name: 'square', size: 18 }, { name: 'pack', size: 200 }], variants: ['Gouda', 'Cheddar', 'Edam', 'Maasdam', 'Processed', 'Smoked'] },
-  Butter: { units: [{ name: 'pack', size: 200 }] },
-  Pasta: { units: [{ name: 'pack', size: 500 }], variants: ['Spaghetti', 'Penne', 'Fusilli', 'Farfalle', 'Lasagne'] },
-  Rice: { units: [{ name: 'pack', size: 1000 }], variants: ['Long grain', 'Basmati', 'Jasmine', 'Round'] },
-  Buckwheat: { units: [{ name: 'pack', size: 800 }] },
-  Flour: { units: [{ name: 'bag', size: 1000 }] },
-  Sugar: { units: [{ name: 'bag', size: 1000 }] },
-  Eggs: { units: [{ name: 'pack', size: 10 }, { name: 'dozen', plural: 'dozen', size: 12 }] },
-  Chocolate: { units: [{ name: 'bar', size: 100 }], variants: ['Milk', 'Dark', 'White'] },
-  Milk: { variants: ['1.5%', '2.5%', '3.2%', 'Lactose-free'] },
+  Honey: { units: [{ name: 'jar', size: 400, sizes: [250, 400, 500, 750, 1000] }, { name: 'tbsp', plural: 'tbsp', size: 21 }, { name: 'tsp', plural: 'tsp', size: 7 }] },
+  Flour: { units: [{ name: 'bag', size: 1000, sizes: [1000, 2000, 5000] }, { name: 'cup', size: 130 }, { name: 'tbsp', plural: 'tbsp', size: 8 }] },
+  Cheese: { units: [{ name: 'slice', size: 20 }, { name: 'square', size: 18 }, { name: 'pack', size: 200, sizes: [100, 150, 200, 250, 400, 500] }], variants: ['Gouda', 'Cheddar', 'Edam', 'Maasdam', 'Processed', 'Smoked'] },
+  Butter: { units: [{ name: 'pack', size: 200, sizes: [180, 200, 250] }] },
+  Pasta: { units: [{ name: 'pack', size: 500, sizes: [400, 500, 1000] }], variants: ['Spaghetti', 'Penne', 'Fusilli', 'Farfalle', 'Lasagne'] },
+  Rice: { units: [{ name: 'pack', size: 1000, sizes: [500, 800, 900, 1000] }], variants: ['Long grain', 'Basmati', 'Jasmine', 'Round'] },
+  Buckwheat: { units: [{ name: 'pack', size: 800, sizes: [400, 800, 900, 1000] }] },
+  Sugar: { units: [{ name: 'bag', size: 1000, sizes: [500, 1000, 2000] }, { name: 'cup', size: 200 }, { name: 'tbsp', plural: 'tbsp', size: 12 }] },
+  Eggs: { units: [{ name: 'pack', size: 10, sizes: [6, 10, 12, 15, 20, 30] }, { name: 'dozen', plural: 'dozen', size: 12 }] },
+  Chocolate: { units: [{ name: 'bar', size: 100, sizes: [50, 90, 100, 200, 300] }], variants: ['Milk', 'Dark', 'White'] },
+  Milk: { units: [{ name: 'bottle', size: 1000, sizes: [500, 900, 1000, 1500, 2000] }], variants: ['1.5%', '2.5%', '3.2%', 'Lactose-free'] },
   Yogurt: { variants: ['Plain', 'Greek', 'Fruit'] },
-  Sausages: { units: [{ name: 'pack', size: 400 }], variants: ['Boiled', 'Smoked', 'Hot dogs'] },
-  'Minced meat': { units: [{ name: 'pack', size: 500 }], variants: ['Beef', 'Pork', 'Mixed', 'Chicken'] },
+  Sausages: { units: [{ name: 'pack', size: 400, sizes: [300, 400, 500, 1000] }], variants: ['Boiled', 'Smoked', 'Hot dogs'] },
+  'Minced meat': { units: [{ name: 'pack', size: 500, sizes: [400, 500, 800, 1000] }], variants: ['Beef', 'Pork', 'Mixed', 'Chicken'] },
   'Beef steak': { variants: ['Ribeye', 'Sirloin', 'Tenderloin', 'T-bone'] },
   Tea: { variants: ['Black', 'Green', 'Herbal', 'Fruit'] },
-  Juice: { units: [{ name: 'box', plural: 'boxes', size: 1000 }, { name: 'small box', plural: 'small boxes', size: 200 }], variants: ['Apple', 'Orange', 'Mango-peach', 'Multivitamin', 'Peach', 'Cherry', 'Grape', 'Pineapple', 'Tomato'] },
-  Water: { units: [{ name: 'bottle', size: 1500 }, { name: 'small bottle', size: 500 }, { name: 'jug', size: 5000 }] },
-  'Sparkling water': { units: [{ name: 'bottle', size: 1500 }, { name: 'small bottle', size: 500 }], variants: ['Lightly sparkling', 'Sparkling'] },
-  'Mineral water': { units: [{ name: 'bottle', size: 500 }, { name: 'big bottle', size: 1000 }], variants: ['Borjomi', 'Essentuki', 'Narzan'] },
-  'Coca-Cola': { units: [{ name: 'can', size: 330 }, { name: 'bottle', size: 500 }, { name: 'big bottle', size: 1500 }], variants: ['Classic', 'Zero', 'Cherry'] },
-  Pepsi: { units: [{ name: 'can', size: 330 }, { name: 'bottle', size: 500 }, { name: 'big bottle', size: 1500 }], variants: ['Classic', 'Zero'] },
-  Sprite: { units: [{ name: 'can', size: 330 }, { name: 'bottle', size: 500 }, { name: 'big bottle', size: 1500 }], variants: ['Classic', 'Zero'] },
-  Fanta: { units: [{ name: 'can', size: 330 }, { name: 'bottle', size: 500 }, { name: 'big bottle', size: 1500 }], variants: ['Orange', 'Lemon', 'Exotic', 'Zero'] },
-  Soda: { units: [{ name: 'can', size: 330 }, { name: 'bottle', size: 500 }, { name: 'big bottle', size: 1500 }] },
-  'Iced tea': { units: [{ name: 'can', size: 330 }, { name: 'bottle', size: 500 }, { name: 'big bottle', size: 1500 }], variants: ['Lemon', 'Peach', 'Green tea'] },
-  'Energy drink': { units: [{ name: 'can', size: 250 }, { name: 'big can', size: 500 }] },
+  Juice: { units: [{ name: 'box', plural: 'boxes', size: 1000, sizes: [200, 250, 500, 950, 1000, 2000] }, { name: 'bottle', size: 500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Apple', 'Orange', 'Mango-peach', 'Multivitamin', 'Peach', 'Cherry', 'Grape', 'Pineapple', 'Tomato'] },
+  Water: { units: [{ name: 'bottle', size: 1500, sizes: [330, 500, 1000, 1500, 2000] }, { name: 'jug', size: 5000, sizes: [5000, 6000, 10000, 19000] }] },
+  'Sparkling water': { units: [{ name: 'bottle', size: 1500, sizes: [330, 500, 1000, 1500, 2000] }], variants: ['Lightly sparkling', 'Sparkling'] },
+  'Mineral water': { units: [{ name: 'bottle', size: 500, sizes: [330, 500, 750, 1000, 1250, 1500] }], variants: ['Borjomi', 'Essentuki', 'Narzan'] },
+  'Coca-Cola': { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Classic', 'Zero', 'Cherry'] },
+  Pepsi: { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Classic', 'Zero'] },
+  Sprite: { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Classic', 'Zero'] },
+  Fanta: { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Orange', 'Lemon', 'Exotic', 'Zero'] },
+  Soda: { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }] },
+  'Iced tea': { units: [{ name: 'can', size: 330, sizes: [250, 330, 450, 500] }, { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] }], variants: ['Lemon', 'Peach', 'Green tea'] },
+  'Energy drink': { units: [{ name: 'can', size: 250, sizes: [250, 330, 449, 500] }] },
   Lemonade: { variants: ['Lemon', 'Mint', 'Strawberry'] },
   Compote: { variants: ['Cherry', 'Apple', 'Mixed fruit'] },
   Apples: { variants: ['Golden', 'Red', 'Green'] },
   'Sour cream': { units: [{ name: 'pack', size: 400 }] },
   'Cottage cheese': { units: [{ name: 'pack', size: 400 }] },
   Coffee: { variants: ['Beans', 'Ground', 'Capsules'] },
-  'Tuna (canned)': { variants: ['In oil', 'In water', 'Chunks', 'Salad'] },
-  'Canned beans': { variants: ['White', 'Red', 'Mixed'] },
-  'Chopped tomatoes': { variants: ['Plain', 'With basil', 'With garlic', 'With chili'] },
-  'Canned corn': { variants: ['Sweet', 'Baby corn'] },
-  Sprats: { variants: ['In oil', 'Smoked'] },
-  'Canned meat': { variants: ['Beef', 'Pork', 'Chicken'] },
-  Zacuscă: { variants: ['Eggplant', 'Pepper', 'Mushroom'] },
+  'Tuna (canned)': { units: [{ name: 'can', size: 160, sizes: [80, 120, 160, 185, 240] }], variants: ['In oil', 'In water', 'Chunks', 'Salad'] },
+  'Canned beans': { units: [{ name: 'can', size: 400, sizes: [240, 400, 425, 800] }], variants: ['White', 'Red', 'Mixed'] },
+  'Chopped tomatoes': { units: [{ name: 'can', size: 400, sizes: [400, 500, 680, 800] }], variants: ['Plain', 'With basil', 'With garlic', 'With chili'] },
+  'Canned corn': { units: [{ name: 'can', size: 340, sizes: [150, 212, 340, 425, 1000] }], variants: ['Sweet', 'Baby corn'] },
+  Sprats: { units: [{ name: 'can', size: 160, sizes: [80, 120, 160, 185, 240] }], variants: ['In oil', 'Smoked'] },
+  'Canned meat': { units: [{ name: 'can', size: 325, sizes: [325, 338, 500, 525] }], variants: ['Beef', 'Pork', 'Chicken'] },
+  Zacuscă: { units: [{ name: 'jar', size: 300, sizes: [300, 450, 500, 700] }], variants: ['Eggplant', 'Pepper', 'Mushroom'] },
+  // Cans and jars are weighed; the can is the package (2 cans of 340 g).
+  'Canned tomatoes': { units: [{ name: 'can', size: 400, sizes: [400, 500, 680, 800] }] },
+  'Canned sardines': { units: [{ name: 'can', size: 120, sizes: [80, 120, 160, 185, 240] }] },
+  'Canned chickpeas': { units: [{ name: 'can', size: 400, sizes: [240, 400, 425, 800] }] },
+  'Canned peas': { units: [{ name: 'can', size: 400, sizes: [200, 400, 425, 800] }] },
+  'Tomato sauce (canned)': { units: [{ name: 'can', size: 400, sizes: [400, 500, 680, 800] }] },
+  'Canned red beans': { units: [{ name: 'can', size: 400, sizes: [240, 400, 425, 800] }] },
+  'Beans in tomato sauce': { units: [{ name: 'can', size: 400, sizes: [240, 400, 425, 800] }] },
+  'Canned lentils': { units: [{ name: 'can', size: 400, sizes: [240, 400, 425, 800] }] },
+  'Canned mushrooms': { units: [{ name: 'can', size: 400, sizes: [280, 400, 500] }] },
+  'Canned pineapple': { units: [{ name: 'can', size: 580, sizes: [425, 580, 820] }] },
+  'Canned peaches': { units: [{ name: 'can', size: 820, sizes: [425, 580, 820] }] },
+  'Canned salmon': { units: [{ name: 'can', size: 240, sizes: [80, 120, 160, 185, 240] }] },
+  'Mackerel (canned)': { units: [{ name: 'can', size: 240, sizes: [80, 120, 160, 185, 240] }] },
+  'Liver pâté': { units: [{ name: 'can', size: 100, sizes: [80, 100, 130, 250] }] },
+  'Eggplant caviar': { units: [{ name: 'jar', size: 450, sizes: [300, 450, 500, 700] }] },
+  Lecho: { units: [{ name: 'jar', size: 450, sizes: [300, 450, 500, 700] }] },
+  Ajvar: { units: [{ name: 'jar', size: 350, sizes: [300, 350, 450, 500, 700] }] },
   // Counted in what's inside: the jar or the whole cake is a unit, sized when added.
-  Pickles: { units: [{ name: 'jar', size: 12 }] },
-  'Pickled tomatoes': { units: [{ name: 'jar', size: 10 }] },
-  Cake: { units: [{ name: 'cake', size: 8 }], variants: ['Honey cake', 'Napoleon', 'Chocolate', 'Cheesecake'] },
-  Pastries: { units: [{ name: 'box', plural: 'boxes', size: 6 }] },
-  Plăcintă: { units: [{ name: 'tray', size: 8 }], variants: ['Cheese', 'Potato', 'Cabbage', 'Pumpkin', 'Cherry'] },
-  Pizza: { units: [{ name: 'pizza', size: 8 }], variants: ['Margherita', 'Pepperoni', 'Four cheeses'] },
+  'Coconut milk': { units: [{ name: 'can', size: 400, sizes: [165, 200, 400] }] },
+  Pickles: { units: [{ name: 'jar', size: 12, sizes: [6, 8, 10, 12, 14, 16, 20] }, { name: 'pickle', size: 1 }] },
+  'Pickled tomatoes': { units: [{ name: 'jar', size: 10, sizes: [6, 8, 10, 12, 15] }] },
+  Cake: { units: [{ name: 'cake', size: 8, sizes: [6, 8, 10, 12, 16] }, { name: 'piece', size: 1 }], variants: ['Honey cake', 'Napoleon', 'Chocolate', 'Cheesecake'] },
+  Pastries: { units: [{ name: 'box', plural: 'boxes', size: 6, sizes: [2, 4, 6, 9, 12] }, { name: 'piece', size: 1 }] },
+  Plăcintă: { units: [{ name: 'tray', size: 8, sizes: [1, 4, 6, 8, 12] }, { name: 'piece', size: 1 }], variants: ['Cheese', 'Potato', 'Cabbage', 'Pumpkin', 'Cherry'] },
+  Pizza: { units: [{ name: 'pizza', size: 8, sizes: [4, 6, 8, 12] }, { name: 'slice', size: 1 }], variants: ['Margherita', 'Pepperoni', 'Four cheeses'] },
 };
+
+/** Drawings of things that, once opened, belong in the fridge. */
+const FRIDGE_ONCE_OPEN = new Set<string>(['can', 'can-fish', 'can-tomato', 'can-corn', 'can-beans', 'can-peas', 'can-fruit', 'can-meat', 'can-mushroom', 'pate', 'pickles', 'jar-spread', 'jar', 'juice', 'juice-box']);
+
+/** Days a package keeps once opened, by kind, for items that don't say. */
+export const OPENED_BY_CATEGORY: Partial<Record<Category, number>> = { dairy: 5, meat: 3, fish: 2, drinks: 5, pantry: 5, snacks: 7, bakery: 4, meals: 3, produce: 4 };
 
 export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
   ...preset,
+  ...(preset.location === 'pantry' && FRIDGE_ONCE_OPEN.has(preset.icon) && preset.category !== 'spices' ? { openedLocation: 'fridge' as const } : {}),
   ...(EXTRA[preset.name] ?? {}),
   ...(OPENED[preset.name] ? { openedDays: OPENED[preset.name] } : {}),
   ...(preset.category === 'spices' || BY_LEVEL.has(preset.name) ? { track: 'level' as const } : {}),

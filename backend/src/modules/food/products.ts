@@ -16,6 +16,8 @@ export interface Product extends Measured {
   shelfLifeDays: number | null;
   /** Days it keeps once opened (milk: 5); opening shortens its expiry to this. */
   openedDays: number | null;
+  /** Where it goes once opened (an opened can: the fridge); null: it stays where it is. */
+  openedLocation: Location | null;
   /** exact: amounts and dates; level: full / low / out; none: always there (never counted or listed). */
   trackMode: TrackMode;
   /** For level items: how much is left, roughly. */
@@ -49,6 +51,7 @@ export interface ProductRow {
   location: Location;
   shelf_life_days: number | null;
   opened_days: number | null;
+  opened_location: Location | null;
   track_stock: boolean;
   track_mode: TrackMode;
   level: Level;
@@ -66,7 +69,7 @@ export interface ProductRow {
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at';
 
 export const productColumns = (alias: string) =>
   PRODUCT_COLUMNS.split(', ')
@@ -85,6 +88,7 @@ export function toProduct(row: ProductRow): Product {
     location: row.location,
     shelfLifeDays: row.shelf_life_days,
     openedDays: row.opened_days,
+    openedLocation: row.opened_location,
     trackMode: row.track_mode,
     level: row.level,
     levelAt: row.level_at?.toISOString() ?? null,
@@ -164,8 +168,8 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
   const mode = modeOf(input) ?? preset?.track ?? 'exact';
   const { rows } = await ctx.db.query<ProductRow>(
     `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at,
-                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants, opened_location)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
      RETURNING ${PRODUCT_COLUMNS}`,
     [
       randomUUID(),
@@ -192,6 +196,7 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
       input.thawedDays ?? preset?.thawedDays ?? null,
       JSON.stringify(input.units ?? (preset && preset.unit === input.unit ? (preset.units ?? []) : [])),
       input.variants ?? preset?.variants ?? [],
+      input.openedLocation === undefined ? (preset?.openedLocation ?? null) : input.openedLocation,
     ],
   );
   return toProduct(rows[0]!);
@@ -340,6 +345,7 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
     location: patch.location,
     shelf_life_days: patch.shelfLifeDays,
     opened_days: patch.openedDays,
+    opened_location: patch.openedLocation,
     track_stock: modeOf(patch) === undefined ? undefined : modeOf(patch) !== 'none',
     track_mode: modeOf(patch),
     level: patch.level,

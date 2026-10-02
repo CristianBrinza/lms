@@ -74,8 +74,8 @@ describe('food: kitchen inventory', () => {
 
     const first = await b.post('/api/food/stock/use', { productId, quantity: 700, unit: 'ml' });
     expect(first.body.result.lots).toEqual([
-      { lotId: soon.body.lot.id, taken: 500, left: 0 },
-      { lotId: late.body.lot.id, taken: 200, left: 800 },
+      expect.objectContaining({ lotId: soon.body.lot.id, taken: 500, left: 0, opened: false }),
+      expect.objectContaining({ lotId: late.body.lot.id, taken: 200, left: 800, opened: true }),
     ]);
 
     const more = await b.post('/api/food/stock/use', { productId, quantity: 1, unit: 'l' });

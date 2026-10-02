@@ -35,10 +35,12 @@ describe('food: planning ahead', () => {
 
   it('counts bread by the slice and keeps the kind of cheese on each piece', async () => {
     const b = await cook();
-    const bread = (await b.post('/api/food/stock', { name: 'Bread', quantity: 1 })).body;
-    expect(bread.product.units).toEqual([{ name: 'slice', size: 0.05 }]);
-    const used = await b.post('/api/food/stock/use', { productId: bread.product.id, quantity: 4, unit: 'slices' });
-    expect(used.body.result.used).toBe(0.2);
+    // Bread is counted in slices; a loaf is its package, 20 slices unless this one says otherwise.
+    const bread = (await b.post('/api/food/stock', { name: 'Bread', quantity: 1, unit: 'loaf' })).body;
+    expect(bread.product.units[0]).toMatchObject({ name: 'loaf', size: 20 });
+    expect(bread.lot).toMatchObject({ quantity: 20, package: 'loaf', packageSize: 20 });
+    const used = await b.post('/api/food/stock/use', { productId: bread.product.id, quantity: 4 });
+    expect(used.body.result.used).toBe(4);
 
     const cheddar = (await b.post('/api/food/stock', { name: 'Cheese', quantity: 300, unit: 'g', variant: 'Cheddar' })).body;
     expect(cheddar.lot.variant).toBe('Cheddar');

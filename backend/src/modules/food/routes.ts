@@ -5,7 +5,7 @@ import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
 import { foodCtx, requireKitchen } from './kitchen';
-import { completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, reopenMeal, setMealIngredients, uncookMeal, updateMeal } from './meals';
+import { addMealPart, completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, removeMealPart, reopenMeal, setMealIngredients, uncookMeal, updateMeal, updateMealPart } from './meals';
 import { overview } from './overview';
 import { planNeeds } from './plan';
 import { addRestriction, kitchenPeople, listRestrictions, removeRestriction } from './restrictions';
@@ -23,6 +23,8 @@ import {
   LotPatch,
   MealIngredientsInput,
   MealInput,
+  MealPartInput,
+  MealPartPatch,
   MealPatch,
   ProductInput,
   ProductPatch,
@@ -133,6 +135,11 @@ export function foodRoutes(deps: AppDeps) {
   app.put('/meals/:id/ingredients', async (c) =>
     c.json({ meal: await setMealIngredients(ctx(c), c.req.param('id'), (await readJson(c, MealIngredientsInput)).ingredients) }),
   );
+  app.post('/meals/:id/parts', async (c) => c.json({ meal: await addMealPart(ctx(c), c.req.param('id'), await readJson(c, MealPartInput)) }, 201));
+  app.patch('/meals/:id/parts/:partId', async (c) =>
+    c.json({ meal: await updateMealPart(ctx(c), c.req.param('id'), c.req.param('partId'), await readJson(c, MealPartPatch)) }),
+  );
+  app.delete('/meals/:id/parts/:partId', async (c) => c.json({ meal: await removeMealPart(ctx(c), c.req.param('id'), c.req.param('partId')) }));
   app.post('/meals/:id/done', async (c) => c.json(await completeMeal(ctx(c), c.req.param('id'), await readJson(c, CompleteMealInput))));
   app.post('/meals/:id/reopen', async (c) => c.json({ meal: await reopenMeal(ctx(c), c.req.param('id')) }));
   app.post('/meals/:id/uncook', async (c) => {

@@ -43,6 +43,7 @@ export const ProductInput = z.object({
   location: locationField.optional().describe('Where it is usually kept'),
   shelfLifeDays: z.number().int().positive().max(3650).nullable().optional().describe('Default days until it expires once bought'),
   openedDays: z.number().int().positive().max(3650).nullable().optional().describe('Days it keeps once opened'),
+  openedLocation: locationField.nullable().optional().describe('Where it goes once opened (an opened can: fridge); null: it stays put'),
   trackStock: z.boolean().optional().describe('Older form of trackMode: false means none'),
   trackMode: z
     .enum(TRACK_MODES)
@@ -55,12 +56,13 @@ export const ProductInput = z.object({
       z.object({
         name: z.string().trim().min(1).max(20),
         plural: z.string().trim().min(1).max(24).optional(),
-        size: z.number().positive().max(1_000_000).describe('One of it, in the item’s base unit'),
+        size: z.number().positive().max(1_000_000).describe('How much one usually holds, in the item’s base unit'),
+        sizes: z.array(z.number().positive().max(1_000_000)).max(12).optional().describe('Sizes it comes in, to pick from'),
       }),
     )
     .max(10)
     .optional()
-    .describe('The item’s own units: [{ name: "slice", size: 0.05 }] for bread counted in loaves'),
+    .describe('The item’s own units, usually its packages: [{ name: "jar", size: 400, sizes: [250, 400, 500] }] for honey in grams'),
   variants: z.array(z.string().trim().min(1).max(40)).max(30).optional().describe('Kinds of it: ["Cheddar", "Parmesan"]'),
   thawedDays: z.number().int().positive().max(365).nullable().optional().describe('Days it keeps once thawed'),
   minStock: z.number().min(0).max(1_000_000).nullable().optional().describe('Below this (in the base unit) it is “running low”'),
@@ -78,10 +80,23 @@ const productRef = {
 };
 const hasProductRef = (body: { productId?: string; name?: string }) => Boolean(body.productId || body.name);
 
+/** Packages bought: "2 cans of 300 g", "1 bottle of 1.25 l". Each size becomes its own lot. */
+export const PackagesField = z
+  .array(
+    z.object({
+      count: z.number().int().min(1).max(100).default(1),
+      size: z.number().positive().max(1_000_000).describe('What one holds'),
+      sizeUnit: unitField.optional().describe('Unit of size (g, l, ml…); default the item’s base unit'),
+    }),
+  )
+  .min(1)
+  .max(20);
+export type Packages = z.infer<typeof PackagesField>;
+
 export const AddStockInput = z
   .object({
     ...productRef,
-    quantity: quantityField,
+    quantity: quantityField.optional().describe('Required unless packages are given'),
     unit: unitField.optional().describe('Defaults to the product’s own unit'),
     location: locationField.optional(),
     expiresOn: dateField.nullable().optional().describe('YYYY-MM-DD; omit to use the product’s shelf life, null for none'),
@@ -89,9 +104,12 @@ export const AddStockInput = z
     storeId: idField.nullable().optional(),
     note: noteField.optional(),
     variant: z.string().trim().max(40).optional().describe('Which kind (Cheddar), when the item has kinds'),
-    each: z.number().positive().max(10_000).optional().describe('How much one `unit` holds this time, in the item’s base unit: a jar of 14 pickles is quantity 1, unit "jar", each 14'),
+    each: z.number().positive().max(1_000_000).optional().describe('How much one `unit` holds this time, in the item’s base unit: a jar of 14 pickles is quantity 1, unit "jar", each 14'),
+    package: z.string().trim().max(20).optional().describe('What the packages are called (jar, bottle, can); default the item’s first package unit'),
+    packages: PackagesField.optional().describe('What was bought, package by package: [{ count: 2, size: 300, sizeUnit: "g" }]'),
   })
-  .refine(hasProductRef, { message: 'Say which item', path: ['name'] });
+  .refine(hasProductRef, { message: 'Say which item', path: ['name'] })
+  .refine((body) => body.quantity !== undefined || body.packages, { message: 'Say how much', path: ['quantity'] });
 export type AddStockInput = z.infer<typeof AddStockInput>;
 
 export const UseStockInput = z.object({
@@ -157,6 +175,8 @@ export const ShoppingItemPatch = z
     variant: z.string().trim().max(40),
     priority: z.boolean(),
     needBy: dateField.nullable(),
+    package: z.string().trim().max(20).describe('What the packages bought are called'),
+    bought: PackagesField.nullable().describe('What was actually bought; null to clear'),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
@@ -174,6 +194,10 @@ export const CheckoutInput = z.object({
         expiresOn: dateField.nullable().optional(),
         location: locationField.optional(),
         addToKitchen: z.boolean().optional().describe('Default true: the item goes into the kitchen'),
+        package: z.string().trim().max(20).optional(),
+        bought: PackagesField.nullable().optional().describe('What was actually bought, package by package'),
+        variant: z.string().trim().max(40).optional().describe('The type actually bought'),
+        keepRest: z.boolean().optional().describe('Default true: when less was bought than needed, the rest stays on the list'),
       }),
     )
     .max(200)
@@ -228,8 +252,30 @@ export const slotField = z.enum(MEAL_SLOTS, { error: 'Breakfast, lunch, dinner o
 
 export const MealIngredientInput = IngredientInput.extend({
   lotId: idField.nullable().optional().describe('Use this exact piece (e.g. the 2 kg steak) when cooking'),
+  partId: idField.nullable().optional().describe('The meal part this line belongs to; keep it when sending lines back'),
 });
 export type MealIngredientInput = z.infer<typeof MealIngredientInput>;
+
+export const MEAL_PART_KINDS = ['dish', 'side', 'sauce', 'drink'] as const;
+
+export const MealPartInput = z
+  .object({
+    recipeId: idField.nullable().optional().describe('A recipe: its ingredients come with it, scaled to servings'),
+    title: z.string().trim().min(1).max(120).optional().describe('Needed without a recipe ("Coffee", "Bread with Philadelphia and salmon")'),
+    kind: z.enum(MEAL_PART_KINDS).optional().describe('dish (default), side, sauce or drink'),
+    servings: z.number().int().min(1).max(100).optional().describe('Default: the meal’s servings'),
+    ingredients: z.array(IngredientInput).max(40).optional().describe('Its own lines, for a part without a recipe (or replacing the recipe’s)'),
+  })
+  .refine((body) => Boolean(body.recipeId || body.title), { message: 'Pick a recipe or name it', path: ['title'] });
+export type MealPartInput = z.infer<typeof MealPartInput>;
+
+export const MealPartPatchFields = z.object({
+  title: z.string().trim().min(1).max(120),
+  kind: z.enum(MEAL_PART_KINDS),
+  servings: z.number().int().min(1).max(100).describe('Its lines scale with it'),
+});
+export const MealPartPatch = MealPartPatchFields.partial().refine((body) => Object.keys(body).length > 0, 'Nothing to change');
+export type MealPartPatch = z.infer<typeof MealPartPatch>;
 
 export const MealInput = z
   .object({
@@ -242,8 +288,9 @@ export const MealInput = z
     note: noteField.optional(),
     toGo: z.boolean().optional().describe('Packed to take along (lunch at work): can be prepared the evening before'),
     ingredients: z.array(MealIngredientInput).max(60).optional().describe('Replaces the recipe’s ingredients for this meal only'),
+    parts: z.array(MealPartInput).max(10).optional().describe('More than one dish: an omelette, coffee, bread with salmon on the side, a sauce'),
   })
-  .refine((body) => Boolean(body.recipeId || body.title), { message: 'Pick a recipe or name the meal', path: ['title'] });
+  .refine((body) => Boolean(body.recipeId || body.title || body.parts?.length), { message: 'Pick a recipe or name the meal', path: ['title'] });
 export type MealInput = z.infer<typeof MealInput>;
 
 export const MealPatchFields = z.object({
