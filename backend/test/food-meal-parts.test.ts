@@ -172,4 +172,30 @@ describe('food: meals of several parts', () => {
     expect((await b.post(`/api/food/recipes/${latte.id}/cook`, { choices: { '1': 0 } })).status).toBe(201);
     expect((await b.get('/api/food/kitchen')).body.products.find((p: any) => p.name === 'Milk').total).toBe(700);
   });
+
+  it('eats out: the meal stays in the history, the kitchen keeps its food', async () => {
+    t.setNow(NOW);
+    const b = await cook();
+    await b.post('/api/food/stock', { name: 'Chicken breast', quantity: 300, unit: 'g' });
+    const recipe = (await b.post('/api/food/recipes', { title: 'Chicken and rice', servings: 2, ingredients: [{ name: 'Chicken breast', amount: 300, unit: 'g' }] })).body.recipe;
+    const lunch = (await b.post('/api/food/meals', { date: '2026-10-03', time: '13:30', recipeId: recipe.id })).body.meal;
+    expect((await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe.ingredients[0].reservedFor).toMatchObject({ id: lunch.id });
+
+    // No time to cook: ordered in instead.
+    const out = (await b.post(`/api/food/meals/${lunch.id}/out`, { kind: 'delivery', place: 'Andy’s Pizza', cost: 240 })).body.meal;
+    expect(out).toMatchObject({ status: 'done', eatenOut: { kind: 'delivery', place: 'Andy’s Pizza', cost: 240 } });
+    const chicken = (await b.get('/api/food/kitchen')).body.products.find((p: any) => p.name === 'Chicken breast');
+    expect(chicken.total).toBe(300);
+    expect((await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe.ingredients[0]).toMatchObject({ enough: true, reservedFor: null });
+
+    // Planned ahead: a restaurant on Saturday reserves nothing.
+    const saturday = (await b.post('/api/food/meals', { date: '2026-10-04', time: '19:00', out: { kind: 'restaurant', place: 'La Plăcinte' } })).body.meal;
+    expect(saturday).toMatchObject({ title: 'Restaurant', status: 'planned', ingredients: [], eatenOut: { kind: 'restaurant', place: 'La Plăcinte' } });
+    expect((await b.post(`/api/food/meals/${saturday.id}/done`, {})).body.meal.status).toBe('done');
+
+    // Reopened: planned again, to cook at home after all.
+    const back = (await b.post(`/api/food/meals/${lunch.id}/reopen`, {})).body.meal;
+    expect(back).toMatchObject({ status: 'planned', eatenOut: null });
+    expect((await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe.ingredients[0].reservedFor).toMatchObject({ id: lunch.id });
+  });
 });

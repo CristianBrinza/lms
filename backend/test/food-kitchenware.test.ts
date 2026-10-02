@@ -121,4 +121,62 @@ describe('kitchenware', () => {
     await b.post(`/api/food/kitchenware/wash`, { how: 'hand', toolIds: [pot.id] });
     expect((await b.get('/api/food/kitchenware')).body.tools.find((x: any) => x.id === pot.id).clean).toBe(1);
   });
+
+  it('knows what is washed by hand, what is never washed, what is used up, and what is one each', async () => {
+    t.setNow(NOW);
+    const b = await cook();
+    const add = async (name: string, count = 1) => (await b.post('/api/food/kitchenware', { name, count })).body.tool;
+    const kettle = await add('kettle');
+    expect(kettle).toMatchObject({ name: 'Electric kettle', washable: false });
+    const chef = await add('chef knife');
+    const ceramic = await add('ceramic knife', 2);
+    expect(chef).toMatchObject({ name: 'Chef’s knife', dishwasherSafe: false });
+    expect(ceramic).toMatchObject({ name: 'Ceramic knife', count: 2 });
+    const pan = await add('Frying pan');
+    const grill = await add('grill');
+    expect(grill).toMatchObject({ dishwasherSafe: false });
+    const boxes = await add('Lunch box', 3);
+    const paper = await add('Baking paper', 10);
+    expect(paper).toMatchObject({ kind: 'disposable', washable: false, minCount: 2, low: false });
+
+    await b.post('/api/food/stock', { name: 'Chicken breast', quantity: 600, unit: 'g' });
+    const recipe = (
+      await b.post('/api/food/recipes', {
+        title: 'Chicken to go',
+        servings: 1,
+        ingredients: [{ name: 'Chicken breast', amount: 150, unit: 'g' }],
+        tools: [{ name: 'Frying pan', or: [{ name: 'Grill' }] }, { name: 'Chef’s knife', or: [{ name: 'Ceramic knife' }] }, { name: 'Lunch box' }, { name: 'Baking paper' }],
+      })
+    ).body.recipe;
+    const box = recipe.tools.find((n: any) => n.name === 'Lunch box');
+    expect(box).toMatchObject({ perServing: true, count: 1 });
+    expect(recipe.tools.find((n: any) => n.name === 'Frying pan').options.map((o: any) => o.name)).toEqual(['Frying pan', 'Grill']);
+
+    // Two servings: two lunch boxes, still one pan. The pan is dirty: the grill will do.
+    await b.post(`/api/food/kitchenware/${pan.id}/used`, { count: 1 });
+    const meal = (await b.post('/api/food/meals', { date: '2026-10-02', time: '18:00', recipeId: recipe.id, servings: 2 })).body.meal;
+    expect(meal.tools.find((n: any) => n.name === 'Lunch box')).toMatchObject({ count: 2, status: 'ready' });
+    const cooking = meal.tools.find((n: any) => n.name === 'Frying pan');
+    expect(cooking).toMatchObject({ count: 1, status: 'ready', using: grill.id });
+
+    await b.post(`/api/food/meals/${meal.id}/done`, {});
+    let tools = (await b.get('/api/food/kitchenware')).body.tools;
+    const by = (id: string) => tools.find((x: any) => x.id === id);
+    expect(by(grill.id)).toMatchObject({ dirty: 1 });
+    expect(by(boxes.id)).toMatchObject({ dirty: 2, clean: 1 });
+    expect(by(paper.id)).toMatchObject({ count: 9, dirty: 0 });
+    expect(by(chef.id)).toMatchObject({ dirty: 1 });
+
+    // The dishwasher takes the lunch boxes; the knife and the grill wait for a hand wash.
+    tools = (await b.post('/api/food/kitchenware/wash', { how: 'machine' })).body.tools;
+    expect(by(boxes.id)).toMatchObject({ washing: 2, dirty: 0 });
+    expect(by(grill.id)).toMatchObject({ dirty: 1, washing: 0 });
+    expect(by(chef.id)).toMatchObject({ dirty: 1, washing: 0 });
+
+    // Reopening the meal gives the baking paper back.
+    await b.post(`/api/food/meals/${meal.id}/reopen`, {});
+    tools = (await b.get('/api/food/kitchenware')).body.tools;
+    expect(by(paper.id).count).toBe(10);
+    expect(by(kettle.id)).toMatchObject({ dirty: 0 });
+  });
 });

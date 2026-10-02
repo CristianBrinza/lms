@@ -5,6 +5,7 @@ import type { FoodCtx } from '../food/kitchen';
 import {
   addMealPart,
   completeMeal,
+  eatOut,
   cookRecipe,
   deleteMeal,
   listMeals,
@@ -35,6 +36,7 @@ import {
   CheckoutInput,
   CompleteMealInput,
   CookInput,
+  EatOutInput,
   dateField,
   idField,
   locationField,
@@ -550,6 +552,15 @@ export const TOOLS: Tool[] = [
       if (!result) throw new AppError(400, 'VALIDATION', 'Nothing to change');
       return meal(result);
     },
+  }),
+  tool({
+    name: 'eat_out',
+    title: 'Eaten out',
+    description:
+      'A planned meal eaten somewhere else (restaurant, delivery, party, work, other): kept in the history as eaten, nothing taken from the kitchen, its reservations freed. To plan eating out ahead, use plan_meal with out.',
+    access: 'write',
+    input: EatOutInput.extend({ mealId: idField }),
+    run: async ({ ctx }, { mealId, ...input }) => meal(await eatOut(ctx, mealId, input)),
   }),
   tool({
     name: 'pick_option',

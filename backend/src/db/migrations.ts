@@ -482,6 +482,31 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
     name: 'food: which option a planned meal takes (milk, or whipped cream)',
     sql: `ALTER TABLE meal_ingredients ADD COLUMN choice smallint CHECK (choice BETWEEN 0 AND 4);`,
   },
+  {
+    version: 16,
+    name: 'kitchenware: hand-wash only, single-use things, this-or-that and per-serving needs',
+    sql: `
+      ALTER TABLE tools DROP CONSTRAINT IF EXISTS tools_kind_check;
+      ALTER TABLE tools ADD CONSTRAINT tools_kind_check CHECK (kind IN ('cookware', 'bakeware', 'utensil', 'dishes', 'bar', 'appliance', 'disposable', 'other'));
+      ALTER TABLE tools ADD COLUMN dishwasher_safe boolean NOT NULL DEFAULT true;
+      ALTER TABLE tools ADD COLUMN min_count integer CHECK (min_count >= 0);
+      ALTER TABLE recipe_tools ADD COLUMN alternatives uuid[] NOT NULL DEFAULT '{}';
+      ALTER TABLE recipe_tools ADD COLUMN per_serving boolean NOT NULL DEFAULT false;
+      -- What was there before: knives, boards and the like go by hand; an electric kettle is never washed.
+      UPDATE tools SET dishwasher_safe = false WHERE icon IN ('knife', 'board', 'grill', 'blender', 'mixer', 'scissors');
+      UPDATE tools SET washable = false, name = 'Electric kettle' WHERE icon = 'kettle' AND name = 'Kettle';
+      UPDATE recipe_tools SET per_serving = true WHERE tool_id IN (SELECT id FROM tools WHERE kind = 'dishes');
+    `,
+  },
+  {
+    version: 17,
+    name: 'food: meals eaten out (a restaurant, a delivery, a party): in the history, not from the kitchen',
+    sql: `
+      ALTER TABLE meals ADD COLUMN out_kind text CHECK (out_kind IN ('restaurant', 'delivery', 'party', 'work', 'other'));
+      ALTER TABLE meals ADD COLUMN out_place text NOT NULL DEFAULT '';
+      ALTER TABLE meals ADD COLUMN out_cost numeric(10, 2) CHECK (out_cost >= 0);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

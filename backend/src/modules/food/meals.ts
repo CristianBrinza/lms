@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import { allocatePlan, coveringAlternative } from './allocation';
-import { describeNeeds, dirtyAfterCooking, listTools, recipeTools, undoDirty, type ToolNeed } from './kitchenware';
+import { describeNeeds, dirtyAfterCooking, listTools, recipeTools, undoDirty, type Dirtied, type NeedSpec, type ToolNeed } from './kitchenware';
 import { listRestrictions } from './restrictions';
 import { appendIngredientRows, describeLines, ingredientRows, insertIngredientRows, neededBase, resolveIngredients, stockFor, stockSnapshot, type Availability, type IngredientLine, type IngredientRow } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import { findProduct, resolveProduct, updateProduct } from './products';
 import { getRecipe, recipeIngredients } from './recipes';
-import type { CompleteMealInput, MEAL_PART_KINDS, MEAL_SLOTS, MealIngredientInput, MealInput, MealPartInput, MealPartPatch, MealPatch } from './schemas';
+import type { CompleteMealInput, EatOutInput, MEAL_PART_KINDS, MEAL_SLOTS, MealIngredientInput, MealInput, MealPartInput, MealPartPatch, MealPatch, OUT_KINDS } from './schemas';
 import { addStock, localDate, removeLot, restoreStock, useStock } from './stock';
 import { round, type BaseUnit } from './units';
 import type { Location } from './presets';
@@ -52,6 +52,8 @@ export interface Meal {
   doneAt: string | null;
   createdVia: 'app' | 'ai';
   leftoversLotId: string | null;
+  /** Eaten out (or planned to be): where, and what it cost. Nothing is taken from the kitchen. */
+  eatenOut: { kind: (typeof OUT_KINDS)[number]; place: string; cost: number | null } | null;
   /** What the meal is made of; its lines carry the part they belong to (partId). */
   parts: MealPart[];
   /** Kitchenware its parts need, and whether it will be clean by the meal's time. */
@@ -75,11 +77,14 @@ interface MealRow {
   done_at: Date | null;
   created_via: 'app' | 'ai';
   leftovers_lot_id: string | null;
-  dirtied: Array<{ toolId: string; count: number }> | null;
+  dirtied: Dirtied[] | null;
+  out_kind: (typeof OUT_KINDS)[number] | null;
+  out_place: string;
+  out_cost: number | null;
 }
 
 const MEAL_SELECT = `SELECT m.id, m.date, to_char(m.time, 'HH24:MI') AS time, m.slot, m.recipe_id, r.icon AS recipe_icon, m.title, m.servings, m.status, m.note,
-       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id, m.dirtied
+       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id, m.dirtied, m.out_kind, m.out_place, m.out_cost
   FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id`;
 
 /** A day's meals in eating order: by time, a slot without a time standing at its usual hour. */
@@ -120,9 +125,10 @@ const SLOT_HOUR: Record<Slot, string> = { breakfast: '08:00', lunch: '13:00', sn
 const mealTime = (row: Pick<MealRow, 'date' | 'time' | 'slot'>) => new Date(`${row.date}T${row.time ?? SLOT_HOUR[row.slot]}:00`);
 
 /** What the meal's parts need, per part's recipe. */
-async function mealNeeds(ctx: FoodCtx, parts: Map<string, MealPart[]>): Promise<Map<string, Array<{ toolId: string; count: number }>>> {
+async function mealNeeds(ctx: FoodCtx, parts: Map<string, MealPart[]>): Promise<Map<string, Array<NeedSpec & { servings: number }>>> {
   const recipes = await recipeTools(ctx, [...new Set([...parts.values()].flat().flatMap((p) => (p.recipeId ? [p.recipeId] : [])))]);
-  return new Map([...parts].map(([mealId, list]) => [mealId, list.flatMap((part) => (part.recipeId ? (recipes.get(part.recipeId) ?? []) : []))]));
+  // Each part's needs for its own servings: two lunch boxes for two.
+  return new Map([...parts].map(([mealId, list]) => [mealId, list.flatMap((part) => (part.recipeId ? (recipes.get(part.recipeId) ?? []).map((need) => ({ ...need, servings: part.servings })) : []))]));
 }
 
 async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
@@ -151,6 +157,7 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       doneAt: row.done_at?.toISOString() ?? null,
       createdVia: row.created_via,
       leftoversLotId: row.leftovers_lot_id,
+      eatenOut: row.out_kind ? { kind: row.out_kind, place: row.out_place, cost: row.out_cost } : null,
       parts: parts.get(row.id) ?? [],
       tools: row.status === 'planned' ? describeNeeds(tools, needs.get(row.id) ?? [], mealTime(row)) : [],
       ingredients: lines,
@@ -234,7 +241,7 @@ export async function planMeal(ctx: FoodCtx, input: MealInput): Promise<Meal> {
     const servings = input.servings ?? recipe?.servings ?? 2;
     const parts: MealPartInput[] = [...(recipe ? [{ recipeId: recipe.id, servings }] : []), ...(input.parts ?? [])];
     const partRecipes = await Promise.all(parts.map((part) => (part.recipeId ? getRecipe(tx, part.recipeId) : null)));
-    const title = input.title ?? recipe?.title ?? parts.map((part, index) => part.title ?? partRecipes[index]!.title).join(' + ');
+    const title = input.title ?? recipe?.title ?? (parts.length ? parts.map((part, index) => part.title ?? partRecipes[index]!.title).join(' + ') : OUT_TITLE[input.out!.kind]);
     await tx.db.query(
       `INSERT INTO meals (id, household_id, date, time, slot, recipe_id, title, servings, note, created_by, created_via, created_at, updated_at, to_go)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13)`,
@@ -255,12 +262,33 @@ export async function planMeal(ctx: FoodCtx, input: MealInput): Promise<Meal> {
         input.toGo ?? partRecipes.some((r) => r?.tags.some((tag) => tag === 'to go' || tag === 'to-go' || tag === 'lunchbox')),
       ],
     );
+    if (input.out) {
+      await tx.db.query('UPDATE meals SET out_kind = $2, out_place = $3, out_cost = $4 WHERE id = $1', [id, input.out.kind, input.out.place ?? '', input.out.cost ?? null]);
+    }
     for (const [index, part] of parts.entries()) {
       // Lines given for the meal replace the first recipe's (the older way to change a meal's lines).
       await insertPart(tx, id, part, servings, index === 0 && recipe && input.ingredients ? input.ingredients : undefined);
     }
     if (!recipe && input.ingredients) await appendIngredientRows(tx, 'meal_ingredients', id, await resolveIngredients(tx, input.ingredients));
     await syncMainRecipe(tx, id);
+  });
+  return getMeal(ctx, id);
+}
+
+const OUT_TITLE: Record<(typeof OUT_KINDS)[number], string> = { restaurant: 'Restaurant', delivery: 'Ordered in', party: 'At a party', work: 'At work', other: 'Eaten out' };
+
+/**
+ * Eaten somewhere else (a restaurant, food ordered in, a party): the meal stays in the history as
+ * eaten, nothing leaves the kitchen, and what it had claimed is free again for other meals.
+ */
+export async function eatOut(ctx: FoodCtx, id: string, input: EatOutInput): Promise<Meal> {
+  await ctx.tx(async (tx) => {
+    const meal = await findMealRow(tx, id, true);
+    if (meal.status === 'done' && !meal.out_kind) throw new AppError(409, 'DONE', 'This meal was eaten at home; reopen it first');
+    await tx.db.query(
+      `UPDATE meals SET status = 'done', done_at = coalesce(done_at, $2), out_kind = $3, out_place = $4, out_cost = $5, updated_at = $2 WHERE id = $1`,
+      [id, tx.now, input.kind, input.place ?? '', input.cost ?? null],
+    );
   });
   return getMeal(ctx, id);
 }
@@ -407,6 +435,10 @@ export async function completeMeal(ctx: FoodCtx, id: string, input: CompleteMeal
   await ctx.tx(async (tx) => {
     const meal = await findMealRow(tx, id, true);
     if (meal.status === 'done') throw new AppError(409, 'DONE', 'This meal is already done');
+    if (meal.out_kind) {
+      await tx.db.query(`UPDATE meals SET status = 'done', done_at = $2, updated_at = $2 WHERE id = $1`, [id, tx.now]);
+      return;
+    }
     const rows = (await ingredientRows(tx, 'meal_ingredients', [id])).get(id) ?? [];
     const stock = await stockSnapshot(tx);
     for (const row of rows) {
@@ -489,6 +521,11 @@ export async function reopenMeal(ctx: FoodCtx, id: string): Promise<Meal> {
   await ctx.tx(async (tx) => {
     const meal = await findMealRow(tx, id, true);
     if (meal.status !== 'done') throw new AppError(409, 'NOT_DONE', 'This meal is not marked done');
+    if (meal.out_kind) {
+      // Eaten out took nothing from the kitchen: it is simply planned again (cooked at home, after all).
+      await tx.db.query(`UPDATE meals SET status = 'planned', done_at = NULL, out_kind = NULL, out_place = '', out_cost = NULL, updated_at = $2 WHERE id = $1`, [id, tx.now]);
+      return;
+    }
     const { rows } = await tx.db.query<{ lot_id: string; taken: number }>(
       `SELECT lot_id, -sum(delta)::numeric AS taken FROM stock_events
         WHERE meal_id = $1 AND lot_id IS NOT NULL AND kind IN ('used', 'wasted', 'restored') GROUP BY lot_id`,

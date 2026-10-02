@@ -261,7 +261,9 @@ export const ToolInput = z.object({
   icon: z.enum(TOOL_ICONS, { error: 'Pick an icon from the set' }).optional(),
   kind: z.enum(TOOL_KINDS).optional().describe('cookware, bakeware, utensil, dishes, bar, appliance or other'),
   count: z.number().int().min(0).max(500).optional().describe('How many the kitchen has'),
-  washable: z.boolean().optional().describe('False for things never washed (the oven, pens)'),
+  washable: z.boolean().optional().describe('False for things never washed (the oven, an electric kettle, pens)'),
+  dishwasherSafe: z.boolean().optional().describe('False for what is washed by hand only (knives, the grill, wooden boards)'),
+  minCount: z.number().int().min(0).max(500).nullable().optional().describe('Single-use things: at or below this many, running low'),
   place: z.string().trim().max(60).optional().describe('Where it is kept'),
   note: noteField.optional(),
 });
@@ -272,6 +274,12 @@ export const ToolNeedInput = z
     toolId: idField.optional(),
     name: z.string().trim().min(1).max(60).optional().describe('Kitchenware by name ("Big pot", "Frying pan"); added if the kitchen has none'),
     count: z.number().int().min(1).max(20).optional(),
+    perServing: z.boolean().optional().describe('One each: times the servings (plates, cutlery, lunch boxes); default for table things'),
+    or: z
+      .array(z.object({ toolId: idField.optional(), name: z.string().trim().min(1).max(60).optional() }).refine((b) => Boolean(b.toolId || b.name), 'Say which'))
+      .max(4)
+      .optional()
+      .describe('Or one of these instead: [{ name: "Grill" }, { name: "Air fryer" }] for a frying pan'),
   })
   .refine((body) => Boolean(body.toolId || body.name), { message: 'Say which', path: ['name'] });
 export type ToolNeedInput = z.infer<typeof ToolNeedInput>;
@@ -333,6 +341,15 @@ export const MealPartPatchFields = z.object({
 export const MealPartPatch = MealPartPatchFields.partial().refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type MealPartPatch = z.infer<typeof MealPartPatch>;
 
+export const OUT_KINDS = ['restaurant', 'delivery', 'party', 'work', 'other'] as const;
+
+export const EatOutInput = z.object({
+  kind: z.enum(OUT_KINDS).describe('restaurant, delivery (ordered in), party, work, other'),
+  place: z.string().trim().max(120).optional().describe('Where, or what ("Andy’s Pizza", "Ana’s birthday")'),
+  cost: priceField.nullable().optional().describe('What it cost, in lei'),
+});
+export type EatOutInput = z.infer<typeof EatOutInput>;
+
 export const MealInput = z
   .object({
     date: dateField,
@@ -345,8 +362,9 @@ export const MealInput = z
     toGo: z.boolean().optional().describe('Packed to take along (lunch at work): can be prepared the evening before'),
     ingredients: z.array(MealIngredientInput).max(60).optional().describe('Replaces the recipe’s ingredients for this meal only'),
     parts: z.array(MealPartInput).max(10).optional().describe('More than one dish: an omelette, coffee, bread with salmon on the side, a sauce'),
+    out: EatOutInput.optional().describe('Eating out, planned ahead: nothing is taken from the kitchen'),
   })
-  .refine((body) => Boolean(body.recipeId || body.title || body.parts?.length), { message: 'Pick a recipe or name the meal', path: ['title'] });
+  .refine((body) => Boolean(body.recipeId || body.title || body.parts?.length || body.out), { message: 'Pick a recipe or name the meal', path: ['title'] });
 export type MealInput = z.infer<typeof MealInput>;
 
 export const MealPatchFields = z.object({

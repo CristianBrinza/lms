@@ -5,7 +5,7 @@ import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
 import { foodCtx, requireKitchen } from './kitchen';
-import { addMealPart, completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, removeMealPart, reopenMeal, setLineChoice, setMealIngredients, uncookMeal, updateMeal, updateMealPart } from './meals';
+import { addMealPart, completeMeal, cookRecipe, deleteMeal, eatOut, getMeal, listMeals, planMeal, removeMealPart, reopenMeal, setLineChoice, setMealIngredients, uncookMeal, updateMeal, updateMealPart } from './meals';
 import {
   archiveTool,
   dishwasherMinutes,
@@ -35,6 +35,7 @@ import {
   LevelInput,
   LotPatch,
   ChoiceInput,
+  EatOutInput,
   MealIngredientsInput,
   MealInput,
   MealPartInput,
@@ -169,6 +170,7 @@ export function foodRoutes(deps: AppDeps) {
   );
   app.delete('/meals/:id/parts/:partId', async (c) => c.json({ meal: await removeMealPart(ctx(c), c.req.param('id'), c.req.param('partId')) }));
   app.post('/meals/:id/done', async (c) => c.json(await completeMeal(ctx(c), c.req.param('id'), await readJson(c, CompleteMealInput))));
+  app.post('/meals/:id/out', async (c) => c.json({ meal: await eatOut(ctx(c), c.req.param('id'), await readJson(c, EatOutInput)) }));
   app.post('/meals/:id/reopen', async (c) => c.json({ meal: await reopenMeal(ctx(c), c.req.param('id')) }));
   app.post('/meals/:id/uncook', async (c) => {
     await uncookMeal(ctx(c), c.req.param('id'));

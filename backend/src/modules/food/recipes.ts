@@ -104,7 +104,7 @@ async function build(ctx: FoodCtx, rows: RecipeRow[], stock?: Map<string, StockI
   return rows.map((row) => {
     const shown = servings ?? row.servings;
     const lines = describeLines(ingredients.get(row.id) ?? [], snapshot, ctx.now, shown / row.servings, { reserved, restrictions });
-    return toRecipe(row, lines, shown, describeNeeds(tools, needs.get(row.id) ?? [], ctx.now));
+    return toRecipe(row, lines, shown, describeNeeds(tools, (needs.get(row.id) ?? []).map((need) => ({ ...need, servings: shown })), ctx.now));
   });
 }
 
