@@ -4,7 +4,7 @@ import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import { findPreset, normalizeName, presetOrGuess, sameName, type Category, type FoodIcon, type Level, type Location, type TrackMode } from './presets';
 import type { ProductInput } from './schemas';
-import { canConvert, type BaseUnit, type Measured, type Unit } from './units';
+import { canConvert, type BaseUnit, type CustomUnit, type Measured } from './units';
 
 /** A thing the kitchen keeps or buys: tomatoes, a beef steak, water. Stock lives in its lots. */
 export interface Product extends Measured {
@@ -26,6 +26,10 @@ export interface Product extends Measured {
   /** Days it keeps frozen, and once thawed (null: the kind's default). */
   freezerDays: number | null;
   thawedDays: number | null;
+  /** Its own units (a slice, a pack), sizes in the base unit. */
+  units: CustomUnit[];
+  /** Kinds of it (cheese: cheddar, parmesan); each piece in stock can say which. */
+  variants: string[];
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -51,6 +55,8 @@ export interface ProductRow {
   level_at: Date | null;
   freezer_days: number | null;
   thawed_days: number | null;
+  units: CustomUnit[];
+  variants: string[];
   min_stock: number | null;
   store_id: string | null;
   note: string;
@@ -60,7 +66,7 @@ export interface ProductRow {
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, track_stock, track_mode, level, level_at, freezer_days, thawed_days, min_stock, store_id, note, archived_at, created_at, updated_at';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at';
 
 export const productColumns = (alias: string) =>
   PRODUCT_COLUMNS.split(', ')
@@ -85,6 +91,8 @@ export function toProduct(row: ProductRow): Product {
     trackStock: row.track_mode !== 'none',
     freezerDays: row.freezer_days,
     thawedDays: row.thawed_days,
+    units: row.units ?? [],
+    variants: row.variants ?? [],
     minStock: row.min_stock,
     storeId: row.store_id,
     note: row.note,
@@ -139,7 +147,7 @@ async function findByName(ctx: FoodCtx, name: string): Promise<ProductRow | null
 }
 
 /** A unit hint ("kg") tells a new product how it is counted when nothing else does. */
-function baseFor(unit: Unit | undefined): BaseUnit {
+function baseFor(unit: string | undefined): BaseUnit {
   if (unit === 'g' || unit === 'kg') return 'g';
   if (unit === 'ml' || unit === 'l' || unit === 'tsp' || unit === 'tbsp' || unit === 'cup') return 'ml';
   return 'pcs';
@@ -156,8 +164,8 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
   const mode = modeOf(input) ?? preset?.track ?? 'exact';
   const { rows } = await ctx.db.query<ProductRow>(
     `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at,
-                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21)
+                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23)
      RETURNING ${PRODUCT_COLUMNS}`,
     [
       randomUUID(),
@@ -182,6 +190,8 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
       input.level ?? 'full',
       input.freezerDays ?? preset?.freezerDays ?? null,
       input.thawedDays ?? preset?.thawedDays ?? null,
+      JSON.stringify(input.units ?? (preset && preset.unit === input.unit ? (preset.units ?? []) : [])),
+      input.variants ?? preset?.variants ?? [],
     ],
   );
   return toProduct(rows[0]!);
@@ -208,7 +218,7 @@ export async function createProduct(ctx: FoodCtx, input: ProductInput): Promise<
  * built-in catalog, else a plain new item counted the way `unitHint` suggests. Used wherever people
  * or the assistant type a name: adding stock, shopping lines, recipe ingredients.
  */
-export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: Unit, options: { level?: Level } = {}): Promise<Product> {
+export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<Product> {
   const preset = findPreset(name);
   // "roșii" and "steak" find the Tomatoes and Beef steak already in the kitchen.
   const existing = (await findByName(ctx, name)) ?? (preset ? await findByName(ctx, preset.name) : null);
@@ -267,6 +277,8 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
     level_at: patch.level === undefined ? undefined : ctx.now,
     freezer_days: patch.freezerDays,
     thawed_days: patch.thawedDays,
+    units: patch.units === undefined ? undefined : JSON.stringify(patch.units),
+    variants: patch.variants,
     min_stock: patch.minStock,
     store_id: patch.storeId,
     note: patch.note,

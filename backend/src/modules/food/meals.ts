@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
+import { allocatePlan } from './allocation';
 import { describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type IngredientRow } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
@@ -30,6 +31,8 @@ export interface Meal {
   servings: number;
   status: 'planned' | 'done' | 'skipped';
   note: string;
+  /** Packed to take along: it can be prepared (and marked done) the evening before. */
+  toGo: boolean;
   doneAt: string | null;
   createdVia: 'app' | 'ai';
   leftoversLotId: string | null;
@@ -48,13 +51,14 @@ interface MealRow {
   servings: number;
   status: Meal['status'];
   note: string;
+  to_go: boolean;
   done_at: Date | null;
   created_via: 'app' | 'ai';
   leftovers_lot_id: string | null;
 }
 
 const MEAL_SELECT = `SELECT m.id, m.date, to_char(m.time, 'HH24:MI') AS time, m.slot, m.recipe_id, r.icon AS recipe_icon, m.title, m.servings, m.status, m.note,
-       m.done_at, m.created_via, m.leftovers_lot_id
+       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id
   FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id`;
 
 /** A day's meals in eating order: by time, a slot without a time standing at its usual hour. */
@@ -72,8 +76,10 @@ export function slotFor(time: string | null | undefined): Slot {
 async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
   const stock = await stockSnapshot(ctx);
   const ingredients = await ingredientRows(ctx, 'meal_ingredients', rows.map((r) => r.id));
+  // Planned meals from today on share the kitchen in eating order.
+  const allocation = await allocatePlan(ctx, stock, localDate(ctx.now));
   return rows.map((row) => {
-    const { lines, availability } = describeLines(ingredients.get(row.id) ?? [], stock, ctx.now);
+    const { lines, availability } = describeLines(ingredients.get(row.id) ?? [], stock, ctx.now, 1, { allocation: allocation.lines });
     return {
       id: row.id,
       date: row.date,
@@ -85,6 +91,7 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       servings: row.servings,
       status: row.status,
       note: row.note,
+      toGo: row.to_go,
       doneAt: row.done_at?.toISOString() ?? null,
       createdVia: row.created_via,
       leftoversLotId: row.leftovers_lot_id,
@@ -141,9 +148,24 @@ export async function planMeal(ctx: FoodCtx, input: MealInput): Promise<Meal> {
         ? await recipeCopy(tx, recipe.id, servings)
         : [];
     await tx.db.query(
-      `INSERT INTO meals (id, household_id, date, time, slot, recipe_id, title, servings, note, created_by, created_via, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
-      [id, tx.actor.householdId, input.date, input.time ?? null, input.slot ?? slotFor(input.time), recipe?.id ?? null, input.title ?? recipe!.title, servings, input.note ?? '', tx.actor.userId, tx.actor.via, tx.now],
+      `INSERT INTO meals (id, household_id, date, time, slot, recipe_id, title, servings, note, created_by, created_via, created_at, updated_at, to_go)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13)`,
+      [
+        id,
+        tx.actor.householdId,
+        input.date,
+        input.time ?? null,
+        input.slot ?? slotFor(input.time),
+        recipe?.id ?? null,
+        input.title ?? recipe!.title,
+        servings,
+        input.note ?? '',
+        tx.actor.userId,
+        tx.actor.via,
+        tx.now,
+        // A recipe tagged "to go" is packed by default.
+        input.toGo ?? Boolean(recipe?.tags.some((tag) => tag === 'to go' || tag === 'to-go' || tag === 'lunchbox')),
+      ],
     );
     await insertIngredientRows(tx, 'meal_ingredients', id, ingredients);
   });
@@ -168,7 +190,7 @@ export async function updateMeal(ctx: FoodCtx, id: string, patch: MealPatch): Pr
     await tx.db.query(
       `UPDATE meals SET date = coalesce($2, date), time = CASE WHEN $3::boolean THEN $4::time ELSE time END, slot = coalesce($5, slot),
               recipe_id = CASE WHEN $6::boolean THEN $7::uuid ELSE recipe_id END, title = coalesce($8, title), servings = $9,
-              note = coalesce($10, note), status = coalesce($11, status), updated_at = $12
+              note = coalesce($10, note), status = coalesce($11, status), updated_at = $12, to_go = coalesce($13, to_go)
         WHERE id = $1`,
       [
         id,
@@ -183,6 +205,7 @@ export async function updateMeal(ctx: FoodCtx, id: string, patch: MealPatch): Pr
         patch.note ?? null,
         patch.status ?? null,
         tx.now,
+        patch.toGo ?? null,
       ],
     );
   });

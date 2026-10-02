@@ -5,7 +5,7 @@ import type { FoodCtx } from './kitchen';
 import { freezingFor, type Level, type Location } from './presets';
 import { findProduct, PRODUCT_COLUMNS, resolveProduct, toProduct, type Product, type ProductRow } from './products';
 import type { AddStockInput, LotPatch, UseStockInput } from './schemas';
-import { round, toBase, UnitMismatchError, type Unit } from './units';
+import { round, toBase, UnitMismatchError } from './units';
 
 /**
  * Stock is kept as lots: one physical batch each — a 1.3 kg steak, another of 2 kg, a pack of six
@@ -30,6 +30,8 @@ export interface Lot {
   storeName: string | null;
   tripId: string | null;
   note: string;
+  /** Which kind it is (Cheddar), when the item has kinds. */
+  variant: string;
 }
 
 interface LotRow {
@@ -46,11 +48,12 @@ interface LotRow {
   store_name: string | null;
   trip_id: string | null;
   note: string;
+  variant: string;
   finished_at: Date | null;
 }
 
 const LOT_SELECT = `SELECT l.id, l.product_id, l.quantity, l.initial_quantity, l.location, l.added_at, l.expires_on, l.opened_at,
-       l.price, l.store_id, s.name AS store_name, l.trip_id, l.note, l.finished_at
+       l.price, l.store_id, s.name AS store_name, l.trip_id, l.note, l.variant, l.finished_at
   FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id`;
 
 /** Opened first, then soonest to expire, then oldest: the order stock is used in. */
@@ -71,6 +74,7 @@ export function toLot(row: LotRow): Lot {
     storeName: row.store_name,
     tripId: row.trip_id,
     note: row.note,
+    variant: row.variant,
   };
 }
 
@@ -82,7 +86,7 @@ export function localDate(now: Date, days = 0): string {
 }
 
 /** toBase, answering 400 (not 500) when the unit doesn't fit the item. */
-export function baseQuantity(quantity: number, unit: Unit | undefined | null, product: Product, field = 'unit'): number {
+export function baseQuantity(quantity: number, unit: string | undefined | null, product: Product, field = 'unit'): number {
   try {
     return toBase(quantity, unit ?? product.unit, product);
   } catch (error) {
@@ -154,9 +158,23 @@ export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: s
     const expiresOn = input.expiresOn === undefined ? defaultExpiry(product, location, tx.now) : input.expiresOn;
     const id = randomUUID();
     await tx.db.query(
-      `INSERT INTO stock_lots (id, household_id, product_id, quantity, initial_quantity, location, added_at, expires_on, price, store_id, trip_id, note, created_by)
-       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [id, tx.actor.householdId, product.id, quantity, location, tx.now, expiresOn, input.price ?? null, input.storeId ?? null, input.tripId ?? null, input.note ?? '', tx.actor.userId],
+      `INSERT INTO stock_lots (id, household_id, product_id, quantity, initial_quantity, location, added_at, expires_on, price, store_id, trip_id, note, created_by, variant)
+       VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        id,
+        tx.actor.householdId,
+        product.id,
+        quantity,
+        location,
+        tx.now,
+        expiresOn,
+        input.price ?? null,
+        input.storeId ?? null,
+        input.tripId ?? null,
+        input.note ?? '',
+        tx.actor.userId,
+        input.variant ?? '',
+      ],
     );
     await recordEvent(tx, { productId: product.id, lotId: id, kind: 'added', delta: quantity });
     return { product, lot: toLot(await findLot(tx, id)) };

@@ -175,7 +175,8 @@ describe('food: meal plan', () => {
     expect((await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe).toMatchObject({ timesCooked: 1, lastCooked: '2026-10-02' });
   });
 
-  it('works out what to buy for the plan', async () => {
+  it('works out what to buy for the plan, meal by meal, with what expires before', async () => {
+    t.setNow(NOW);
     const b = await cook();
     await b.post('/api/food/stock', { name: 'Tomatoes', quantity: 2 });
     await b.post('/api/food/stock', { name: 'Beef steak', quantity: 2, unit: 'kg' });
@@ -190,14 +191,17 @@ describe('food: meal plan', () => {
 
     const needs = (await b.get('/api/food/plan/needs?from=2026-10-05&to=2026-10-11')).body;
     const byName = Object.fromEntries(needs.lines.map((l: any) => [l.name, l]));
-    expect(byName['Tomatoes']).toMatchObject({ needed: 6, inStock: 2, onList: 1, toBuy: 3, toBuyAmount: 3, toBuyUnit: 'pcs', storeId: null });
+    // The two tomatoes go to the first meal; the second is short of four, one already listed.
+    expect(byName['Tomatoes']).toMatchObject({ needed: 6, inStock: 2, onList: 1, toBuy: 3, toBuyAmount: 3, toBuyUnit: 'pcs', storeId: null, needBy: '2026-10-07' });
     expect(byName['Tomatoes'].meals).toHaveLength(2);
-    expect(byName['Beef steak']).toMatchObject({ needed: 1500, inStock: 2000, toBuy: 0 });
-    expect(byName['Cucumbers']).toMatchObject({ needed: 3, toBuy: 3 });
+    // 2 kg of steak keep until the 5th: enough for the 5th, none left good by the 7th.
+    expect(byName['Beef steak']).toMatchObject({ needed: 1500, inStock: 2000, toBuy: 1000, toBuyAmount: 1, toBuyUnit: 'kg', needBy: '2026-10-07' });
+    expect(byName['Cucumbers']).toMatchObject({ needed: 3, toBuy: 3, needBy: '2026-10-05' });
     expect(byName['Pasta']).toMatchObject({ needed: 500, toBuy: 500, toBuyUnit: 'g' });
     expect(byName['Basil']).toMatchObject({ needed: 1, toBuy: 1 });
     expect(needs.toCheck).toEqual([{ name: 'Mushrooms', meal: 'Pasta' }]);
-    expect(needs.lines.map((l: any) => l.category)).toEqual(['produce', 'produce', 'produce', 'meat', 'pantry']);
+    // What is needed soonest comes first.
+    expect(needs.lines.map((l: any) => l.name)).toEqual(['Cucumbers', 'Basil', 'Pasta', 'Tomatoes', 'Beef steak']);
 
     const added = await b.post('/api/food/shopping/items', { source: 'plan', items: [{ productId: byName['Cucumbers'].productId, amount: 3, storeId: metro.id }] });
     expect(added.body.items[0]).toMatchObject({ source: 'plan', amount: 3 });
@@ -244,7 +248,8 @@ describe('food: everyday details', () => {
     expect(res.body.stock).toMatchObject({ products: 4, expired: 0 });
     expect(res.body.stock.expiring.map((e: any) => e.name)).toEqual(['Beef steak']);
     expect(res.body.stock.low.map((l: any) => l.name)).toEqual(['Eggs']);
-    expect(res.body.recipes).toEqual({ total: 1, ready: 1, favorites: 0 });
+    // Tonight's planned dinner has claimed the steak: cooking it again now isn't "ready".
+    expect(res.body.recipes).toEqual({ total: 1, ready: 0, favorites: 0 });
     expect(res.body.shopping).toMatchObject({ open: 2, inCart: 0, anyStore: 1, stores: [{ name: 'Linella', open: 1 }] });
     expect(res.body.meals.today.map((m: any) => m.title)).toEqual([STEAK_SALAD.title]);
     expect(res.body.meals.upcoming.map((m: any) => m.title)).toEqual(['Soup']);

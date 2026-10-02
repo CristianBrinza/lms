@@ -315,6 +315,54 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
        WHERE l.product_id = p.id AND p.track_mode = 'level' AND l.finished_at IS NULL;
     `,
   },
+  {
+    version: 7,
+    name: 'food: extra units and kinds per item, urgent shopping, meals to go; reminders',
+    sql: `
+      -- Extra units an item can be counted in ("slice" of bread, "pack" of pasta), sizes in its base unit.
+      ALTER TABLE products ADD COLUMN units jsonb NOT NULL DEFAULT '[]'::jsonb;
+      -- Kinds of one item (cheese: cheddar, parmesan…); each piece in stock says which.
+      ALTER TABLE products ADD COLUMN variants text[] NOT NULL DEFAULT '{}';
+      ALTER TABLE stock_lots ADD COLUMN variant text NOT NULL DEFAULT '';
+      ALTER TABLE shopping_items ADD COLUMN variant text NOT NULL DEFAULT '';
+      ALTER TABLE shopping_items ADD COLUMN priority boolean NOT NULL DEFAULT false;
+      ALTER TABLE shopping_items ADD COLUMN need_by date;
+      ALTER TABLE meals ADD COLUMN to_go boolean NOT NULL DEFAULT false;
+
+      CREATE TABLE push_subscriptions (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        endpoint text NOT NULL UNIQUE,
+        p256dh text NOT NULL,
+        auth text NOT NULL,
+        user_agent text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_ok_at timestamptz
+      );
+      CREATE INDEX push_subscriptions_user_idx ON push_subscriptions (user_id);
+
+      CREATE TABLE reminders (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        kind text NOT NULL CHECK (kind IN ('shopping', 'expiring', 'meal', 'prep', 'custom')),
+        time time,
+        minutes_before integer CHECK (minutes_before BETWEEN 5 AND 600),
+        days integer[] NOT NULL DEFAULT '{1,2,3,4,5,6,7}',
+        text text NOT NULL DEFAULT '',
+        enabled boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX reminders_user_idx ON reminders (user_id);
+
+      -- One send per reminder per occasion (a day, or a meal).
+      CREATE TABLE reminder_log (
+        reminder_id uuid NOT NULL REFERENCES reminders (id) ON DELETE CASCADE,
+        key text NOT NULL,
+        sent_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (reminder_id, key)
+      );
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

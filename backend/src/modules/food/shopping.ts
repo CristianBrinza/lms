@@ -6,7 +6,7 @@ import type { Category, FoodIcon } from './presets';
 import { findProduct, resolveProduct, type Product } from './products';
 import type { CheckoutInput, ShoppingItemInput, ShoppingItemPatch, TripItemPatch } from './schemas';
 import { addStock, baseQuantity, updateLot } from './stock';
-import { amountIn, canConvert, round, type Unit } from './units';
+import { amountIn, canConvert, round, type CustomUnit, type Unit } from './units';
 
 /**
  * Shopping lists, one per store plus “any store”. A line is ticked into the cart in the shop,
@@ -25,8 +25,14 @@ export interface ShoppingItem {
   icon: FoodIcon;
   category: Category;
   amount: number | null;
-  unit: Unit | null;
+  unit: string | null;
   note: string;
+  /** Which kind to buy (Cheddar). */
+  variant: string;
+  /** Important: shown first. */
+  priority: boolean;
+  /** The day it is needed (a planned meal's day): buy it before. */
+  needBy: string | null;
   source: ShoppingSource;
   checked: boolean;
   price: number | null;
@@ -45,8 +51,11 @@ interface ItemRow {
   icon: FoodIcon | null;
   category: Category | null;
   amount: number | null;
-  unit: Unit | null;
+  unit: string | null;
   note: string;
+  variant: string;
+  priority: boolean;
+  need_by: string | null;
   source: ShoppingSource;
   checked_at: Date | null;
   price: number | null;
@@ -56,10 +65,12 @@ interface ItemRow {
   p_unit: Product['unit'] | null;
   piece_size: number | null;
   piece_unit: 'g' | 'ml' | null;
+  p_units: CustomUnit[] | null;
 }
 
-const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.category, i.amount, i.unit, i.note, i.source, i.checked_at,
-       i.price, i.trip_id, i.lot_id, i.created_at, p.unit AS p_unit, p.piece_size, p.piece_unit
+const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.category, i.amount, i.unit, i.note, i.variant, i.priority,
+       to_char(i.need_by, 'YYYY-MM-DD') AS need_by, i.source, i.checked_at,
+       i.price, i.trip_id, i.lot_id, i.created_at, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units
   FROM shopping_items i LEFT JOIN products p ON p.id = i.product_id`;
 
 interface PriceRow {
@@ -72,9 +83,9 @@ interface PriceRow {
 }
 
 /** The base quantity a line stands for, or null when it has no amount or the unit doesn't fit. */
-function lineBase(row: Pick<ItemRow, 'amount' | 'unit' | 'p_unit' | 'piece_size' | 'piece_unit'>): number | null {
+function lineBase(row: Pick<ItemRow, 'amount' | 'unit' | 'p_unit' | 'piece_size' | 'piece_unit' | 'p_units'>): number | null {
   if (row.amount === null || !row.p_unit) return null;
-  const product = { unit: row.p_unit, pieceSize: row.piece_size, pieceUnit: row.piece_unit };
+  const product = { unit: row.p_unit, pieceSize: row.piece_size, pieceUnit: row.piece_unit, units: row.p_units ?? [] };
   const unit = row.unit ?? row.p_unit;
   return canConvert(unit, product) ? baseQuantity(row.amount, unit, product as Product) : null;
 }
@@ -93,6 +104,9 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     amount: row.amount,
     unit: row.unit,
     note: row.note,
+    variant: row.variant,
+    priority: row.priority,
+    needBy: row.need_by,
     source: row.source,
     checked: row.checked_at !== null,
     price: row.price,
@@ -121,7 +135,7 @@ async function withPrices(ctx: FoodCtx, rows: ItemRow[]): Promise<ShoppingItem[]
 
 /** Every open line, on every list (the app groups them by store). */
 export async function listShopping(ctx: FoodCtx): Promise<ShoppingItem[]> {
-  const { rows } = await ctx.db.query<ItemRow>(`${ITEM_SELECT} WHERE i.household_id = $1 AND i.trip_id IS NULL ORDER BY i.checked_at NULLS FIRST, i.created_at`, [
+  const { rows } = await ctx.db.query<ItemRow>(`${ITEM_SELECT} WHERE i.household_id = $1 AND i.trip_id IS NULL ORDER BY i.checked_at NULLS FIRST, i.need_by NULLS LAST, i.priority DESC, i.created_at`, [
     ctx.actor.householdId,
   ]);
   return withPrices(ctx, rows);
@@ -178,9 +192,24 @@ export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[]
       }
       const id = randomUUID();
       await tx.db.query(
-        `INSERT INTO shopping_items (id, household_id, store_id, product_id, name, amount, unit, note, source, created_by, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-        [id, tx.actor.householdId, storeId ?? null, product.id, product.name, input.amount ?? null, unit, input.note ?? '', tx.actor.via === 'ai' ? 'ai' : source, tx.actor.userId, tx.now],
+        `INSERT INTO shopping_items (id, household_id, store_id, product_id, name, amount, unit, note, source, created_by, created_at, updated_at, variant, priority, need_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $13, $14)`,
+        [
+          id,
+          tx.actor.householdId,
+          storeId ?? null,
+          product.id,
+          product.name,
+          input.amount ?? null,
+          unit,
+          input.note ?? '',
+          tx.actor.via === 'ai' ? 'ai' : source,
+          tx.actor.userId,
+          tx.now,
+          input.variant ?? '',
+          input.priority ?? false,
+          input.needBy ?? null,
+        ],
       );
       out.push(id);
     }
@@ -208,6 +237,9 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
          price = CASE WHEN $5::boolean THEN $6 ELSE price END,
          store_id = CASE WHEN $7::boolean THEN $8 ELSE store_id END,
          note = coalesce($10, note),
+         variant = coalesce($11, variant),
+         priority = coalesce($12, priority),
+         need_by = CASE WHEN $13::boolean THEN $14::date ELSE need_by END,
          updated_at = $9
        WHERE id = $1`,
       [
@@ -221,6 +253,10 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
         patch.storeId ?? null,
         tx.now,
         patch.note ?? null,
+        patch.variant ?? null,
+        patch.priority ?? null,
+        patch.needBy !== undefined,
+        patch.needBy ?? null,
       ],
     );
   });

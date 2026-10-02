@@ -20,7 +20,13 @@ export const nameField = z.string().trim().min(1, 'Give it a name').max(80, 'Kee
 export const noteField = z.string().trim().max(500, 'Keep the note under 500 characters');
 
 export const quantityField = z.number({ error: 'Enter an amount' }).positive('Enter an amount above zero').max(1_000_000, 'That amount is too large');
-export const unitField = z.enum(UNITS, { error: `Use one of: ${UNITS.join(', ')}` }).describe('pcs, g, kg, ml, l, tsp, tbsp or cup');
+/** A standard unit, or one of the item's own (slice, pack); whether it fits is checked against the item. */
+export const unitField = z
+  .string({ error: 'Pick a unit' })
+  .trim()
+  .min(1, 'Pick a unit')
+  .max(24, 'That unit name is too long')
+  .describe(`${UNITS.join(', ')}, or one of the item’s own units (slice, pack…)`);
 export const baseUnitField = z.enum(BASE_UNITS, { error: 'Count it in pcs, g or ml' });
 export const locationField = z.enum(LOCATIONS, { error: 'Fridge, freezer, pantry or other' });
 export const categoryField = z.enum(CATEGORIES, { error: 'Pick a category' });
@@ -44,6 +50,18 @@ export const ProductInput = z.object({
     .describe('exact: amounts and dates (meat, cheese); level: just full/low/out (spices, sauces, oil); none: always there'),
   level: z.enum(LEVELS).optional().describe('For level items: full, low or out'),
   freezerDays: z.number().int().positive().max(3650).nullable().optional().describe('Days it keeps frozen'),
+  units: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(20),
+        plural: z.string().trim().min(1).max(24).optional(),
+        size: z.number().positive().max(1_000_000).describe('One of it, in the item’s base unit'),
+      }),
+    )
+    .max(10)
+    .optional()
+    .describe('The item’s own units: [{ name: "slice", size: 0.05 }] for bread counted in loaves'),
+  variants: z.array(z.string().trim().min(1).max(40)).max(30).optional().describe('Kinds of it: ["Cheddar", "Parmesan"]'),
   thawedDays: z.number().int().positive().max(365).nullable().optional().describe('Days it keeps once thawed'),
   minStock: z.number().min(0).max(1_000_000).nullable().optional().describe('Below this (in the base unit) it is “running low”'),
   storeId: idField.nullable().optional().describe('The store it is usually bought at'),
@@ -70,6 +88,7 @@ export const AddStockInput = z
     price: priceField.nullable().optional().describe('What was paid for this whole amount'),
     storeId: idField.nullable().optional(),
     note: noteField.optional(),
+    variant: z.string().trim().max(40).optional().describe('Which kind (Cheddar), when the item has kinds'),
   })
   .refine(hasProductRef, { message: 'Say which item', path: ['name'] });
 export type AddStockInput = z.infer<typeof AddStockInput>;
@@ -114,6 +133,9 @@ export const ShoppingItemInput = z
     unit: unitField.nullable().optional(),
     storeId: idField.nullable().optional().describe('Which store’s list; null for “any store”; omitted: the item’s usual store'),
     note: noteField.optional(),
+    variant: z.string().trim().max(40).optional().describe('Which kind to buy (Cheddar)'),
+    priority: z.boolean().optional().describe('Important: shown first'),
+    needBy: dateField.nullable().optional().describe('The day it is needed (the meal’s day); buy it before'),
   })
   .refine(hasProductRef, { message: 'Say what to buy', path: ['name'] });
 export type ShoppingItemInput = z.infer<typeof ShoppingItemInput>;
@@ -131,6 +153,9 @@ export const ShoppingItemPatch = z
     price: priceField.nullable().describe('What the whole line cost'),
     storeId: idField.nullable(),
     note: noteField,
+    variant: z.string().trim().max(40),
+    priority: z.boolean(),
+    needBy: dateField.nullable(),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
@@ -214,6 +239,7 @@ export const MealInput = z
     title: z.string().trim().min(1).max(120).optional().describe('Needed without a recipe ("Eat out", "Leftover soup")'),
     servings: z.number().int().min(1).max(100).optional(),
     note: noteField.optional(),
+    toGo: z.boolean().optional().describe('Packed to take along (lunch at work): can be prepared the evening before'),
     ingredients: z.array(MealIngredientInput).max(60).optional().describe('Replaces the recipe’s ingredients for this meal only'),
   })
   .refine((body) => Boolean(body.recipeId || body.title), { message: 'Pick a recipe or name the meal', path: ['title'] });
@@ -228,6 +254,7 @@ export const MealPatchFields = z.object({
     servings: z.number().int().min(1).max(100).describe('Ingredients scale with it'),
     note: noteField,
     status: z.enum(['planned', 'skipped']),
+    toGo: z.boolean(),
 });
 export const MealPatch = MealPatchFields.partial().refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type MealPatch = z.infer<typeof MealPatch>;

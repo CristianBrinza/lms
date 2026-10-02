@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
+import { allocatePlan } from './allocation';
+import { localDate } from './stock';
 import { describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type StockInfo } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
@@ -89,9 +91,11 @@ function toRecipe(row: RecipeRow, lines: ReturnType<typeof describeLines>, shown
 async function build(ctx: FoodCtx, rows: RecipeRow[], stock?: Map<string, StockInfo>, servings?: number): Promise<Recipe[]> {
   const snapshot = stock ?? (await stockSnapshot(ctx));
   const ingredients = await ingredientRows(ctx, 'recipe_ingredients', rows.map((r) => r.id));
+  // Cooking now may only use what planned meals haven't claimed.
+  const { reserved } = await allocatePlan(ctx, snapshot, localDate(ctx.now));
   return rows.map((row) => {
     const shown = servings ?? row.servings;
-    return toRecipe(row, describeLines(ingredients.get(row.id) ?? [], snapshot, ctx.now, shown / row.servings), shown);
+    return toRecipe(row, describeLines(ingredients.get(row.id) ?? [], snapshot, ctx.now, shown / row.servings, { reserved }), shown);
   });
 }
 

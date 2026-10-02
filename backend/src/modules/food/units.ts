@@ -25,16 +25,32 @@ const MEASURES: Record<Unit, { family: Family; factor: number }> = {
 
 const BASE_FAMILY: Record<BaseUnit, Family> = { pcs: 'count', g: 'mass', ml: 'volume' };
 
-/** What a product says about its own unit: the base, and optionally how big one piece is. */
+/** A unit of the item's own: a slice of bread, a pack of pasta, a square of processed cheese. */
+export interface CustomUnit {
+  name: string;
+  /** Plural, when it isn't name + "s" (e.g. "boxes"). */
+  plural?: string;
+  /** How much one is, in the item's base unit (a slice = 0.05 of a loaf; a pack = 500 g). */
+  size: number;
+}
+
+/** What a product says about its own unit: the base, how big one piece is, and its own units. */
 export interface Measured {
   unit: BaseUnit;
   /** One piece in grams or millilitres (pieceUnit): a tomato ≈ 120 g, a bottle = 1500 ml. */
   pieceSize: number | null;
   pieceUnit: 'g' | 'ml' | null;
+  units?: CustomUnit[];
+}
+
+/** The item's own unit a word names ("slice", "Slices"), if any. */
+export function customUnit(unit: string, product: Measured): CustomUnit | null {
+  const word = unit.trim().toLowerCase();
+  return product.units?.find((u) => u.name.toLowerCase() === word || (u.plural ?? `${u.name}s`).toLowerCase() === word) ?? null;
 }
 
 export class UnitMismatchError extends Error {
-  constructor(unit: Unit, product: Measured) {
+  constructor(unit: string, product: Measured) {
     super(`This item is counted in ${product.unit}; ${unit} can’t be converted${product.pieceSize ? '' : ' without a piece size'}`);
     this.name = 'UnitMismatchError';
   }
@@ -44,8 +60,11 @@ export class UnitMismatchError extends Error {
 export const round = (value: number) => Math.round(value * 1000) / 1000;
 
 /** How many base units one unit of `unit` is for this product, or null when not convertible. */
-function factorOf(unit: Unit, product: Measured): number | null {
-  const measure = MEASURES[unit];
+function factorOf(unit: string, product: Measured): number | null {
+  const custom = customUnit(unit, product);
+  if (custom) return custom.size;
+  const measure = MEASURES[unit as Unit];
+  if (!measure) return null;
   const base = BASE_FAMILY[product.unit];
   if (measure.family === base) return measure.factor;
   if (!product.pieceSize || product.pieceSize <= 0) return null;
@@ -58,19 +77,19 @@ function factorOf(unit: Unit, product: Measured): number | null {
   return measure.family === 'count' ? product.pieceSize : null;
 }
 
-export function canConvert(unit: Unit, product: Measured): boolean {
+export function canConvert(unit: string, product: Measured): boolean {
   return factorOf(unit, product) !== null;
 }
 
 /** `quantity` of `unit` in the product's base unit. Throws UnitMismatchError when impossible. */
-export function toBase(quantity: number, unit: Unit, product: Measured): number {
+export function toBase(quantity: number, unit: string, product: Measured): number {
   const factor = factorOf(unit, product);
   if (factor === null) throw new UnitMismatchError(unit, product);
   return round(quantity * factor);
 }
 
 /** A base quantity expressed in `unit` (the reverse of toBase). */
-export function amountIn(base: number, unit: Unit, product: Measured): number {
+export function amountIn(base: number, unit: string, product: Measured): number {
   const factor = factorOf(unit, product);
   if (factor === null) throw new UnitMismatchError(unit, product);
   return round(base / factor);

@@ -77,6 +77,10 @@ export interface Preset {
   /** Days it keeps in the freezer, and once thawed. */
   freezerDays?: number;
   thawedDays?: number;
+  /** Its own units, sizes in its base unit. */
+  units?: Array<{ name: string; plural?: string; size: number }>;
+  /** Kinds of it, offered when adding. */
+  variants?: string[];
 }
 
 /**
@@ -252,6 +256,11 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Chocolate', 'chocolate', 'snacks', 'g', 'pantry', 180, undefined, ['ciocolată', 'ciocolata', 'шоколад']),
   P('Cookies', 'cookie', 'snacks', 'g', 'pantry', 90, undefined, ['biscuiți', 'biscuiti', 'печенье', 'biscuits']),
   P('Chips', 'chips', 'snacks', 'g', 'pantry', 90, undefined, ['chipsuri', 'чипсы', 'crisps']),
+  P('Popcorn', 'chips', 'snacks', 'g', 'pantry', 180, undefined, ['floricele', 'попкорн']),
+  P('Croutons', 'bread', 'snacks', 'g', 'pantry', 180, undefined, ['flint', 'pesmeți', 'pesmeti', 'сухарики', 'кириешки']),
+  P('Rice cakes', 'cookie', 'snacks', 'pcs', 'pantry', 180, 9, ['galete de orez', 'хлебцы']),
+  P('Granola bars', 'chocolate', 'snacks', 'pcs', 'pantry', 180, 40, ['batoane cereale', 'батончики']),
+  P('Hummus', 'jar', 'snacks', 'g', 'fridge', 7, undefined, ['хумус']),
   // Household
   P('Toilet paper', 'roll', 'household', 'pcs', 'other', undefined, undefined, ['hârtie igienică', 'туалетная бумага']),
   P('Paper towels', 'roll', 'household', 'pcs', 'other'),
@@ -375,8 +384,35 @@ const RAW_PRESETS: readonly Preset[] = [
   P('French fries', 'frozen', 'frozen', 'g', 'freezer', 180, undefined, ['cartofi pai', 'картофель фри']),
 ];
 
+/** Units and kinds for the foods where people count or choose that way. */
+const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
+  Bread: { units: [{ name: 'slice', size: 0.05 }], variants: ['White', 'Rye', 'Whole grain', 'Toast', 'Black'] },
+  Baguette: { units: [{ name: 'slice', size: 0.1 }] },
+  Cheese: { units: [{ name: 'slice', size: 20 }, { name: 'square', size: 18 }, { name: 'pack', size: 200 }], variants: ['Gouda', 'Cheddar', 'Edam', 'Maasdam', 'Processed', 'Smoked'] },
+  Butter: { units: [{ name: 'pack', size: 200 }] },
+  Pasta: { units: [{ name: 'pack', size: 500 }], variants: ['Spaghetti', 'Penne', 'Fusilli', 'Farfalle', 'Lasagne'] },
+  Rice: { units: [{ name: 'pack', size: 1000 }], variants: ['Long grain', 'Basmati', 'Jasmine', 'Round'] },
+  Buckwheat: { units: [{ name: 'pack', size: 800 }] },
+  Flour: { units: [{ name: 'bag', size: 1000 }] },
+  Sugar: { units: [{ name: 'bag', size: 1000 }] },
+  Eggs: { units: [{ name: 'pack', size: 10 }, { name: 'dozen', plural: 'dozen', size: 12 }] },
+  Chocolate: { units: [{ name: 'bar', size: 100 }], variants: ['Milk', 'Dark', 'White'] },
+  Milk: { variants: ['1.5%', '2.5%', '3.2%', 'Lactose-free'] },
+  Yogurt: { variants: ['Plain', 'Greek', 'Fruit'] },
+  Sausages: { units: [{ name: 'pack', size: 400 }], variants: ['Boiled', 'Smoked', 'Hot dogs'] },
+  'Minced meat': { units: [{ name: 'pack', size: 500 }], variants: ['Beef', 'Pork', 'Mixed', 'Chicken'] },
+  'Beef steak': { variants: ['Ribeye', 'Sirloin', 'Tenderloin', 'T-bone'] },
+  Tea: { variants: ['Black', 'Green', 'Herbal', 'Fruit'] },
+  Juice: { variants: ['Orange', 'Apple', 'Multivitamin', 'Tomato'] },
+  Apples: { variants: ['Golden', 'Red', 'Green'] },
+  'Sour cream': { units: [{ name: 'pack', size: 400 }] },
+  'Cottage cheese': { units: [{ name: 'pack', size: 400 }] },
+  Coffee: { variants: ['Beans', 'Ground', 'Capsules'] },
+};
+
 export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
   ...preset,
+  ...(EXTRA[preset.name] ?? {}),
   ...(OPENED[preset.name] ? { openedDays: OPENED[preset.name] } : {}),
   ...(preset.category === 'spices' || BY_LEVEL.has(preset.name) ? { track: 'level' as const } : {}),
 }));

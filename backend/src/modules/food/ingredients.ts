@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import type { LineAllocation, PlannedMealRef } from './allocation';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import { findProduct, PRODUCT_COLUMNS, resolveProduct, toProduct, type Product, type ProductRow } from './products';
 import type { IngredientInput, MealIngredientInput } from './schemas';
 import { localDate } from './stock';
-import { canConvert, round, toBase, type BaseUnit, type Unit } from './units';
+import { canConvert, round, toBase, type BaseUnit } from './units';
 
 /**
  * Ingredient lines, for recipes and for planned meals (a meal keeps its own copy, so one dinner
@@ -21,7 +22,7 @@ export interface IngredientLine {
   name: string;
   icon: FoodIcon;
   amount: number | null;
-  unit: Unit | null;
+  unit: string | null;
   note: string;
   optional: boolean;
   /** In stock now, in the product's base unit; null when not linked or not counted. */
@@ -33,6 +34,8 @@ export interface IngredientLine {
   enough: boolean | null;
   /** What is missing, in the base unit. */
   missing: number;
+  /** In the kitchen, but a planned meal has claimed it (cook it now and that meal goes short). */
+  reservedFor: PlannedMealRef | null;
   /** Some of it expires within three days: a reason to cook this soon. */
   expiresSoon: boolean;
 }
@@ -55,7 +58,7 @@ export interface IngredientRow {
   lot_id?: string | null;
   name: string;
   amount: number | null;
-  unit: Unit | null;
+  unit: string | null;
   note: string;
   optional: boolean;
   sort: number;
@@ -89,7 +92,20 @@ export function neededBase(row: Pick<IngredientRow, 'amount' | 'unit'>, product:
   return toBase(row.amount * scale, unit, product);
 }
 
-export function describeLines(rows: IngredientRow[], stock: Map<string, StockInfo>, now: Date, scale = 1): { lines: IngredientLine[]; availability: Availability } {
+export interface DescribeOptions {
+  /** A planned meal's lines: how the plan played forward covers each one. */
+  allocation?: Map<string, LineAllocation>;
+  /** For cooking now (a recipe): what planned meals already claim, per product. */
+  reserved?: Map<string, { amount: number; first: PlannedMealRef }>;
+}
+
+export function describeLines(
+  rows: IngredientRow[],
+  stock: Map<string, StockInfo>,
+  now: Date,
+  scale = 1,
+  options: DescribeOptions = {},
+): { lines: IngredientLine[]; availability: Availability } {
   const soon = localDate(now, 3);
   const lines: IngredientLine[] = [];
   const availability: Availability = { have: 0, total: 0, ready: true, missing: [], useSoon: 0 };
@@ -100,8 +116,18 @@ export function describeLines(rows: IngredientRow[], stock: Map<string, StockInf
     const counted = mode === 'exact' || mode === 'level';
     const needed = info && mode === 'exact' ? neededBase(row, info.product, scale) : null;
     const total = info?.total ?? 0;
-    const enough = mode === 'level' ? info!.product.level !== 'out' : mode === 'exact' ? (needed === null ? total > 0 : total + 1e-9 >= needed) : null;
-    const missing = mode === 'exact' && !enough ? round(needed === null ? 0 : needed - total) : 0;
+    const planned = options.allocation?.get(row.id);
+    const claimed = mode === 'exact' && info ? (options.reserved?.get(info.product.id) ?? null) : null;
+    // What is free for this: a planned meal gets its share of the plan; cooking now gets what no plan claims.
+    const free = claimed ? Math.max(0, round(total - claimed.amount)) : total;
+    let enough = mode === 'level' ? info!.product.level !== 'out' : mode === 'exact' ? (needed === null ? free > 0 : free + 1e-9 >= needed) : null;
+    let missing = mode === 'exact' && !enough ? round(needed === null ? 0 : needed - free) : 0;
+    let reservedFor: PlannedMealRef | null = claimed && !enough && total + 1e-9 >= (needed ?? 0) ? claimed.first : null;
+    if (planned && mode === 'exact') {
+      enough = planned.short <= 0;
+      missing = planned.short;
+      reservedFor = planned.short > 0 ? planned.takenBy : null;
+    }
     const expiresSoon = Boolean(info?.nextExpiry && info.nextExpiry <= soon && total > 0);
     lines.push({
       id: row.id,
@@ -118,6 +144,7 @@ export function describeLines(rows: IngredientRow[], stock: Map<string, StockInf
       baseUnit: info?.product.unit ?? null,
       enough,
       missing,
+      reservedFor,
       expiresSoon,
     });
     if (expiresSoon) availability.useSoon += 1;

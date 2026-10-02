@@ -187,7 +187,11 @@ describe('food: kitchen inventory', () => {
     const { b } = await cook();
     const res = await b.post('/api/food/stock', { quantity: -1, unit: 'bags' });
     expect(res.status).toBe(400);
-    expect(Object.keys(res.body.error.fields)).toEqual(expect.arrayContaining(['quantity', 'unit']));
+    expect(Object.keys(res.body.error.fields)).toEqual(expect.arrayContaining(['quantity']));
+    // A unit is checked against the item: bags of tomatoes mean nothing.
+    const bags = await b.post('/api/food/stock', { name: 'Tomatoes', quantity: 1, unit: 'bags' });
+    expect(bags.status).toBe(400);
+    expect(bags.body.error.fields.unit).toMatch(/can’t be converted/);
     const nameless = await b.post('/api/food/stock', { quantity: 1 });
     expect(nameless.body.error.fields.name).toBe('Say which item');
     expect((await b.get('/api/food/kitchen?location=garage')).status).toBe(400);
