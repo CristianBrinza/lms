@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LMS: check every push; ship main.
+#
+#   every push / pull request   typecheck, lint, tests (real PostgreSQL), production builds
+#   push to main, checks green  1. the API image → ghcr.io/<owner>/lms-api:main (+ :sha-<commit>)
+#                               2. the production PC's updater pulls it within a minute, backs up,
+#                                  switches and health-checks (rolls back by itself if needed)
+#                               3. this waits until the live API reports this commit, then
+#                                  publishes the web app (Cloudflare Worker) and runs the live checks
+#
+# The web app never goes out ahead of its API. Step 3 needs, in the repo's settings:
+#   Variables: APP_URL (https://lms.shades.md), API_ORIGIN (the tunnel hostname)
+#   Secrets:   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
+# Without them it is skipped (the image is still published).
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lms
+          POSTGRES_PASSWORD: lms
+          POSTGRES_DB: lms
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U lms -d lms" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: |
+            yarn.lock
+            backend/yarn.lock
+            frontend/yarn.lock
+      - name: Install
+        run: |
+          yarn install --frozen-lockfile --non-interactive
+          yarn --cwd backend install --frozen-lockfile --non-interactive
+          yarn --cwd frontend install --frozen-lockfile --non-interactive
+      - run: yarn verify
+        env:
+          TZ: Europe/Chisinau
+
+  image:
+    name: API image
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      short: ${{ steps.meta.outputs.short }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        name: Version and names
+        run: |
+          short="$(git rev-parse --short=7 HEAD)"
+          {
+            echo "short=$short"
+            echo "version=$(date -u +%Y%m%d%H%M)-$short"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/lms-api"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          build-args: APP_VERSION=${{ steps.meta.outputs.version }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:main
+            ${{ steps.meta.outputs.image }}:sha-${{ steps.meta.outputs.short }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  web:
+    name: Web app
+    needs: image
+    if: vars.APP_URL != '' && vars.API_ORIGIN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    concurrency: production-web
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the production API to run this commit
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          SHORT: ${{ needs.image.outputs.short }}
+        run: |
+          # The updater checks every minute; a slow pull or a rollback shows here as a timeout.
+          for _ in $(seq 1 60); do
+            version="$(curl -fsS --max-time 10 "$APP_URL/api/health" | jq -r '.version // ""' || true)"
+            echo "live API: ${version:-unreachable}"
+            case "$version" in *"$SHORT") exit 0 ;; esac
+            sleep 15
+          done
+          echo "::error::The production API didn't switch to $SHORT within 15 minutes (PC off? rolled back? see deploy/server/status.sh). The web app stays on its last version."
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - run: yarn --cwd frontend install --frozen-lockfile --non-interactive
+      - name: Build
+        run: yarn --cwd frontend build
+        env:
+          APP_VERSION: ${{ needs.image.outputs.version }}
+      - name: Publish (Cloudflare Worker)
+        working-directory: frontend
+        run: npx wrangler deploy --var "API_ORIGIN:${{ vars.API_ORIGIN }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - run: yarn --cwd backend install --frozen-lockfile --non-interactive
+      - name: Live checks
+        run: yarn --cwd backend deploy:verify
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          API_ORIGIN: ${{ vars.API_ORIGIN }}

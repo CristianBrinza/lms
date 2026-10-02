@@ -1,0 +1,46 @@
+---
+name: lms-production
+description: Use when Cristian asks to change or look at LMS data in production (the live app at lms.shades.md) — add food to the kitchen, write or change a recipe, plan meals or a week, fill shopping lists, set allergies, count kitchenware — or to check that production is up and which version runs. Not for changing the app's code (that is a normal commit; CI deploys it).
+---
+
+# Working on production LMS data
+
+Production is the live app at **https://lms.shades.md**, served by a Cloudflare Worker; the API
+and database run on the always-on Windows PC behind a Cloudflare Tunnel. Claude never touches
+that PC or its database directly: it works through the app's public address with an **access
+key**, under the same rules as the app (the key's owner's kitchen, the key's scope).
+
+## How to reach it
+
+1. **MCP (preferred)** — if a server named `lms` is connected, use its tools (kitchen_overview,
+   add_stock, save_recipe, plan_meal, add_meal_part, plan_needs, add_to_shopping_list,
+   list_kitchenware, …). Its instructions explain packages, kinds, alternatives and the plan.
+2. **CLI** — otherwise `node scripts/lms.mjs` from the repo root:
+   - `node scripts/lms.mjs whoami` — confirm the address, the user and the kitchen first
+   - `node scripts/lms.mjs GET /api/food/overview?today=YYYY-MM-DD`
+   - `node scripts/lms.mjs POST /api/food/stock '{"name":"Milk","packages":[{"count":2,"size":1,"sizeUnit":"l"}]}'`
+   - routes: `backend/src/modules/food/routes.ts`; bodies: `backend/src/modules/food/schemas.ts`
+3. **No key yet** — tell Cristian: in the app, Settings → Claude access → new key (scope
+   "Kitchen"), then in a terminal `node scripts/lms.mjs login`, or connect MCP:
+   `claude mcp add --transport http --scope user lms https://lms.shades.md/api/mcp --header "Authorization: Bearer <key>"`.
+   Never ask for the key in the chat, never print it, never write it into the repo.
+
+## Rules
+
+- Read before writing: look at what's there (kitchen, recipes, the plan's week) and reuse
+  existing item names; don't create duplicates.
+- Batch: many stock entries or list lines in one call.
+- Say what you will change before deleting anything, marking meals eaten, or changing many
+  things at once, unless Cristian asked for exactly that.
+- Dates are the kitchen's local days (Europe/Chisinau); prices in lei.
+- Real-life amounts: packages with their sizes, kinds (Finlandia, Cheddar), alternatives
+  ("milk, or whipped cream"), meal parts (dish, side, sauce, drink), kitchenware the recipe needs
+  (with "or" and "one each" for plates and lunch boxes).
+- Afterwards, report what changed, what's missing, and what to buy — not raw JSON.
+- `node scripts/lms.mjs health` shows the live web and API versions (after a deploy: is the new
+  version live?).
+
+## When something is wrong in production
+
+`node scripts/lms.mjs health` first. The API being down usually means the PC is off, asleep, or
+Docker isn't running; the fix is on that PC (`deploy/server/status.sh` there, docs/production.md).

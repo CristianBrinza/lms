@@ -1,0 +1,10 @@
+# Builds the API here instead of pulling it from the registry: `yarn deploy api` on a dev machine,
+# and the tests in deploy/test. The production server never needs this.
+services:
+  api:
+    image: lms-api:local
+    pull_policy: build
+    build:
+      context: ../backend
+      args:
+        APP_VERSION: ${APP_VERSION:-}

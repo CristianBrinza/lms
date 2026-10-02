@@ -1,14 +1,20 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# LMS server: PostgreSQL + the API + a Cloudflare Tunnel, on any machine with Docker
-# (a home server, a mini PC, this Mac). Nothing listens on the internet: cloudflared dials out
-# to Cloudflare, and the tunnel's public hostname reaches the API inside this network.
+# LMS server: PostgreSQL, the API, a Cloudflare Tunnel, the updater and nightly backups, on the
+# always-on machine (the Windows PC, inside WSL; or any Linux box with Docker).
 #
-#   cp deploy/.env.template deploy/.env      # fill it in
-#   docker compose -f deploy/docker-compose.yml up -d --build
-#   (or from the repo root: yarn deploy api)
+# Nothing listens on the internet: cloudflared dials out to Cloudflare, the tunnel's hostname
+# reaches the API inside this network, and only the Cloudflare Worker may use that hostname
+# (Cloudflare Access service token + PROXY_SECRET).
 #
-# In Cloudflare: Zero Trust → Networks → Tunnels → your tunnel → Public hostname:
-#   lms-api.<your-domain>  →  Service: HTTP  api:8790
+# The API is not built here: GitHub Actions builds it after every check passes and publishes
+# ghcr.io/<owner>/lms-api:main. The updater pulls it (and this repo's deploy files) every minute,
+# backs the database up, switches over, and rolls back if the new API isn't healthy.
+#
+#   deploy/server/setup.sh            # once: settings, secrets, first start
+#   deploy/server/status.sh           # what runs, which version, last backups
+#
+# Settings: deploy/.env (git-ignored; see .env.template). LMS_HOST_DIR there is this repo's path
+# on the machine: the updater runs `docker compose` itself and must see the same paths.
 # ─────────────────────────────────────────────────────────────────────────────
 name: lms
 
@@ -29,10 +35,9 @@ services:
       retries: 10
 
   api:
-    build:
-      context: ../backend
-      args:
-        APP_VERSION: ${APP_VERSION:-}
+    image: ${LMS_IMAGE:-ghcr.io/cristianbrinza/lms-api}:${LMS_TAG:-main}
+    # Only the updater pulls (after a backup); a restart never fetches a new version by itself.
+    pull_policy: missing
     restart: unless-stopped
     env_file: .env
     environment:
@@ -45,7 +50,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # For checks from this machine only (yarn deploy verify); the tunnel uses the inner network.
+    # For checks from this machine only; the tunnel uses the inner network.
     ports:
       - '127.0.0.1:8790:8790'
 
@@ -57,6 +62,41 @@ services:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
     depends_on:
       - api
+
+  # Every minute: new deploy files on the branch, or a new API image → back up, switch, check, roll back.
+  updater:
+    build: ./updater
+    restart: unless-stopped
+    environment:
+      LMS_HOST_DIR: ${LMS_HOST_DIR:?set LMS_HOST_DIR in deploy/.env (this repo's path on the machine)}
+      LMS_BRANCH: ${LMS_BRANCH:-main}
+      CHECK_EVERY: ${CHECK_EVERY:-60}
+      TZ: ${TZ:-Europe/Chisinau}
+    volumes:
+      # The repo at the same path as on the machine, so `docker compose` resolves the same mounts.
+      - ${LMS_HOST_DIR}:${LMS_HOST_DIR}
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: ${LMS_HOST_DIR}/deploy
+
+  # Nightly pg_dump into deploy/backups (kept KEEP_DAYS days); the updater adds one before each update.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    entrypoint: ['/bin/sh', '/scripts/backup-loop.sh']
+    environment:
+      PGHOST: postgres
+      PGUSER: lms
+      PGDATABASE: lms
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_AT: ${BACKUP_AT:-03:30}
+      KEEP_DAYS: ${KEEP_DAYS:-14}
+      TZ: ${TZ:-Europe/Chisinau}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   db-data:

@@ -194,39 +194,27 @@ yarn verify       # typecheck, lint, tests and production builds of both apps
 
 ## Deploy
 
-One-time setup:
+Production runs on an always-on Windows PC (WSL + Docker Desktop) behind a Cloudflare Tunnel, with
+the web app on Cloudflare Workers. A push to `main` deploys itself:
 
-1. **Tunnel**: Cloudflare dashboard → Zero Trust → Networks → Tunnels → Create a tunnel
-   (Cloudflared). Copy its token. Add a public hostname, e.g. `lms-api.example.com`, with service
-   `HTTP` → `api:8790`.
-2. **Server settings**: `cp deploy/.env.template deploy/.env` and fill it in:
-   - the database password
-   - `APP_URL`, `JWT_SECRET`, `PROXY_SECRET`, `TUNNEL_TOKEN`
-   - the first admin
-   - the VAPID keys for reminders
-3. **Deploy settings**: `cp .env.deploy.template .env.deploy` and fill in `API_ORIGIN` (the tunnel
-   hostname) and `APP_URL`, plus a Cloudflare API token (or run `npx wrangler login` in `frontend/`).
-4. Give the Worker the shared key: `yarn deploy secrets`.
-5. Optional: a custom domain for the app in `frontend/wrangler.jsonc` (`routes`).
+1. GitHub Actions runs every check.
+2. It publishes the API image.
+3. The PC's updater backs up, switches and health-checks, and rolls back on its own if needed.
+4. CI publishes the matching web app once the API runs it.
 
-Then, every time:
+**Everything about it is in [docs/production.md](docs/production.md)**: the one-time setup on GitHub,
+Cloudflare and the PC (`deploy/server/setup.sh`), hiding the API behind Cloudflare Access, Claude
+working on production data, backups, restores and what to do when something is off.
+`deploy/test/e2e.sh` tests the whole pipeline on local Docker.
+
+`yarn deploy` still exists for a one-off from a dev machine:
 
 ```bash
-yarn deploy              # API (Docker + tunnel on this machine), then the web app, then live checks
-yarn deploy api          # only the API stack
 yarn deploy web          # only the web app (Worker + assets)
-yarn deploy verify       # only the live checks (also: yarn deploy:verify)
-yarn deploy --dry-run    # build everything, change nothing
+yarn deploy secrets      # the Worker's keys: PROXY_SECRET and the Access service token
+yarn deploy verify       # the live checks (also: yarn deploy:verify)
+yarn deploy api          # the API stack built here (not how production updates)
 ```
-
-The API runs wherever `yarn deploy api` runs (a home server, a mini PC, this Mac). On another
-machine: clone the repo there, add `deploy/.env`, and run `yarn deploy api` on it. The API's clock
-is Europe/Chisinau (set in the Dockerfile and the compose file), so "today" and meal times are
-local.
-
-Deploy the API before (or together with) a web app that needs its new endpoints.
-
-Backups: `docker compose -f deploy/docker-compose.yml exec postgres pg_dump -U lms lms > lms-$(date +%F).sql`
 
 ## How updates reach installed apps
 

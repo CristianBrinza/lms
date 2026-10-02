@@ -5,7 +5,8 @@
  *  - the web app, its version, manifest and security headers (Cloudflare Worker)
  *  - /health: the web build and the API's database, both fine
  *  - the API through the Worker: private routes need a session, bad sign-ins are refused
- *  - the tunnel hostname directly, without the Worker's key: a bare 404
+ *  - the tunnel hostname directly, without the Worker's keys: stopped by Cloudflare Access (or, without
+ *    Access, a bare 404 from the API)
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { parseDotEnv } from '../src/lib/dotenv';
@@ -85,9 +86,13 @@ await check('wrong sign-in is refused', async () => {
 });
 
 if (API_ORIGIN) {
-  await check('tunnel hostname is closed without the Worker key', async () => {
+  await check('tunnel hostname is closed to everyone but the Worker', async () => {
     const response = await get(`${API_ORIGIN}/api/health`);
-    expect(response.status === 404, `status ${response.status} (PROXY_SECRET is not enforced)`);
+    const location = response.headers.get('location') ?? '';
+    // Best: Access turns the request away at Cloudflare's edge (a login redirect or a 403).
+    if (location.includes('cloudflareaccess.com') || response.status === 403) return 'Cloudflare Access stops it at the edge';
+    expect(response.status === 404, `status ${response.status} (neither Access nor PROXY_SECRET stops it)`);
+    return 'only PROXY_SECRET stops it: put Cloudflare Access in front (docs/production.md)';
   });
 } else {
   console.info('SKIP  tunnel hostname check — set API_ORIGIN to run it');

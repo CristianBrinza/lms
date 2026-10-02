@@ -1,0 +1,14 @@
+# Text files are LF in the repository and in every checkout (Windows included): the server's
+# shell scripts run inside Linux containers, where a CRLF line ending breaks them.
+* text=auto eol=lf
+
+# Windows-only helpers keep Windows line endings.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+# Binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+*.dump binary

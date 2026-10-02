@@ -53,3 +53,7 @@ frontend/public/favicon.ico
 
 # ── Server deploy secrets (Cloudflare Tunnel token, DB password) ─
 deploy/.env
+
+# ── Server data (deploy/) ───────────────────────────────────────
+deploy/backups/
+deploy/state/

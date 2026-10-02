@@ -3,9 +3,11 @@
  * One command to ship LMS.
  *
  *   yarn deploy              API (Docker + Cloudflare Tunnel on this machine), web (Cloudflare), checks
- *   yarn deploy api          only the API: build the image and restart deploy/docker-compose.yml
+ *   yarn deploy api          only the API, built here: for a dev machine or a one-off. The production
+ *                            server doesn't build: its updater pulls what CI published (docs/production.md)
  *   yarn deploy web          only the web app: build and `wrangler deploy` (Worker + static assets)
- *   yarn deploy secrets      copy PROXY_SECRET from deploy/.env to the Worker (once, and after changing it)
+ *   yarn deploy secrets      put PROXY_SECRET (deploy/.env) and the Access service token (.env.deploy) in
+ *                            the Worker's secrets (once, and after changing them)
  *   yarn deploy verify       only the live checks (also: yarn deploy:verify)
  *   --dry-run                build everything, upload and restart nothing
  *
@@ -69,12 +71,14 @@ function cloudflareEnv() {
 function deployApi() {
   need(serverEnv, ['POSTGRES_PASSWORD', 'APP_URL', 'JWT_SECRET', 'PROXY_SECRET', 'TUNNEL_TOKEN'], 'deploy/.env');
   run('yarn', ['--cwd', 'backend', 'typecheck']);
-  const compose = ['compose', '-f', 'deploy/docker-compose.yml', '--env-file', 'deploy/.env'];
+  // Built here (the build override) rather than pulled from the registry.
+  const compose = ['compose', '-f', 'deploy/docker-compose.yml', '-f', 'deploy/docker-compose.build.yml', '--env-file', 'deploy/.env'];
+  const env = { APP_VERSION, LMS_HOST_DIR: serverEnv.LMS_HOST_DIR || root };
   if (dryRun) {
-    run('docker', [...compose, 'build', 'api'], { env: { APP_VERSION } });
+    run('docker', [...compose, 'build', 'api'], { env });
     return;
   }
-  run('docker', [...compose, 'up', '-d', '--build', '--remove-orphans'], { env: { APP_VERSION } });
+  run('docker', [...compose, 'up', '-d', '--build', '--remove-orphans'], { env });
 }
 
 function deployWeb() {
@@ -89,15 +93,22 @@ function deployWeb() {
 
 function deploySecrets() {
   need(serverEnv, ['PROXY_SECRET'], 'deploy/.env');
-  if (dryRun) return console.info('[deploy] --dry-run: not setting the Worker secret');
-  console.info('\n$ wrangler secret put PROXY_SECRET');
-  const result = spawnSync('npx', ['wrangler', 'secret', 'put', 'PROXY_SECRET'], {
-    cwd: resolve(root, 'frontend'),
-    input: serverEnv.PROXY_SECRET,
-    stdio: ['pipe', 'inherit', 'inherit'],
-    env: { ...process.env, ...cloudflareEnv() },
-  });
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  const secrets = { PROXY_SECRET: serverEnv.PROXY_SECRET };
+  if (deployEnv.CF_ACCESS_CLIENT_ID && deployEnv.CF_ACCESS_CLIENT_SECRET) {
+    secrets.CF_ACCESS_CLIENT_ID = deployEnv.CF_ACCESS_CLIENT_ID;
+    secrets.CF_ACCESS_CLIENT_SECRET = deployEnv.CF_ACCESS_CLIENT_SECRET;
+  } else console.warn('[deploy] no CF_ACCESS_CLIENT_ID/SECRET in .env.deploy: the tunnel hostname is guarded by PROXY_SECRET only');
+  if (dryRun) return console.info(`[deploy] --dry-run: not setting ${Object.keys(secrets).join(', ')}`);
+  for (const [name, value] of Object.entries(secrets)) {
+    console.info(`\n$ wrangler secret put ${name}`);
+    const result = spawnSync('npx', ['wrangler', 'secret', 'put', name], {
+      cwd: resolve(root, 'frontend'),
+      input: value,
+      stdio: ['pipe', 'inherit', 'inherit'],
+      env: { ...process.env, ...cloudflareEnv() },
+    });
+    if (result.status !== 0) process.exit(result.status ?? 1);
+  }
 }
 
 function verify() {

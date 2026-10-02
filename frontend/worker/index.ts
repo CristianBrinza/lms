@@ -10,8 +10,10 @@
  *   policy without 'unsafe-inline'.
  * - /api/* is reverse-proxied to the API through its Cloudflare Tunnel hostname (API_ORIGIN), so
  *   the browser only ever sees this origin: first-party cookies, no CORS, no API address in the
- *   client. Every proxied request carries a shared secret (PROXY_SECRET); the API answers 404 to
- *   anything without it, so the public tunnel hostname cannot be used to get around this Worker.
+ *   client. Two locks keep that hostname for this Worker alone:
+ *     1. a Cloudflare Access service token (CF_ACCESS_CLIENT_ID/SECRET): Access, in front of the
+ *        tunnel hostname, turns everyone else away at Cloudflare's edge, before the server;
+ *     2. a shared secret (PROXY_SECRET): the API itself answers 404 to anything without it.
  */
 
 interface Fetcher {
@@ -24,13 +26,26 @@ interface Env {
   API_ORIGIN?: string;
   /** Shared secret expected by the API (PROXY_SECRET there). Set with `wrangler secret put`. */
   PROXY_SECRET?: string;
+  /** Cloudflare Access service token for the tunnel hostname (yarn deploy secrets). */
+  CF_ACCESS_CLIENT_ID?: string;
+  CF_ACCESS_CLIENT_SECRET?: string;
 }
 
 /** Headers that would reveal the backend's software or location. */
 const HIDDEN_RESPONSE_HEADERS = ['server', 'x-powered-by', 'via', 'x-served-by', 'x-backend', 'x-upstream', 'cf-cache-status'];
 
 /** Client-supplied headers never forwarded upstream (they are the Worker's to set). */
-const STRIPPED_REQUEST_HEADERS = ['x-lms-proxy-key', 'x-lms-client-ip', 'x-forwarded-for', 'x-real-ip', 'forwarded'];
+const STRIPPED_REQUEST_HEADERS = [
+  'x-lms-proxy-key',
+  'x-lms-client-ip',
+  'x-forwarded-for',
+  'x-real-ip',
+  'forwarded',
+  'cf-access-client-id',
+  'cf-access-client-secret',
+  'cf-access-jwt-assertion',
+  'cf-access-token',
+];
 
 function jsonError(status: number, code: string, message: string): Response {
   return new Response(JSON.stringify({ error: { code, message } }), {
@@ -39,7 +54,7 @@ function jsonError(status: number, code: string, message: string): Response {
   });
 }
 
-async function proxyApi(request: Request, env: Env): Promise<Response> {
+export async function proxyApi(request: Request, env: Env): Promise<Response> {
   if (!env.API_ORIGIN) return jsonError(503, 'API_NOT_CONFIGURED', 'The API is not configured');
   const url = new URL(request.url);
   const headers = new Headers(request.headers);
@@ -48,6 +63,10 @@ async function proxyApi(request: Request, env: Env): Promise<Response> {
   const clientIp = request.headers.get('cf-connecting-ip') ?? '';
   if (clientIp) headers.set('x-lms-client-ip', clientIp);
   if (env.PROXY_SECRET) headers.set('x-lms-proxy-key', env.PROXY_SECRET);
+  if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+    headers.set('cf-access-client-id', env.CF_ACCESS_CLIENT_ID);
+    headers.set('cf-access-client-secret', env.CF_ACCESS_CLIENT_SECRET);
+  }
   headers.set('x-forwarded-host', url.host);
   headers.set('x-forwarded-proto', url.protocol.replace(':', ''));
 
@@ -64,9 +83,11 @@ async function proxyApi(request: Request, env: Env): Promise<Response> {
     return jsonError(502, 'UPSTREAM_UNAVAILABLE', 'The service is temporarily unavailable');
   }
 
-  // A tunnel with no running API answers with Cloudflare's own HTML error page (502/530).
+  // A tunnel with no running API answers with Cloudflare's own HTML error page (502/530), and
+  // Access, if its token is wrong, with a login redirect or a 403 page: none of that reaches the app.
   const type = upstream.headers.get('content-type') ?? '';
-  if (upstream.status >= 500 && !type.includes('application/json')) {
+  const access = (upstream.headers.get('location') ?? '').includes('cloudflareaccess.com') || upstream.headers.has('cf-access-domain');
+  if (!type.includes('application/json') && (upstream.status >= 500 || access || upstream.status === 403)) {
     return jsonError(502, 'UPSTREAM_UNAVAILABLE', 'The service is temporarily unavailable');
   }
 
