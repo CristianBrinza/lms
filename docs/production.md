@@ -127,6 +127,18 @@ skill `.claude/skills/lms-production` tells it how.
   `node scripts/lms.mjs GET /api/food/overview`, …
 - **Cloud sessions**: set `LMS_KEY` (and `LMS_URL` if not production) in the environment's settings.
 
+## Two Claudes: development and the server
+
+The Windows PC runs its own Claude (the desktop app, with Claude Code inside WSL in `~/lms`), with
+Remote Control on, named **"LMS production server"**. This Mac's session is **"LMS development"**.
+
+- From a browser here, Cristian opens either session and talks to it.
+- The development session messages the server's session: "is abc1234 live?", "send me the API
+  log", and gets the answer back. The server's Claude never edits code (the updater needs a clean
+  checkout); it reports what a fix needs, and the fix is pushed from development.
+- Roles and rules: `CLAUDE.md` at the repo root (which machine am I on?) and the skills
+  `.claude/skills/lms-server` (the server) and `.claude/skills/lms-production` (production data).
+
 ## Day to day
 
 | What                                   | How                                                                                             |
