@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react';
+import { isStandalone } from './platform';
+import { storage, STORAGE_KEYS } from './storage';
 
 /**
  * Captures Chromium's `beforeinstallprompt` as early as possible (imported by main.tsx), so the
@@ -11,7 +13,11 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 let deferred: BeforeInstallPromptEvent | null = null;
-let installed = false;
+// Installed on this device: remembered once it has run as the app or was installed, so the browser
+// (which shares this storage on Android and computers) stops offering it too.
+const markInstalled = () => storage.set(STORAGE_KEYS.installed, new Date().toISOString());
+if (typeof window !== 'undefined' && isStandalone()) markInstalled();
+let installed = typeof window !== 'undefined' && storage.get(STORAGE_KEYS.installed) !== null;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
@@ -23,6 +29,7 @@ if (typeof window !== 'undefined') {
   });
   window.addEventListener('appinstalled', () => {
     installed = true;
+    markInstalled();
     deferred = null;
     emit();
   });
@@ -55,6 +62,7 @@ export function useInstallPrompt() {
     const choice = await event.userChoice;
     if (choice.outcome === 'accepted') {
       installed = true;
+      markInstalled();
       emit();
     }
     return choice.outcome;

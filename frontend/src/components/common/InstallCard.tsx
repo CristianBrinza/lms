@@ -7,8 +7,9 @@ import { storage, STORAGE_KEYS } from '@/lib/storage';
 
 /**
  * The featured card (the learning app's "UX Lab" card, in butter): a white icon circle, a title,
- * a line of text and a black pill to act. In the browser only, it offers the Home Screen app;
- * dismissed once, it stays away on this device.
+ * a line of text and a black pill to act. In the browser only, and only where LMS isn't installed
+ * yet: never inside the app, and not in the browser of a device that has the app. Dismissed once,
+ * it stays away on this device.
  */
 export function InstallCard() {
   const { installed } = useInstallPrompt();

@@ -70,4 +70,6 @@ export const STORAGE_KEYS = {
   landingSeen: 'lms:landing-seen',
   /** The "add LMS to your Home Screen" card was dismissed on Home. */
   installCardHidden: 'lms:install-card-hidden',
+  /** LMS is installed on this device (it has run as the app, or was just installed). */
+  installed: 'lms:installed',
 } as const;
