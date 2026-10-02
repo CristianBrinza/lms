@@ -17,6 +17,8 @@ interface ChipsProps<T extends string> {
   onChange: (value: T) => void;
   /** On the lavender field: white idle, ink chosen (the task app). On white: cream idle, butter chosen (the yellow app). */
   tone?: 'field' | 'sheet';
+  /** Shorter pills (36px) for filter rows on working screens. */
+  dense?: boolean;
   className?: string;
 }
 
@@ -25,7 +27,7 @@ interface ChipsProps<T extends string> {
  * Completed"): the chosen one is ink, the rest wait in white. A radio group to assistive tech,
  * with arrow keys moving the choice. Scrolls sideways when the row is wider than the screen.
  */
-export function Chips<T extends string>({ label, value, options, onChange, tone = 'field', className }: ChipsProps<T>) {
+export function Chips<T extends string>({ label, value, options, onChange, tone = 'field', dense, className }: ChipsProps<T>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const onKeyDown = (event: KeyboardEvent, index: number) => {
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
@@ -52,7 +54,8 @@ export function Chips<T extends string>({ label, value, options, onChange, tone 
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cx(
-              'press inline-flex h-11 shrink-0 items-center gap-2 rounded-pill px-5 text-[0.9375rem] font-medium',
+              'press inline-flex shrink-0 items-center rounded-pill font-medium',
+              dense ? 'h-9 gap-1.5 px-3.5 text-sm' : 'h-11 gap-2 px-5 text-[0.9375rem]',
               tone === 'field'
                 ? active
                   ? 'bg-ink-900 text-white'

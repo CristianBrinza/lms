@@ -9,7 +9,8 @@ import type { BaseUnit } from './units';
  * Icon keys are drawn in frontend/src/food/icons; keep the two lists in step.
  */
 
-export const LOCATIONS = ['fridge', 'freezer', 'pantry', 'other'] as const;
+/** Where food is: fridge, freezer, pantry (the shelf), the balcony garden, anywhere else. */
+export const LOCATIONS = ['fridge', 'freezer', 'pantry', 'garden', 'other'] as const;
 export type Location = (typeof LOCATIONS)[number];
 
 /** In the order a shop is usually walked: produce at the door, household at the end. */

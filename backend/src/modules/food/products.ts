@@ -147,7 +147,8 @@ function baseFor(unit: Unit | undefined): BaseUnit {
 
 /** The tracking mode a product input asks for (trackStock: false is the older way to say none). */
 function modeOf(input: Pick<ProductInput, 'trackMode' | 'trackStock'>): TrackMode | undefined {
-  return input.trackMode ?? (input.trackStock === false ? 'none' : input.trackStock === true ? 'exact' : undefined);
+  // trackStock is the older field: only `false` (always there) says anything about the mode.
+  return input.trackMode ?? (input.trackStock === false ? 'none' : undefined);
 }
 
 async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUnit }): Promise<Product> {
@@ -227,6 +228,19 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
   const product = await findProduct(ctx, id, { lock: true });
   checkPiece({ unit: patch.unit ?? product.unit, pieceSize: patch.pieceSize, pieceUnit: patch.pieceUnit });
   await ensureStore(ctx, patch.storeId);
+  const nextMode = modeOf(patch);
+  if (nextMode === 'level' && product.trackMode !== 'level') {
+    // To level: what was weighed becomes simply "full" (or "out" if there was none).
+    const { rows: lots } = await ctx.db.query<{ id: string; quantity: number }>('SELECT id, quantity FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL', [id]);
+    for (const lot of lots) {
+      await ctx.db.query(
+        `INSERT INTO stock_events (household_id, product_id, lot_id, kind, delta, actor_id, via, note, created_at) VALUES ($1, $2, $3, 'adjusted', $4, $5, $6, 'Now kept by level', $7)`,
+        [ctx.actor.householdId, id, lot.id, -lot.quantity, ctx.actor.userId, ctx.actor.via, ctx.now],
+      );
+    }
+    await ctx.db.query('UPDATE stock_lots SET quantity = 0, finished_at = $2 WHERE product_id = $1 AND finished_at IS NULL', [id, ctx.now]);
+    if (patch.level === undefined) patch = { ...patch, level: lots.some((lot) => lot.quantity > 0) ? 'full' : 'out' };
+  }
   if (patch.unit && patch.unit !== product.unit) {
     const { rowCount } = await ctx.db.query('SELECT 1 FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL LIMIT 1', [id]);
     if (rowCount) throw new AppError(409, 'HAS_STOCK', 'Use up or remove its stock before changing how it is counted', { fields: { unit: 'It still has stock' } });

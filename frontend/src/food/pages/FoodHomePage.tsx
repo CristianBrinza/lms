@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Button, ButtonLink, IconLink, Skeleton, toast } from '@/components/ui';
+import { Button, ButtonLink, Skeleton, toast } from '@/components/ui';
 import { AddIcon, ArrowOutIcon, ChevronRightIcon, SparkleIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
@@ -24,23 +24,18 @@ export default function FoodHomePage() {
   const data = overview.data;
 
   return (
-    <Screen tone="field" className="lg:grid lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start lg:gap-8 lg:pr-8">
+    <Screen tone="field" className="lg:grid lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start lg:gap-x-6 lg:pr-8">
       <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-        <PageHeader
-          back="/home"
-          title="Food"
-          subtitle={data ? data.kitchen.name : 'Your kitchen, recipes, shopping and plan'}
-          actions={<IconLink to="/settings/ai" icon={SparkleIcon} label="Plan with Claude" variant="white" />}
-        />
+        <PageHeader compact back="/home" title="Food" subtitle={data ? data.kitchen.name : ' '} />
       </div>
 
-      <div className="gutter-x mt-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-8 lg:px-0 lg:sticky lg:top-4">
+      <div className="gutter-x mt-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-6 lg:px-0 lg:sticky lg:top-4">
         <Today overview={overview.data} loading={overview.isPending} error={overview.error} onRetry={() => void overview.refetch()} today={today} />
-        <AskClaude className="mt-4 hidden lg:flex" />
+        <AskClaude className="mt-3 hidden lg:flex" />
       </div>
 
-      <section aria-label="Sections" className="gutter-x mt-6 lg:col-start-1 lg:row-start-2 lg:mt-7 lg:px-8">
-        <div className="grid grid-cols-2 gap-3 lg:gap-4">
+      <section aria-label="Sections" className="gutter-x mt-3 lg:col-start-1 lg:row-start-2 lg:mt-5 lg:px-8">
+        <div className="grid grid-cols-2 gap-2.5 lg:gap-4">
           <SectionCard
             to="/food/kitchen"
             title="Kitchen"
@@ -82,7 +77,7 @@ export default function FoodHomePage() {
             detail={data ? 'planned this week' : null}
           />
         </div>
-        <AskClaude className="mt-4 lg:hidden" />
+        <AskClaude className="mt-3 lg:hidden" />
       </section>
     </Screen>
   );
@@ -130,25 +125,26 @@ function SectionCard({
       viewTransition
       style={{ animationDelay: `${60 + index * 60}ms` }}
       className={cx(
-        'group/card animate-deal relative flex min-h-[12.5rem] flex-col overflow-hidden rounded-[1.75rem] p-4 sm:min-h-[13.5rem] sm:p-5 lg:min-h-[15rem] lg:p-6',
+        'group/card animate-deal relative flex min-h-[8.75rem] flex-col overflow-hidden rounded-[1.5rem] p-3.5 sm:min-h-[10rem] sm:p-4 lg:min-h-[12rem] lg:p-5',
         'transition-[translate,box-shadow] duration-300 ease-(--ease-lift) hover:-translate-y-1 focus-visible:-translate-y-1 active:translate-y-0 active:duration-100',
         t.surface,
       )}
     >
-      <span className="text-[1.375rem] font-bold leading-[1.1] tracking-[-0.025em]">{title}</span>
-      <span className="mt-2 flex items-baseline gap-1.5">
-        {value === null ? <Skeleton className="h-8 w-12 opacity-40" /> : <span className="tabular text-[2rem] font-bold leading-none tracking-[-0.03em]">{value}</span>}
-        <span className={cx('text-sm font-semibold', t.muted)}>{unit}</span>
-      </span>
-      <span className={cx('mt-1 line-clamp-2 max-w-[9rem] text-[0.8125rem] font-medium leading-snug', t.muted)}>{detail ?? ' '}</span>
-      <span className="mt-auto flex items-end justify-between">
-        <span aria-hidden="true" className={cx('grid size-11 place-items-center rounded-full text-[1.25rem] transition-transform duration-300 ease-(--ease-lift) group-hover/card:rotate-45', t.button)}>
+      <span className="flex items-center justify-between gap-2">
+        <span className="text-[1.125rem] font-bold leading-tight tracking-[-0.02em] lg:text-[1.375rem]">{title}</span>
+        <span aria-hidden="true" className={cx('grid size-8 shrink-0 place-items-center rounded-full text-base transition-transform duration-300 ease-(--ease-lift) group-hover/card:rotate-45', t.button)}>
           <ArrowOutIcon fontSize="inherit" />
         </span>
       </span>
+      <span className="mt-1.5 flex items-baseline gap-1.5">
+        {value === null ? <Skeleton className="h-7 w-10 opacity-40" /> : <span className="tabular text-[1.75rem] font-bold leading-none tracking-[-0.03em]">{value}</span>}
+        <span className={cx('text-[0.8125rem] font-semibold', t.muted)}>{unit}</span>
+      </span>
+      <span className={cx('mt-1 line-clamp-2 max-w-[62%] text-xs font-medium leading-snug', t.muted)}>{detail ?? '\u00a0'}</span>
+      {/* The drawing sits wholly inside the corner, clear of the text. */}
       <SceneArt
         scene={scene}
-        className="pointer-events-none absolute -bottom-2 -right-1 size-[5.75rem] transition-transform duration-500 ease-(--ease-lift) group-hover/card:-rotate-6 group-hover/card:scale-105 sm:size-24 lg:size-28"
+        className="pointer-events-none absolute bottom-2.5 right-2.5 size-[3.75rem] transition-transform duration-500 ease-(--ease-lift) group-hover/card:-rotate-6 group-hover/card:scale-105 sm:size-[4.5rem] lg:bottom-4 lg:right-4 lg:size-24"
       />
     </Link>
   );
@@ -168,12 +164,12 @@ function Today({
   today: string;
 }) {
   return (
-    <section aria-labelledby="today-title" className="rounded-[2rem] bg-white p-5 shadow-[var(--shadow-raised)] lg:p-6">
+    <section aria-labelledby="today-title" className="rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-raised)] lg:rounded-[2rem] lg:p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="today-title" className="text-h2 font-bold">
+        <h2 id="today-title" className="text-h3 font-bold">
           Today
         </h2>
-        <span className="truncate text-sm font-medium text-ink-500">{dayLong(today)}</span>
+        <span className="truncate text-[0.8125rem] font-medium text-ink-500">{dayLong(today)}</span>
       </div>
 
       {loading ? (
@@ -192,6 +188,7 @@ function Today({
       ) : overview ? (
         <>
           <Meals overview={overview} />
+          <CookIdeas />
           <UseSoon overview={overview} today={today} />
           <RunningLow overview={overview} />
         </>
@@ -204,8 +201,8 @@ function Meals({ overview }: { overview: FoodOverview }) {
   const meals = overview.meals.today;
   if (!meals.length) {
     return (
-      <div className="mt-4 flex items-center gap-3 rounded-2xl bg-ink-50 p-3.5">
-        <FoodIconTile name="pot" tone="bg-white" />
+      <div className="mt-2.5 flex items-center gap-3 rounded-2xl bg-ink-50 p-2.5">
+        <FoodIconTile name="pot" tone="bg-white" className="size-10 rounded-xl [&>svg]:size-7" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[0.9375rem] font-semibold">No meals today</p>
           <p className="truncate text-sm text-ink-600">{overview.meals.upcoming[0] ? `Next: ${overview.meals.upcoming[0].title}` : 'Plan what to cook'}</p>
@@ -217,14 +214,14 @@ function Meals({ overview }: { overview: FoodOverview }) {
     );
   }
   return (
-    <ul className="mt-3.5 flex flex-col gap-2">
+    <ul className="mt-2 flex flex-col gap-1">
       {meals.map((meal) => (
         <li key={meal.id}>
           <Link
             to={`/food/plan?meal=${meal.id}`}
-            className={cx('press flex items-center gap-3 rounded-2xl p-2.5 transition-colors hover:bg-ink-50', meal.status !== 'planned' && 'opacity-70')}
+            className={cx('press -mx-1.5 flex items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50', meal.status !== 'planned' && 'opacity-70')}
           >
-            <FoodIconTile name={meal.icon} tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'} />
+            <FoodIconTile name={meal.icon} tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'} className="size-10 rounded-xl [&>svg]:size-7" />
             <span className="min-w-0 flex-1">
               <span className={cx('block truncate text-[0.9375rem] font-semibold', meal.status === 'done' && 'line-through decoration-ink-400')}>{meal.title}</span>
               <span className="block text-sm text-ink-600">
@@ -239,24 +236,61 @@ function Meals({ overview }: { overview: FoodOverview }) {
   );
 }
 
+/** What can be cooked right now from the kitchen, the ones using up food first. */
+function CookIdeas() {
+  const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
+  const ideas = (recipes.data ?? [])
+    .filter((r) => r.availability.ready && r.availability.total > 0)
+    .sort((a, b) => b.availability.useSoon - a.availability.useSoon || Number(b.favorite) - Number(a.favorite))
+    .slice(0, 3);
+  if (!ideas.length) return null;
+  return (
+    <div className="mt-3.5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[0.9375rem] font-bold">From what you have</h3>
+        <Link to="/food/recipes" className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800">
+          Recipes
+          <ChevronRightIcon fontSize="inherit" className="text-lg" />
+        </Link>
+      </div>
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {ideas.map((recipe) => (
+          <li key={recipe.id}>
+            <Link to={`/food/recipes/${recipe.id}`} className="press -mx-1.5 flex items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50">
+              <FoodIconTile name={recipe.icon} tone="bg-mint-100" className="size-10 rounded-xl [&>svg]:size-7" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9375rem] font-semibold">{recipe.title}</span>
+                <span className="block truncate text-xs text-ink-600">
+                  {recipe.availability.useSoon ? `Uses ${plural(recipe.availability.useSoon, 'thing')} to eat soon` : 'Everything’s in the kitchen'}
+                </span>
+              </span>
+              <span className="inline-flex h-8 shrink-0 items-center rounded-pill bg-ink-900 px-3 text-xs font-semibold text-white">Cook</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function UseSoon({ overview, today }: { overview: FoodOverview; today: string }) {
   const items = overview.stock.expiring;
   if (!items.length) return null;
   return (
-    <div className="mt-5">
+    <div className="mt-3.5">
       <div className="flex items-center justify-between">
-        <h3 className="text-h3 font-bold">Use soon</h3>
+        <h3 className="text-[0.9375rem] font-bold">Use soon</h3>
         <Link to="/food/kitchen" className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800">
           Kitchen
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
       </div>
-      <ul className="-mx-5 mt-2.5 flex gap-2.5 overflow-x-auto px-5 pb-1 [scrollbar-width:none] lg:-mx-6 lg:px-6">
+      <ul className="-mx-3.5 mt-2 flex gap-2 overflow-x-auto px-3.5 pb-0.5 [scrollbar-width:none] lg:-mx-5 lg:px-5">
         {items.map((item) => (
           <li key={item.lotId} className="shrink-0">
-            <Link to={`/food/kitchen?item=${item.productId}`} className="press flex w-[8.25rem] flex-col gap-2 rounded-2xl bg-ink-50 p-3 transition-colors hover:bg-ink-100">
+            <Link to={`/food/kitchen?item=${item.productId}`} className="press flex w-[7.5rem] flex-col gap-1.5 rounded-2xl bg-ink-50 p-2.5 transition-colors hover:bg-ink-100">
               <span className="flex items-start justify-between">
-                <FoodIcon name={item.icon} className="size-9" />
+                <FoodIcon name={item.icon} className="size-8" />
                 <ExpiryChip expiresOn={item.expiresOn} today={today} compact />
               </span>
               <span className="truncate text-sm font-semibold">{item.name}</span>
@@ -282,16 +316,16 @@ function RunningLow({ overview }: { overview: FoodOverview }) {
   const items = overview.stock.low;
   if (!items.length) return null;
   return (
-    <div className="mt-5">
-      <h3 className="text-h3 font-bold">Running low</h3>
-      <ul className="mt-2.5 flex flex-wrap gap-2">
+    <div className="mt-3.5">
+      <h3 className="text-[0.9375rem] font-bold">Running low</h3>
+      <ul className="mt-2 flex flex-wrap gap-1.5">
         {items.map((item) => (
           <li key={item.productId}>
             <button
               type="button"
               onClick={() => add.mutate(item)}
               disabled={add.isPending && add.variables?.productId === item.productId}
-              className="press inline-flex h-11 items-center gap-2 rounded-pill bg-peach-100 pl-1.5 pr-3.5 text-sm font-semibold text-ink-900 transition-colors hover:bg-peach-200 disabled:opacity-60"
+              className="press inline-flex h-10 items-center gap-1.5 rounded-pill bg-peach-100 pl-1 pr-3 text-sm font-semibold text-ink-900 transition-colors hover:bg-peach-200 disabled:opacity-60"
               aria-label={`Add ${item.name} to the shopping list`}
             >
               <span className="grid size-8 place-items-center rounded-full bg-white">
@@ -311,14 +345,14 @@ function AskClaude({ className }: { className?: string }) {
   return (
     <Link
       to="/settings/ai"
-      className={cx('press group/ai flex items-center gap-3.5 rounded-[1.75rem] bg-lav-100 p-4 transition-colors hover:bg-lav-200', className)}
+      className={cx('press group/ai flex items-center gap-3 rounded-[1.5rem] bg-lav-100 p-3 transition-colors hover:bg-lav-200', className)}
     >
-      <span className="grid size-12 shrink-0 place-items-center rounded-full bg-ink-900 text-[1.35rem] text-butter-300">
+      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ink-900 text-[1.2rem] text-butter-300">
         <SparkleIcon fontSize="inherit" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[0.9375rem] font-semibold">Plan with Claude</span>
-        <span className="block text-sm leading-snug text-ink-600">Let Claude plan your week, fill the lists and save recipes.</span>
+        <span className="block text-[0.8125rem] leading-snug text-ink-600">Claude can plan the week, fill the lists and save recipes.</span>
       </span>
       <ChevronRightIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-500 transition-transform group-hover/ai:translate-x-0.5" />
     </Link>

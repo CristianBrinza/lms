@@ -12,6 +12,8 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   trailing?: ReactNode;
   /** `well` (default) sits on a white card; `raised` is a white field for the grey page itself (search). */
   surface?: 'well' | 'raised';
+  /** A shorter field (44px) for search bars and dense forms. */
+  dense?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
  * turning white with a crisp ink outline while you type. Errors tint the well and outline it red.
  */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, hideLabel, icon: Icon, error, hint, trailing, surface = 'well', className, id, disabled, ...rest },
+  { label, hideLabel, icon: Icon, error, hint, trailing, surface = 'well', dense, className, id, disabled, ...rest },
   ref,
 ) {
   const autoId = useId();
@@ -48,7 +50,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy || undefined}
           className={cx(
-            'h-14 w-full min-w-0 appearance-none rounded-[1.125rem] text-left text-base text-ink-900 outline-none transition-[background-color,box-shadow] duration-150',
+            dense ? 'h-11 rounded-[0.875rem]' : 'h-14 rounded-[1.125rem]',
+            'w-full min-w-0 appearance-none text-left text-base text-ink-900 outline-none transition-[background-color,box-shadow] duration-150',
             'placeholder:text-ink-500 disabled:cursor-not-allowed disabled:text-ink-500',
             Icon ? 'pl-12' : 'pl-4',
             trailing ? 'pr-14' : 'pr-4',

@@ -271,6 +271,18 @@ export async function deleteMeal(ctx: FoodCtx, id: string): Promise<void> {
 /** "Cook now" from a recipe: a meal for today, at this time, marked done at once. */
 export async function cookRecipe(ctx: FoodCtx, recipeId: string, input: { servings?: number; leftovers?: CompleteMealInput['leftovers'] }) {
   const time = `${String(ctx.now.getHours()).padStart(2, '0')}:${String(ctx.now.getMinutes()).padStart(2, '0')}`;
-  const meal = await planMeal(ctx, { date: localDate(ctx.now), time, recipeId, servings: input.servings });
-  return completeMeal(ctx, meal.id, { leftovers: input.leftovers });
+  // One transaction: a failed cook leaves no stray planned meal behind.
+  return ctx.tx(async (tx) => {
+    const meal = await planMeal(tx, { date: localDate(tx.now), time, recipeId, servings: input.servings });
+    return completeMeal(tx, meal.id, { leftovers: input.leftovers });
+  });
+}
+
+/** The undo for "Cook now": everything goes back into the kitchen and the meal is gone. */
+export async function uncookMeal(ctx: FoodCtx, id: string): Promise<void> {
+  await ctx.tx(async (tx) => {
+    const meal = await findMealRow(tx, id, true);
+    if (meal.status === 'done') await reopenMeal(tx, id);
+    await tx.db.query('DELETE FROM meals WHERE id = $1', [id]);
+  });
 }

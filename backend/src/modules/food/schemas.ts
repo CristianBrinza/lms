@@ -162,8 +162,8 @@ export const TripItemPatch = z
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type TripItemPatch = z.infer<typeof TripItemPatch>;
 
-export const RestoreInput = z.object({
-  lots: z.array(z.object({ lotId: idField, quantity: z.number().positive().max(1_000_000) })).min(1).max(50),
+export const UndoInput = z.object({
+  events: z.array(z.number().int().positive()).min(1).max(100).describe('The events a use returned'),
 });
 
 const minutesField = z.number().int().min(0).max(10_000).nullable().optional();

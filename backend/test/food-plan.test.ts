@@ -218,9 +218,12 @@ describe('food: everyday details', () => {
     expect(lot).toMatchObject({ quantity: 800, expiresOn: '2026-10-07' });
     expect(lot.openedAt).toBeTruthy();
 
-    expect((await b.post('/api/food/stock/restore', { lots: used.lots.map((l: any) => ({ lotId: l.lotId, quantity: l.taken })) })).status).toBe(204);
+    expect((await b.post('/api/food/stock/undo', { events: used.events })).body.undone).toBe(1);
     lot = (await b.get(`/api/food/products/${milk.product.id}`)).body.product.lots[0];
     expect(lot.quantity).toBe(1000);
+    // Undoing twice changes nothing.
+    expect((await b.post('/api/food/stock/undo', { events: used.events })).body.undone).toBe(0);
+    expect((await b.get(`/api/food/products/${milk.product.id}`)).body.product.lots[0].quantity).toBe(1000);
   });
 
   it('sums up the Food home', async () => {

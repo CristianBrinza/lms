@@ -290,6 +290,31 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE products ADD COLUMN thawed_days integer CHECK (thawed_days > 0);
     `,
   },
+  {
+    version: 6,
+    name: 'food: a balcony garden, undo by event, indexes, spices kept by level',
+    sql: `
+      ALTER TABLE products DROP CONSTRAINT products_location_check;
+      ALTER TABLE products ADD CONSTRAINT products_location_check CHECK (location IN ('fridge', 'freezer', 'pantry', 'garden', 'other'));
+      ALTER TABLE stock_lots DROP CONSTRAINT stock_lots_location_check;
+      ALTER TABLE stock_lots ADD CONSTRAINT stock_lots_location_check CHECK (location IN ('fridge', 'freezer', 'pantry', 'garden', 'other'));
+
+      ALTER TABLE stock_events ADD COLUMN undone_at timestamptz;
+
+      CREATE INDEX meals_recipe_idx ON meals (recipe_id) WHERE recipe_id IS NOT NULL;
+      CREATE INDEX stock_lots_price_idx ON stock_lots (household_id, product_id, store_id, added_at DESC) WHERE price IS NOT NULL;
+
+      -- Spices, sauces and oils made before level tracking: full if they had stock, else out.
+      UPDATE products p
+         SET track_mode = 'level', track_stock = true, level_at = now(),
+             level = CASE WHEN EXISTS (SELECT 1 FROM stock_lots l WHERE l.product_id = p.id AND l.finished_at IS NULL AND l.quantity > 0) THEN 'full' ELSE 'out' END
+       WHERE p.track_mode = 'exact'
+         AND (p.category = 'spices' OR p.name IN ('Sunflower oil', 'Olive oil', 'Honey', 'Jam', 'Tomato paste', 'Coffee', 'Tea'));
+      UPDATE stock_lots l SET quantity = 0, finished_at = now()
+        FROM products p
+       WHERE l.product_id = p.id AND p.track_mode = 'level' AND l.finished_at IS NULL;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

@@ -41,18 +41,20 @@ export default function RecipesPage() {
   return (
     <Screen tone="white">
       <PageHeader
+        compact
         back="/food"
         title="Recipes"
         subtitle={recipes.data ? `${all.length} ${all.length === 1 ? 'recipe' : 'recipes'} · ${ready} ready to cook` : ' '}
-        actions={<IconLink to="/food/recipes/new" icon={AddIcon} label="New recipe" variant="ink" />}
+        actions={<IconLink to="/food/recipes/new" icon={AddIcon} label="New recipe" variant="ink" size="sm" />}
       />
 
       {all.length ? (
-        <div className="gutter-x mt-5 flex flex-col gap-3 lg:px-8">
-          <TextField label="Search recipes" hideLabel icon={SearchIcon} surface="raised" placeholder="A dish or an ingredient" value={query} onChange={(event) => setQuery(event.target.value)} />
+        <div className="gutter-x mt-2.5 flex flex-col gap-2 lg:px-8">
+          <TextField label="Search recipes" hideLabel dense icon={SearchIcon} surface="raised" placeholder="A dish or an ingredient" value={query} onChange={(event) => setQuery(event.target.value)} />
           <Chips
             label="Show"
             tone="sheet"
+            dense
             value={filter}
             onChange={setFilter}
             options={[
@@ -80,7 +82,7 @@ export default function RecipesPage() {
         </div>
       ) : null}
 
-      <div className="gutter-x mt-5 lg:px-8">
+      <div className="gutter-x mt-3 lg:px-8">
         {recipes.isPending ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <Skeleton className="h-52 rounded-3xl" />
@@ -99,7 +101,7 @@ export default function RecipesPage() {
         ) : !shown.length ? (
           <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">Nothing matches. Try another filter.</p>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:gap-4 xl:grid-cols-4">
+          <ul className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:gap-4 xl:grid-cols-4">
             {shown.map((recipe, index) => (
               <li key={recipe.id}>
                 <RecipeCard recipe={recipe} tone={TILE[index % TILE.length]!} />
@@ -121,8 +123,8 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
       viewTransition
       className="group/recipe press flex h-full flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 transition-[translate,box-shadow] duration-300 ease-(--ease-lift) hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
     >
-      <span className={cx('relative grid aspect-[4/3] place-items-center', tone)}>
-        <FoodIcon name={recipe.icon} className="size-16 transition-transform duration-500 ease-(--ease-lift) group-hover/recipe:-rotate-6 group-hover/recipe:scale-110 sm:size-20" />
+      <span className={cx('relative grid h-20 place-items-center sm:h-24', tone)}>
+        <FoodIcon name={recipe.icon} className="size-12 transition-transform duration-500 ease-(--ease-lift) group-hover/recipe:-rotate-6 group-hover/recipe:scale-110 sm:size-14" />
         {recipe.favorite ? (
           <span className="absolute right-2.5 top-2.5 grid size-8 place-items-center rounded-full bg-white text-base text-pink-800 shadow-xs">
             <FavoriteIcon fontSize="inherit" />
@@ -134,7 +136,7 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
           </span>
         ) : null}
       </span>
-      <span className="flex flex-1 flex-col p-3.5">
+      <span className="flex flex-1 flex-col p-2.5">
         <span className="line-clamp-2 text-[0.9375rem] font-bold leading-snug">{recipe.title}</span>
         <span className="mt-1 flex items-center gap-2.5 text-xs font-medium text-ink-600">
           {minutes ? (
@@ -148,7 +150,7 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
             {recipe.servings}
           </span>
         </span>
-        <span className="mt-auto flex flex-wrap gap-1.5 pt-2.5">
+        <span className="mt-auto flex flex-wrap gap-1 pt-2">
           {availability.total === 0 ? null : availability.ready ? (
             <span className="inline-flex h-6 items-center rounded-pill bg-mint-100 px-2 text-xs font-semibold text-mint-800">Ready to cook</span>
           ) : (

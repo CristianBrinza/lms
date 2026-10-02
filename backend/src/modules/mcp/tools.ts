@@ -2,11 +2,28 @@ import { z } from 'zod';
 import type { AppDeps } from '../../context';
 import { AppError } from '../../lib/errors';
 import type { FoodCtx } from '../food/kitchen';
-import { completeMeal, cookRecipe, deleteMeal, listMeals, planMeal, reopenMeal, setMealIngredients, updateMeal, type Meal } from '../food/meals';
+import {
+  completeMeal,
+  cookRecipe,
+  deleteMeal,
+  listMeals,
+  planMeal,
+  reopenMeal,
+  setMealIngredients,
+  updateMeal,
+  type Meal,
+} from '../food/meals';
 import { overview } from '../food/overview';
 import { planNeeds } from '../food/plan';
 import { createProduct, listProducts, updateProduct } from '../food/products';
-import { createRecipe, deleteRecipe, getRecipe, listRecipes, updateRecipe, type Recipe } from '../food/recipes';
+import {
+  createRecipe,
+  deleteRecipe,
+  getRecipe,
+  listRecipes,
+  updateRecipe,
+  type Recipe,
+} from '../food/recipes';
 import {
   AddShoppingInput,
   AddStockInput,
@@ -26,8 +43,24 @@ import {
   StoreInput,
   UseStockInput,
 } from '../food/schemas';
-import { addShoppingItems, checkout, listShopping, listTrips, removeShoppingItem, updateShoppingItem } from '../food/shopping';
-import { addStock, kitchen, productDetail, restoreStock, setLevel, updateLot, useStock, type StockedProduct } from '../food/stock';
+import {
+  addShoppingItems,
+  checkout,
+  listShopping,
+  listTrips,
+  removeShoppingItem,
+  updateShoppingItem,
+} from '../food/shopping';
+import {
+  addStock,
+  kitchen,
+  productDetail,
+  setLevel,
+  undoEvents,
+  updateLot,
+  useStock,
+  type StockedProduct,
+} from '../food/stock';
 import { createStore, listStores } from '../food/stores';
 import type { TokenScope } from '../tokens';
 
@@ -42,7 +75,11 @@ export interface ToolEnv {
   ctx: FoodCtx;
   deps: AppDeps;
   /** Calls this API as the same key (used by the people tools). */
-  internal: (method: string, path: string, body?: unknown) => Promise<{ status: number; body: unknown }>;
+  internal: (
+    method: string,
+    path: string,
+    body?: unknown,
+  ) => Promise<{ status: number; body: unknown }>;
 }
 
 interface ToolDef<S extends z.ZodType> {
@@ -71,7 +108,9 @@ interface PersonRow {
 }
 
 export const scopeAllows = (scope: TokenScope, access: Access) =>
-  access === 'read' || (access === 'write' && scope !== 'food:read') || (access === 'admin' && scope === 'admin');
+  access === 'read' ||
+  (access === 'write' && scope !== 'food:read') ||
+  (access === 'admin' && scope === 'admin');
 
 // ---------------------------------------------------------------- compact shapes for the model
 
@@ -152,13 +191,15 @@ const meal = (m: Meal) => ({
 
 // ---------------------------------------------------------------- the tools
 
-const batch = <T extends z.ZodType>(item: T, max = 50) => z.object({ items: z.array(item).min(1).max(max) });
+const batch = <T extends z.ZodType>(item: T, max = 50) =>
+  z.object({ items: z.array(item).min(1).max(max) });
 
 export const TOOLS: Tool[] = [
   tool({
     name: 'kitchen_overview',
     title: 'Kitchen overview',
-    description: 'Start here. What expires soon, what ran low, recipe and list counts, and meals for today and the coming days.',
+    description:
+      'Start here. What expires soon, what ran low, recipe and list counts, and meals for today and the coming days.',
     access: 'read',
     input: z.object({ today: dateField.optional().describe('YYYY-MM-DD; defaults to today') }),
     run: async ({ ctx }, args) => {
@@ -172,25 +213,37 @@ export const TOOLS: Tool[] = [
         recipes: o.recipes,
         shopping: o.shopping,
         today: o.meals.today.map(meal),
-        upcoming: o.meals.upcoming.map((m) => ({ id: m.id, date: m.date, time: m.time, title: m.title })),
+        upcoming: o.meals.upcoming.map((m) => ({
+          id: m.id,
+          date: m.date,
+          time: m.time,
+          title: m.title,
+        })),
       };
     },
   }),
   tool({
     name: 'list_stock',
     title: 'What is in the kitchen',
-    description: 'Everything in stock, with each piece/package (lot): amount in the base unit, place, expiry. Staples that ran out appear with total 0.',
+    description:
+      'Everything in stock, with each piece/package (lot): amount in the base unit, place, expiry. Staples that ran out appear with total 0.',
     access: 'read',
-    input: z.object({ location: locationField.optional(), query: z.string().max(80).optional().describe('Filter by name') }),
+    input: z.object({
+      location: locationField.optional(),
+      query: z.string().max(80).optional().describe('Filter by name'),
+    }),
     run: async ({ ctx }, args) => {
       const query = (args.query ?? '').toLowerCase();
-      return (await kitchen(ctx, { location: args.location })).filter((p) => !query || p.name.toLowerCase().includes(query)).map(stockItem);
+      return (await kitchen(ctx, { location: args.location }))
+        .filter((p) => !query || p.name.toLowerCase().includes(query))
+        .map(stockItem);
     },
   }),
   tool({
     name: 'find_items',
     title: 'Find kitchen items',
-    description: 'Search the kitchen’s item catalog (also items not in stock): ids, how each is counted, defaults.',
+    description:
+      'Search the kitchen’s item catalog (also items not in stock): ids, how each is counted, defaults.',
     access: 'read',
     input: z.object({ query: z.string().max(80).default('') }),
     run: async ({ ctx }, args) =>
@@ -212,7 +265,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'item_history',
     title: 'Item history and prices',
-    description: 'One item: its lots, the last 30 changes (who, when, app or AI), and the last price paid at each store.',
+    description:
+      'One item: its lots, the last 30 changes (who, when, app or AI), and the last price paid at each store.',
     access: 'read',
     input: z.object({ productId: idField }),
     run: async ({ ctx }, args) => {
@@ -228,34 +282,48 @@ export const TOOLS: Tool[] = [
     access: 'write',
     input: batch(AddStockInput),
     run: async ({ ctx }, args) => {
-      const out = [];
-      for (const item of args.items) {
-        const { product, lot } = await addStock(ctx, item);
-        out.push(
-          lot
-            ? { item: product.name, productId: product.id, lotId: lot.id, quantity: lot.quantity, unit: product.unit, expiresOn: lot.expiresOn, location: lot.location }
-            : { item: product.name, productId: product.id, level: product.level },
-        );
-      }
-      return out;
+      return ctx.tx(async (tx) => {
+        const out = [];
+        for (const item of args.items) {
+          const { product, lot } = await addStock(tx, item);
+          out.push(
+            lot
+              ? {
+                  item: product.name,
+                  productId: product.id,
+                  lotId: lot.id,
+                  quantity: lot.quantity,
+                  unit: product.unit,
+                  expiresOn: lot.expiresOn,
+                  location: lot.location,
+                }
+              : { item: product.name, productId: product.id, level: product.level },
+          );
+        }
+        return out;
+      });
     },
   }),
   tool({
     name: 'use_stock',
     title: 'Use or throw away',
-    description: 'Take food out of the kitchen (eaten, or wasted: true). From the given lot first, else opened → soonest expiry. Reports any shortfall. Returns lots for undo_use.',
+    description:
+      'Take food out of the kitchen (eaten, or wasted: true). From the given lot first, else opened → soonest expiry. Reports any shortfall. Returns events for undo_use. All or nothing: if one item fails, none is taken.',
     access: 'write',
     input: batch(UseStockInput),
-    run: async ({ ctx }, args) => {
-      const out = [];
-      for (const item of args.items) out.push(await useStock(ctx, item));
-      return out;
-    },
+    run: async ({ ctx }, args) =>
+      // One transaction: a failed item leaves nothing half-done for a retry to double.
+      ctx.tx(async (tx) => {
+        const out = [];
+        for (const item of args.items) out.push(await useStock(tx, item));
+        return out;
+      }),
   }),
   tool({
     name: 'set_level',
     title: 'Full, low or out',
-    description: 'For items kept by level (spices, sauces, oil): say they are full, running low, or out. Out or low items show on the plan’s shopping needs.',
+    description:
+      'For items kept by level (spices, sauces, oil): say they are full, running low, or out. Out or low items show on the plan’s shopping needs.',
     access: 'write',
     input: z.object({ productId: idField, level: z.enum(['full', 'low', 'out']) }),
     run: async ({ ctx }, args) => {
@@ -266,18 +334,17 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'undo_use',
     title: 'Undo a use',
-    description: 'Put back what use_stock took, into the same lots (pass the lots it returned: lotId and taken).',
+    description:
+      'Put back what use_stock took, into the same lots: pass the events it returned. Each is undone once; repeating changes nothing.',
     access: 'write',
-    input: z.object({ lots: z.array(z.object({ lotId: idField, taken: z.number().positive() })).min(1).max(50) }),
-    run: async ({ ctx }, args) => {
-      await restoreStock(ctx, args.lots.map((l) => ({ lotId: l.lotId, quantity: l.taken })));
-      return { restored: args.lots.length };
-    },
+    input: z.object({ events: z.array(z.number().int().positive()).min(1).max(100) }),
+    run: async ({ ctx }, args) => ({ undone: await undoEvents(ctx, args.events) }),
   }),
   tool({
     name: 'update_lot',
     title: 'Correct a piece in stock',
-    description: 'Fix one lot: what is left now, its place (moving to the freezer), expiry, opened, price, note.',
+    description:
+      'Fix one lot: what is left now, its place (moving to the freezer), expiry, opened, price, note.',
     access: 'write',
     input: LotPatch.and(z.object({ lotId: idField })),
     run: async ({ ctx }, { lotId, ...patch }) => updateLot(ctx, lotId, patch),
@@ -291,20 +358,33 @@ export const TOOLS: Tool[] = [
     input: ProductInput.partial().and(z.object({ productId: idField.optional() })),
     run: async ({ ctx }, { productId, ...input }) => {
       if (productId) return updateProduct(ctx, productId, input);
-      if (!input.name) throw new AppError(400, 'VALIDATION', 'Give the new item a name', { fields: { name: 'Required' } });
+      if (!input.name)
+        throw new AppError(400, 'VALIDATION', 'Give the new item a name', {
+          fields: { name: 'Required' },
+        });
       return createProduct(ctx, input as z.infer<typeof ProductInput>);
     },
   }),
   tool({
     name: 'list_recipes',
     title: 'Recipes',
-    description: 'All recipes with how ready they are to cook from the kitchen, what is missing, and how many ingredients expire soon.',
+    description:
+      'All recipes with how ready they are to cook from the kitchen, what is missing, and how many ingredients expire soon.',
     access: 'read',
-    input: z.object({ query: z.string().max(80).optional(), readyOnly: z.boolean().optional(), tag: z.string().max(30).optional() }),
+    input: z.object({
+      query: z.string().max(80).optional(),
+      readyOnly: z.boolean().optional(),
+      tag: z.string().max(30).optional(),
+    }),
     run: async ({ ctx }, args) => {
       const query = (args.query ?? '').toLowerCase();
       return (await listRecipes(ctx))
-        .filter((r) => !query || r.title.toLowerCase().includes(query) || r.ingredients.some((i) => i.name.toLowerCase().includes(query)))
+        .filter(
+          (r) =>
+            !query ||
+            r.title.toLowerCase().includes(query) ||
+            r.ingredients.some((i) => i.name.toLowerCase().includes(query)),
+        )
         .filter((r) => !args.readyOnly || r.availability.ready)
         .filter((r) => !args.tag || r.tags.includes(args.tag))
         .map(recipeBrief);
@@ -327,7 +407,10 @@ export const TOOLS: Tool[] = [
     input: RecipeInput.partial().and(z.object({ recipeId: idField.optional() })),
     run: async ({ ctx }, { recipeId, ...input }) => {
       if (recipeId) return recipeFull(await updateRecipe(ctx, recipeId, input));
-      if (!input.title) throw new AppError(400, 'VALIDATION', 'Give the recipe a title', { fields: { title: 'Required' } });
+      if (!input.title)
+        throw new AppError(400, 'VALIDATION', 'Give the recipe a title', {
+          fields: { title: 'Required' },
+        });
       return recipeFull(await createRecipe(ctx, input as z.infer<typeof RecipeInput>));
     },
   }),
@@ -346,7 +429,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'cook_now',
     title: 'Cook a recipe now',
-    description: 'Cook a recipe right now: makes a meal for today and takes its ingredients from the kitchen; optional leftovers as portions.',
+    description:
+      'Cook a recipe right now: makes a meal for today and takes its ingredients from the kitchen; optional leftovers as portions.',
     access: 'write',
     input: CookInput.and(z.object({ recipeId: idField })),
     run: async ({ ctx }, { recipeId, ...input }) => {
@@ -365,7 +449,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'plan_meal',
     title: 'Plan a meal',
-    description: 'Put a meal on a day: from a recipe (ingredients copied and scaled to servings) or just named. Time HH:MM or a slot.',
+    description:
+      'Put a meal on a day: from a recipe (ingredients copied and scaled to servings) or just named. Time HH:MM or a slot.',
     access: 'write',
     input: MealInput,
     run: async ({ ctx }, args) => meal(await planMeal(ctx, args)),
@@ -373,9 +458,13 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'update_meal',
     title: 'Change a planned meal',
-    description: 'Move, rescale, swap the recipe, skip (status: skipped) or annotate a meal; ingredients (optional) replace its list for that day only, e.g. to use a specific lot.',
+    description:
+      'Move, rescale, swap the recipe, skip (status: skipped) or annotate a meal; ingredients (optional) replace its list for that day only, e.g. to use a specific lot.',
     access: 'write',
-    input: MealPatchFields.partial().extend({ mealId: idField, ingredients: z.array(MealIngredientInput).max(60).optional() }),
+    input: MealPatchFields.partial().extend({
+      mealId: idField,
+      ingredients: z.array(MealIngredientInput).max(60).optional(),
+    }),
     run: async ({ ctx }, { mealId, ingredients, ...patch }) => {
       let result: Meal | null = null;
       if (Object.keys(patch).length) result = await updateMeal(ctx, mealId, patch);
@@ -387,7 +476,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'complete_meal',
     title: 'Mark a meal eaten',
-    description: 'Done: takes its ingredients from the kitchen (chosen lots, else soonest expiry), reports shortfalls, optionally keeps leftovers.',
+    description:
+      'Done: takes its ingredients from the kitchen (chosen lots, else soonest expiry), reports shortfalls, optionally keeps leftovers.',
     access: 'write',
     input: CompleteMealInput.and(z.object({ mealId: idField })),
     run: async ({ ctx }, { mealId, ...input }) => {
@@ -398,7 +488,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'reopen_meal',
     title: 'Undo a done meal',
-    description: 'Back to planned: what it took returns to the kitchen; untouched leftovers are removed.',
+    description:
+      'Back to planned: what it took returns to the kitchen; untouched leftovers are removed.',
     access: 'write',
     input: z.object({ mealId: idField }),
     run: async ({ ctx }, args) => meal(await reopenMeal(ctx, args.mealId)),
@@ -418,7 +509,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'plan_needs',
     title: 'What to buy for the plan',
-    description: 'For planned meals between two dates: each item needed, minus stock and what is already on a list → toBuy (toBuyAmount/toBuyUnit), with its usual store.',
+    description:
+      'For planned meals between two dates: each item needed, minus stock and what is already on a list → toBuy (toBuyAmount/toBuyUnit), with its usual store.',
     access: 'read',
     input: z.object({ from: dateField, to: dateField }),
     run: async ({ ctx }, args) => planNeeds(ctx, args.from, args.to),
@@ -426,7 +518,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'shopping_lists',
     title: 'Shopping lists',
-    description: 'Stores and the open lines on each list (and on the “any store” list), with last prices and estimates.',
+    description:
+      'Stores and the open lines on each list (and on the “any store” list), with last prices and estimates.',
     access: 'read',
     input: z.object({}),
     run: async ({ ctx }) => {
@@ -442,7 +535,11 @@ export const TOOLS: Tool[] = [
         ...(i.note ? { note: i.note } : {}),
       });
       return {
-        stores: stores.map((s) => ({ id: s.id, name: s.name, lines: items.filter((i) => i.storeId === s.id).map(line) })),
+        stores: stores.map((s) => ({
+          id: s.id,
+          name: s.name,
+          lines: items.filter((i) => i.storeId === s.id).map(line),
+        })),
         anyStore: items.filter((i) => !i.storeId).map(line),
       };
     },
@@ -450,10 +547,18 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'add_to_shopping_list',
     title: 'Add to a shopping list',
-    description: 'Add lines to a store’s list (storeId), the item’s usual store (omit storeId) or “any store” (null). The same item already waiting is topped up.',
+    description:
+      'Add lines to a store’s list (storeId), the item’s usual store (omit storeId) or “any store” (null). The same item already waiting is topped up.',
     access: 'write',
     input: AddShoppingInput,
-    run: async ({ ctx }, args) => (await addShoppingItems(ctx, args.items, args.source)).map((i) => ({ id: i.id, name: i.name, amount: i.amount, unit: i.unit, storeId: i.storeId })),
+    run: async ({ ctx }, args) =>
+      (await addShoppingItems(ctx, args.items, args.source)).map((i) => ({
+        id: i.id,
+        name: i.name,
+        amount: i.amount,
+        unit: i.unit,
+        storeId: i.storeId,
+      })),
   }),
   tool({
     name: 'update_shopping_line',
@@ -486,7 +591,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'checkout',
     title: 'Finish a shop',
-    description: 'Everything in that list’s cart is bought: recorded as a trip with its total and put into the kitchen. Lines can override price, amount, expiry, place.',
+    description:
+      'Everything in that list’s cart is bought: recorded as a trip with its total and put into the kitchen. Lines can override price, amount, expiry, place.',
     access: 'write',
     input: CheckoutInput,
     run: async ({ ctx }, args) => checkout(ctx, args),
@@ -503,20 +609,37 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'list_people',
     title: 'People',
-    description: 'Admin: everyone with an account, their role, whether they can sign in, and their kitchen.',
+    description:
+      'Admin: everyone with an account, their role, whether they can sign in, and their kitchen.',
     access: 'admin',
     input: z.object({ query: z.string().max(100).optional() }),
     run: async ({ internal }, args) => {
-      const res = await internal('GET', `/api/admin/users?q=${encodeURIComponent(args.query ?? '')}`);
-      return (res.body as { users: PersonRow[] }).users.map((u) => ({ id: u.id, name: `${u.name} ${u.surname}`.trim(), email: u.email, role: u.role, active: u.isActive, kitchen: u.kitchen?.name ?? null }));
+      const res = await internal(
+        'GET',
+        `/api/admin/users?q=${encodeURIComponent(args.query ?? '')}`,
+      );
+      return (res.body as { users: PersonRow[] }).users.map((u) => ({
+        id: u.id,
+        name: `${u.name} ${u.surname}`.trim(),
+        email: u.email,
+        role: u.role,
+        active: u.isActive,
+        kitchen: u.kitchen?.name ?? null,
+      }));
     },
   }),
   tool({
     name: 'create_person',
     title: 'Create an account',
-    description: 'Admin: a new account. Returns a one-time password to pass on; they choose their own at first sign-in.',
+    description:
+      'Admin: a new account. Returns a one-time password to pass on; they choose their own at first sign-in.',
     access: 'admin',
-    input: z.object({ email: z.string().max(254), name: z.string().max(60), surname: z.string().max(60).optional(), role: z.enum(['member', 'admin']).optional() }),
+    input: z.object({
+      email: z.string().max(254),
+      name: z.string().max(60),
+      surname: z.string().max(60).optional(),
+      role: z.enum(['member', 'admin']).optional(),
+    }),
     run: async ({ internal }, args) => (await internal('POST', '/api/admin/users', args)).body,
   }),
   tool({
@@ -532,15 +655,22 @@ export const TOOLS: Tool[] = [
       role: z.enum(['member', 'admin']).optional(),
       isActive: z.boolean().optional(),
     }),
-    run: async ({ internal }, { userId, ...patch }) => (await internal('PATCH', `/api/admin/users/${userId}`, patch)).body,
+    run: async ({ internal }, { userId, ...patch }) =>
+      (await internal('PATCH', `/api/admin/users/${userId}`, patch)).body,
   }),
   tool({
     name: 'share_kitchen',
     title: 'Share a kitchen',
-    description: 'Admin: seat a person in another person’s kitchen (householdId from list_kitchens), or give them their own (null).',
+    description:
+      'Admin: seat a person in another person’s kitchen (householdId from list_kitchens), or give them their own (null).',
     access: 'admin',
     input: z.object({ userId: idField, householdId: idField.nullable() }),
-    run: async ({ internal }, args) => (await internal('PUT', `/api/admin/users/${args.userId}/kitchen`, { householdId: args.householdId })).body,
+    run: async ({ internal }, args) =>
+      (
+        await internal('PUT', `/api/admin/users/${args.userId}/kitchen`, {
+          householdId: args.householdId,
+        })
+      ).body,
   }),
   tool({
     name: 'list_kitchens',
@@ -548,13 +678,17 @@ export const TOOLS: Tool[] = [
     description: 'Admin: every kitchen and who shares it.',
     access: 'admin',
     input: z.object({}),
-    run: async ({ internal }) => ((await internal('GET', '/api/admin/households')).body as { households: unknown }).households,
+    run: async ({ internal }) =>
+      ((await internal('GET', '/api/admin/households')).body as { households: unknown }).households,
   }),
 ];
 
 /** JSON Schema for a tool's input: the zod schema, without the noise (uuid regexes, $schema). */
 export function inputSchema(schema: z.ZodType): Record<string, unknown> {
-  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>;
+  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' }) as Record<
+    string,
+    unknown
+  >;
   delete json.$schema;
   const tidy = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(tidy);
@@ -568,11 +702,15 @@ export function inputSchema(schema: z.ZodType): Record<string, unknown> {
   };
   const result = tidy(json) as Record<string, unknown>;
   // MCP wants one object schema: alternatives are merged, required only where all agree.
-  const variants = (Array.isArray(result.anyOf) ? result.anyOf : Array.isArray(result.allOf) ? result.allOf : null) as Array<Record<string, unknown>> | null;
+  const variants = (
+    Array.isArray(result.anyOf) ? result.anyOf : Array.isArray(result.allOf) ? result.allOf : null
+  ) as Array<Record<string, unknown>> | null;
   if (variants) {
     const properties = Object.assign({}, ...variants.map((v) => v.properties ?? {}));
     const required = variants.map((v) => (v.required as string[]) ?? []);
-    const shared = result.allOf ? [...new Set(required.flat())] : required.reduce((a, b) => a.filter((key) => b.includes(key)));
+    const shared = result.allOf
+      ? [...new Set(required.flat())]
+      : required.reduce((a, b) => a.filter((key) => b.includes(key)));
     return { type: 'object', properties, ...(shared.length ? { required: shared } : {}) };
   }
   return { type: 'object', ...result };

@@ -185,8 +185,9 @@
     color-scheme: light;
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --gutter: 1.25rem;
-    --tabbar-h: 5.5rem;
+    /* Phones get every pixel: a 12px edge, 16px from small tablets up. */
+    --gutter: 0.75rem;
+    --tabbar-h: 4.5rem;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
@@ -311,6 +312,10 @@
 @utility gutter-x {
   padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
   padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
+  @media (width >= 40rem) {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
 }
 
 /* A press sinks a little, like a real button; the release springs back. */

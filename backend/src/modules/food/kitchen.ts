@@ -25,7 +25,12 @@ export interface Kitchen {
 }
 
 /** The person's kitchen, created on first use. Safe under concurrent first requests. */
-export async function ensureKitchen(deps: AppDeps, user: Pick<User, 'id' | 'name'>): Promise<Kitchen> {
+export async function ensureKitchen(deps: AppDeps, user: Pick<User, 'id' | 'name' | 'householdId'>): Promise<Kitchen> {
+  // Almost always the person already has one: no transaction, no lock.
+  if (user.householdId) {
+    const { rows } = await deps.db.query<Kitchen>('SELECT id, name, currency FROM households WHERE id = $1', [user.householdId]);
+    if (rows[0]) return rows[0];
+  }
   return deps.db.tx(async (tx) => {
     const { rows } = await tx.query<{ household_id: string | null }>('SELECT household_id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
     let id = rows[0]?.household_id ?? null;

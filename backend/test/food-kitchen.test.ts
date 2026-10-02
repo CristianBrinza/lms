@@ -62,7 +62,7 @@ describe('food: kitchen inventory', () => {
 
     const freezer = await b.get('/api/food/kitchen?location=freezer');
     expect(freezer.body.products[0].lots).toHaveLength(1);
-    expect(freezer.body.products[0].total).toBe(2000);
+    expect(freezer.body.products[0]).toMatchObject({ totalHere: 2000, total: 3300 });
   });
 
   it('uses stock first-expiring-first and reports what was missing', async () => {

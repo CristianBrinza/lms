@@ -5,7 +5,7 @@ import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
 import { foodCtx, requireKitchen } from './kitchen';
-import { completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, reopenMeal, setMealIngredients, updateMeal } from './meals';
+import { completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, reopenMeal, setMealIngredients, uncookMeal, updateMeal } from './meals';
 import { overview } from './overview';
 import { planNeeds } from './plan';
 import { createRecipe, deleteRecipe, getRecipe, listRecipes, updateRecipe } from './recipes';
@@ -28,7 +28,7 @@ import {
   RangeQuery,
   RecipeInput,
   RecipePatch,
-  RestoreInput,
+  UndoInput,
   ShoppingItemPatch,
   StoreInput,
   StorePatch,
@@ -36,7 +36,7 @@ import {
   UseStockInput,
 } from './schemas';
 import { addShoppingItems, checkout, getTrip, listShopping, listTrips, removeShoppingItem, updateShoppingItem, updateTripItem } from './shopping';
-import { addStock, kitchen, productDetail, removeLot, restoreStock, setLevel, updateLot, useStock } from './stock';
+import { addStock, kitchen, productDetail, removeLot, setLevel, undoEvents, updateLot, useStock } from './stock';
 import { createStore, deleteStore, listStores, updateStore } from './stores';
 
 /** /api/food — the kitchen's products and stock (stores, lists, recipes and plan join in later phases). */
@@ -69,10 +69,7 @@ export function foodRoutes(deps: AppDeps) {
   });
   app.post('/stock', async (c) => c.json(await addStock(ctx(c), await readJson(c, AddStockInput)), 201));
   app.post('/stock/use', async (c) => c.json({ result: await useStock(ctx(c), await readJson(c, UseStockInput)) }));
-  app.post('/stock/restore', async (c) => {
-    await restoreStock(ctx(c), (await readJson(c, RestoreInput)).lots);
-    return c.body(null, 204);
-  });
+  app.post('/stock/undo', async (c) => c.json({ undone: await undoEvents(ctx(c), (await readJson(c, UndoInput)).events) }));
   app.patch('/lots/:id', async (c) => c.json({ lot: await updateLot(ctx(c), c.req.param('id'), await readJson(c, LotPatch)) }));
   app.delete('/lots/:id', async (c) => {
     await removeLot(ctx(c), c.req.param('id'));
@@ -129,6 +126,10 @@ export function foodRoutes(deps: AppDeps) {
   );
   app.post('/meals/:id/done', async (c) => c.json(await completeMeal(ctx(c), c.req.param('id'), await readJson(c, CompleteMealInput))));
   app.post('/meals/:id/reopen', async (c) => c.json({ meal: await reopenMeal(ctx(c), c.req.param('id')) }));
+  app.post('/meals/:id/uncook', async (c) => {
+    await uncookMeal(ctx(c), c.req.param('id'));
+    return c.body(null, 204);
+  });
   app.delete('/meals/:id', async (c) => {
     await deleteMeal(ctx(c), c.req.param('id'));
     return c.body(null, 204);

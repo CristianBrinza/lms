@@ -94,12 +94,13 @@ export function baseQuantity(quantity: number, unit: Unit | undefined | null, pr
 export async function recordEvent(
   ctx: FoodCtx,
   event: { productId: string; lotId: string | null; kind: 'added' | 'used' | 'wasted' | 'adjusted' | 'moved' | 'restored' | 'level'; delta: number; mealId?: string | null; note?: string },
-): Promise<void> {
-  await ctx.db.query(
+): Promise<number> {
+  const { rows } = await ctx.db.query<{ id: number }>(
     `INSERT INTO stock_events (household_id, product_id, lot_id, kind, delta, meal_id, actor_id, via, note, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
     [ctx.actor.householdId, event.productId, event.lotId, event.kind, round(event.delta), event.mealId ?? null, ctx.actor.userId, ctx.actor.via, event.note ?? '', ctx.now],
   );
+  return rows[0]!.id;
 }
 
 async function findLot(ctx: FoodCtx, id: string, lock = false): Promise<LotRow> {
@@ -112,6 +113,8 @@ async function findLot(ctx: FoodCtx, id: string, lock = false): Promise<LotRow> 
 /** Puts something in the kitchen: a new lot, with its expiry from the product's shelf life unless given. */
 /** Expiry for a lot put in `location`: frozen food keeps its frozen days, else the shelf life. */
 function defaultExpiry(product: Product, location: Location, now: Date): string | null {
+  // Growing on the balcony: no best-before.
+  if (location === 'garden') return null;
   if (location === 'freezer' && product.location !== 'freezer') {
     const { freezerDays } = freezingFor(product);
     if (freezerDays) return localDate(now, freezerDays);
@@ -167,6 +170,8 @@ export interface UseResult {
   /** How much was asked for but not there. */
   shortfall: number;
   lots: Array<{ lotId: string; taken: number; left: number }>;
+  /** The history entries this use wrote: pass them to undo it (once). */
+  events: number[];
 }
 
 /**
@@ -177,7 +182,7 @@ export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: s
   return ctx.tx(async (tx) => {
     const product = await findProduct(tx, input.productId, { lock: true });
     // Level items aren't measured: using some leaves them as they are.
-    if (product.trackMode !== 'exact') return { productId: product.id, used: 0, shortfall: 0, lots: [] };
+    if (product.trackMode !== 'exact') return { productId: product.id, used: 0, shortfall: 0, lots: [], events: [] };
     const wanted = baseQuantity(input.quantity, input.unit, product);
     if (input.lotId) {
       const lot = await findLot(tx, input.lotId);
@@ -190,6 +195,7 @@ export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: s
     );
     let remaining = wanted;
     const touched: UseResult['lots'] = [];
+    const events: number[] = [];
     for (const lot of rows) {
       if (remaining <= 0) break;
       const taken = round(Math.min(lot.quantity, remaining));
@@ -202,11 +208,11 @@ export async function useStock(ctx: FoodCtx, input: UseStockInput & { mealId?: s
           WHERE id = $1`,
         [lot.id, left, left === 0 ? tx.now : null, left === 0 ? null : tx.now, left > 0 && product.openedDays ? localDate(tx.now, product.openedDays) : null],
       );
-      await recordEvent(tx, { productId: product.id, lotId: lot.id, kind: input.wasted ? 'wasted' : 'used', delta: -taken, mealId: input.mealId, note: input.note });
+      events.push(await recordEvent(tx, { productId: product.id, lotId: lot.id, kind: input.wasted ? 'wasted' : 'used', delta: -taken, mealId: input.mealId, note: input.note }));
       touched.push({ lotId: lot.id, taken, left });
       remaining = round(remaining - taken);
     }
-    return { productId: product.id, used: round(wanted - remaining), shortfall: remaining, lots: touched };
+    return { productId: product.id, used: round(wanted - remaining), shortfall: remaining, lots: touched, events };
   });
 }
 
@@ -224,6 +230,26 @@ export async function restoreStock(ctx: FoodCtx, lots: Array<{ lotId: string; qu
       await tx.db.query('UPDATE stock_lots SET quantity = quantity + $2, finished_at = NULL WHERE id = $1', [lotId, back]);
       await recordEvent(tx, { productId: lot.product_id, lotId, kind: 'restored', delta: back, mealId: options.mealId, note: options.note ?? 'Undone' });
     }
+  });
+}
+
+/**
+ * Undoes uses by their history entries: each one goes back into its lot exactly once (a double tap
+ * or a retried request changes nothing the second time). Returns how many were undone.
+ */
+export async function undoEvents(ctx: FoodCtx, ids: number[]): Promise<number> {
+  return ctx.tx(async (tx) => {
+    const { rows } = await tx.db.query<{ id: number; lot_id: string | null; delta: number; meal_id: string | null }>(
+      `SELECT id, lot_id, delta, meal_id FROM stock_events
+        WHERE id = ANY($1::bigint[]) AND household_id = $2 AND kind IN ('used', 'wasted') AND undone_at IS NULL
+        FOR UPDATE`,
+      [ids, tx.actor.householdId],
+    );
+    for (const event of rows) {
+      if (event.lot_id) await restoreStock(tx, [{ lotId: event.lot_id, quantity: -event.delta }], { mealId: event.meal_id });
+      await tx.db.query('UPDATE stock_events SET undone_at = $2 WHERE id = $1', [event.id, tx.now]);
+    }
+    return rows.length;
   });
 }
 
@@ -280,20 +306,23 @@ export async function removeLot(ctx: FoodCtx, id: string): Promise<void> {
 }
 
 export interface StockedProduct extends Product {
-  /** Everything in stock, in the base unit. */
+  /** Everything in stock, in the base unit (every place, even in a one-place view). */
   total: number;
+  /** In a one-place view: what is in that place. */
+  totalHere?: number;
   lots: Lot[];
   nextExpiry: string | null;
   /** Below its "running low" amount (minStock). */
   low: boolean;
 }
 
-/** The kitchen: products with stock (in a location, if given), plus staples that ran out. */
+/**
+ * The kitchen: products with stock, plus staples that ran out and everything kept by level. With a
+ * location, only items with something there, but totals still count every place (so cheese in the
+ * freezer isn't "out" in the fridge view).
+ */
 export async function kitchen(ctx: FoodCtx, filter: { location?: Location } = {}): Promise<StockedProduct[]> {
-  const { rows: lotRows } = await ctx.db.query<LotRow>(
-    `${LOT_SELECT} WHERE l.household_id = $1 AND l.finished_at IS NULL${filter.location ? ' AND l.location = $2' : ''} ORDER BY ${LOT_ORDER}`,
-    filter.location ? [ctx.actor.householdId, filter.location] : [ctx.actor.householdId],
-  );
+  const { rows: lotRows } = await ctx.db.query<LotRow>(`${LOT_SELECT} WHERE l.household_id = $1 AND l.finished_at IS NULL ORDER BY ${LOT_ORDER}`, [ctx.actor.householdId]);
   const lotsByProduct = new Map<string, Lot[]>();
   for (const row of lotRows) {
     const list = lotsByProduct.get(row.product_id) ?? [];
@@ -302,12 +331,18 @@ export async function kitchen(ctx: FoodCtx, filter: { location?: Location } = {}
   }
   const { rows } = await ctx.db.query<ProductRow>(
     `SELECT ${PRODUCT_COLUMNS} FROM products
-      WHERE household_id = $1 AND archived_at IS NULL
-        AND (id = ANY($2::uuid[]) OR ((min_stock > 0 OR track_mode = 'level')${filter.location ? ' AND location = $3' : ''}))
+      WHERE household_id = $1 AND archived_at IS NULL AND (id = ANY($2::uuid[]) OR min_stock > 0 OR track_mode = 'level')
       ORDER BY lower(name)`,
-    filter.location ? [ctx.actor.householdId, [...lotsByProduct.keys()], filter.location] : [ctx.actor.householdId, [...lotsByProduct.keys()]],
+    [ctx.actor.householdId, [...lotsByProduct.keys()]],
   );
-  return rows.map((row) => stocked(toProduct(row), lotsByProduct.get(row.id) ?? []));
+  const all = rows.map((row) => stocked(toProduct(row), lotsByProduct.get(row.id) ?? []));
+  if (!filter.location) return all;
+  return all
+    .filter((p) => (p.lots.length ? p.lots.some((lot) => lot.location === filter.location) : p.location === filter.location))
+    .map((p) => {
+      const here = p.lots.filter((lot) => lot.location === filter.location);
+      return { ...p, lots: here, totalHere: round(here.reduce((sum, lot) => sum + lot.quantity, 0)) };
+    });
 }
 
 export function stocked(product: Product, lots: Lot[]): StockedProduct {

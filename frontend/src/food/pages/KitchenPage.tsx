@@ -87,6 +87,7 @@ export default function KitchenPage() {
   return (
     <Screen tone="white">
       <PageHeader
+        compact
         back="/food"
         title="Kitchen"
         subtitle={
@@ -99,15 +100,17 @@ export default function KitchenPage() {
             icon={AddIcon}
             label="Add food"
             variant="ink"
+            size="sm"
             onClick={() => setAdding({ open: true, initial: null })}
           />
         }
       />
 
-      <div className="gutter-x mt-5 flex flex-col gap-3 lg:px-8">
+      <div className="gutter-x mt-2.5 flex flex-col gap-2 lg:px-8">
         <TextField
           label="Search the kitchen"
           hideLabel
+          dense
           icon={SearchIcon}
           surface="raised"
           placeholder="Search the kitchen"
@@ -117,6 +120,7 @@ export default function KitchenPage() {
         <Chips
           label="Where"
           tone="sheet"
+          dense
           value={place}
           onChange={setPlace}
           options={[
@@ -126,7 +130,7 @@ export default function KitchenPage() {
         />
       </div>
 
-      <div className="gutter-x mt-5 lg:px-8">
+      <div className="gutter-x mt-3 lg:px-8">
         {kitchen.isPending ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-20 rounded-3xl" />
@@ -212,8 +216,8 @@ function Group({
   tone?: 'peach';
 }) {
   return (
-    <section className="mb-6 break-inside-avoid">
-      <h2 className="mb-2.5 flex items-center gap-2 px-1 text-h3 font-bold">
+    <section className="mb-3.5 break-inside-avoid">
+      <h2 className="mb-1.5 flex items-center gap-2 px-1 text-[0.9375rem] font-bold">
         {tone ? (
           <span
             aria-hidden="true"
@@ -223,7 +227,7 @@ function Group({
         {title}
         <span className="tabular text-sm font-semibold text-ink-500">{items.length}</span>
       </h2>
-      <ul className="divide-y divide-ink-100 overflow-hidden rounded-3xl bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
+      <ul className="divide-y divide-ink-100 overflow-hidden rounded-[1.25rem] bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
         {items.map((product) => (
           <ItemRow
             key={product.id}
@@ -286,9 +290,9 @@ function ItemRow({
       <button
         type="button"
         onClick={onOpen}
-        className="press flex min-w-0 flex-1 items-center gap-3 py-3 pl-3.5 pr-2 text-left transition-colors hover:bg-ink-50"
+        className="press flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 pr-2 text-left transition-colors hover:bg-ink-50"
       >
-        <FoodIconTile name={product.icon} />
+        <FoodIconTile name={product.icon} className="size-10 rounded-xl [&>svg]:size-7" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[0.9375rem] font-semibold">{product.name}</span>
           <span className="block truncate text-sm text-ink-600">
@@ -314,12 +318,12 @@ function ItemRow({
           disabled={useOne.isPending}
           aria-label={`Use 1 ${product.name}`}
           title="Use 1"
-          className="press mr-3 grid size-10 shrink-0 place-items-center rounded-full bg-ink-50 text-[1.25rem] text-ink-800 transition-colors hover:bg-butter-200 disabled:opacity-50"
+          className="press mr-2 grid size-10 shrink-0 place-items-center rounded-full bg-ink-50 text-[1.25rem] text-ink-800 transition-colors hover:bg-butter-200 disabled:opacity-50"
         >
           <RemoveIcon fontSize="inherit" />
         </button>
       ) : (
-        <span aria-hidden="true" className="mr-3 w-10 shrink-0" />
+        <span aria-hidden="true" className="mr-2 w-10 shrink-0" />
       )}
     </li>
   );

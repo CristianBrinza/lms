@@ -51,24 +51,25 @@ export default function ShoppingPage() {
   return (
     <Screen tone="white">
       <PageHeader
+        compact
         back="/food"
         title="Shopping"
         subtitle={shopping.data ? `${open.length} to buy${estimate > 0 ? ` · about ${money(Math.round(estimate))}` : ''}` : ' '}
         actions={
           <>
-            <IconButton icon={ReceiptIcon} label="Past shops" onClick={() => setTripsOpen(true)} />
-            <IconButton icon={StorefrontIcon} label="Stores" variant="ink" onClick={() => setStoresOpen(true)} />
+            <IconButton icon={ReceiptIcon} label="Past shops" size="sm" onClick={() => setTripsOpen(true)} />
+            <IconButton icon={StorefrontIcon} label="Stores" variant="ink" size="sm" onClick={() => setStoresOpen(true)} />
           </>
         }
       />
 
-      <div className="gutter-x mt-5 flex flex-col gap-3 lg:mx-auto lg:max-w-3xl lg:px-8">
+      <div className="gutter-x mt-2.5 flex flex-col gap-2 lg:mx-auto lg:max-w-3xl lg:px-8">
         <StoreTabs stores={stores} items={items} tab={tab} onTab={setTab} onAddStore={() => setStoresOpen(true)} />
         <AddBar tab={tab} storeName={store?.name ?? (tab === 'any' ? 'Any store' : null)} />
         <RunningLow items={items} />
       </div>
 
-      <div className="gutter-x mt-5 pb-20 lg:mx-auto lg:max-w-3xl lg:px-8 lg:pb-4">
+      <div className="gutter-x mt-3 pb-16 lg:mx-auto lg:max-w-3xl lg:px-8 lg:pb-4">
         {shopping.isPending ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-16 rounded-3xl" />
@@ -131,7 +132,7 @@ function StoreTabs({ stores, items, tab, onTab, onAddStore }: { stores: Store[];
     { id: 'any', label: 'Any store', count: count((l) => !l.storeId), dot: 'bg-ink-300', soft: 'bg-ink-100 text-ink-900 ring-2 ring-inset ring-ink-900' },
   ];
   return (
-    <div role="tablist" aria-label="Stores" className="-mx-1 flex gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none]">
+    <div role="tablist" aria-label="Stores" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]">
       {tabs.map((t) => {
         const active = t.id === tab;
         return (
@@ -141,7 +142,7 @@ function StoreTabs({ stores, items, tab, onTab, onAddStore }: { stores: Store[];
             role="tab"
             aria-selected={active}
             onClick={() => onTab(t.id)}
-            className={cx('press inline-flex h-11 shrink-0 items-center gap-2 rounded-pill px-4 text-[0.9375rem] font-semibold transition-colors', active ? t.soft : 'bg-white text-ink-800 shadow-xs hover:bg-ink-50')}
+            className={cx('press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill px-3.5 text-sm font-semibold transition-colors', active ? t.soft : 'bg-white text-ink-800 shadow-xs hover:bg-ink-50')}
           >
             {t.dot ? <span aria-hidden="true" className={cx('size-2.5 rounded-full', t.dot)} /> : null}
             {t.label}
@@ -149,7 +150,7 @@ function StoreTabs({ stores, items, tab, onTab, onAddStore }: { stores: Store[];
           </button>
         );
       })}
-      <button type="button" onClick={onAddStore} className="press inline-flex h-11 shrink-0 items-center gap-1.5 rounded-pill bg-lav-100 px-4 text-[0.9375rem] font-semibold text-lav-800 hover:bg-lav-200">
+      <button type="button" onClick={onAddStore} className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-lav-100 px-3.5 text-sm font-semibold text-lav-800 hover:bg-lav-200">
         <AddIcon fontSize="inherit" className="text-lg" />
         Store
       </button>
@@ -195,7 +196,7 @@ function AddBar({ tab, storeName }: { tab: Tab; storeName: string | null }) {
   const showSuggestions = focused && parsed.name.length > 0 && results.length > 0;
   return (
     <form onSubmit={submit} className="relative">
-      <div className="flex items-center gap-2 rounded-[1.25rem] bg-white p-1.5 pl-4 shadow-[var(--shadow-xs),inset_0_0_0_1px_var(--color-ink-100)] focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
+      <div className="flex items-center gap-2 rounded-[1rem] bg-white p-1 pl-3.5 shadow-[var(--shadow-xs),inset_0_0_0_1px_var(--color-ink-100)] focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
         <label htmlFor="add-line" className="sr-only">
           Add to {storeName ?? 'the list'}
         </label>
@@ -209,7 +210,7 @@ function AddBar({ tab, storeName }: { tab: Tab; storeName: string | null }) {
           placeholder={storeName ? `Add to ${storeName}: “2 tomatoes”` : 'Add “2 tomatoes”, “1 kg rice”…'}
           autoComplete="off"
           enterKeyHint="done"
-          className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-500"
+          className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-500"
         />
         <Button type="submit" size="sm" icon={AddIcon} loading={add.isPending} disabled={!parsed.name}>
           Add
@@ -247,20 +248,20 @@ function RunningLow({ items }: { items: ShoppingItem[] }) {
     onError: (error) => toast.error(errorMessage(error)),
   });
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
       {low.map((product) => (
         <button
           key={product.id}
           type="button"
           onClick={() => add.mutate(product.id)}
-          className="press inline-flex h-10 items-center gap-1.5 rounded-pill bg-peach-100 pl-1.5 pr-3 text-sm font-semibold hover:bg-peach-200"
+          className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-peach-100 pl-1 pr-2.5 text-sm font-semibold hover:bg-peach-200"
         >
-          <FoodIcon name={product.icon} className="size-7" />
+          <FoodIcon name={product.icon} className="size-6" />
           {product.name}
           <AddIcon fontSize="inherit" className="text-base text-peach-800" />
         </button>
       ))}
-      <Link to="/food/plan?needs=1" className="press inline-flex h-10 items-center gap-1.5 rounded-pill bg-lav-100 px-3.5 text-sm font-semibold text-lav-800 hover:bg-lav-200">
+      <Link to="/food/plan?needs=1" className="press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill bg-lav-100 px-3 text-sm font-semibold text-lav-800 hover:bg-lav-200">
         <CalendarIcon fontSize="inherit" className="text-base" />
         What the plan needs
       </Link>
@@ -271,13 +272,13 @@ function RunningLow({ items }: { items: ShoppingItem[] }) {
 function Lines({ title, lines, onEdit, cart, dot }: { title: string; lines: ShoppingItem[]; onEdit: (line: ShoppingItem) => void; cart?: boolean; dot?: string }) {
   if (!lines.length) return null;
   return (
-    <section className="mb-6">
-      <h2 className="mb-2.5 flex items-center gap-2 px-1 text-h3 font-bold">
+    <section className="mb-3.5">
+      <h2 className="mb-1.5 flex items-center gap-2 px-1 text-[0.9375rem] font-bold">
         {dot ? <span aria-hidden="true" className={cx('size-2.5 rounded-full', dot)} /> : null}
         {title}
         <span className="tabular text-sm font-semibold text-ink-500">{lines.length}</span>
       </h2>
-      <ul className={cx('divide-y divide-ink-100 overflow-hidden rounded-3xl ring-1 ring-inset', cart ? 'bg-mint-100/50 ring-mint-200' : 'bg-white shadow-[var(--shadow-card)] ring-ink-100/70')}>
+      <ul className={cx('divide-y divide-ink-100 overflow-hidden rounded-[1.25rem] ring-1 ring-inset', cart ? 'bg-mint-100/50 ring-mint-200' : 'bg-white shadow-[var(--shadow-card)] ring-ink-100/70')}>
         {lines.map((line) => (
           <LineRow key={line.id} line={line} onEdit={() => onEdit(line)} />
         ))}
@@ -313,14 +314,14 @@ function LineRow({ line, onEdit }: { line: ShoppingItem; onEdit: () => void }) {
   });
 
   return (
-    <li className="flex items-center gap-1 pr-3">
+    <li className="flex items-center gap-0.5 pr-2.5">
       <button
         type="button"
         role="checkbox"
         aria-checked={line.checked}
         aria-label={line.checked ? `Take ${line.name} out of the cart` : `Put ${line.name} in the cart`}
         onClick={() => toggle.mutate(!line.checked)}
-        className="press grid size-14 shrink-0 place-items-center"
+        className="press grid size-12 shrink-0 place-items-center"
       >
         <span
           className={cx(
@@ -331,11 +332,11 @@ function LineRow({ line, onEdit }: { line: ShoppingItem; onEdit: () => void }) {
           {line.checked ? <CheckIcon fontSize="inherit" className="animate-pop" /> : null}
         </span>
       </button>
-      <button type="button" onClick={onEdit} className="press flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left">
-        <FoodIconTile name={line.icon} className="size-11 rounded-xl" tone={line.checked ? 'bg-white' : 'bg-ink-50'} />
+      <button type="button" onClick={onEdit} className="press flex min-w-0 flex-1 items-center gap-2.5 py-1.5 text-left">
+        <FoodIconTile name={line.icon} className="size-9 rounded-xl [&>svg]:size-6" tone={line.checked ? 'bg-white' : 'bg-ink-50'} />
         <span className="min-w-0 flex-1">
           <span className={cx('block truncate text-[0.9375rem] font-semibold', line.checked && 'text-ink-600 line-through decoration-ink-400')}>{line.name}</span>
-          <span className="block truncate text-sm text-ink-600">
+          <span className="block truncate text-[0.8125rem] text-ink-600">
             {[line.amount && line.unit ? formatAmount(line.amount, line.unit) : null, line.note || null, line.source === 'plan' ? 'for the plan' : line.source === 'ai' ? 'by Claude' : null]
               .filter(Boolean)
               .join(' · ') || 'Tap to set how much'}
