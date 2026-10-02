@@ -27,11 +27,13 @@ export interface PickedProduct {
 
 export const COMMON = ['Tomatoes', 'Cucumbers', 'Eggs', 'Milk', 'Bread', 'Chicken breast', 'Beef steak', 'Potatoes', 'Onions', 'Apples', 'Cheese', 'Water'];
 
+/** Lowercase, no diacritics, punctuation as spaces: "Coca-Cola" and "coca cola" are the same (as in the API). */
 export const normalize = (value: string) =>
   value
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 
 /** tomato ↔ tomatoes, cherry ↔ cherries (the API matches the same way). */
@@ -90,7 +92,11 @@ export function useProductSearch(query: string, limit = 8) {
   return useMemo(() => {
     const q = normalize(query);
     const products = catalog.data ?? [];
-    const own = products.filter((p) => !q || normalize(p.name).includes(q) || sameName(p.name, query)).map(fromProduct);
+    // The kitchen's items, by name or by what the catalog also calls them ("roșii", "coca cola").
+    const aliases = (name: string) => (presets.data ?? []).find((p) => sameName(p.name, name))?.aliases ?? [];
+    const own = products
+      .filter((p) => !q || normalize(p.name).includes(q) || sameName(p.name, query) || aliases(p.name).some((alias) => normalize(alias).includes(q)))
+      .map(fromProduct);
     const foods = (presets.data ?? [])
       .filter((p) => !products.some((mine) => sameName(mine.name, p.name)))
       .filter((p) => q && (normalize(p.name).includes(q) || p.aliases?.some((alias) => normalize(alias).includes(q))))

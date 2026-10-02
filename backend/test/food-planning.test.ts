@@ -33,6 +33,16 @@ describe('food: planning ahead', () => {
     expect(later.ingredients[0]).toMatchObject({ enough: false, missing: 400, reservedFor: { id: tuesday.id } });
   });
 
+  it('says when food would be there but goes off before the meal', async () => {
+    t.setNow(NOW);
+    const b = await cook();
+    await b.post('/api/food/stock', { name: 'Cake', quantity: 1, unit: 'cake', each: 10, expiresOn: '2026-10-05' });
+    const snack = (await b.post('/api/food/meals', { date: '2026-10-07', time: '16:30', title: 'Cake', ingredients: [{ name: 'Cake', amount: 2 }] })).body.meal;
+    expect(snack.ingredients[0]).toMatchObject({ enough: false, missing: 2, spoilsBefore: true, reservedFor: null });
+    const today = (await b.post('/api/food/meals', { date: '2026-10-03', time: '16:30', title: 'Cake today', ingredients: [{ name: 'Cake', amount: 2 }] })).body.meal;
+    expect(today.ingredients[0]).toMatchObject({ enough: true, spoilsBefore: false });
+  });
+
   it('counts bread by the slice and keeps the kind of cheese on each piece', async () => {
     const b = await cook();
     // Bread is counted in slices; a loaf is its package, 20 slices unless this one says otherwise.

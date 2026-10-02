@@ -254,3 +254,6 @@ export function parseAmount(text: string): number | null {
   const value = Number(text.trim().replace(',', '.'));
   return text.trim() && Number.isFinite(value) && value > 0 ? value : null;
 }
+
+/** An ingredient's alternative as people say it: "whipped cream", "syrup (caramel)". */
+export const altLabel = (alt: { name: string; variant: string }) => `${alt.name.toLowerCase()}${alt.variant ? ` (${alt.variant.toLowerCase()})` : ''}`;

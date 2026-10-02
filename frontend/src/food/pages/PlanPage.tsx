@@ -6,20 +6,22 @@ import { Screen } from '@/components/layout/Screen';
 import { Button, IconButton, Skeleton } from '@/components/ui';
 import { AddIcon, AddShoppingCartIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
 import { MealStatus } from '../components/MealStatus';
 import { addDays, dayAndMonth, localDate, plural, relativeDay, SLOT_LABEL, weekdayShort, weekStart } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { AddMealSheet } from '../plan/AddMealSheet';
-import { MealSheet } from '../plan/MealSheet';
+import { MealPanel, MealSheet } from '../plan/MealSheet';
 import { NeedsSheet } from '../plan/NeedsSheet';
 import type { Meal } from '../types';
 
 /**
  * The meal plan, a week at a time. On a phone: a strip of days, then the chosen day's meals in
- * eating order. On desktop: the whole week in seven columns. A meal opens to mark it eaten (the
- * ingredients leave the kitchen) or change it for that day.
+ * eating order. On an iPad held upright: the day beside the open meal (or, with none open, what
+ * to pack tonight). On wide screens: the whole week in seven columns. A meal opens to mark it
+ * eaten (the ingredients leave the kitchen) or change it for that day.
  */
 export default function PlanPage() {
   const today = localDate();
@@ -52,6 +54,11 @@ export default function PlanPage() {
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   const openMeal = (meals.data ?? []).find((m) => m.id === params.get('meal')) ?? null;
   const planned = (meals.data ?? []).filter((m) => m.status === 'planned' && m.date >= today).length;
+  // Split view between a tablet held upright and a wide screen, where the week fits.
+  const split = useMediaQuery('(min-width: 44rem) and (max-width: 63.99rem)');
+  const tomorrow = addDays(today, 1);
+  const tomorrowMeals = useQuery({ queryKey: foodKeys.meals(tomorrow, tomorrow), queryFn: () => foodApi.meals(tomorrow, tomorrow) });
+  const toPack = (tomorrowMeals.data ?? []).filter((m) => m.toGo && m.status === 'planned');
 
   return (
     <Screen tone="white">
@@ -68,7 +75,7 @@ export default function PlanPage() {
         }
       />
 
-      <div className="gutter-x mt-2.5 lg:px-8">
+      <div className="gutter-x mt-2.5 md:px-5 lg:px-8">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -121,7 +128,7 @@ export default function PlanPage() {
         ) : null}
       </div>
 
-      <div className="gutter-x mt-3 lg:px-8">
+      <div className="gutter-x mt-3 md:px-5 lg:px-8">
         {meals.isPending ? (
           <div className="flex flex-col gap-2">
             <Skeleton className="h-16 rounded-2xl" />
@@ -131,10 +138,28 @@ export default function PlanPage() {
           <p className="rounded-2xl bg-white p-4 text-sm text-danger-700 shadow-[var(--shadow-card)]">{errorMessage(meals.error)}</p>
         ) : (
           <>
-            {/* Phone: the chosen day. */}
-            <section className="lg:hidden" aria-label={relativeDay(day, today)}>
-              <DayMeals meals={byDay.get(day) ?? []} onOpen={(id) => set({ meal: id })} onAdd={() => setAdding({ open: true, day })} title={relativeDay(day, today)} />
-            </section>
+            {/* Phone: the chosen day. Tablet: the day beside the open meal. */}
+            <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-start md:gap-4 lg:hidden">
+              <section aria-label={relativeDay(day, today)}>
+                {day === today && toPack.length && !split ? <PackTonight meals={toPack} onOpen={(id) => set({ meal: id, day: tomorrow })} /> : null}
+                <DayMeals meals={byDay.get(day) ?? []} onOpen={(id) => set({ meal: id })} onAdd={() => setAdding({ open: true, day })} title={relativeDay(day, today)} selected={split ? openMeal?.id : null} />
+              </section>
+              {split ? (
+                <aside className="sticky top-3 max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[1.75rem] [scrollbar-width:thin]">
+                  {openMeal ? (
+                    <MealPanel key={openMeal.id} meal={openMeal} kitchen={kitchen.data ?? []} onClose={() => set({ meal: null })} />
+                  ) : (
+                    <div className="flex flex-col gap-3">
+                      {toPack.length ? <PackTonight meals={toPack} onOpen={(id) => set({ meal: id, day: tomorrow })} /> : null}
+                      <div className="rounded-[1.75rem] bg-white p-5 text-center shadow-[var(--shadow-card)]">
+                        <p className="text-[1.0625rem] font-bold">Tap a meal</p>
+                        <p className="mt-1 text-sm text-ink-600">Each part, what it takes from the kitchen, the kitchenware, and “Eaten”.</p>
+                      </div>
+                    </div>
+                  )}
+                </aside>
+              ) : null}
+            </div>
             {/* Desktop: the week. */}
             <div className="hidden gap-3 lg:grid lg:grid-cols-7">
               {days.map((d) => (
@@ -147,7 +172,7 @@ export default function PlanPage() {
         )}
       </div>
 
-      <MealSheet meal={openMeal} kitchen={kitchen.data ?? []} onClose={() => set({ meal: null })} />
+      <MealSheet meal={split ? null : openMeal} kitchen={kitchen.data ?? []} onClose={() => set({ meal: null })} />
       <AddMealSheet
         open={adding.open}
         day={adding.day}
@@ -163,7 +188,47 @@ export default function PlanPage() {
   );
 }
 
-function DayMeals({ meals, onOpen, onAdd, title, compact }: { meals: Meal[]; onOpen: (id: string) => void; onAdd: () => void; title: string; compact?: boolean }) {
+/** Tomorrow's lunch to take along: made and packed tonight, after the last meal. */
+function PackTonight({ meals, onOpen }: { meals: Meal[]; onOpen: (id: string) => void }) {
+  return (
+    <section className="mb-3 rounded-[1.25rem] bg-lav-100 p-3">
+      <h2 className="px-1 text-[0.9375rem] font-bold">Pack tonight</h2>
+      <p className="px-1 text-xs text-lav-800">For tomorrow, to take along</p>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {meals.map((meal) => (
+          <li key={meal.id}>
+            <button type="button" onClick={() => onOpen(meal.id)} className="press flex w-full items-center gap-2.5 rounded-2xl bg-white p-2 text-left hover:bg-ink-50">
+              <FoodIconTile name={meal.icon} tone="bg-butter-100" className="size-9 rounded-xl [&>svg]:size-6" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9375rem] font-semibold">{meal.title}</span>
+                <span className="block truncate text-xs text-ink-600">
+                  {meal.time ?? SLOT_LABEL[meal.slot]} tomorrow · {plural(meal.servings, 'serving')}
+                </span>
+              </span>
+              <MealStatus meal={meal} />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DayMeals({
+  meals,
+  onOpen,
+  onAdd,
+  title,
+  compact,
+  selected,
+}: {
+  meals: Meal[];
+  onOpen: (id: string) => void;
+  onAdd: () => void;
+  title: string;
+  compact?: boolean;
+  selected?: string | null;
+}) {
   return (
     <>
       <h2 className={cx('mb-1.5 px-1 font-bold', compact ? 'text-sm' : 'text-[0.9375rem]')}>{title}</h2>
@@ -174,8 +239,10 @@ function DayMeals({ meals, onOpen, onAdd, title, compact }: { meals: Meal[]; onO
               <button
                 type="button"
                 onClick={() => onOpen(meal.id)}
+                aria-current={selected === meal.id ? 'true' : undefined}
                 className={cx(
-                  'press flex w-full items-center gap-2.5 rounded-[1.25rem] bg-white text-left shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 transition-colors hover:bg-ink-50',
+                  'press flex w-full items-center gap-2.5 rounded-[1.25rem] text-left shadow-[var(--shadow-card)] ring-1 ring-inset transition-colors hover:bg-ink-50',
+                  selected === meal.id ? 'bg-butter-100 ring-ink-900' : 'bg-white ring-ink-100/70',
                   compact ? 'flex-col items-start p-2' : 'p-2',
                   meal.status !== 'planned' && 'opacity-70',
                 )}
@@ -189,7 +256,12 @@ function DayMeals({ meals, onOpen, onAdd, title, compact }: { meals: Meal[]; onO
                   <span className="block truncate text-xs text-ink-600">
                     {compact ? `${meal.time ?? SLOT_LABEL[meal.slot]} · ` : `${SLOT_LABEL[meal.slot]} · `}
                     {plural(meal.servings, 'serving')}
+                    {meal.parts.length > 1 ? ` · ${plural(meal.parts.length, 'part')}` : ''}
+                    {meal.toGo ? ' · to go' : ''}
                   </span>
+                  {meal.status === 'planned' && meal.tools.some((t) => t.status === 'dirty') ? (
+                    <span className="block truncate text-xs font-semibold text-peach-800">Wash first: {meal.tools.filter((t) => t.status === 'dirty').map((t) => t.name.toLowerCase()).join(', ')}</span>
+                  ) : null}
                 </span>
                 {compact ? null : <MealStatus meal={meal} />}
               </button>

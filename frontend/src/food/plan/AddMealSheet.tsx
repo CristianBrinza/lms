@@ -54,8 +54,26 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
     mutationFn: () => foodApi.planMeal({ date: day, time, slot, ...(recipe ? { recipeId: recipe.id } : { title: title.trim() }), servings: shownServings }),
     onSuccess: (meal) => {
       haptic('success');
+      const missing = meal.availability.missing;
       toast.success(`${meal.title} · ${relativeDay(meal.date, today)}${meal.time ? ` at ${meal.time}` : ''}`, {
-        description: meal.availability.missing.length ? `${plural(meal.availability.missing.length, 'thing')} to buy` : 'Everything’s in the kitchen',
+        description: missing.length ? `${plural(missing.length, 'thing')} to buy: ${missing.map((m) => m.name.toLowerCase()).join(', ')}` : 'Everything’s in the kitchen',
+        duration: missing.length ? 9000 : undefined,
+        // What's missing, onto the lists in one tap: needed by that day, so it's bought the day before.
+        action: missing.length
+          ? {
+              label: 'Add to lists',
+              onClick: () =>
+                void foodApi
+                  .addLines(
+                    missing.map((m) => ({ productId: m.productId, amount: m.missing || undefined, unit: m.missing ? m.unit : undefined, needBy: meal.date })),
+                    'plan',
+                  )
+                  .then(() => {
+                    toast.success(`${plural(missing.length, 'thing')} on the lists`, { description: `Needed by ${relativeDay(meal.date, today).toLowerCase()}` });
+                    return queryClient.invalidateQueries({ queryKey: foodKeys.all });
+                  }),
+            }
+          : undefined,
       });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();

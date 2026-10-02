@@ -22,6 +22,8 @@ export interface LineAllocation {
   takenBy: PlannedMealRef | null;
   /** Covered by this alternative instead of the main item (its product id). */
   using?: string;
+  /** Short because what there is goes off before the meal's day (not because it was taken). */
+  spoils?: boolean;
 }
 
 export interface PlanAllocation {
@@ -66,9 +68,10 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
   const lastTaker = new Map<string, PlannedMealRef>();
 
   /** Takes `need` of a product for a meal from its lots still good that day (or only says how much it could). */
-  const take = (productId: string, need: number, date: string, variant: string | undefined, lotId: string | null | undefined, dry: boolean): number => {
+  const take = (productId: string, need: number, date: string | null, variant: string | undefined, lotId: string | null | undefined, dry: boolean): number => {
     const kind = variant?.toLowerCase();
-    const usable = (lotsByProduct.get(productId) ?? []).filter((lot) => (!lot.expires_on || lot.expires_on >= date) && (!kind || lot.variant.toLowerCase() === kind));
+    // date null: any lot, however soon it goes off (to tell "goes off first" from "not there").
+    const usable = (lotsByProduct.get(productId) ?? []).filter((lot) => (!date || !lot.expires_on || lot.expires_on >= date) && (!kind || lot.variant.toLowerCase() === kind));
     const ordered = lotId ? [...usable.filter((l) => l.id === lotId), ...usable.filter((l) => l.id !== lotId)] : usable;
     let remaining = need;
     for (const lot of ordered) {
@@ -106,7 +109,9 @@ export async function allocatePlan(ctx: FoodCtx, stock: Map<string, StockInfo>, 
       }
       const allocated = take(info.product.id, need, meal.date, row.variant, row.lot_id, false);
       const remaining = round(need - allocated);
-      result.lines.set(row.id, { allocated, short: remaining, takenBy: remaining > 0 ? (lastTaker.get(info.product.id) ?? null) : null });
+      // There would be enough, but some of it goes off before this meal.
+      const spoils = remaining > 0 && allocated + take(info.product.id, remaining, null, row.variant, null, true) + 1e-9 >= need;
+      result.lines.set(row.id, { allocated, short: remaining, takenBy: remaining > 0 && !spoils ? (lastTaker.get(info.product.id) ?? null) : null, ...(spoils ? { spoils } : {}) });
       claim(info.product.id, allocated, ref);
       if (remaining > 0) {
         const shortage = result.shortages.get(info.product.id);

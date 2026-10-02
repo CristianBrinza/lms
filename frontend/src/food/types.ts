@@ -223,6 +223,8 @@ export interface IngredientLine {
   variant: string;
   /** Or one of these instead, in order. */
   alternatives: Array<{ productId: string | null; name: string; icon: string; amount: number | null; unit: string | null; variant: string; enough: boolean | null }>;
+  /** Short because what there is goes off before the meal (planned meals). */
+  spoilsBefore: boolean;
   /** Covered by an alternative rather than the main item. */
   using: { productId: string; name: string; icon: string } | null;
   name: string;

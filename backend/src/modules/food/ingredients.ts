@@ -26,6 +26,8 @@ export interface IngredientLine {
   variant: string;
   /** Or one of these instead, in order. */
   alternatives: Array<{ productId: string | null; name: string; icon: FoodIcon; amount: number | null; unit: string | null; variant: string; enough: boolean | null }>;
+  /** Short because what there is goes off before the meal (planned meals). */
+  spoilsBefore: boolean;
   /** Covered by one of the alternatives rather than the main item (null: the main item, or nothing). */
   using: { productId: string; name: string; icon: FoodIcon } | null;
   name: string;
@@ -208,6 +210,7 @@ export function describeLines(
       variant: row.variant ?? '',
       alternatives,
       using,
+      spoilsBefore: Boolean(planned?.spoils && !using),
       name: row.name,
       icon: info?.product.icon ?? 'basket',
       amount: row.amount === null ? null : round(row.amount * scale),

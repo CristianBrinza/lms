@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, ButtonLink, Chips, IconLink, Skeleton, TextField } from '@/components/ui';
@@ -16,16 +16,23 @@ type Filter = 'all' | 'ready' | 'soon' | 'favorites';
 
 const TILE = ['bg-butter-100', 'bg-cyan-100', 'bg-pink-100', 'bg-mint-100', 'bg-lav-100', 'bg-peach-100'];
 
-/** The kitchen's recipes: what can be cooked now, what uses up food about to expire, favourites. */
+/**
+ * The kitchen's recipes: what can be cooked now, what uses up food about to expire or already
+ * opened (?uses=<item>, from Food home), favourites, drinks and snacks by tag.
+ */
 export default function RecipesPage() {
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
+  const [params, setParams] = useSearchParams();
+  const uses = params.get('uses');
   const [filter, setFilter] = useState<Filter>('all');
   const [tag, setTag] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const all = useMemo(() => recipes.data ?? [], [recipes.data]);
   const tags = useMemo(() => [...new Set(all.flatMap((r) => r.tags))].sort(), [all]);
 
+  const usesName = uses ? all.flatMap((r) => r.ingredients).find((i) => i.productId === uses)?.name : null;
   const shown = all
+    .filter((r) => !uses || r.ingredients.some((i) => i.productId === uses || i.alternatives.some((alt) => alt.productId === uses)))
     .filter((r) => filter !== 'ready' || r.availability.ready)
     .filter((r) => filter !== 'soon' || r.availability.useSoon > 0)
     .filter((r) => filter !== 'favorites' || r.favorite)
@@ -49,7 +56,7 @@ export default function RecipesPage() {
       />
 
       {all.length ? (
-        <div className="gutter-x mt-2.5 flex flex-col gap-2 lg:px-8">
+        <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-5 lg:px-8">
           <TextField label="Search recipes" hideLabel dense icon={SearchIcon} surface="raised" placeholder="A dish or an ingredient" value={query} onChange={(event) => setQuery(event.target.value)} />
           <Chips
             label="Show"
@@ -64,6 +71,15 @@ export default function RecipesPage() {
               { value: 'favorites', label: 'Favourites', icon: FavoriteIcon, count: all.filter((r) => r.favorite).length },
             ]}
           />
+          {uses ? (
+            <button
+              type="button"
+              onClick={() => setParams({}, { replace: true })}
+              className="press inline-flex h-9 w-fit items-center gap-1.5 rounded-pill bg-peach-100 px-3.5 text-sm font-semibold text-peach-800"
+            >
+              With {usesName?.toLowerCase() ?? 'this item'} · show all
+            </button>
+          ) : null}
           {tags.length ? (
             <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
               {tags.map((t) => (
@@ -82,7 +98,7 @@ export default function RecipesPage() {
         </div>
       ) : null}
 
-      <div className="gutter-x mt-3 lg:px-8">
+      <div className="gutter-x mt-3 md:px-5 lg:px-8">
         {recipes.isPending ? (
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <Skeleton className="h-52 rounded-3xl" />

@@ -9,12 +9,12 @@ import { AddIcon, ArrowDownIcon, ArrowUpIcon, CloseIcon, DeleteIcon, RemoveIcon 
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
-import { foodApi, foodKeys } from '../api';
+import { foodApi, foodKeys, kitchenwareApi } from '../api';
 import { useCatalog, useProductSearch } from '../catalog';
 import { parseAmount, unitsFor } from '../format';
 import { FOOD_ICON_KEYS } from '../icons/art';
 import { FoodIcon } from '../icons/FoodIcon';
-import type { Recipe, RecipeInput, Unit } from '../types';
+import type { Recipe, RecipeInput, ToolNeedInput, Unit } from '../types';
 
 const DISHES = ['pot', 'bowl', 'soup', 'salad', 'pizza', 'sandwich', 'cake', 'pancakes', 'omelette', 'spaghetti', 'steak', 'chicken', 'fish', 'container'];
 const ALL_UNITS: Unit[] = ['pcs', 'g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup'];
@@ -27,12 +27,28 @@ interface Row {
   unit: string;
   note: string;
   optional: boolean;
+  /** Only this kind ('' for any). */
+  variant: string;
+  /** Or these instead, comma-separated ("Whipped cream, Cream"). */
+  or: string;
+  /** False for what the kitchen doesn't keep (tap water): never checked or taken. */
+  kept: boolean;
 }
 
 let nextKey = 1;
-const blankRow = (): Row => ({ key: nextKey++, name: '', amount: '', unit: '', note: '', optional: false });
+const blankRow = (): Row => ({ key: nextKey++, name: '', amount: '', unit: '', note: '', optional: false, variant: '', or: '', kept: true });
 
-/** Write or change a recipe: ingredients linked to the kitchen, steps in order. */
+interface ToolRow {
+  toolId?: string;
+  name: string;
+  icon: string;
+  count: number;
+}
+
+/**
+ * Write or change a recipe: ingredients linked to the kitchen (with a kind when only one will do,
+ * and what can go in instead), the kitchenware it needs, steps in order.
+ */
 export default function RecipeEditorPage() {
   const { id } = useParams();
   const recipe = useQuery({ queryKey: foodKeys.recipe(id ?? '', undefined), queryFn: () => foodApi.recipe(id!), enabled: Boolean(id) });
@@ -71,9 +87,13 @@ function Editor({ initial }: { initial?: Recipe }) {
           unit: i.unit ?? '',
           note: i.note,
           optional: i.optional,
+          variant: i.variant,
+          or: i.alternatives.map((alt) => alt.name).join(', '),
+          kept: Boolean(i.productId),
         }))
       : [blankRow(), blankRow()],
   );
+  const [tools, setTools] = useState<ToolRow[]>(() => (initial?.tools ?? []).map((t) => ({ toolId: t.toolId, name: t.name, icon: t.icon, count: t.count })));
   const [steps, setSteps] = useState<string[]>(initial?.steps.length ? initial.steps : ['']);
   const [sourceUrl, setSourceUrl] = useState(initial?.sourceUrl ?? '');
   const [notes, setNotes] = useState(initial?.notes ?? '');
@@ -101,7 +121,20 @@ function Editor({ initial }: { initial?: Recipe }) {
         unit: parseAmount(r.amount) && r.unit ? r.unit : null,
         note: r.note.trim(),
         optional: r.optional,
+        ...(r.kept ? {} : { link: false }),
+        ...(r.variant.trim() ? { variant: r.variant.trim() } : {}),
+        ...(r.or.trim()
+          ? {
+              or: r.or
+                .split(',')
+                .map((name) => name.trim())
+                .filter(Boolean)
+                .slice(0, 4)
+                .map((name) => ({ name })),
+            }
+          : {}),
       })),
+    tools: tools.map((t): ToolNeedInput => (t.toolId ? { toolId: t.toolId, count: t.count } : { name: t.name, count: t.count })),
   });
 
   const save = useMutation({
@@ -141,7 +174,7 @@ function Editor({ initial }: { initial?: Recipe }) {
   return (
     <Screen tone="white">
       <PageHeader back={initial ? `/food/recipes/${initial.id}` : '/food/recipes'} title={initial ? 'Edit recipe' : 'New recipe'} centered />
-      <form onSubmit={submit} noValidate className="gutter-x mx-auto mt-6 flex max-w-2xl flex-col gap-6 lg:px-8">
+      <form onSubmit={submit} noValidate className="gutter-x mx-auto mt-6 flex max-w-2xl flex-col gap-6 md:max-w-3xl md:px-5 lg:px-8">
         <section className="flex flex-col gap-4 rounded-[2rem] bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
           <TextField label="Name" placeholder="Chicken soup" value={title} onChange={(event) => setTitle(event.target.value)} error={fields.title} maxLength={120} autoFocus={!initial} />
           <fieldset>
@@ -213,6 +246,8 @@ function Editor({ initial }: { initial?: Recipe }) {
             Add ingredient
           </Button>
         </section>
+
+        <ToolsEditor tools={tools} onChange={setTools} />
 
         <section>
           <h2 className="mb-2.5 px-1 text-h3 font-bold">Steps</h2>
@@ -398,11 +433,122 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
           className="h-10 min-w-0 rounded-xl bg-ink-50 px-3 text-[0.9375rem] outline-none placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
         />
       </div>
-      <label className="mt-2 ml-[3.25rem] inline-flex cursor-pointer items-center gap-2 text-sm text-ink-600">
-        <input type="checkbox" checked={row.optional} onChange={(event) => onChange({ ...row, optional: event.target.checked })} className="size-4 accent-ink-900" />
-        Optional
-      </label>
+      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 pl-[3.25rem]">
+        {product?.variants.length || row.variant ? (
+          <select
+            aria-label="Kind"
+            value={row.variant}
+            onChange={(event) => onChange({ ...row, variant: event.target.value })}
+            className="h-10 min-w-0 rounded-xl bg-ink-50 px-2 text-[0.9375rem] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
+          >
+            <option value="">Any kind</option>
+            {[...new Set([...(product?.variants ?? []), ...(row.variant ? [row.variant] : [])])].map((v) => (
+              <option key={v} value={v}>
+                Only {v}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span />
+        )}
+        <input
+          aria-label="Or instead"
+          value={row.or}
+          placeholder="Or instead: cream…"
+          onChange={(event) => onChange({ ...row, or: event.target.value })}
+          maxLength={160}
+          className="h-10 min-w-0 rounded-xl bg-ink-50 px-3 text-[0.9375rem] outline-none placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
+        />
+      </div>
+      <div className="mt-2 ml-[3.25rem] flex flex-wrap gap-x-4 gap-y-1">
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink-600">
+          <input type="checkbox" checked={row.optional} onChange={(event) => onChange({ ...row, optional: event.target.checked })} className="size-4 accent-ink-900" />
+          Optional
+        </label>
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink-600">
+          <input type="checkbox" checked={!row.kept} onChange={(event) => onChange({ ...row, kept: !event.target.checked })} className="size-4 accent-ink-900" />
+          Not kept in the kitchen (tap water)
+        </label>
+      </div>
       {error ? <p className="mt-1.5 pl-[3.25rem] text-sm font-medium text-danger-600">{error}</p> : null}
     </li>
+  );
+}
+
+/** The kitchenware a recipe needs: picked from the kitchen's, or named (it is added then). */
+function ToolsEditor({ tools, onChange }: { tools: ToolRow[]; onChange: (tools: ToolRow[]) => void }) {
+  const kitchenware = useQuery({ queryKey: foodKeys.kitchenware, queryFn: kitchenwareApi.list });
+  const [name, setName] = useState('');
+  const have = new Set(tools.map((t) => t.toolId ?? t.name.toLowerCase()));
+  const offer = [
+    ...(kitchenware.data?.tools ?? []).map((t) => ({ toolId: t.id, name: t.name, icon: t.icon })),
+    ...(kitchenware.data?.presets ?? []).filter((p) => !(kitchenware.data?.tools ?? []).some((t) => t.name === p.name)).map((p) => ({ toolId: undefined, name: p.name, icon: p.icon })),
+  ].filter((t) => !have.has(t.toolId ?? t.name.toLowerCase()));
+  const add = (tool: Omit<ToolRow, 'count'>) => onChange([...tools, { ...tool, count: 1 }]);
+  return (
+    <section>
+      <h2 className="mb-2.5 px-1 text-h3 font-bold">Kitchenware</h2>
+      <div className="rounded-[1.5rem] bg-white p-3 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
+        {tools.length ? (
+          <ul className="flex flex-wrap gap-1.5">
+            {tools.map((tool, index) => (
+              <li key={tool.toolId ?? tool.name} className="inline-flex h-10 items-center gap-1 rounded-pill bg-butter-100 pl-1 pr-1">
+                <FoodIcon name={tool.icon} className="size-7" />
+                <span className="text-sm font-semibold">{tool.name}</span>
+                <button
+                  type="button"
+                  aria-label={`How many ${tool.name}: ${tool.count}; tap for more`}
+                  onClick={() => onChange(tools.map((t, i) => (i === index ? { ...t, count: t.count >= 4 ? 1 : t.count + 1 } : t)))}
+                  className="press tabular grid h-7 min-w-7 place-items-center rounded-full bg-white px-1.5 text-xs font-bold"
+                >
+                  ×{tool.count}
+                </button>
+                <button type="button" aria-label={`Remove ${tool.name}`} onClick={() => onChange(tools.filter((_, i) => i !== index))} className="press grid size-7 place-items-center rounded-full text-ink-600 hover:bg-white">
+                  <CloseIcon fontSize="inherit" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-1 text-sm text-ink-600">What it’s cooked in: a big pot, a frying pan, a colander…</p>
+        )}
+        <div className="-mx-1 mt-2.5 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] md:flex-wrap">
+          {offer.slice(0, 16).map((tool) => (
+            <button key={tool.toolId ?? tool.name} type="button" onClick={() => add(tool)} className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-ink-50 pl-1 pr-3 text-sm font-semibold hover:bg-ink-100">
+              <FoodIcon name={tool.icon} className="size-6" />
+              {tool.name}
+            </button>
+          ))}
+          <span className="inline-flex h-9 shrink-0 items-center rounded-pill bg-ink-50 pl-3 pr-1">
+            <input
+              aria-label="Other kitchenware"
+              value={name}
+              placeholder="Other…"
+              onChange={(event) => setName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || !name.trim()) return;
+                event.preventDefault();
+                add({ name: name.trim(), icon: 'box' });
+                setName('');
+              }}
+              className="w-24 bg-transparent text-sm outline-none placeholder:text-ink-500"
+            />
+            {name.trim() ? (
+              <button
+                type="button"
+                aria-label="Add"
+                onClick={() => {
+                  add({ name: name.trim(), icon: 'box' });
+                  setName('');
+                }}
+                className="press grid size-7 place-items-center rounded-full bg-ink-900 text-white"
+              >
+                <AddIcon fontSize="inherit" />
+              </button>
+            ) : null}
+          </span>
+        </div>
+      </div>
+    </section>
   );
 }
