@@ -23,6 +23,18 @@ const adminRoutes: RouteObject = {
   ],
 };
 
+/** Food: one area, four sections, each its own lazily loaded screen. */
+const foodRoutes: RouteObject = {
+  path: 'food',
+  children: [
+    { index: true, lazy: page(() => import('@/food/pages/FoodHomePage')) },
+    { path: 'kitchen', lazy: page(() => import('@/food/pages/KitchenPage')) },
+    { path: 'recipes', lazy: page(() => import('@/food/pages/RecipesPage')) },
+    { path: 'shopping', lazy: page(() => import('@/food/pages/ShoppingPage')) },
+    { path: 'plan', lazy: page(() => import('@/food/pages/PlanPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -44,6 +56,7 @@ const routes: RouteObject[] = [
               { path: 'utilities', lazy: page(() => import('@/pages/utilities/UtilitiesPage')) },
               { path: 'settings', lazy: page(() => import('@/pages/settings/SettingsPage')) },
               { path: 'profile', lazy: page(() => import('@/pages/profile/ProfilePage')) },
+              foodRoutes,
               adminRoutes,
             ],
           },

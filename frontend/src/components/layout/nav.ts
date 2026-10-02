@@ -1,21 +1,10 @@
-import {
-  HomeIcon,
-  HomeOutlinedIcon,
-  PersonIcon,
-  PersonOutlinedIcon,
-  SettingsIcon,
-  SettingsOutlinedIcon,
-  UtilitiesIcon,
-  UtilitiesOutlinedIcon,
-  type IconComponent,
-} from '@/components/ui/icons';
+import { HomeIcon, PersonIcon, SettingsIcon, UtilitiesIcon, type IconComponent } from '@/components/ui/icons';
 
 export interface NavItem {
   to: string;
   label: string;
-  /** Filled when chosen, outlined otherwise (the mood app's bottom menu). */
+  /** A Rounded icon: ink and popping when chosen, grey otherwise. */
   icon: IconComponent;
-  idleIcon: IconComponent;
   /** Other paths that count as this place (People lives under Settings). */
   alsoActive?: RegExp;
 }
@@ -25,10 +14,11 @@ export interface NavItem {
  * so a new place is one more entry here.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  { to: '/home', label: 'Home', icon: HomeIcon, idleIcon: HomeOutlinedIcon },
-  { to: '/utilities', label: 'Utilities', icon: UtilitiesIcon, idleIcon: UtilitiesOutlinedIcon },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon, idleIcon: SettingsOutlinedIcon, alsoActive: /^\/admin(\/|$)/ },
-  { to: '/profile', label: 'Profile', icon: PersonIcon, idleIcon: PersonOutlinedIcon },
+  // Life areas open from Home, so Home stays lit inside them.
+  { to: '/home', label: 'Home', icon: HomeIcon, alsoActive: /^\/food(\/|$)/ },
+  { to: '/utilities', label: 'Utilities', icon: UtilitiesIcon },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon, alsoActive: /^\/admin(\/|$)/ },
+  { to: '/profile', label: 'Profile', icon: PersonIcon },
 ];
 
 export const isActivePath = (pathname: string, item: NavItem) =>

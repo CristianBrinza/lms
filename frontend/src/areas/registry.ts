@@ -34,6 +34,7 @@ export const AREAS: readonly Area[] = [
     summary: 'Meals, groceries and what’s for dinner.',
     icon: FoodIcon,
     tone: 'white',
+    to: '/food',
   },
 ];
 

@@ -20,7 +20,7 @@ export function SideNav() {
         <ul className="flex flex-col gap-1">
           {items.map((item) => {
             const active = isActivePath(pathname, item);
-            const Icon = active ? item.icon : item.idleIcon;
+            const Icon = item.icon;
             return (
               <li key={item.to}>
                 <Link

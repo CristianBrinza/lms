@@ -22,8 +22,8 @@ import {
   InstallIcon,
   LaptopIcon,
   LockIcon,
+  PersonIcon,
   LogoutIcon,
-  PersonOutlinedIcon,
   PhoneIphoneIcon,
   SyncIcon,
 } from '@/components/ui/icons';
@@ -101,7 +101,7 @@ export default function SettingsPage() {
             />
             <ListRowLink
               to="/profile"
-              icon={PersonOutlinedIcon}
+              icon={PersonIcon}
               label="Profile"
               detail="Your name and surname"
             />

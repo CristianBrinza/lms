@@ -1,9 +1,10 @@
 /**
- * The app's icon vocabulary — MUI icons, Rounded variant. Import icons from here (not from
+ * The app's icon vocabulary — MUI icons, Rounded theme only (filled, or the Rounded theme's own
+ * outline icons such as DeleteOutlineRounded). Import icons from here (not from
  * @mui/icons-material directly) so the set stays consistent and tree-shaken.
  */
 export { default as AddIcon } from '@mui/icons-material/AddRounded';
-export { default as AddBoxIcon } from '@mui/icons-material/AddBoxOutlined';
+export { default as AddBoxIcon } from '@mui/icons-material/AddBoxRounded';
 export { default as AddToHomeScreenIcon } from '@mui/icons-material/AddToHomeScreenRounded';
 export { default as AdminIcon } from '@mui/icons-material/AdminPanelSettingsRounded';
 export { default as AndroidIcon } from '@mui/icons-material/AndroidRounded';
@@ -27,13 +28,12 @@ export { default as ExpandMoreIcon } from '@mui/icons-material/ExpandMoreRounded
 export { default as FoodIcon } from '@mui/icons-material/RestaurantRounded';
 export { default as GroupIcon } from '@mui/icons-material/GroupRounded';
 export { default as UtilitiesIcon } from '@mui/icons-material/HandymanRounded';
-export { default as UtilitiesOutlinedIcon } from '@mui/icons-material/HandymanOutlined';
 export { default as HourglassIcon } from '@mui/icons-material/HourglassTopRounded';
 export { default as WifiOffIcon } from '@mui/icons-material/WifiOffRounded';
 export { default as HelpIcon } from '@mui/icons-material/HelpOutlineRounded';
 export { default as HistoryIcon } from '@mui/icons-material/HistoryRounded';
 export { default as HomeIcon } from '@mui/icons-material/HomeRounded';
-export { default as InfoIcon } from '@mui/icons-material/InfoOutlined';
+export { default as InfoIcon } from '@mui/icons-material/InfoOutlineRounded';
 export { default as InstallDesktopIcon } from '@mui/icons-material/InstallDesktopRounded';
 export { default as InstallIcon } from '@mui/icons-material/InstallMobileRounded';
 export { default as IosShareIcon } from '@mui/icons-material/IosShareRounded';
@@ -60,12 +60,28 @@ export { default as TrainingIcon } from '@mui/icons-material/FitnessCenterRounde
 export { default as VisibilityIcon } from '@mui/icons-material/VisibilityRounded';
 export { default as VisibilityOffIcon } from '@mui/icons-material/VisibilityOffRounded';
 export { default as WarningIcon } from '@mui/icons-material/WarningAmberRounded';
-export { default as AdminOutlinedIcon } from '@mui/icons-material/AdminPanelSettingsOutlined';
-export { default as HomeOutlinedIcon } from '@mui/icons-material/HomeOutlined';
-export { default as PersonOutlinedIcon } from '@mui/icons-material/PersonOutlineRounded';
-export { default as SettingsOutlinedIcon } from '@mui/icons-material/SettingsOutlined';
-export { default as InstallOutlinedIcon } from '@mui/icons-material/InstallMobileOutlined';
-export { default as LogoutOutlinedIcon } from '@mui/icons-material/LogoutOutlined';
 export { default as QuoteIcon } from '@mui/icons-material/FormatQuoteRounded';
-export { default as BadgeIcon } from '@mui/icons-material/BadgeOutlined';
+export { default as BadgeIcon } from '@mui/icons-material/BadgeRounded';
+export { default as AccessTimeIcon } from '@mui/icons-material/AccessTimeRounded';
+export { default as AddShoppingCartIcon } from '@mui/icons-material/AddShoppingCartRounded';
+export { default as ArrowDownIcon } from '@mui/icons-material/ArrowDownwardRounded';
+export { default as ArrowUpIcon } from '@mui/icons-material/ArrowUpwardRounded';
+export { default as CalendarIcon } from '@mui/icons-material/CalendarMonthRounded';
+export { default as CountertopIcon } from '@mui/icons-material/CountertopsRounded';
+export { default as FavoriteIcon } from '@mui/icons-material/FavoriteRounded';
+export { default as FavoriteBorderIcon } from '@mui/icons-material/FavoriteBorderRounded';
+export { default as FireIcon } from '@mui/icons-material/LocalFireDepartmentRounded';
+export { default as FreezerIcon } from '@mui/icons-material/AcUnitRounded';
+export { default as FridgeIcon } from '@mui/icons-material/KitchenRounded';
+export { default as MenuBookIcon } from '@mui/icons-material/MenuBookRounded';
+export { default as PantryIcon } from '@mui/icons-material/Inventory2Rounded';
+export { default as PeopleIcon } from '@mui/icons-material/PeopleRounded';
+export { default as PlaylistAddIcon } from '@mui/icons-material/PlaylistAddRounded';
+export { default as ReceiptIcon } from '@mui/icons-material/ReceiptLongRounded';
+export { default as RemoveIcon } from '@mui/icons-material/RemoveRounded';
+export { default as ShoppingCartIcon } from '@mui/icons-material/ShoppingCartRounded';
+export { default as StorefrontIcon } from '@mui/icons-material/StorefrontRounded';
+export { default as SwapIcon } from '@mui/icons-material/SwapHorizRounded';
+export { default as TimerIcon } from '@mui/icons-material/TimerRounded';
+export { default as UndoIcon } from '@mui/icons-material/UndoRounded';
 export type { IconComponent } from './SvgIcon';

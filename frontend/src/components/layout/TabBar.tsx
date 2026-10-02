@@ -11,9 +11,9 @@ interface Tile {
 }
 
 /**
- * The bottom menu: outlined icons, each with its name underneath (the learning app). The soft
+ * The bottom menu: Rounded icons, each with its name underneath (the learning app). The soft
  * cyan tile (the mood app) glides from the old tab to the new one instead of blinking between
- * them, and the chosen icon fills with a small pop. Phones and tablets; desktops get SideNav.
+ * them, and the chosen icon darkens with a small pop. Phones and tablets; desktops get SideNav.
  */
 export function TabBar() {
   const items = NAV_ITEMS;
@@ -35,7 +35,9 @@ export function TabBar() {
     const measure = () => {
       const link = list.querySelectorAll<HTMLElement>('[data-tab]')[activeIndex];
       if (!link) return;
-      const next = { x: link.offsetLeft, width: link.offsetWidth };
+      // The link sits in its own positioned <li>: its offsetLeft counts from there, so add the li's.
+      const slot = link.parentElement as HTMLElement;
+      const next = { x: slot.offsetLeft + link.offsetLeft, width: link.offsetWidth };
       setTile((current) => (current && current.x === next.x && current.width === next.width ? current : next));
     };
     measure();
@@ -67,7 +69,7 @@ export function TabBar() {
         ) : null}
         {items.map((item, index) => {
           const active = index === activeIndex;
-          const Icon = active ? item.icon : item.idleIcon;
+          const Icon = item.icon;
           return (
             <li key={item.to} className="relative flex flex-1 justify-center">
               <Link
@@ -81,7 +83,7 @@ export function TabBar() {
                 aria-current={active ? 'page' : undefined}
                 className={cx(
                   'press flex h-14 w-[4.75rem] flex-col items-center justify-center gap-1 rounded-[0.875rem] transition-colors duration-200',
-                  active ? 'text-ink-900' : 'text-ink-600 hover:text-ink-900',
+                  active ? 'text-ink-900' : 'text-ink-500 hover:text-ink-900',
                 )}
               >
                 <Icon key={active ? 'on' : 'off'} fontSize="inherit" className={cx('text-[1.5rem]', active && animate && 'animate-pop')} />

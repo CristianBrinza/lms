@@ -18,8 +18,8 @@ import {
   BadgeIcon,
   EmailIcon,
   LockIcon,
-  LogoutOutlinedIcon,
-  SettingsOutlinedIcon,
+  LogoutIcon,
+  SettingsIcon,
 } from '@/components/ui/icons';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { formatDate, fullName } from '@/lib/format';
@@ -75,12 +75,12 @@ export default function ProfilePage() {
           />
           <ListRowLink
             to="/settings"
-            icon={SettingsOutlinedIcon}
+            icon={SettingsIcon}
             label="Settings"
             detail="This device, signed-in devices"
           />
           <ListRowButton
-            icon={LogoutOutlinedIcon}
+            icon={LogoutIcon}
             label="Sign out"
             detail="On this device"
             onClick={() => void logout()}

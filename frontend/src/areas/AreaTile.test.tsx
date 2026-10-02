@@ -19,7 +19,7 @@ const renderGrid = (areas: readonly Area[]) =>
 describe('dashboard area tiles', () => {
   it('shows every area in the registry', () => {
     renderGrid(AREAS);
-    for (const area of AREAS) expect(screen.getByRole('button', { name: new RegExp(area.name) })).toBeInTheDocument();
+    for (const area of AREAS) expect(screen.getByRole(area.to ? 'link' : 'button', { name: new RegExp(area.name) })).toBeInTheDocument();
   });
 
   it('says an area without a screen is being built', async () => {
