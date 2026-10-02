@@ -23,6 +23,22 @@ export function TabBar() {
   const pathname = (pending ?? location).pathname;
   const activeIndex = items.findIndex((item) => isActivePath(pathname, item));
   const listRef = useRef<HTMLUListElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+
+  // Its exact height, for bars that dock on top of it (e.g. a shopping cart).
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const root = document.documentElement;
+    const publish = () => root.style.setProperty('--tabbar-real', `${nav.offsetHeight}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(nav);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--tabbar-real');
+    };
+  }, []);
   const [tile, setTile] = useState<Tile | null>(null);
   const [animate, setAnimate] = useState(false);
 
@@ -56,6 +72,7 @@ export function TabBar() {
 
   return (
     <nav
+      ref={navRef}
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-40 bg-white px-5 pb-[max(0.5rem,var(--safe-bottom))] pt-2 shadow-[0_-1px_0_rgb(42_43_102/0.07),0_-14px_32px_-20px_rgb(42_43_102/0.4)] [view-transition-name:tabbar] lg:hidden"
     >

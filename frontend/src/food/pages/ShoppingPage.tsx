@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
@@ -11,6 +10,7 @@ import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
 import { useProductSearch } from '../catalog';
+import { DockBar } from '../components/DockBar';
 import { CATEGORY_LABEL, CATEGORY_ORDER, formatAmount, money, parseAmount } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { CheckoutSheet } from '../shopping/CheckoutSheet';
@@ -68,7 +68,7 @@ export default function ShoppingPage() {
         <RunningLow items={items} />
       </div>
 
-      <div className="gutter-x mt-5 pb-28 lg:mx-auto lg:max-w-3xl lg:px-8 lg:pb-10">
+      <div className="gutter-x mt-5 pb-20 lg:mx-auto lg:max-w-3xl lg:px-8 lg:pb-4">
         {shopping.isPending ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-16 rounded-3xl" />
@@ -106,17 +106,14 @@ export default function ShoppingPage() {
         )}
       </div>
 
-      {cart.length
-        ? createPortal(
-            <CartBar
-              count={cart.length}
-              total={cart.reduce((sum, line) => sum + (line.price ?? 0), 0)}
-              label={checkoutStore === undefined ? 'Pick a store to finish' : checkoutStore ? `Finish at ${checkoutStore.name}` : 'Finish the shop'}
-              onFinish={() => (checkoutStore === undefined ? setTab(cartStores[0] ?? 'any') : setCheckoutOpen(true))}
-            />,
-            document.body,
-          )
-        : null}
+      {cart.length ? (
+        <CartBar
+          count={cart.length}
+          total={cart.reduce((sum, line) => sum + (line.price ?? 0), 0)}
+          label={checkoutStore === undefined ? 'Pick a store to finish' : checkoutStore ? `Finish at ${checkoutStore.name}` : 'Finish the shop'}
+          onFinish={() => (checkoutStore === undefined ? setTab(cartStores[0] ?? 'any') : setCheckoutOpen(true))}
+        />
+      ) : null}
 
       <LineSheet line={editing} stores={stores} onClose={() => setEditing(null)} />
       <StoresSheet open={storesOpen} onClose={() => setStoresOpen(false)} stores={stores} onCreated={(created) => setTab(created.id)} />
@@ -369,18 +366,14 @@ function LineRow({ line, onEdit }: { line: ShoppingItem; onEdit: () => void }) {
 
 function CartBar({ count, total, label, onFinish }: { count: number; total: number; label: string; onFinish: () => void }) {
   return (
-    <div className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.75rem)] z-30 animate-rise lg:inset-x-auto lg:bottom-6 lg:right-8 lg:w-[26rem]">
-      <div className="flex items-center gap-3 rounded-[1.5rem] bg-ink-900 p-2 pl-4 text-white shadow-[0_18px_40px_-14px_rgb(29_29_36/0.7)]">
-        <span className="min-w-0 flex-1">
-          <span className="block text-[0.9375rem] font-semibold">
-            {count} in the cart{total > 0 ? ` · ${money(Math.round(total * 100) / 100)}` : ''}
-          </span>
-        </span>
-        <Button size="md" variant="soft" onClick={onFinish}>
-          {label}
-        </Button>
-      </div>
-    </div>
+    <DockBar>
+      <span className="min-w-0 flex-1 text-[0.9375rem] font-semibold">
+        {count} in the cart{total > 0 ? ` · ${money(Math.round(total * 100) / 100)}` : ''}
+      </span>
+      <Button size="md" variant="soft" onClick={onFinish}>
+        {label}
+      </Button>
+    </DockBar>
   );
 }
 

@@ -29,7 +29,7 @@ export function PageHeader({ title, subtitle, back, actions, centered, className
   };
   if (centered) {
     return (
-      <header className={cx('gutter-x grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-7', className)}>
+      <header className={cx('gutter-x grid grid-cols-[minmax(3rem,auto)_minmax(0,1fr)_minmax(3rem,auto)] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-7', className)}>
         {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} /> : <span />}
         <h1 className="truncate text-center text-[1.0625rem] font-semibold">{title}</h1>
         <div className="flex justify-end">{actions}</div>
