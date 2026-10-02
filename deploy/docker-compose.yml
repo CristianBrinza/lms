@@ -40,6 +40,8 @@ services:
       HOST: 0.0.0.0
       PORT: '8790'
       DATABASE_URL: postgres://lms:${POSTGRES_PASSWORD}@postgres:5432/lms
+      # The kitchen's local time: today, best-before dates, meal times and reminders.
+      TZ: ${TZ:-Europe/Chisinau}
     depends_on:
       postgres:
         condition: service_healthy

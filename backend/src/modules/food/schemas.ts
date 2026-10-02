@@ -281,3 +281,14 @@ export const CookInput = z.object({
 export const RangeQuery = z.object({ from: dateField, to: dateField }).refine((r) => r.from <= r.to, { message: '“from” must be before “to”', path: ['to'] });
 
 export const LevelInput = z.object({ level: z.enum(LEVELS, { error: 'Full, low or out' }) });
+
+export const RestrictionInput = z
+  .object({
+    userId: idField.describe('Who (a person in this kitchen)'),
+    kind: z.enum(['allergy', 'avoid']).describe('allergy: a hazard; avoid: doesn’t eat it'),
+    productId: idField.optional(),
+    name: nameField.optional().describe('An item by name (Honey)'),
+    category: categoryField.optional().describe('Or a whole kind (fish, dairy)'),
+    note: noteField.optional(),
+  })
+  .refine((body) => Boolean(body.productId || body.name || body.category), { message: 'Say which food', path: ['name'] });

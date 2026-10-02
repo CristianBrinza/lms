@@ -33,7 +33,9 @@ How it works
 - Dates are YYYY-MM-DD and times HH:MM, local to the kitchen (Europe/Chisinau). Prices are in lei (MDL).
 
 Good habits
-- Start with kitchen_overview. Cook what expires first; plan meals that use it.
+- Start with kitchen_overview and kitchen_people. Never plan or suggest a dish with something someone is allergic to; avoid what people don't eat unless asked.
+- Cook what expires first; plan meals that use it. Food a planned meal has claimed shows as reservedFor.
+- Shopping lines can have needBy (the meal's day, so it's bought the day before) and priority.
 - Batch: add many stock entries or list lines in one call.
 - Recipes: every ingredient with the kitchen item's name, an amount and a unit; leave the amount out for "to taste"; link: false for tap water. Steps short and imperative.
 - Before deleting, or marking meals eaten for someone, say what you will do unless they asked plainly.

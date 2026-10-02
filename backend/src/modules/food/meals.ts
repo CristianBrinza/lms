@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import { allocatePlan } from './allocation';
+import { listRestrictions } from './restrictions';
 import { describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type IngredientRow } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
@@ -78,8 +79,9 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
   const ingredients = await ingredientRows(ctx, 'meal_ingredients', rows.map((r) => r.id));
   // Planned meals from today on share the kitchen in eating order.
   const allocation = await allocatePlan(ctx, stock, localDate(ctx.now));
+  const restrictions = await listRestrictions(ctx);
   return rows.map((row) => {
-    const { lines, availability } = describeLines(ingredients.get(row.id) ?? [], stock, ctx.now, 1, { allocation: allocation.lines });
+    const { lines, availability } = describeLines(ingredients.get(row.id) ?? [], stock, ctx.now, 1, { allocation: allocation.lines, restrictions });
     return {
       id: row.id,
       date: row.date,

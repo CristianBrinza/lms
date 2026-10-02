@@ -8,6 +8,7 @@ import { foodCtx, requireKitchen } from './kitchen';
 import { completeMeal, cookRecipe, deleteMeal, getMeal, listMeals, planMeal, reopenMeal, setMealIngredients, uncookMeal, updateMeal } from './meals';
 import { overview } from './overview';
 import { planNeeds } from './plan';
+import { addRestriction, kitchenPeople, listRestrictions, removeRestriction } from './restrictions';
 import { createRecipe, deleteRecipe, getRecipe, listRecipes, updateRecipe } from './recipes';
 import { CATEGORIES, FOOD_ICONS, LOCATIONS, PRESETS, presetOrGuess, type Location } from './presets';
 import { archiveProduct, createProduct, listProducts, updateProduct } from './products';
@@ -28,6 +29,7 @@ import {
   RangeQuery,
   RecipeInput,
   RecipePatch,
+  RestrictionInput,
   UndoInput,
   ShoppingItemPatch,
   StoreInput,
@@ -73,6 +75,13 @@ export function foodRoutes(deps: AppDeps) {
   app.patch('/lots/:id', async (c) => c.json({ lot: await updateLot(ctx(c), c.req.param('id'), await readJson(c, LotPatch)) }));
   app.delete('/lots/:id', async (c) => {
     await removeLot(ctx(c), c.req.param('id'));
+    return c.body(null, 204);
+  });
+
+  app.get('/people', async (c) => c.json({ people: await kitchenPeople(ctx(c)), restrictions: await listRestrictions(ctx(c)) }));
+  app.post('/restrictions', async (c) => c.json({ restriction: await addRestriction(ctx(c), await readJson(c, RestrictionInput)) }, 201));
+  app.delete('/restrictions/:id', async (c) => {
+    await removeRestriction(ctx(c), c.req.param('id'));
     return c.body(null, 204);
   });
 

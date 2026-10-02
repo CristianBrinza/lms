@@ -74,3 +74,35 @@ describe('food: planning ahead', () => {
     expect((await b.patch(`/api/food/meals/${plain.id}`, { toGo: true })).body.meal.toGo).toBe(true);
   });
 });
+
+describe('food: allergies and dislikes', () => {
+  it('flags what someone is allergic to or avoids, by item or by kind', async () => {
+    const ana = await t.createUser({ email: 'ana@example.com', name: 'Ana' });
+    const b = t.browser();
+    await b.login('ana@example.com');
+    const ion = await t.createUser({ email: 'ion@example.com', name: 'Ion' });
+    await b.get('/api/food/kitchen');
+    await t.db.query('UPDATE users SET household_id = (SELECT household_id FROM users WHERE id = $1) WHERE id = $2', [ana.id, ion.id]);
+
+    const people = (await b.get('/api/food/people')).body.people.map((p: any) => p.name);
+    expect(people).toEqual(['Ana', 'Ion']);
+    await b.post('/api/food/restrictions', { userId: ion.id, kind: 'allergy', name: 'Honey' });
+    await b.post('/api/food/restrictions', { userId: ana.id, kind: 'avoid', category: 'fish' });
+    expect((await b.post('/api/food/restrictions', { userId: ion.id, kind: 'avoid' })).status).toBe(400);
+
+    const recipe = (
+      await b.post('/api/food/recipes', { title: 'Salmon with honey', ingredients: [{ name: 'Salmon', amount: 300, unit: 'g' }, { name: 'Honey', amount: 1, unit: 'tbsp' }, { name: 'Salt' }] })
+    ).body.recipe;
+    expect(recipe.ingredients[0].warnings).toEqual([{ person: 'Ana', kind: 'avoid' }]);
+    expect(recipe.ingredients[1].warnings).toEqual([{ person: 'Ion', kind: 'allergy' }]);
+    expect(recipe.ingredients[2].warnings).toEqual([]);
+    expect(recipe.availability.warnings).toEqual([
+      { person: 'Ana', kind: 'avoid', item: 'Salmon' },
+      { person: 'Ion', kind: 'allergy', item: 'Honey' },
+    ]);
+
+    const [allergy] = (await b.get('/api/food/people')).body.restrictions.filter((r: any) => r.kind === 'allergy');
+    expect((await b.delete(`/api/food/restrictions/${allergy.id}`)).status).toBe(204);
+    expect((await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe.ingredients[1].warnings).toEqual([]);
+  });
+});

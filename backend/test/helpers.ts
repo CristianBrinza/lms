@@ -5,6 +5,7 @@ import type { AppDeps } from '../src/context';
 import { createDatabase } from '../src/db';
 import { migrate } from '../src/db/migrations';
 import { insertUser, type User } from '../src/modules/users';
+import type { PushSender } from '../src/modules/reminders/push';
 import { createDeps } from '../src/runtime';
 import { TEST_DATABASE_URL } from './global-setup';
 
@@ -25,11 +26,11 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
 }
 
 /** One app per test file, a clean database before every test. */
-export function setupTestApp(overrides: Record<string, string> = {}) {
+export function setupTestApp(overrides: Record<string, string> = {}, options: { push?: PushSender | null } = {}) {
   const config = testConfig(overrides);
   const db = createDatabase(config);
   let clock: Date | null = null;
-  const deps: AppDeps = createDeps(config, db, { clientIp: () => '203.0.113.7', now: () => clock ?? new Date() });
+  const deps: AppDeps = createDeps(config, db, { clientIp: () => '203.0.113.7', now: () => clock ?? new Date(), push: options.push ?? null });
   const app = createApp(deps);
 
   beforeEach(async () => {

@@ -4,13 +4,14 @@ import type { AppDeps } from './context';
 import type { Database } from './db';
 import { migrate } from './db/migrations';
 import { createPasswordHasher } from './lib/password';
+import { createPushSender, type PushSender } from './modules/reminders/push';
 import { ensureBootstrapAdmin } from './modules/users';
 
 /** Builds the dependency graph shared by the server, the CLI and the tests. */
 export function createDeps(
   config: AppConfig,
   db: Database,
-  runtime: { clientIp: (c: Context) => string; now?: () => Date },
+  runtime: { clientIp: (c: Context) => string; now?: () => Date; push?: PushSender | null },
 ): AppDeps {
   return {
     config,
@@ -18,6 +19,7 @@ export function createDeps(
     passwords: createPasswordHasher(config.passwordHashCost),
     now: runtime.now ?? (() => new Date()),
     clientIp: runtime.clientIp,
+    push: runtime.push === undefined ? createPushSender(config.push) : runtime.push,
   };
 }
 

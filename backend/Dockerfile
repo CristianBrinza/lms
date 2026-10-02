@@ -8,7 +8,9 @@ ARG APP_VERSION=""
 RUN APP_VERSION="$APP_VERSION" yarn build
 
 FROM node:22-alpine
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=8790
+# Time zone data, so TZ (the kitchen's local time) works: "today", best-before dates, reminders.
+RUN apk add --no-cache tzdata
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=8790 TZ=Europe/Chisinau
 WORKDIR /app
 COPY --from=build --chown=node:node /app/dist ./dist
 USER node

@@ -47,6 +47,10 @@ const EnvSchema = z.object({
   ADMIN_PASSWORD: optionalString,
   ADMIN_NAME: optionalString,
   ADMIN_SURNAME: optionalString,
+  /** Web push (reminders): `npx web-push generate-vapid-keys`. Without them, reminders are off. */
+  VAPID_PUBLIC_KEY: optionalString,
+  VAPID_PRIVATE_KEY: optionalString,
+  VAPID_SUBJECT: optionalString,
 });
 
 export interface AppConfig {
@@ -57,6 +61,8 @@ export interface AppConfig {
   appUrl: string;
   allowedOrigins: string[];
   cookieSecure: boolean;
+  /** Web push keys; null when reminders can't be sent. */
+  push: { publicKey: string; privateKey: string; subject: string } | null;
   jwt: {
     secret: Uint8Array;
     previousSecret: Uint8Array | null;
@@ -141,5 +147,9 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
     rateLimits: env.RATE_LIMITS,
     passwordHashCost: env.PASSWORD_HASH_COST,
     bootstrapAdmin: admin,
+    push:
+      env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY
+        ? { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT ?? `mailto:admin@${new URL(appUrl).hostname}` }
+        : null,
   };
 }

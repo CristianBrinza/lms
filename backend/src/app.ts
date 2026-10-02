@@ -8,6 +8,7 @@ import { foodRoutes } from './modules/food/routes';
 import { healthRoutes } from './modules/health';
 import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
+import { reminderRoutes } from './modules/reminders/routes';
 
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
@@ -17,6 +18,7 @@ export function createApp(deps: AppDeps) {
 
   app.route('/api', healthRoutes(deps));
   app.route('/api/auth', authRoutes(deps));
+  app.route('/api/me', reminderRoutes(deps));
   app.route('/api/me', meRoutes(deps));
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/food', foodRoutes(deps));

@@ -9,6 +9,7 @@ import { cleanup } from './db/migrations';
 import { timingSafeEqualStr } from './lib/crypto';
 import { loadDotEnv } from './lib/dotenv';
 import { CLIENT_IP_HEADER, PROXY_KEY_HEADER } from './middleware/security';
+import { runReminders } from './modules/reminders/service';
 import { createDeps, prepare } from './runtime';
 
 /**
@@ -59,15 +60,22 @@ async function main() {
   });
 
   let cleanupTimer: NodeJS.Timeout | undefined;
+  let reminderTimer: NodeJS.Timeout | undefined;
   void retry(() => prepare(deps, (message) => console.info(`[db] ${message}`))).then(() => {
     const tidy = () => void cleanup(db, new Date()).catch((error) => console.error('[db] cleanup failed', error.message));
     tidy();
     cleanupTimer = setInterval(tidy, 60 * 60 * 1000);
+    // Reminders: a look every minute at what is due (only when push keys are configured).
+    if (deps.push) {
+      reminderTimer = setInterval(() => void runReminders(deps).catch((error) => console.error('[reminders] failed', error)), 60 * 1000);
+      console.info('[reminders] on');
+    }
   });
 
   const shutdown = async (signal: string) => {
     console.info(`[api] ${signal} received, shutting down`);
     clearInterval(cleanupTimer);
+    clearInterval(reminderTimer);
     server.close();
     await db.close().catch(() => undefined);
     process.exit(0);

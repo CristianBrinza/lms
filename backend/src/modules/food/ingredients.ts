@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import type { LineAllocation, PlannedMealRef } from './allocation';
+import { warningsFor, type Restriction, type Warning } from './restrictions';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import { findProduct, PRODUCT_COLUMNS, resolveProduct, toProduct, type Product, type ProductRow } from './products';
@@ -36,6 +37,8 @@ export interface IngredientLine {
   missing: number;
   /** In the kitchen, but a planned meal has claimed it (cook it now and that meal goes short). */
   reservedFor: PlannedMealRef | null;
+  /** Someone is allergic to it, or avoids it. */
+  warnings: Warning[];
   /** Some of it expires within three days: a reason to cook this soon. */
   expiresSoon: boolean;
 }
@@ -49,6 +52,8 @@ export interface Availability {
   missing: Array<{ productId: string; name: string; missing: number; unit: BaseUnit }>;
   /** Lines using something that expires within three days. */
   useSoon: number;
+  /** Everyone this dish is a problem for (allergy first), from its ingredients. */
+  warnings: Array<Warning & { item: string }>;
 }
 
 export interface IngredientRow {
@@ -97,6 +102,8 @@ export interface DescribeOptions {
   allocation?: Map<string, LineAllocation>;
   /** For cooking now (a recipe): what planned meals already claim, per product. */
   reserved?: Map<string, { amount: number; first: PlannedMealRef }>;
+  /** Allergies and foods people avoid in this kitchen. */
+  restrictions?: Restriction[];
 }
 
 export function describeLines(
@@ -108,7 +115,7 @@ export function describeLines(
 ): { lines: IngredientLine[]; availability: Availability } {
   const soon = localDate(now, 3);
   const lines: IngredientLine[] = [];
-  const availability: Availability = { have: 0, total: 0, ready: true, missing: [], useSoon: 0 };
+  const availability: Availability = { have: 0, total: 0, ready: true, missing: [], useSoon: 0, warnings: [] };
   for (const row of rows) {
     const info = row.product_id ? stock.get(row.product_id) : undefined;
     const mode = info?.product.trackMode ?? 'none';
@@ -146,8 +153,10 @@ export function describeLines(
       missing,
       reservedFor,
       expiresSoon,
+      warnings: warningsFor(options.restrictions ?? [], info?.product),
     });
     if (expiresSoon) availability.useSoon += 1;
+    for (const warning of warningsFor(options.restrictions ?? [], info?.product)) availability.warnings.push({ ...warning, item: row.name });
     if (!counted || row.optional) continue;
     availability.total += 1;
     if (enough) availability.have += 1;

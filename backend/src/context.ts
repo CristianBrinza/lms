@@ -3,6 +3,7 @@ import type { AppConfig } from './config';
 import type { Database } from './db';
 import type { PasswordHasher } from './lib/password';
 import type { Actor } from './modules/food/kitchen';
+import type { PushSender } from './modules/reminders/push';
 import type { TokenScope } from './modules/tokens';
 import type { User } from './modules/users';
 
@@ -13,6 +14,8 @@ export interface AppDeps {
   passwords: PasswordHasher;
   now: () => Date;
   clientIp: (c: Context) => string;
+  /** Web push for reminders; null when no keys are configured. */
+  push: PushSender | null;
 }
 
 export interface AppEnv {

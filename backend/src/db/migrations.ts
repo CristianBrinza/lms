@@ -363,6 +363,25 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       );
     `,
   },
+  {
+    version: 8,
+    name: 'food: allergies and foods people avoid',
+    sql: `
+      CREATE TABLE food_restrictions (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        product_id uuid REFERENCES products (id) ON DELETE CASCADE,
+        category text,
+        kind text NOT NULL CHECK (kind IN ('allergy', 'avoid')),
+        note text NOT NULL DEFAULT '',
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CHECK (product_id IS NOT NULL OR category IS NOT NULL)
+      );
+      CREATE INDEX food_restrictions_household_idx ON food_restrictions (household_id);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

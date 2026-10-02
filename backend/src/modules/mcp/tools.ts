@@ -39,6 +39,7 @@ import {
   MealPatchFields,
   ProductInput,
   RecipeInput,
+  RestrictionInput,
   ShoppingItemPatch,
   StoreInput,
   UseStockInput,
@@ -61,6 +62,7 @@ import {
   useStock,
   type StockedProduct,
 } from '../food/stock';
+import { addRestriction, kitchenPeople, listRestrictions } from '../food/restrictions';
 import { createStore, listStores } from '../food/stores';
 import type { TokenScope } from '../tokens';
 
@@ -145,6 +147,8 @@ const lines = (items: Recipe['ingredients']) =>
     ...(i.note ? { note: i.note } : {}),
     ...(i.optional ? { optional: true } : {}),
     ...(i.inStock !== null ? { inStock: i.inStock, baseUnit: i.baseUnit, enough: i.enough } : {}),
+    ...(i.reservedFor ? { reservedFor: `${i.reservedFor.title} (${i.reservedFor.date})` } : {}),
+    ...(i.warnings.length ? { warnings: i.warnings.map((w) => `${w.kind === 'allergy' ? 'ALLERGY' : 'avoids'}: ${w.person}`) } : {}),
   }));
 
 const recipeBrief = (r: Recipe) => ({
@@ -158,6 +162,7 @@ const recipeBrief = (r: Recipe) => ({
   have: `${r.availability.have}/${r.availability.total}`,
   missing: r.availability.missing.map((m) => m.name),
   usesSoonExpiring: r.availability.useSoon,
+  ...(r.availability.warnings.length ? { warnings: r.availability.warnings.map((w) => `${w.person} ${w.kind === 'allergy' ? 'is ALLERGIC to' : 'avoids'} ${w.item}`) } : {}),
   timesCooked: r.timesCooked,
   lastCooked: r.lastCooked,
 });
@@ -221,6 +226,25 @@ export const TOOLS: Tool[] = [
         })),
       };
     },
+  }),
+  tool({
+    name: 'kitchen_people',
+    title: 'Who eats here',
+    description: 'The people sharing this kitchen and their allergies and foods they avoid. Check before suggesting or planning recipes.',
+    access: 'read',
+    input: z.object({}),
+    run: async ({ ctx }) => ({
+      people: (await kitchenPeople(ctx)).map((p) => ({ id: p.id, name: `${p.name} ${p.surname}`.trim() })),
+      restrictions: (await listRestrictions(ctx)).map((r) => ({ id: r.id, person: r.person, kind: r.kind, food: r.productName ?? `any ${r.category}`, note: r.note || undefined })),
+    }),
+  }),
+  tool({
+    name: 'set_restriction',
+    title: 'Record an allergy or dislike',
+    description: 'Someone in the kitchen is allergic to (allergy) or doesn’t eat (avoid) an item by name, or a whole category (fish, dairy, meat…).',
+    access: 'write',
+    input: RestrictionInput,
+    run: async ({ ctx }, args) => addRestriction(ctx, args),
   }),
   tool({
     name: 'list_stock',
