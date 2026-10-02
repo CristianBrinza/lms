@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
-import { findPreset, normalizeName, presetOrGuess, sameName, type Category, type FoodIcon, type Level, type Location, type TrackMode } from './presets';
+import { findPreset, normalizeName, PRESETS, presetOrGuess, sameName, type Category, type FoodIcon, type Level, type Location, type TrackMode } from './presets';
 import type { ProductInput } from './schemas';
 import { canConvert, type BaseUnit, type CustomUnit, type Measured } from './units';
 
@@ -219,6 +219,75 @@ export async function createProduct(ctx: FoodCtx, input: ProductInput): Promise<
  * or the assistant type a name: adding stock, shopping lines, recipe ingredients.
  */
 export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<Product> {
+  return (await resolveNamed(ctx, name, unitHint, options)).product;
+}
+
+/**
+ * Like resolveProduct, and also the type a name says: "apple juice" is Juice, Apple; "Coca-Cola
+ * Zero" is Coca-Cola, Zero; "Borjomi" is Mineral water, Borjomi. Only items that come in types
+ * are split this way, so "cherry tomatoes" or "olive oil" stay items of their own.
+ */
+export async function resolveNamed(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<{ product: Product; variant: string }> {
+  const direct = findPreset(name) ?? (await findByName(ctx, name));
+  if (!direct) {
+    const split = await splitVariant(ctx, name);
+    if (split) {
+      const product = await resolveExact(ctx, split.item, unitHint, options);
+      return { product, variant: variantNamed(product, split.variant) ?? variantNamed(product, name) ?? split.variant };
+    }
+  }
+  const product = await resolveExact(ctx, name, unitHint, options);
+  return { product, variant: variantNamed(product, name) ?? '' };
+}
+
+/** The item's own type a word names ("mango peach" is its "Mango-peach"), if it has one. */
+function variantNamed(product: Product, word: string): string | null {
+  const wanted = normalizeName(word);
+  return product.variants.find((v) => normalizeName(v) === wanted) ?? null;
+}
+
+/** "mango peach juice" → Juice + "Mango peach", when Juice is an item that comes in types. */
+async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: string; variant: string } | null> {
+  const words = normalizeName(name).split(' ');
+  if (words.length < 2) return null;
+  const { rows } = await ctx.db.query<{ name: string }>(`SELECT name FROM products WHERE household_id = $1 AND cardinality(variants) > 0`, [ctx.actor.householdId]);
+  const typed = [
+    ...rows.map((row) => ({ item: row.name, forms: [row.name] })),
+    ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({ item: preset.name, forms: [preset.name, ...(preset.aliases ?? [])] })),
+  ];
+  // The longest name wins; between equals, the name at the end ("apple juice" is juice, not apples).
+  let best: { item: string; variant: string; score: number } | null = null;
+  for (const { item, forms } of typed) {
+    for (const form of forms) {
+      const size = normalizeName(form).split(' ').length;
+      if (size >= words.length) continue;
+      // The item's name at the end ("apple juice") or the start ("coca cola zero").
+      const cuts = [
+        { head: words.slice(words.length - size), rest: words.slice(0, words.length - size) },
+        { head: words.slice(0, size), rest: words.slice(size) },
+      ];
+      cuts.forEach(({ head, rest }, index) => {
+        if (rest.length > 3 || !sameName(head.join(' '), form)) return;
+        const score = size * 2 + (index === 0 ? 1 : 0);
+        if (best && score <= best.score) return;
+        const variant = rest.join(' ');
+        best = { item, variant: variant.charAt(0).toUpperCase() + variant.slice(1), score };
+      });
+    }
+  }
+  const found = best as { item: string; variant: string } | null;
+  return found && { item: found.item, variant: found.variant };
+}
+
+/** Remembers a type the first time it is used, so it is offered from then on. */
+export async function rememberVariant(ctx: FoodCtx, product: Product, variant: string | undefined): Promise<Product> {
+  const name = variant?.trim().slice(0, 40);
+  if (!name || variantNamed(product, name)) return product;
+  await ctx.db.query('UPDATE products SET variants = array_append(variants, $2), updated_at = $3 WHERE id = $1', [product.id, name, ctx.now]);
+  return { ...product, variants: [...product.variants, name] };
+}
+
+async function resolveExact(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<Product> {
   const preset = findPreset(name);
   // "roșii" and "steak" find the Tomatoes and Beef steak already in the kitchen.
   const existing = (await findByName(ctx, name)) ?? (preset ? await findByName(ctx, preset.name) : null);
@@ -227,7 +296,7 @@ export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: stri
     return toProduct({ ...existing, archived_at: null });
   }
   const known = preset ?? presetOrGuess(name);
-  const measured: Measured | null = known ? { unit: known.unit, pieceSize: known.pieceSize ?? null, pieceUnit: known.pieceUnit ?? null } : null;
+  const measured: Measured | null = known ? { unit: known.unit, pieceSize: known.pieceSize ?? null, pieceUnit: known.pieceUnit ?? null, units: known.units } : null;
   const unit = known && measured && (!unitHint || canConvert(unitHint, measured)) ? known.unit : baseFor(unitHint);
   const tidy = name.trim().replace(/\s+/g, ' ');
   // A catalog item keeps the catalog's name ("roșii" becomes Tomatoes); anything else keeps what was typed.

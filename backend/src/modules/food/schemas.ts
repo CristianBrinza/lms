@@ -89,6 +89,7 @@ export const AddStockInput = z
     storeId: idField.nullable().optional(),
     note: noteField.optional(),
     variant: z.string().trim().max(40).optional().describe('Which kind (Cheddar), when the item has kinds'),
+    each: z.number().positive().max(10_000).optional().describe('How much one `unit` holds this time, in the item’s base unit: a jar of 14 pickles is quantity 1, unit "jar", each 14'),
   })
   .refine(hasProductRef, { message: 'Say which item', path: ['name'] });
 export type AddStockInput = z.infer<typeof AddStockInput>;

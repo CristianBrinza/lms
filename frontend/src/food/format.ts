@@ -1,4 +1,4 @@
-import type { BaseUnit, Category, Location, Slot, Unit } from './types';
+import type { BaseUnit, Category, CustomUnit, Location, Slot, Unit } from './types';
 
 /**
  * How food reads on screen: "1.3 kg", "3 pcs", "Expires tomorrow", "45.50 lei". The unit maths
@@ -9,6 +9,13 @@ interface Measured {
   unit: BaseUnit;
   pieceSize: number | null;
   pieceUnit: 'g' | 'ml' | null;
+  /** The item's own units (slice, pack), sizes in its base unit. */
+  units?: CustomUnit[];
+}
+
+function customUnit(unit: string, product: Measured): CustomUnit | null {
+  const word = unit.trim().toLowerCase();
+  return product.units?.find((u) => u.name.toLowerCase() === word || (u.plural ?? `${u.name}s`).toLowerCase() === word) ?? null;
 }
 
 const FACTOR: Record<Unit, { family: 'count' | 'mass' | 'volume'; factor: number }> = {
@@ -25,30 +32,34 @@ const BASE_FAMILY = { pcs: 'count', g: 'mass', ml: 'volume' } as const;
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-function factorOf(unit: Unit, product: Measured): number | null {
-  const measure = FACTOR[unit];
+function factorOf(unit: string, product: Measured): number | null {
+  const custom = customUnit(unit, product);
+  if (custom) return custom.size;
+  const measure = FACTOR[unit as Unit];
+  if (!measure) return null;
   if (measure.family === BASE_FAMILY[product.unit]) return measure.factor;
   if (!product.pieceSize) return null;
   if (product.unit === 'pcs') return measure.family === BASE_FAMILY[product.pieceUnit ?? 'g'] ? measure.factor / product.pieceSize : null;
   return measure.family === 'count' ? product.pieceSize : null;
 }
 
-export function toBase(quantity: number, unit: Unit, product: Measured): number {
+export function toBase(quantity: number, unit: string, product: Measured): number {
   const factor = factorOf(unit, product);
   return factor === null ? NaN : round(quantity * factor);
 }
 
-export function fromBase(base: number, unit: Unit, product: Measured): number {
+export function fromBase(base: number, unit: string, product: Measured): number {
   const factor = factorOf(unit, product);
   return factor === null ? NaN : round(base / factor);
 }
 
 /** The units an item can be entered in; `cooking` adds spoons and cups for liquids. */
-export function unitsFor(product: Measured, options: { cooking?: boolean } = {}): Unit[] {
-  const own: Unit[] = product.unit === 'g' ? ['g', 'kg'] : product.unit === 'ml' ? ['ml', 'l', ...(options.cooking ? (['tsp', 'tbsp', 'cup'] as Unit[]) : [])] : ['pcs'];
-  if (!product.pieceSize) return own;
-  if (product.unit === 'pcs') return [...own, ...((product.pieceUnit ?? 'g') === 'g' ? (['g', 'kg'] as Unit[]) : (['ml', 'l'] as Unit[]))];
-  return [...own, 'pcs'];
+export function unitsFor(product: Measured, options: { cooking?: boolean } = {}): string[] {
+  const own: string[] = product.unit === 'g' ? ['g', 'kg'] : product.unit === 'ml' ? ['ml', 'l', ...(options.cooking ? ['tsp', 'tbsp', 'cup'] : [])] : ['pcs'];
+  const extra = (product.units ?? []).map((u) => u.name);
+  if (!product.pieceSize) return [...own, ...extra];
+  if (product.unit === 'pcs') return [...own, ...((product.pieceUnit ?? 'g') === 'g' ? ['g', 'kg'] : ['ml', 'l']), ...extra];
+  return [...own, 'pcs', ...extra];
 }
 
 /** The unit a person would say: kg from 1000 g, l from 1000 ml. */
@@ -63,7 +74,13 @@ const number = new Intl.NumberFormat('en', { maximumFractionDigits: 2 });
 const FRACTIONS: Record<string, string> = { '0.25': '¼', '0.5': '½', '0.75': '¾' };
 
 /** "1.3 kg", "300 g", "3 pcs", "½ pc" from an amount in a unit. */
-export function formatAmount(amount: number, unit: Unit): string {
+export function formatAmount(amount: number, unit: string): string {
+  if (!(unit in FACTOR)) {
+    // The item's own unit: "1 slice", "3 slices", "½ pack".
+    const fraction = FRACTIONS[String(round(amount))];
+    const noun = amount === 1 || fraction ? unit : unit.endsWith('s') ? unit : `${unit}s`;
+    return `${fraction ?? number.format(amount)} ${noun}`;
+  }
   if (unit === 'pcs') {
     const fraction = FRACTIONS[String(round(amount))];
     if (fraction) return `${fraction} pc`;

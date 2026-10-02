@@ -7,7 +7,7 @@ import { foodApi, foodKeys } from '../api';
 import { useCatalog } from '../catalog';
 import { QuantityInput } from '../components/QuantityInput';
 import { formatAmount, money, parseAmount, unitsFor } from '../format';
-import type { ShoppingItem, Store, Unit } from '../types';
+import type { ShoppingItem, Store } from '../types';
 
 /** One line on a list: how much, which store, a note, what it cost; or take it off. */
 export function LineSheet({ line, stores, onClose }: { line: ShoppingItem | null; stores: Store[]; onClose: () => void }) {
@@ -24,7 +24,7 @@ function LineForm({ line, stores, onClose }: { line: ShoppingItem; stores: Store
   const product = catalog.data?.find((p) => p.id === line.productId);
   const measured = product ? { unit: product.unit, pieceSize: product.pieceSize, pieceUnit: product.pieceUnit } : { unit: 'pcs' as const, pieceSize: null, pieceUnit: null };
   const [amount, setAmount] = useState<number | null>(line.amount);
-  const [unit, setUnit] = useState<Unit>(line.unit ?? measured.unit);
+  const [unit, setUnit] = useState<string>(line.unit ?? measured.unit);
   const [storeId, setStoreId] = useState(line.storeId ?? 'any');
   const [note, setNote] = useState(line.note);
   const [price, setPrice] = useState(line.price === null ? '' : String(line.price));

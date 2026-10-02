@@ -24,7 +24,7 @@ import { QuantityInput } from '../components/QuantityInput';
 import { CATEGORY_LABEL, displayUnit, formatAmount, formatQty, fromBase, LOCATION_LABEL, localDate, money, parseAmount, plural, unitsFor } from '../format';
 import { LOCATION_ICON } from '../places';
 import { FoodIconTile } from '../icons/FoodIcon';
-import type { Lot, StockedProduct, StockEvent, Unit } from '../types';
+import type { Lot, StockedProduct, StockEvent } from '../types';
 import { EditItemSheet } from './EditItemSheet';
 
 type LotMode = 'use' | 'move' | 'edit';
@@ -237,7 +237,7 @@ function UsePanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct;
   const measured = { unit: product.unit, pieceSize: product.pieceSize, pieceUnit: product.pieceUnit };
   const shown = displayUnit(lot.quantity, product.unit);
   const [amount, setAmount] = useState<number | null>(product.unit === 'pcs' ? Math.min(1, lot.quantity) : null);
-  const [unit, setUnit] = useState<Unit>(shown);
+  const [unit, setUnit] = useState<string>(shown);
   const inShown = (fraction: number) => fromBase(lot.quantity * fraction, shown, measured);
 
   const use = useMutation({
@@ -261,8 +261,8 @@ function UsePanel({ lot, product, onDone }: { lot: Lot; product: StockedProduct;
   const quick =
     product.unit === 'pcs' && lot.quantity <= 12
       ? [
-          { label: '½', value: 0.5, unit: 'pcs' as Unit },
-          { label: `All (${formatQty(lot.quantity, product)})`, value: lot.quantity, unit: 'pcs' as Unit },
+          { label: '½', value: 0.5, unit: 'pcs' },
+          { label: `All (${formatQty(lot.quantity, product)})`, value: lot.quantity, unit: 'pcs' },
         ]
       : [
           { label: '¼', value: inShown(0.25), unit: shown },
@@ -318,7 +318,7 @@ function CorrectPanel({ lot, product, onDone }: { lot: Lot; product: StockedProd
   const measured = { unit: product.unit, pieceSize: product.pieceSize, pieceUnit: product.pieceUnit };
   const shown = displayUnit(lot.quantity, product.unit);
   const [left, setLeft] = useState<number | null>(fromBase(lot.quantity, shown, measured));
-  const [unit, setUnit] = useState<Unit>(shown);
+  const [unit, setUnit] = useState<string>(shown);
   const [expiresOn, setExpiresOn] = useState<string | null>(lot.expiresOn);
   const [opened, setOpened] = useState(Boolean(lot.openedAt));
   const [price, setPrice] = useState(lot.price === null ? '' : String(lot.price));

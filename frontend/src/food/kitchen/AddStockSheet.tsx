@@ -11,7 +11,7 @@ import { ProductPicker } from '../components/ProductPicker';
 import { QuantityInput } from '../components/QuantityInput';
 import { addDays, formatAmount, localDate, parseAmount, unitsFor } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
-import type { BaseUnit, Location, Unit } from '../types';
+import type { BaseUnit, Location } from '../types';
 
 const COUNTED = [
   { value: 'pcs' as const, label: 'Pieces' },
@@ -29,7 +29,7 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
   const today = localDate();
   const [pick, setPick] = useState<PickedProduct | null>(initial ?? null);
   const [amount, setAmount] = useState<number | null>(null);
-  const [unit, setUnit] = useState<Unit>('pcs');
+  const [unit, setUnit] = useState<string>('pcs');
   const [location, setLocation] = useState<Location>('fridge');
   const [expiresOn, setExpiresOn] = useState<string | null>(null);
   const [price, setPrice] = useState('');

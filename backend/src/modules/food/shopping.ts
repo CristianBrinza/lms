@@ -3,7 +3,7 @@ import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import type { Category, FoodIcon } from './presets';
-import { findProduct, resolveProduct, type Product } from './products';
+import { findProduct, rememberVariant, resolveNamed, type Product } from './products';
 import type { CheckoutInput, ShoppingItemInput, ShoppingItemPatch, TripItemPatch } from './schemas';
 import { addStock, baseQuantity, updateLot } from './stock';
 import { amountIn, canConvert, round, type CustomUnit, type Unit } from './units';
@@ -166,7 +166,10 @@ export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[]
   const ids = await ctx.tx(async (tx) => {
     const out: string[] = [];
     for (const input of inputs) {
-      const product = input.productId ? await findProduct(tx, input.productId) : await resolveProduct(tx, input.name!, input.unit ?? undefined, { level: 'out' });
+      const named = input.productId ? null : await resolveNamed(tx, input.name!, input.unit ?? undefined, { level: 'out' });
+      const product = named ? named.product : await findProduct(tx, input.productId!);
+      const variant = input.variant || named?.variant || '';
+      await rememberVariant(tx, product, variant);
       const storeId = input.storeId === undefined ? product.storeId : input.storeId;
       await checkStore(tx, storeId);
       const unit = input.amount ? (input.unit ?? product.unit) : null;
@@ -206,7 +209,7 @@ export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[]
           tx.actor.via === 'ai' ? 'ai' : source,
           tx.actor.userId,
           tx.now,
-          input.variant ?? '',
+          variant,
           input.priority ?? false,
           input.needBy ?? null,
         ],

@@ -3,7 +3,7 @@ import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import { freezingFor, type Level, type Location } from './presets';
-import { findProduct, PRODUCT_COLUMNS, resolveProduct, toProduct, type Product, type ProductRow } from './products';
+import { findProduct, PRODUCT_COLUMNS, rememberVariant, resolveNamed, toProduct, type Product, type ProductRow } from './products';
 import type { AddStockInput, LotPatch, UseStockInput } from './schemas';
 import { round, toBase, UnitMismatchError } from './units';
 
@@ -142,7 +142,10 @@ export async function setLevel(ctx: FoodCtx, productId: string, level: Level): P
 
 export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: string | null }): Promise<{ product: Product; lot: Lot | null }> {
   return ctx.tx(async (tx) => {
-    let product = input.productId ? await findProduct(tx, input.productId, { lock: true }) : await resolveProduct(tx, input.name!, input.unit);
+    const named = input.productId ? null : await resolveNamed(tx, input.name!, input.unit);
+    let product = named ? named.product : await findProduct(tx, input.productId!, { lock: true });
+    const variant = input.variant || named?.variant || '';
+    product = await rememberVariant(tx, product, variant);
     if (product.archived) {
       await tx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [product.id, tx.now]);
       product = { ...product, archived: false };
@@ -153,7 +156,8 @@ export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: s
     }
     // A level item bought is simply full again; it keeps no lots.
     if (product.trackMode === 'level') return { product: await setLevel(tx, product.id, 'full'), lot: null };
-    const quantity = baseQuantity(input.quantity, input.unit, product);
+    // "A jar of 14": this jar's own count rather than the usual jar size.
+    const quantity = input.each && input.unit && input.unit !== product.unit ? round(input.quantity * input.each) : baseQuantity(input.quantity, input.unit, product);
     const location = input.location ?? product.location;
     const expiresOn = input.expiresOn === undefined ? defaultExpiry(product, location, tx.now) : input.expiresOn;
     const id = randomUUID();
@@ -173,7 +177,7 @@ export async function addStock(ctx: FoodCtx, input: AddStockInput & { tripId?: s
         input.tripId ?? null,
         input.note ?? '',
         tx.actor.userId,
-        input.variant ?? '',
+        variant,
       ],
     );
     await recordEvent(tx, { productId: product.id, lotId: id, kind: 'added', delta: quantity });

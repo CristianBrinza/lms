@@ -1,6 +1,10 @@
 import { api, query } from '@/services/api/client';
 import type {
   AccessKey,
+  Category,
+  KitchenPerson,
+  Reminder,
+  Restriction,
   FoodOverview,
   IngredientInput,
   Location,
@@ -19,7 +23,6 @@ import type {
   Store,
   StoreTone,
   Trip,
-  Unit,
   UseResult,
 } from './types';
 
@@ -40,13 +43,16 @@ export const foodKeys = {
   meals: (from: string, to: string) => ['food', 'meals', from, to] as const,
   needs: (from: string, to: string) => ['food', 'needs', from, to] as const,
   keys: ['me', 'keys'] as const,
+  people: ['food', 'people'] as const,
+  reminders: ['me', 'reminders'] as const,
 };
 
 export interface AddStockBody {
   productId?: string;
   name?: string;
   quantity: number;
-  unit?: Unit;
+  unit?: string;
+  variant?: string;
   location?: Location;
   expiresOn?: string | null;
   price?: number | null;
@@ -58,9 +64,12 @@ export interface ShoppingLineBody {
   productId?: string;
   name?: string;
   amount?: number | null;
-  unit?: Unit | null;
+  unit?: string | null;
   storeId?: string | null;
   note?: string;
+  variant?: string;
+  priority?: boolean;
+  needBy?: string | null;
 }
 
 export interface MealBody {
@@ -71,6 +80,7 @@ export interface MealBody {
   title?: string;
   servings?: number;
   note?: string;
+  toGo?: boolean;
   ingredients?: IngredientInput[];
 }
 
@@ -86,12 +96,12 @@ export const foodApi = {
   archiveProduct: (id: string) => api.delete<void>(`/food/products/${id}`),
 
   addStock: (body: AddStockBody) => api.post<{ product: Product; lot: Lot | null }>('/food/stock', body),
-  useStock: (body: { productId: string; quantity: number; unit?: Unit; lotId?: string; wasted?: boolean }) =>
+  useStock: (body: { productId: string; quantity: number; unit?: string; lotId?: string; wasted?: boolean }) =>
     api.post<{ result: UseResult }>('/food/stock/use', body).then((r) => r.result),
   undo: (events: number[]) => api.post<{ undone: number }>('/food/stock/undo', { events }),
   setLevel: (id: string, level: 'full' | 'low' | 'out') => api.put<{ product: Product }>(`/food/products/${id}/level`, { level }).then((r) => r.product),
   guess: (name: string) => api.get<{ guess: Preset | null }>(`/food/guess${query({ name })}`).then((r) => r.guess),
-  updateLot: (id: string, body: { quantity?: number; unit?: Unit; location?: Location; expiresOn?: string | null; opened?: boolean; price?: number | null; note?: string }) =>
+  updateLot: (id: string, body: { quantity?: number; unit?: string; location?: Location; expiresOn?: string | null; opened?: boolean; price?: number | null; note?: string }) =>
     api.patch<{ lot: Lot }>(`/food/lots/${id}`, body).then((r) => r.lot),
   removeLot: (id: string) => api.delete<void>(`/food/lots/${id}`),
 
@@ -103,16 +113,19 @@ export const foodApi = {
   shopping: () => api.get<{ items: ShoppingItem[]; stores: Store[] }>('/food/shopping'),
   addLines: (items: ShoppingLineBody[], source?: 'manual' | 'plan' | 'low_stock' | 'recipe') =>
     api.post<{ items: ShoppingItem[] }>('/food/shopping/items', { items, ...(source ? { source } : {}) }).then((r) => r.items),
-  updateLine: (id: string, body: { checked?: boolean; amount?: number | null; unit?: Unit | null; price?: number | null; storeId?: string | null; note?: string }) =>
+  updateLine: (
+    id: string,
+    body: { checked?: boolean; amount?: number | null; unit?: string | null; price?: number | null; storeId?: string | null; note?: string; priority?: boolean; needBy?: string | null; variant?: string },
+  ) =>
     api.patch<{ item: ShoppingItem }>(`/food/shopping/items/${id}`, body).then((r) => r.item),
   removeLine: (id: string) => api.delete<void>(`/food/shopping/items/${id}`),
   checkout: (body: {
     storeId: string | null;
-    lines: Array<{ id: string; price?: number | null; amount?: number | null; unit?: Unit | null; expiresOn?: string | null; location?: Location; addToKitchen?: boolean }>;
+    lines: Array<{ id: string; price?: number | null; amount?: number | null; unit?: string | null; expiresOn?: string | null; location?: Location; addToKitchen?: boolean }>;
   }) => api.post<{ trip: Trip; stocked: number; notStocked: string[] }>('/food/shopping/checkout', body),
   trips: () => api.get<{ trips: Trip[] }>('/food/shopping/trips').then((r) => r.trips),
   trip: (id: string) => api.get<{ trip: Trip; items: ShoppingItem[] }>(`/food/shopping/trips/${id}`),
-  updateTripLine: (tripId: string, id: string, body: { price?: number | null; amount?: number; unit?: Unit }) =>
+  updateTripLine: (tripId: string, id: string, body: { price?: number | null; amount?: number; unit?: string }) =>
     api.patch<{ trip: Trip; items: ShoppingItem[] }>(`/food/shopping/trips/${tripId}/items/${id}`, body),
 
   recipes: () => api.get<{ recipes: Recipe[] }>('/food/recipes').then((r) => r.recipes),
@@ -125,7 +138,7 @@ export const foodApi = {
 
   meals: (from: string, to: string) => api.get<{ meals: Meal[] }>(`/food/meals${query({ from, to })}`).then((r) => r.meals),
   planMeal: (body: MealBody) => api.post<{ meal: Meal }>('/food/meals', body).then((r) => r.meal),
-  updateMeal: (id: string, body: Partial<Omit<MealBody, 'ingredients'>> & { status?: 'planned' | 'skipped' }) =>
+  updateMeal: (id: string, body: Partial<Omit<MealBody, 'ingredients'>> & { status?: 'planned' | 'skipped'; toGo?: boolean }) =>
     api.patch<{ meal: Meal }>(`/food/meals/${id}`, body).then((r) => r.meal),
   setMealIngredients: (id: string, ingredients: IngredientInput[]) => api.put<{ meal: Meal }>(`/food/meals/${id}/ingredients`, { ingredients }).then((r) => r.meal),
   completeMeal: (id: string, body: { leftovers?: { portions: number } }) =>
@@ -134,6 +147,23 @@ export const foodApi = {
   uncook: (id: string) => api.post<void>(`/food/meals/${id}/uncook`),
   deleteMeal: (id: string) => api.delete<void>(`/food/meals/${id}`),
   needs: (from: string, to: string) => api.get<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }>(`/food/plan/needs${query({ from, to })}`),
+};
+
+export const peopleApi = {
+  list: () => api.get<{ people: KitchenPerson[]; restrictions: Restriction[] }>('/food/people'),
+  add: (body: { userId: string; kind: 'allergy' | 'avoid'; productId?: string; name?: string; category?: Category; note?: string }) =>
+    api.post<{ restriction: Restriction }>('/food/restrictions', body).then((r) => r.restriction),
+  remove: (id: string) => api.delete<void>(`/food/restrictions/${id}`),
+};
+
+export const remindersApi = {
+  list: () => api.get<{ reminders: Reminder[]; push: { available: boolean; publicKey: string | null; devices: number } }>('/me/reminders'),
+  create: (body: Partial<Omit<Reminder, 'id'>>) => api.post<{ reminder: Reminder }>('/me/reminders', body).then((r) => r.reminder),
+  update: (id: string, body: Partial<Omit<Reminder, 'id' | 'kind'>>) => api.patch<{ reminder: Reminder }>(`/me/reminders/${id}`, body).then((r) => r.reminder),
+  remove: (id: string) => api.delete<void>(`/me/reminders/${id}`),
+  subscribe: (subscription: PushSubscriptionJSON) => api.post<{ devices: number }>('/me/push', subscription),
+  unsubscribe: (endpoint: string) => api.delete<void>('/me/push', { endpoint }),
+  test: () => api.post<{ sent: number }>('/me/push/test'),
 };
 
 export const keysApi = {

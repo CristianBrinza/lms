@@ -23,6 +23,24 @@ export type Via = 'app' | 'ai';
 export type StoreTone = 'butter' | 'cyan' | 'pink' | 'mint' | 'lav' | 'peach' | 'ink';
 export type Slot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
+export interface CustomUnit {
+  name: string;
+  plural?: string;
+  /** One of it, in the item's base unit. */
+  size: number;
+}
+
+export interface Warning {
+  person: string;
+  kind: 'allergy' | 'avoid';
+}
+
+export interface PlannedMealRef {
+  id: string;
+  title: string;
+  date: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -40,6 +58,8 @@ export interface Product {
   trackStock: boolean;
   freezerDays: number | null;
   thawedDays: number | null;
+  units: CustomUnit[];
+  variants: string[];
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -62,6 +82,7 @@ export interface Lot {
   storeName: string | null;
   tripId: string | null;
   note: string;
+  variant: string;
 }
 
 export interface StockedProduct extends Product {
@@ -135,8 +156,11 @@ export interface ShoppingItem {
   icon: string;
   category: Category;
   amount: number | null;
-  unit: Unit | null;
+  unit: string | null;
   note: string;
+  variant: string;
+  priority: boolean;
+  needBy: string | null;
   source: 'manual' | 'plan' | 'low_stock' | 'recipe' | 'ai';
   checked: boolean;
   price: number | null;
@@ -161,7 +185,7 @@ export interface IngredientLine {
   name: string;
   icon: string;
   amount: number | null;
-  unit: Unit | null;
+  unit: string | null;
   note: string;
   optional: boolean;
   inStock: number | null;
@@ -169,6 +193,8 @@ export interface IngredientLine {
   baseUnit: BaseUnit | null;
   enough: boolean | null;
   missing: number;
+  reservedFor: PlannedMealRef | null;
+  warnings: Warning[];
   expiresSoon: boolean;
 }
 
@@ -178,6 +204,7 @@ export interface Availability {
   ready: boolean;
   missing: Array<{ productId: string; name: string; missing: number; unit: BaseUnit }>;
   useSoon: number;
+  warnings: Array<Warning & { item: string }>;
 }
 
 export interface Recipe {
@@ -214,6 +241,7 @@ export interface Meal {
   servings: number;
   status: 'planned' | 'done' | 'skipped';
   note: string;
+  toGo: boolean;
   doneAt: string | null;
   createdVia: Via;
   leftoversLotId: string | null;
@@ -235,6 +263,7 @@ export interface NeedLine {
   toBuyUnit: Unit;
   storeId: string | null;
   level: 'low' | 'out' | null;
+  needBy: string | null;
   meals: Array<{ id: string; title: string; date: string }>;
 }
 
@@ -255,7 +284,7 @@ export interface IngredientInput {
   productId?: string;
   name: string;
   amount?: number | null;
-  unit?: Unit | null;
+  unit?: string | null;
   note?: string;
   optional?: boolean;
   link?: boolean;
@@ -275,6 +304,33 @@ export interface RecipeInput {
   notes?: string;
   favorite?: boolean;
   ingredients?: IngredientInput[];
+}
+
+export interface KitchenPerson {
+  id: string;
+  name: string;
+  surname: string;
+}
+
+export interface Restriction {
+  id: string;
+  userId: string;
+  person: string;
+  kind: 'allergy' | 'avoid';
+  productId: string | null;
+  productName: string | null;
+  category: Category | null;
+  note: string;
+}
+
+export interface Reminder {
+  id: string;
+  kind: 'shopping' | 'expiring' | 'meal' | 'prep' | 'custom';
+  time: string | null;
+  minutesBefore: number | null;
+  days: number[];
+  text: string;
+  enabled: boolean;
 }
 
 export interface AccessKey {

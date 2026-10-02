@@ -24,7 +24,7 @@ interface Row {
   productId?: string;
   name: string;
   amount: string;
-  unit: Unit | '';
+  unit: string;
   note: string;
   optional: boolean;
 }
@@ -379,7 +379,7 @@ function IngredientEditor({ row, error, onChange, onRemove, autoFocus }: { row: 
         <select
           aria-label="Unit"
           value={row.unit}
-          onChange={(event) => onChange({ ...row, unit: event.target.value as Unit | '' })}
+          onChange={(event) => onChange({ ...row, unit: event.target.value })}
           className={cx('h-10 min-w-0 rounded-xl bg-ink-50 px-2 text-[0.9375rem] outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]', error && 'bg-danger-50')}
         >
           <option value="">unit</option>

@@ -5,19 +5,21 @@ import { haptic } from '@/lib/haptics';
 import { parseAmount } from '../format';
 import type { Unit } from '../types';
 
-const STEP: Record<Unit, number> = { pcs: 1, g: 50, kg: 0.1, ml: 50, l: 0.25, tsp: 1, tbsp: 1, cup: 0.5 };
-const UNIT_LABEL: Record<Unit, string> = { pcs: 'pcs', g: 'g', kg: 'kg', ml: 'ml', l: 'l', tsp: 'tsp', tbsp: 'tbsp', cup: 'cup' };
+const STEPS: Record<Unit, number> = { pcs: 1, g: 50, kg: 0.1, ml: 50, l: 0.25, tsp: 1, tbsp: 1, cup: 0.5 };
+/** The item's own units (slice, pack) step one at a time. */
+const stepOf = (unit: string) => STEPS[unit as Unit] ?? 1;
+const labelOf = (unit: string) => unit;
 
 const clean = (value: number) => Math.round(value * 1000) / 1000;
 
 interface QuantityInputProps {
   label: string;
   value: number | null;
-  unit: Unit;
-  units: Unit[];
-  onChange: (value: number | null, unit: Unit) => void;
+  unit: string;
+  units: string[];
+  onChange: (value: number | null, unit: string) => void;
   /** One-tap amounts under the field ("¼", "½", "All"). */
-  quick?: Array<{ label: string; value: number; unit?: Unit }>;
+  quick?: Array<{ label: string; value: number; unit?: string }>;
   error?: string;
   autoFocus?: boolean;
 }
@@ -38,7 +40,7 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
   }
 
   const step = (direction: 1 | -1) => {
-    const size = STEP[unit];
+    const size = stepOf(unit);
     const base = value ?? 0;
     const next = clean(direction === 1 ? Math.floor(base / size + 1e-9) * size + size : Math.ceil(base / size - 1e-9) * size - size);
     haptic('tap');
@@ -55,7 +57,7 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
           type="button"
           onClick={() => step(-1)}
           disabled={!value}
-          aria-label={`Less (${STEP[unit]} ${UNIT_LABEL[unit]})`}
+          aria-label={`Less (${stepOf(unit)} ${labelOf(unit)})`}
           className="press grid size-12 shrink-0 place-items-center rounded-2xl bg-white text-[1.4rem] shadow-xs transition-opacity disabled:opacity-40"
         >
           <RemoveIcon fontSize="inherit" />
@@ -77,12 +79,12 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
             className="tabular w-full min-w-0 bg-transparent text-right text-[1.75rem] font-bold tracking-[-0.03em] text-ink-900 outline-none placeholder:text-ink-300"
             style={{ maxWidth: `${Math.max(2, text.length + 1)}ch` }}
           />
-          <span className="shrink-0 text-base font-semibold text-ink-500">{UNIT_LABEL[unit]}</span>
+          <span className="shrink-0 text-base font-semibold text-ink-500">{labelOf(unit)}</span>
         </div>
         <button
           type="button"
           onClick={() => step(1)}
-          aria-label={`More (${STEP[unit]} ${UNIT_LABEL[unit]})`}
+          aria-label={`More (${stepOf(unit)} ${labelOf(unit)})`}
           className="press grid size-12 shrink-0 place-items-center rounded-2xl bg-ink-900 text-[1.4rem] text-white"
         >
           <AddIcon fontSize="inherit" />
@@ -103,7 +105,7 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
                     option === unit ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
                   )}
                 >
-                  {UNIT_LABEL[option]}
+                  {labelOf(option)}
                 </button>
               ))
             : null}
