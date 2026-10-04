@@ -277,6 +277,8 @@ export const LOCATION_LABEL: Record<Location, string> = {
   freezer: 'Freezer',
   pantry: 'Shelf',
   garden: 'Garden',
+  bathroom: 'Bathroom',
+  storage: 'Storage',
   other: 'Other',
 };
 
@@ -292,11 +294,28 @@ export const CATEGORY_LABEL: Record<Category, string> = {
   drinks: 'Drinks',
   snacks: 'Snacks',
   meals: 'Ready meals',
+  bathroom: 'Bathroom',
+  cleaning: 'Cleaning',
+  laundry: 'Laundry',
+  paper: 'Paper',
+  pets: 'Pets',
   household: 'Household',
   other: 'Other',
 };
 
 export const CATEGORY_ORDER = Object.keys(CATEGORY_LABEL) as Category[];
+
+/** The house's kinds of things; everything else is food. */
+export const HOUSE_CATEGORIES: readonly Category[] = [
+  'bathroom',
+  'cleaning',
+  'laundry',
+  'paper',
+  'pets',
+  'household',
+];
+export const areaOf = (category: Category): 'food' | 'house' =>
+  HOUSE_CATEGORIES.includes(category) ? 'house' : 'food';
 
 export const SLOT_LABEL: Record<Slot, string> = {
   breakfast: 'Breakfast',

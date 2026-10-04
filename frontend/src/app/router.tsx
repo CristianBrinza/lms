@@ -56,6 +56,16 @@ const trainingRoutes: RouteObject = {
   ],
 };
 
+/** The house: things that aren't food, on the kitchen's engine. */
+const houseRoutes: RouteObject = {
+  path: 'house',
+  children: [
+    { index: true, lazy: page(() => import('@/house/HouseHomePage')) },
+    { path: 'items', lazy: page(() => import('@/house/HouseItemsPage')) },
+    { path: 'shopping', lazy: page(() => import('@/house/HouseShoppingPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -91,6 +101,8 @@ const routes: RouteObject[] = [
               { path: 'profile', lazy: page(() => import('@/pages/profile/ProfilePage')) },
               foodRoutes,
               trainingRoutes,
+              houseRoutes,
+              { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,
             ],
           },

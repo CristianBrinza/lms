@@ -90,4 +90,8 @@ export { default as PauseIcon } from '@mui/icons-material/PauseRounded';
 export { default as ChevronLeftIcon } from '@mui/icons-material/ChevronLeftRounded';
 export { default as InsightsIcon } from '@mui/icons-material/InsightsRounded';
 export { default as PushPinIcon } from '@mui/icons-material/PushPinRounded';
+export { default as BathroomIcon } from '@mui/icons-material/BathtubRounded';
+export { default as StorageIcon } from '@mui/icons-material/WarehouseRounded';
+export { default as HouseIcon } from '@mui/icons-material/HouseRounded';
+export { default as BasketIcon } from '@mui/icons-material/ShoppingBasketRounded';
 export type { IconComponent } from './SvgIcon';

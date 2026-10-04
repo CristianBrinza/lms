@@ -57,7 +57,12 @@ export interface FoodOverview {
   meals: { today: Meal[]; upcoming: Meal[]; plannedThisWeek: number };
 }
 
-export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promise<FoodOverview> {
+/** The front page of Food (area food) or of the House (area house): each its own items and list lines. */
+export async function overview(
+  ctx: FoodCtx,
+  today = localDate(ctx.now),
+  area: 'food' | 'house' = 'food',
+): Promise<FoodOverview> {
   const day = new Date(`${today}T12:00:00`);
   const soon = localDate(day, 3);
   const weekEnd = localDate(day, 6);
@@ -66,9 +71,9 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
       'SELECT name, currency FROM households WHERE id = $1',
       [ctx.actor.householdId],
     ),
-    kitchen(ctx),
+    kitchen(ctx, { area }),
     listRecipes(ctx),
-    listShopping(ctx),
+    listShopping(ctx).then((list) => list.filter((item) => item.area === area)),
     listStores(ctx),
     listMeals(ctx, today, weekEnd),
   ]);

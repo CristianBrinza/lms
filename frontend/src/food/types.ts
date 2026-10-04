@@ -2,7 +2,8 @@
 
 export type BaseUnit = 'pcs' | 'g' | 'ml';
 export type Unit = 'pcs' | 'g' | 'kg' | 'ml' | 'l' | 'tsp' | 'tbsp' | 'cup';
-export type Location = 'fridge' | 'freezer' | 'pantry' | 'garden' | 'other';
+export type Location =
+  'fridge' | 'freezer' | 'pantry' | 'garden' | 'bathroom' | 'storage' | 'other';
 export type TrackMode = 'exact' | 'level' | 'none';
 export type Level = 'full' | 'low' | 'out';
 export type Category =
@@ -17,8 +18,16 @@ export type Category =
   | 'drinks'
   | 'snacks'
   | 'meals'
+  | 'bathroom'
+  | 'cleaning'
+  | 'laundry'
+  | 'paper'
+  | 'pets'
   | 'household'
   | 'other';
+
+/** Food (the kitchen) or the house (bathroom, cleaning…); the Shopping card shows both. */
+export type Area = 'food' | 'house';
 export type Via = 'app' | 'ai';
 export type StoreTone = 'butter' | 'cyan' | 'pink' | 'mint' | 'lav' | 'peach' | 'ink';
 export type Slot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -195,6 +204,8 @@ export interface ShoppingItem {
   name: string;
   icon: string;
   category: Category;
+  /** Food or the house: which list it shows on (Shopping shows both). */
+  area?: Area;
   amount: number | null;
   unit: string | null;
   note: string;

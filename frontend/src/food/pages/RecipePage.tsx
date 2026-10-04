@@ -31,6 +31,7 @@ import { OptionChips } from '../components/OptionChips';
 import { withChoice } from '../options';
 import { openedText } from '../opened';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
+import { NutritionStrip } from '../components/NutritionStrip';
 import type { IngredientLine, Recipe, ToolNeed } from '../types';
 
 /**
@@ -286,6 +287,7 @@ function Ingredients({
           </button>
         </div>
       </div>
+      <NutritionStrip nutrition={recipe.nutrition} servings={servings} />
       {recipe.ingredients.length ? (
         <ul className="mt-3 flex flex-col">
           {lines.map((line, index) => (

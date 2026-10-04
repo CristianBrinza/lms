@@ -1,4 +1,4 @@
-import { kindIcon } from './presets';
+import { areaOf, kindIcon } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
@@ -31,6 +31,8 @@ export interface ShoppingItem {
   name: string;
   icon: FoodIcon;
   category: Category;
+  /** Food or the house: which list it shows on (the Shopping card shows both). */
+  area: 'food' | 'house';
   amount: number | null;
   unit: string | null;
   note: string;
@@ -142,6 +144,7 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
         ? kindIcon({ name: row.p_name, icon: row.icon }, row.variant)
         : (row.icon ?? 'basket'),
     category: row.category ?? 'other',
+    area: areaOf(row.category ?? 'other'),
     amount: row.amount,
     unit: row.unit,
     note: row.note,
@@ -235,7 +238,10 @@ export async function addShoppingItems(
     for (const input of inputs) {
       const named = input.productId
         ? null
-        : await resolveNamed(tx, input.name!, input.unit ?? undefined, { level: 'out' });
+        : await resolveNamed(tx, input.name!, input.unit ?? undefined, {
+            level: 'out',
+            area: input.area,
+          });
       const product = named ? named.product : await findProduct(tx, input.productId!);
       const variant = input.variant || named?.variant || '';
       await rememberVariant(tx, product, variant);

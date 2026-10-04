@@ -19,6 +19,7 @@ import { foodApi, foodKeys } from '../api';
 import { normalize } from '../catalog';
 import { FoodIcon, SceneArt } from '../icons/FoodIcon';
 import type { Recipe } from '../types';
+import { formatKcal } from '../nutrition';
 
 type Filter = 'all' | 'ready' | 'soon' | 'favorites';
 
@@ -244,6 +245,9 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
             <PeopleIcon fontSize="inherit" className="text-sm" />
             {recipe.servings}
           </span>
+          {recipe.nutrition.known ? (
+            <span className="tabular">~{formatKcal(recipe.nutrition.perServing.kcal)} kcal</span>
+          ) : null}
         </span>
         <span className="mt-auto flex flex-wrap gap-1 pt-2">
           {availability.total === 0 ? null : availability.ready ? (

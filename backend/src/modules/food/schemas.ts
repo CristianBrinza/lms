@@ -178,6 +178,10 @@ export type Packages = z.infer<typeof PackagesField>;
 export const AddStockInput = z
   .object({
     ...productRef,
+    area: z
+      .enum(['food', 'house'])
+      .optional()
+      .describe('Added from the House: an unknown name is a house thing'),
     quantity: quantityField.optional().describe('Required unless packages are given'),
     unit: unitField.optional().describe('Defaults to the product’s own unit'),
     location: locationField.optional(),
@@ -285,6 +289,10 @@ export const ShoppingItemInput = z
       .optional()
       .describe('Which store’s list; null for “any store”; omitted: the item’s usual store'),
     note: noteField.optional(),
+    area: z
+      .enum(['food', 'house'])
+      .optional()
+      .describe('Added from the House: an unknown name is a house thing'),
     variant: z.string().trim().max(40).optional().describe('Which kind to buy (Cheddar)'),
     priority: z.boolean().optional().describe('Important: shown first'),
     needBy: dateField

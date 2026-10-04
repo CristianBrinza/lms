@@ -124,6 +124,16 @@ every Training screen).
   time and a next target (one more rep; a heavier weight you own), day and week streaks, a
   calendar of days trained, sets per muscle, minutes per week.
 
+## House and Shopping
+
+- **House**: what's at home besides food (bathroom, cleaning, laundry, paper, pets, household:
+  shampoo, toilet paper, dishwasher tablets, cat litter, the litter box's Petkit N50/N60
+  cartridges and waste bags…). The kitchen's engine: counts and packs, bottles kept by level
+  (full / low / out), low-stock limits, places (bathroom, storage). Its own shopping list.
+- **Shopping** (the full-width card on Home): one list for food and the house, store by store,
+  for one trip to Metro. Food's list shows only food; the House's only house things; finishing
+  a shop stocks both.
+
 ## Nutrition and energy
 
 Food and training meet here, for each person:

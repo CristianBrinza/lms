@@ -24,6 +24,8 @@ export interface PickedProduct {
   variant?: string;
   /** Neither in the kitchen nor in the catalog: the person says how it is counted. */
   isNew?: boolean;
+  /** What it holds, when known (the kitchen's items). */
+  nutrition?: Product['nutrition'];
 }
 
 export const COMMON = [
@@ -81,6 +83,7 @@ export const fromProduct = (p: Product): PickedProduct => ({
   variants: p.variants,
   variantIcons: p.variantIcons,
   trackMode: p.trackMode,
+  nutrition: p.nutrition,
 });
 
 export const fromPreset = (p: Preset): PickedProduct => ({

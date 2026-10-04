@@ -1,7 +1,13 @@
-import { FoodIcon, TrainingIcon, type IconComponent } from '@/components/ui/icons';
+import {
+  BasketIcon,
+  FoodIcon,
+  HouseIcon,
+  TrainingIcon,
+  type IconComponent,
+} from '@/components/ui/icons';
 
 /**
- * The life areas LMS has, shown as tiles on the dashboard: Training and Food today; the grid is built
+ * The life areas LMS has, shown as tiles on the dashboard: Training, Food, House and Shopping; the grid is built
  * for 10+. An area's own screen comes later: build the page, add its route in app/router.tsx and
  * set `to` here, and its card becomes a link. Until then the card says the area is being built.
  */
@@ -18,6 +24,8 @@ export interface Area {
   tone: AreaTone;
   /** The area's own screen, once it exists (e.g. '/training'). Without it the card is not a link. */
   to?: string;
+  /** Spans the whole row (Shopping: everything bought, food and house). */
+  wide?: boolean;
 }
 
 export const AREAS: readonly Area[] = [
@@ -36,6 +44,23 @@ export const AREAS: readonly Area[] = [
     icon: FoodIcon,
     tone: 'white',
     to: '/food',
+  },
+  {
+    id: 'house',
+    name: 'House',
+    summary: 'Bathroom, cleaning, paper, the pets: what’s at home and what’s low.',
+    icon: HouseIcon,
+    tone: 'mint',
+    to: '/house',
+  },
+  {
+    id: 'shopping',
+    name: 'Shopping',
+    summary: 'One list for food and the house, store by store.',
+    icon: BasketIcon,
+    tone: 'butter',
+    to: '/shopping',
+    wide: true,
   },
 ];
 

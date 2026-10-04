@@ -43,9 +43,20 @@ function Form({ meal, onClose, onDone }: { meal: Meal; onClose: () => void; onDo
       ? ''
       : String(meal.eatenOut.cost),
   );
+  const [kcal, setKcal] = useState(
+    meal.eatenOut?.kcal === null || meal.eatenOut?.kcal === undefined
+      ? ''
+      : String(meal.eatenOut.kcal),
+  );
+  const kcalEach = parseAmount(kcal);
   const save = useMutation({
     mutationFn: () =>
-      foodApi.eatOut(meal.id, { kind, place: place.trim(), cost: parseAmount(cost) }),
+      foodApi.eatOut(meal.id, {
+        kind,
+        place: place.trim(),
+        cost: parseAmount(cost),
+        kcal: kcalEach === null ? null : Math.round(kcalEach),
+      }),
     onSuccess: () => {
       haptic('success');
       toast.success(`${meal.title}: ${OUT_LABEL[kind].toLowerCase()}`, {
@@ -99,6 +110,14 @@ function Form({ meal, onClose, onDone }: { meal: Meal; onClose: () => void; onDo
           onChange={(event) => setCost(event.target.value)}
         />
       </div>
+      <TextField
+        label="About how many kcal each"
+        inputMode="numeric"
+        placeholder="Optional"
+        hint="Counts in the day of each person who ate."
+        value={kcal}
+        onChange={(event) => setKcal(event.target.value)}
+      />
       <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
         Save
       </Button>

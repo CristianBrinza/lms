@@ -29,6 +29,7 @@ import {
   packageUnits,
   parseAmount,
   relativeDay,
+  areaOf,
 } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { BoughtSheet } from '../shopping/BoughtSheet';
@@ -38,7 +39,7 @@ import { parseLine } from '../shopping/parseLine';
 import { StoresSheet } from '../shopping/StoresSheet';
 import { STORE_TONE } from '../shopping/tones';
 import { TripsSheet } from '../shopping/TripsSheet';
-import type { ShoppingItem, Store } from '../types';
+import type { Area, ShoppingItem, Store } from '../types';
 
 type Tab = 'all' | 'any' | string;
 
@@ -50,6 +51,23 @@ type Tab = 'all' | 'any' | string;
  * people can shop from it at once. On a tablet the cart stands beside the lists.
  */
 export default function ShoppingPage() {
+  return <ShoppingScreen area="food" />;
+}
+
+type ListArea = Area | 'all';
+
+const LIST_TEXT = {
+  food: { title: 'Food shopping', back: '/food' },
+  house: { title: 'House shopping', back: '/house' },
+  all: { title: 'Shopping', back: '/home' },
+} as const;
+
+/**
+ * The same lists, seen three ways: Food's (food only), the House's (house things only), and the
+ * Shopping card's (everything, for one trip to Metro). Stores and carts are shared.
+ */
+export function ShoppingScreen({ area }: { area: ListArea }) {
+  const text = LIST_TEXT[area];
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('store') ?? 'all';
   const setTab = (next: Tab) =>
@@ -72,7 +90,13 @@ export default function ShoppingPage() {
     line.priority || (line.needBy !== null && line.needBy <= addDays(today, 1));
 
   const stores = useMemo(() => shopping.data?.stores ?? [], [shopping.data]);
-  const items = useMemo(() => shopping.data?.items ?? [], [shopping.data]);
+  const items = useMemo(
+    () =>
+      (shopping.data?.items ?? []).filter(
+        (line) => area === 'all' || (line.area ?? areaOf(line.category)) === area,
+      ),
+    [shopping.data, area],
+  );
   const store = stores.find((s) => s.id === tab) ?? null;
   const inTab = items.filter((line) =>
     tab === 'all' ? true : tab === 'any' ? !line.storeId : line.storeId === tab,
@@ -94,8 +118,8 @@ export default function ShoppingPage() {
     <Screen tone="white">
       <PageHeader
         compact
-        back="/food"
-        title="Shopping"
+        back={text.back}
+        title={text.title}
         subtitle={
           shopping.data
             ? `${open.length} to buy${estimate > 0 ? ` · about ${money(Math.round(estimate))}` : ''}`
@@ -130,8 +154,12 @@ export default function ShoppingPage() {
               onTab={setTab}
               onAddStore={() => setStoresOpen(true)}
             />
-            <AddBar tab={tab} storeName={store?.name ?? (tab === 'any' ? 'Any store' : null)} />
-            <RunningLow items={items} />
+            <AddBar
+              tab={tab}
+              area={area}
+              storeName={store?.name ?? (tab === 'any' ? 'Any store' : null)}
+            />
+            <RunningLow items={items} area={area} />
           </div>
 
           <div className="gutter-x mt-3 pb-16 md:px-0 md:pb-4">
@@ -364,7 +392,7 @@ function StoreTabs({
   );
 }
 
-function AddBar({ tab, storeName }: { tab: Tab; storeName: string | null }) {
+function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; area: ListArea }) {
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
@@ -377,6 +405,7 @@ function AddBar({ tab, storeName }: { tab: Tab; storeName: string | null }) {
       foodApi.addLines([
         {
           ...line,
+          ...(area === 'house' ? { area: 'house' as const } : {}),
           amount: parsed.amount,
           unit: parsed.unit,
           ...(tab === 'all' ? {} : { storeId: tab === 'any' ? null : tab }),
@@ -469,11 +498,14 @@ function AddBar({ tab, storeName }: { tab: Tab; storeName: string | null }) {
   );
 }
 
-function RunningLow({ items }: { items: ShoppingItem[] }) {
+function RunningLow({ items, area }: { items: ShoppingItem[]; area: ListArea }) {
   const queryClient = useQueryClient();
   const kitchen = useQuery({ queryKey: foodKeys.kitchen, queryFn: foodApi.kitchen });
   const low = (kitchen.data ?? []).filter(
-    (p) => p.low && !items.some((line) => line.productId === p.id),
+    (p) =>
+      p.low &&
+      (area === 'all' || areaOf(p.category) === area) &&
+      !items.some((line) => line.productId === p.id),
   );
   const add = useMutation({
     mutationFn: (productId: string) => foodApi.addLines([{ productId }], 'low_stock'),

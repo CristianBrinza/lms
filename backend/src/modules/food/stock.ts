@@ -232,7 +232,9 @@ export async function addStock(
   input: AddStockInput & { tripId?: string | null },
 ): Promise<{ product: Product; lot: Lot | null; lots: Lot[] }> {
   return ctx.tx(async (tx) => {
-    const named = input.productId ? null : await resolveNamed(tx, input.name!, input.unit);
+    const named = input.productId
+      ? null
+      : await resolveNamed(tx, input.name!, input.unit, { area: input.area });
     let product = named ? named.product : await findProduct(tx, input.productId!, { lock: true });
     const variant = input.variant || named?.variant || '';
     product = await rememberVariant(tx, product, variant);
@@ -650,7 +652,7 @@ export interface StockedProduct extends Product {
  */
 export async function kitchen(
   ctx: FoodCtx,
-  filter: { location?: Location } = {},
+  filter: { location?: Location; area?: 'food' | 'house' } = {},
 ): Promise<StockedProduct[]> {
   const { rows: lotRows } = await ctx.db.query<LotRow>(
     `${LOT_SELECT} WHERE l.household_id = $1 AND l.finished_at IS NULL ORDER BY ${LOT_ORDER}`,
@@ -668,7 +670,9 @@ export async function kitchen(
       ORDER BY lower(name)`,
     [ctx.actor.householdId, [...lotsByProduct.keys()]],
   );
-  const all = rows.map((row) => stocked(toProduct(row), lotsByProduct.get(row.id) ?? []));
+  const all = rows
+    .map((row) => stocked(toProduct(row), lotsByProduct.get(row.id) ?? []))
+    .filter((p) => !filter.area || p.area === filter.area);
   if (!filter.location) return all;
   return all
     .filter((p) =>

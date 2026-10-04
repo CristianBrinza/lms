@@ -16,10 +16,13 @@ import {
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
-import { foodApi, foodKeys } from '../api';
+import { foodApi, foodKeys, peopleApi } from '../api';
 import { normalize, useCatalog } from '../catalog';
 import { AddToListSheet } from '../components/AddToListSheet';
 import { MealStatus } from '../components/MealStatus';
+import { NutritionStrip } from '../components/NutritionStrip';
+import { WhoEats } from '../components/WhoEats';
+import { formatKcal } from '../nutrition';
 import { OptionChips } from '../components/OptionChips';
 import { EatOutSheet } from './EatOutSheet';
 import { OUT_LABEL } from './out';
@@ -235,6 +238,11 @@ function MealBody({
     onSuccess: () => void refresh(),
     onError: (error) => toast.error(errorMessage(error)),
   });
+  const people = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
+  const household = people.data?.people ?? [];
+  // Who eats, as tapped: shown at once, saved behind.
+  const eaters =
+    update.isPending && update.variables.eaters ? update.variables.eaters : meal.eaters;
   const skip = useMutation({
     mutationFn: () =>
       foodApi.updateMeal(meal.id, { status: meal.status === 'skipped' ? 'planned' : 'skipped' }),
@@ -347,10 +355,35 @@ function MealBody({
             <span className="block text-sm text-lav-800">
               Nothing from the kitchen
               {meal.eatenOut.cost !== null ? ` · ${meal.eatenOut.cost} lei` : ''}
+              {meal.eatenOut.kcal !== null
+                ? ` · about ${formatKcal(meal.eatenOut.kcal)} kcal each`
+                : ''}
             </span>
           </span>
           <span className="text-sm font-semibold text-lav-800">Change</span>
         </button>
+      ) : null}
+      {meal.eatenOut ? null : (
+        <NutritionStrip
+          nutrition={meal.nutrition}
+          servings={meal.servings}
+          className="-mt-1 px-1"
+        />
+      )}
+      {household.length > 1 ? (
+        <WhoEats
+          label="Who eats"
+          people={household}
+          value={eaters}
+          onChange={(next) => update.mutate({ eaters: next })}
+          hint={
+            eaters.length
+              ? undefined
+              : meal.servings >= household.length
+                ? 'No one picked: everyone, a serving each.'
+                : 'No one picked: whoever marks it eaten.'
+          }
+        />
       ) : null}
       {meal.availability.warnings.length ? (
         <p

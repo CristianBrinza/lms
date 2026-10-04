@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, IconButton, Skeleton } from '@/components/ui';
-import { AddIcon, AddShoppingCartIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { AddIcon, AddShoppingCartIcon, ChevronRightIcon, FoodIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { errorMessage } from '@/lib/errors';
@@ -22,6 +22,8 @@ import {
 } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { AddMealSheet } from '../plan/AddMealSheet';
+import { AteSheet } from '../plan/AteSheet';
+import { formatKcal, kcalEach } from '../nutrition';
 import { MealPanel, MealSheet } from '../plan/MealSheet';
 import { NeedsSheet } from '../plan/NeedsSheet';
 import type { Meal } from '../types';
@@ -89,6 +91,12 @@ export default function PlanPage() {
         subtitle={`${dayAndMonth(start)} – ${dayAndMonth(end)} · ${plural(planned, 'meal')} to come`}
         actions={
           <>
+            <IconButton
+              icon={FoodIcon}
+              label="I ate something"
+              size="sm"
+              onClick={() => set({ ate: '1' })}
+            />
             <IconButton
               icon={AddShoppingCartIcon}
               label="What the plan needs"
@@ -267,6 +275,7 @@ export default function PlanPage() {
           set({ recipe: null });
         }}
       />
+      <AteSheet open={params.get('ate') === '1'} onClose={() => set({ ate: null })} />
       <NeedsSheet
         open={params.get('needs') === '1'}
         today={today}
@@ -372,6 +381,9 @@ function DayMeals({
                     {plural(meal.servings, 'serving')}
                     {meal.parts.length > 1 ? ` · ${plural(meal.parts.length, 'part')}` : ''}
                     {meal.toGo ? ' · to go' : ''}
+                    {meal.status === 'done' && kcalEach(meal) !== null
+                      ? ` · ${formatKcal(kcalEach(meal)!)} kcal${meal.servings > 1 ? ' each' : ''}`
+                      : ''}
                   </span>
                   {meal.status === 'planned' && meal.tools.some((t) => t.status === 'dirty') ? (
                     <span className="block truncate text-xs font-semibold text-peach-800">

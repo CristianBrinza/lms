@@ -12,21 +12,44 @@ import {
   useProductSearch,
   type PickedProduct,
 } from '../catalog';
-import { CATEGORY_LABEL, LOCATION_LABEL } from '../format';
+import { areaOf, CATEGORY_LABEL, LOCATION_LABEL } from '../format';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
-import type { Preset, Product } from '../types';
+import { formatKcal, PER_LABEL } from '../nutrition';
+import type { Area, Category, Preset, Product } from '../types';
+
+/** The house's everyday things, offered before anything is typed. */
+const HOUSE_COMMON = [
+  'Toilet paper',
+  'Paper towels',
+  'Shampoo',
+  'Shower gel',
+  'Toothpaste',
+  'Dish soap',
+  'Dishwasher tablets',
+  'Laundry detergent',
+  'Trash bags',
+  'Cat litter',
+  'Litter box deodorizer',
+  'Waste bags',
+];
 
 export function ProductPicker({
   onPick,
   autoFocus,
   label = 'What is it?',
+  area,
 }: {
   onPick: (pick: PickedProduct) => void;
   autoFocus?: boolean;
   label?: string;
+  /** Only the kitchen's food, or only the house's things. */
+  area?: Area;
 }) {
   const [query, setQuery] = useState('');
-  const { results, exact, products, presets } = useProductSearch(query);
+  const search = useProductSearch(query);
+  const inArea = (p: { category: Category }) => !area || areaOf(p.category) === area;
+  const { exact, products, presets } = search;
+  const results = search.results.filter(inArea);
   const typed = query.trim();
   // Not known as typed: the API may know it as a type of an item ("guava juice" → Juice, Guava)
   // and guess what a new name is (spices by level, juices on the shelf…).
@@ -46,7 +69,14 @@ export function ProductPicker({
     (name) => products.find((p) => sameName(p.name, name)) ?? presets.find((p) => p.name === name),
   )
     .filter((p): p is Product | Preset => Boolean(p))
-    .map((p) => ('id' in p ? fromProduct(p) : fromPreset(p)));
+    .map((p) => ('id' in p ? fromProduct(p) : fromPreset(p)))
+    .filter(inArea);
+  const houseCommon =
+    area === 'house'
+      ? HOUSE_COMMON.map((name) => presets.find((p) => p.name === name))
+          .filter((p): p is Preset => Boolean(p))
+          .map(fromPreset)
+      : [];
 
   return (
     <div className="flex flex-col gap-4">
@@ -54,7 +84,9 @@ export function ProductPicker({
         label={label}
         hideLabel
         icon={SearchIcon}
-        placeholder="Tomatoes, steak, water…"
+        placeholder={
+          area === 'house' ? 'Shampoo, paper towels, cat litter…' : 'Tomatoes, steak, water…'
+        }
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         onKeyDown={(event) => {
@@ -121,7 +153,7 @@ export function ProductPicker({
         <div>
           <p className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">Common</p>
           <ul className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-            {common.map((pick) => (
+            {(area === 'house' ? houseCommon : common).map((pick) => (
               <li key={pick.name}>
                 <button
                   type="button"
@@ -183,7 +215,7 @@ function PickRow({ pick, onPick }: { pick: PickedProduct; onPick: (pick: PickedP
           className={cx('block truncate text-sm', pick.productId ? 'text-ink-600' : 'text-ink-500')}
         >
           {pick.productId
-            ? 'In your kitchen’s list'
+            ? `In your kitchen’s list${pick.nutrition ? ` · ${formatKcal(pick.nutrition.entry.base.kcal)} kcal ${PER_LABEL[pick.nutrition.entry.per]}` : ''}`
             : `${CATEGORY_LABEL[pick.category]} · ${LOCATION_LABEL[pick.location]}${pick.shelfLifeDays ? ` · keeps ~${pick.shelfLifeDays} d` : ''}`}
         </span>
       </span>

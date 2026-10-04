@@ -51,6 +51,7 @@ import { LOCATION_ICON } from '../places';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import type { Lot, StockedProduct, StockEvent } from '../types';
 import { EditItemSheet } from './EditItemSheet';
+import { NutritionCard } from './NutritionCard';
 
 type LotMode = 'use' | 'pour' | 'move' | 'edit';
 
@@ -248,6 +249,8 @@ function ProductBody({
             <p className="mt-0.5 text-sm text-ink-600">Add some, or put it on the shopping list.</p>
           </div>
         )}
+
+        <NutritionCard product={product} />
 
         {detail.data.prices.length ? (
           <section>

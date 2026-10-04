@@ -1,17 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link } from 'react-router';
+import { useUser } from '@/app/auth';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, ButtonLink, Skeleton, toast } from '@/components/ui';
-import { AddIcon, ArrowOutIcon, ChevronRightIcon, SparkleIcon } from '@/components/ui/icons';
+import {
+  AddIcon,
+  ArrowOutIcon,
+  ChevronRightIcon,
+  FoodIcon as EatIcon,
+  SparkleIcon,
+} from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
-import { foodApi, foodKeys } from '../api';
+import { foodApi, foodKeys, peopleApi } from '../api';
 import { ExpiryChip } from '../components/ExpiryChip';
 import { MealStatus } from '../components/MealStatus';
 import { dayLong, formatQty, LOCATION_LABEL, localDate, plural, SLOT_LABEL } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { KitchenwareEntry } from '../kitchenware/KitchenwareEntry';
+import { eatenBy, formatKcal } from '../nutrition';
+import { AteSheet } from '../plan/AteSheet';
 import type { FoodOverview } from '../types';
 
 /**
@@ -256,28 +266,64 @@ function Today({
           </Button>
         </div>
       ) : overview ? (
-        // Two columns on an iPad held upright: the day's meals beside what to use up.
-        <div className="md:grid md:grid-cols-2 md:gap-x-6 lg:block">
-          <div className="min-w-0">
-            <Meals overview={overview} />
-            <CookIdeas
-              planned={
-                new Set(
-                  overview.meals.today
-                    .map((m) => m.recipeId)
-                    .filter((id): id is string => Boolean(id)),
-                )
-              }
-            />
+        <>
+          <Eaten meals={overview.meals.today} />
+          {/* Two columns on an iPad held upright: the day's meals beside what to use up. */}
+          <div className="md:grid md:grid-cols-2 md:gap-x-6 lg:block">
+            <div className="min-w-0">
+              <Meals overview={overview} />
+              <CookIdeas
+                planned={
+                  new Set(
+                    overview.meals.today
+                      .map((m) => m.recipeId)
+                      .filter((id): id is string => Boolean(id)),
+                  )
+                }
+              />
+            </div>
+            <div className="min-w-0">
+              <Opened overview={overview} today={today} />
+              <UseSoon overview={overview} today={today} />
+              <RunningLow overview={overview} />
+            </div>
           </div>
-          <div className="min-w-0">
-            <Opened overview={overview} today={today} />
-            <UseSoon overview={overview} today={today} />
-            <RunningLow overview={overview} />
-          </div>
-        </div>
+        </>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * What the signed-in person ate today (their share of each meal eaten), linked to their energy in
+ * Health, and the quick way to log something eaten outside the plan.
+ */
+function Eaten({ meals }: { meals: FoodOverview['meals']['today'] }) {
+  const me = useUser();
+  const [logging, setLogging] = useState(false);
+  const people = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
+  const household = people.data?.people.length;
+  const eaten = household ? eatenBy(meals, me.id, household) : null;
+  return (
+    <div className="mt-2.5 flex items-center justify-between gap-3">
+      {eaten?.meals ? (
+        <Link
+          to="/training/health"
+          className="press inline-flex min-w-0 items-center gap-1 text-sm font-semibold text-ink-700 hover:text-ink-900"
+        >
+          <span className="truncate">
+            Eaten today: <span className="tabular text-ink-900">{formatKcal(eaten.kcal)} kcal</span>
+          </span>
+          <ChevronRightIcon fontSize="inherit" className="shrink-0 text-base text-ink-500" />
+        </Link>
+      ) : (
+        <span className="text-sm text-ink-500">Nothing eaten yet</span>
+      )}
+      <Button size="sm" variant="tint" icon={EatIcon} onClick={() => setLogging(true)}>
+        I ate something
+      </Button>
+      <AteSheet open={logging} onClose={() => setLogging(false)} />
+    </div>
   );
 }
 

@@ -60,6 +60,8 @@ export const foodKeys = {
 type Shortfall = { name: string; missing: number; unit: string };
 
 export interface AddStockBody {
+  /** From the House: an unknown name becomes a house thing. */
+  area?: 'food' | 'house';
   productId?: string;
   name?: string;
   /** Required unless packages are given. */
@@ -81,6 +83,8 @@ export interface AddStockBody {
 export interface ShoppingLineBody {
   productId?: string;
   name?: string;
+  /** From the House: an unknown name becomes a house thing. */
+  area?: 'food' | 'house';
   amount?: number | null;
   unit?: string | null;
   storeId?: string | null;

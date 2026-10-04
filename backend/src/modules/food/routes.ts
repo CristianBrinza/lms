@@ -121,9 +121,13 @@ export function foodRoutes(deps: AppDeps) {
   app.use('*', requireAuth(deps), requireKitchen(deps));
   const ctx = (c: Context<AppEnv>) => foodCtx(deps, c.get('actor'));
 
-  app.get('/overview', async (c) =>
-    c.json(await overview(ctx(c), readQuery(c, z.object({ today: dateField.optional() })).today)),
-  );
+  app.get('/overview', async (c) => {
+    const query = readQuery(
+      c,
+      z.object({ today: dateField.optional(), area: z.enum(['food', 'house']).optional() }),
+    );
+    return c.json(await overview(ctx(c), query.today, query.area ?? 'food'));
+  });
 
   app.get('/presets', (c) =>
     c.json({
@@ -171,8 +175,12 @@ export function foodRoutes(deps: AppDeps) {
     const location = c.req.query('location');
     if (location && !(LOCATIONS as readonly string[]).includes(location))
       throw new AppError(400, 'VALIDATION', 'Unknown place');
+    const area = c.req.query('area');
     return c.json({
-      products: await kitchen(ctx(c), { location: location as Location | undefined }),
+      products: await kitchen(ctx(c), {
+        location: location as Location | undefined,
+        area: area === 'food' || area === 'house' ? area : undefined,
+      }),
     });
   });
   app.post('/products/refresh', async (c) => c.json({ changed: await refreshFromCatalog(ctx(c)) }));

@@ -22,7 +22,7 @@ import {
   unitsFor,
 } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
-import type { BaseUnit, Location, TrackMode } from '../types';
+import type { BaseUnit, Location, TrackMode, Area } from '../types';
 
 const COUNTED = [
   { value: 'pcs' as const, label: 'Pieces' },
@@ -46,10 +46,13 @@ export function AddStockSheet({
   open,
   onClose,
   initial,
+  area = 'food',
 }: {
   open: boolean;
   onClose: () => void;
   initial?: PickedProduct | null;
+  /** From the House: the picker offers house things, and unknown names become house things. */
+  area?: Area;
 }) {
   const queryClient = useQueryClient();
   const today = localDate();
@@ -115,7 +118,7 @@ export function AddStockSheet({
         productId = created.id;
       }
       return foodApi.addStock({
-        ...(productId ? { productId } : { name: pick!.name }),
+        ...(productId ? { productId } : { name: pick!.name, area }),
         ...(level
           ? { quantity: 1 }
           : byPackage
@@ -199,7 +202,7 @@ export function AddStockSheet({
       }
     >
       {!pick ? (
-        <ProductPicker onPick={choose} autoFocus />
+        <ProductPicker onPick={choose} autoFocus area={area} />
       ) : (
         <div className="flex flex-col gap-5">
           <div className="flex items-center gap-3 rounded-[1.25rem] bg-butter-100 p-2.5 pr-3">

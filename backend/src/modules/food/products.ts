@@ -10,6 +10,7 @@ import {
   presetOrGuess,
   sameName,
   variantIconsFor,
+  areaOf,
   type Category,
   type FoodIcon,
   type Level,
@@ -47,6 +48,8 @@ export interface Product extends Measured {
   variants: string[];
   /** A picture per kind, where the catalog has one (keys in lower case): Zero → a black can. */
   variantIcons: Record<string, string>;
+  /** Food (the kitchen) or the house (bathroom, cleaning…), from its category. */
+  area: 'food' | 'house';
   /** The household's own nutrition values (null: the catalog's typical ones count). */
   ownNutrition: NutritionEntry | null;
   /** The values that count, and whose they are. */
@@ -118,6 +121,7 @@ export function toProduct(row: ProductRow): Product {
     units: row.units ?? [],
     variants: row.variants ?? [],
     variantIcons: variantIconsFor(row.name),
+    area: areaOf(row.category),
     ownNutrition: row.nutrition ?? null,
     nutrition: nutritionOf({ name: row.name, ownNutrition: row.nutrition ?? null }),
     minStock: row.min_stock,
@@ -294,7 +298,7 @@ export async function resolveProduct(
   ctx: FoodCtx,
   name: string,
   unitHint?: string,
-  options: { level?: Level } = {},
+  options: { level?: Level; area?: 'food' | 'house' } = {},
 ): Promise<Product> {
   return (await resolveNamed(ctx, name, unitHint, options)).product;
 }
@@ -308,7 +312,7 @@ export async function resolveNamed(
   ctx: FoodCtx,
   name: string,
   unitHint?: string,
-  options: { level?: Level } = {},
+  options: { level?: Level; area?: 'food' | 'house' } = {},
 ): Promise<{ product: Product; variant: string }> {
   const direct = findPreset(name) ?? (await findByName(ctx, name));
   if (!direct) {
@@ -411,7 +415,7 @@ export async function rememberVariant(
  * and where it goes once opened. Never changes how an item is counted. Returns how many items changed.
  */
 /** Icons a catalog item may still carry from before it had its own. */
-const OUTGROWN_ICONS = new Set(['basket', 'soda-can']);
+const OUTGROWN_ICONS = new Set(['basket', 'soda-can', 'roll', 'detergent']);
 
 export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
   const { rows } = await ctx.db.query<ProductRow>(
@@ -434,10 +438,16 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
     // A picture the catalog has since replaced (the generic can on Sprite) or the fallback basket.
     const icon =
       preset.icon !== product.icon && OUTGROWN_ICONS.has(product.icon) ? preset.icon : null;
-    if (!units && !variants.length && !openedLocation && !openedDays && !icon) continue;
+    // House things once all under "household" move to their own kind (bathroom, cleaning…) and place.
+    const category =
+      product.category === 'household' && preset.category !== 'household' ? preset.category : null;
+    const location = category && product.location === 'other' ? preset.location : null;
+    if (!units && !variants.length && !openedLocation && !openedDays && !icon && !category)
+      continue;
     await ctx.db.query(
       `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location),
-              opened_days = coalesce($6, opened_days), icon = coalesce($7, icon), updated_at = $5 WHERE id = $1`,
+              opened_days = coalesce($6, opened_days), icon = coalesce($7, icon), category = coalesce($8, category),
+              location = coalesce($9, location), updated_at = $5 WHERE id = $1`,
       [
         product.id,
         units ? JSON.stringify(units) : null,
@@ -446,6 +456,8 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
         ctx.now,
         openedDays,
         icon,
+        category,
+        location,
       ],
     );
     changed += 1;
@@ -457,7 +469,7 @@ async function resolveExact(
   ctx: FoodCtx,
   name: string,
   unitHint?: string,
-  options: { level?: Level } = {},
+  options: { level?: Level; area?: 'food' | 'house' } = {},
 ): Promise<Product> {
   const preset = findPreset(name);
   // "roșii" and "steak" find the Tomatoes and Beef steak already in the kitchen.
@@ -491,6 +503,10 @@ async function resolveExact(
       preset && unit === preset.unit ? preset.name : tidy.charAt(0).toUpperCase() + tidy.slice(1),
     unit,
     level: options.level,
+    // Added from the House: something the catalog doesn't know is a house thing, not food.
+    ...(options.area === 'house' && !preset && areaOf(known?.category ?? 'other') === 'food'
+      ? { category: 'household' as const, location: 'storage' as const }
+      : {}),
   });
 }
 

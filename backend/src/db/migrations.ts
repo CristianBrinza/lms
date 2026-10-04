@@ -733,6 +733,18 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE users ADD COLUMN activity text CHECK (activity IN ('sedentary', 'light', 'moderate', 'active', 'very'));
     `,
   },
+  {
+    version: 22,
+    name: 'the house: bathroom and storage',
+    sql: `
+      ALTER TABLE products DROP CONSTRAINT products_location_check;
+      ALTER TABLE products ADD CONSTRAINT products_location_check CHECK (location IN ('fridge', 'freezer', 'pantry', 'garden', 'bathroom', 'storage', 'other'));
+      ALTER TABLE stock_lots DROP CONSTRAINT stock_lots_location_check;
+      ALTER TABLE stock_lots ADD CONSTRAINT stock_lots_location_check CHECK (location IN ('fridge', 'freezer', 'pantry', 'garden', 'bathroom', 'storage', 'other'));
+      ALTER TABLE products DROP CONSTRAINT IF EXISTS products_opened_location_check;
+      ALTER TABLE products ADD CONSTRAINT products_opened_location_check CHECK (opened_location IN ('fridge', 'freezer', 'pantry', 'garden', 'bathroom', 'storage', 'other'));
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

@@ -10,7 +10,15 @@ import type { BaseUnit } from './units';
  */
 
 /** Where food is: fridge, freezer, pantry (the shelf), the balcony garden, anywhere else. */
-export const LOCATIONS = ['fridge', 'freezer', 'pantry', 'garden', 'other'] as const;
+export const LOCATIONS = [
+  'fridge',
+  'freezer',
+  'pantry',
+  'garden',
+  'bathroom',
+  'storage',
+  'other',
+] as const;
 export type Location = (typeof LOCATIONS)[number];
 
 /** In the order a shop is usually walked: produce at the door, household at the end. */
@@ -26,12 +34,69 @@ export const CATEGORIES = [
   'drinks',
   'snacks',
   'meals',
+  'bathroom',
+  'cleaning',
+  'laundry',
+  'paper',
+  'pets',
   'household',
   'other',
 ] as const;
+
+/** The house's kinds of things (not food): kept on the House list, bought with the food. */
+export const HOUSE_CATEGORIES: readonly Category[] = [
+  'bathroom',
+  'cleaning',
+  'laundry',
+  'paper',
+  'pets',
+  'household',
+];
+export const areaOf = (category: Category): 'food' | 'house' =>
+  HOUSE_CATEGORIES.includes(category) ? 'house' : 'food';
 export type Category = (typeof CATEGORIES)[number];
 
 export const FOOD_ICONS = [
+  // the house
+  'shampoo',
+  'conditioner',
+  'shower-gel',
+  'hand-soap',
+  'soap-bar',
+  'toothpaste',
+  'toothbrush',
+  'mouthwash',
+  'dental-floss',
+  'deodorant',
+  'razor',
+  'shaving-foam',
+  'cotton-pads',
+  'cotton-swabs',
+  'wet-wipes',
+  'hand-cream',
+  'sunscreen',
+  'toilet-paper',
+  'paper-towels',
+  'tissues',
+  'cleaner-spray',
+  'glass-cleaner',
+  'bleach',
+  'toilet-cleaner',
+  'floor-cleaner',
+  'dishwasher-tablets',
+  'fabric-softener',
+  'laundry-pods',
+  'stain-remover',
+  'cat-litter',
+  'litter-deodorizer',
+  'waste-bags',
+  'pet-food',
+  'light-bulb',
+  'batteries',
+  'air-freshener',
+  'candle',
+  'water-filter',
+  'dish-brush',
   // sports nutrition
   'protein-powder',
   'protein-bar',
@@ -906,46 +971,211 @@ const RAW_PRESETS: readonly Preset[] = [
     'батончики',
   ]),
   P('Hummus', 'jar', 'snacks', 'g', 'fridge', 7, undefined, ['хумус']),
-  // Household
-  P('Toilet paper', 'roll', 'household', 'pcs', 'other', undefined, undefined, [
+  // The house: bathroom, cleaning, laundry, paper, pets and the rest. Counted things (rolls,
+  // tablets, cartridges) are counted; bottles are kept by level (full / low / out).
+  P('Shampoo', 'shampoo', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'șampon',
+    'sampon',
+    'шампунь',
+  ]),
+  P('Conditioner', 'conditioner', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'balsam de păr',
+    'бальзам для волос',
+  ]),
+  P('Shower gel', 'shower-gel', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'gel de duș',
+    'gel de dus',
+    'гель для душа',
+  ]),
+  P('Hand soap', 'hand-soap', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'săpun lichid',
+    'sapun',
+    'жидкое мыло',
+  ]),
+  P('Soap bar', 'soap-bar', 'bathroom', 'pcs', 'bathroom', undefined, undefined, ['săpun', 'мыло']),
+  P('Toothpaste', 'toothpaste', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'pastă de dinți',
+    'pasta de dinti',
+    'зубная паста',
+  ]),
+  P('Toothbrush', 'toothbrush', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'periuță de dinți',
+    'зубная щётка',
+  ]),
+  P('Mouthwash', 'mouthwash', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'apă de gură',
+    'ополаскиватель',
+  ]),
+  P('Dental floss', 'dental-floss', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'ață dentară',
+    'зубная нить',
+  ]),
+  P('Deodorant', 'deodorant', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'deodorant',
+    'дезодорант',
+  ]),
+  P('Razor blades', 'razor', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'lame de ras',
+    'лезвия',
+  ]),
+  P('Shaving foam', 'shaving-foam', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'spumă de ras',
+    'пена для бритья',
+  ]),
+  P('Cotton pads', 'cotton-pads', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'dischete demachiante',
+    'ватные диски',
+  ]),
+  P('Cotton swabs', 'cotton-swabs', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'bețișoare',
+    'ватные палочки',
+  ]),
+  P('Wet wipes', 'wet-wipes', 'bathroom', 'pcs', 'bathroom', undefined, undefined, [
+    'șervețele umede',
+    'влажные салфетки',
+  ]),
+  P('Hand cream', 'hand-cream', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'cremă de mâini',
+    'крем для рук',
+  ]),
+  P('Sunscreen', 'sunscreen', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
+    'cremă de soare',
+    'солнцезащитный крем',
+  ]),
+  P('Toilet paper', 'toilet-paper', 'paper', 'pcs', 'storage', undefined, undefined, [
     'hârtie igienică',
     'туалетная бумага',
   ]),
-  P('Paper towels', 'roll', 'household', 'pcs', 'other'),
-  P('Dish soap', 'detergent', 'household', 'ml', 'other', undefined, undefined, [
-    'detergent de vase',
-    'fairy',
+  P('Paper towels', 'paper-towels', 'paper', 'pcs', 'storage', undefined, undefined, [
+    'prosoape de hârtie',
+    'бумажные полотенца',
   ]),
-  P('Laundry detergent', 'detergent', 'household', 'ml', 'other'),
-  P('Trash bags', 'trash-bag', 'household', 'pcs', 'other', undefined, undefined, [
-    'saci de gunoi',
-    'мешки для мусора',
+  P('Tissues', 'tissues', 'paper', 'pcs', 'storage', undefined, undefined, [
+    'batiste',
+    'салфетки бумажные',
   ]),
-  P('Aluminium foil', 'roll', 'household', 'pcs', 'other', undefined, undefined, [
-    'folie de aluminiu',
-    'фольга',
-  ]),
-  P('Cling film', 'roll', 'household', 'pcs', 'other', undefined, undefined, [
-    'folie alimentară',
-    'пищевая плёнка',
-  ]),
-  P('Baking paper', 'roll', 'household', 'pcs', 'other', undefined, undefined, [
-    'hârtie de copt',
-    'пергамент',
-  ]),
-  P('Napkins', 'box', 'household', 'pcs', 'other', undefined, undefined, [
+  P('Napkins', 'box', 'paper', 'pcs', 'storage', undefined, undefined, [
     'șervețele',
     'servetele',
     'салфетки',
   ]),
-  P('Dishwasher tablets', 'box', 'household', 'pcs', 'other', undefined, undefined, [
-    'tablete vase',
+  P('Dish soap', 'detergent', 'cleaning', 'ml', 'storage', undefined, undefined, [
+    'detergent de vase',
+    'fairy',
   ]),
-  P('Sponges', 'sponge', 'household', 'pcs', 'other', undefined, undefined, ['bureți', 'губки']),
-  P('Hand soap', 'detergent', 'household', 'ml', 'other', undefined, undefined, [
-    'săpun',
-    'sapun',
-    'мыло',
+  P(
+    'Dishwasher tablets',
+    'dishwasher-tablets',
+    'cleaning',
+    'pcs',
+    'storage',
+    undefined,
+    undefined,
+    ['tablete vase', 'таблетки для посудомойки'],
+  ),
+  P('Dish brush', 'dish-brush', 'cleaning', 'pcs', 'storage', undefined, undefined, [
+    'perie de vase',
+    'щётка для посуды',
+  ]),
+  P('Sponges', 'sponge', 'cleaning', 'pcs', 'storage', undefined, undefined, ['bureți', 'губки']),
+  P('All-purpose cleaner', 'cleaner-spray', 'cleaning', 'ml', 'storage', undefined, undefined, [
+    'soluție universală',
+    'универсальное средство',
+  ]),
+  P('Glass cleaner', 'glass-cleaner', 'cleaning', 'ml', 'storage', undefined, undefined, [
+    'soluție geamuri',
+    'средство для стёкол',
+  ]),
+  P('Bleach', 'bleach', 'cleaning', 'ml', 'storage', undefined, undefined, [
+    'clor',
+    'înălbitor',
+    'отбеливатель',
+    'domestos',
+  ]),
+  P('Toilet cleaner', 'toilet-cleaner', 'cleaning', 'ml', 'storage', undefined, undefined, [
+    'soluție wc',
+    'средство для унитаза',
+  ]),
+  P('Floor cleaner', 'floor-cleaner', 'cleaning', 'ml', 'storage', undefined, undefined, [
+    'detergent pardoseli',
+    'средство для пола',
+  ]),
+  P('Laundry detergent', 'detergent', 'laundry', 'ml', 'storage', undefined, undefined, [
+    'detergent rufe',
+    'стиральный порошок',
+  ]),
+  P('Laundry pods', 'laundry-pods', 'laundry', 'pcs', 'storage', undefined, undefined, [
+    'capsule rufe',
+    'капсулы для стирки',
+  ]),
+  P('Fabric softener', 'fabric-softener', 'laundry', 'ml', 'storage', undefined, undefined, [
+    'balsam de rufe',
+    'кондиционер для белья',
+  ]),
+  P('Stain remover', 'stain-remover', 'laundry', 'ml', 'storage', undefined, undefined, [
+    'soluție pete',
+    'пятновыводитель',
+    'vanish',
+  ]),
+  P('Cat litter', 'cat-litter', 'pets', 'g', 'storage', undefined, undefined, [
+    'nisip pisici',
+    'așternut',
+    'наполнитель',
+  ]),
+  P('Litter box deodorizer', 'litter-deodorizer', 'pets', 'pcs', 'storage', undefined, undefined, [
+    'deodorant litieră',
+    'cartridge',
+    'cartuș',
+    'petkit n50',
+    'petkit n60',
+  ]),
+  P('Waste bags', 'waste-bags', 'pets', 'pcs', 'storage', undefined, undefined, [
+    'poo bags',
+    'pungi',
+    'пакеты для лотка',
+  ]),
+  P('Pet food', 'pet-food', 'pets', 'g', 'storage', undefined, undefined, [
+    'hrană pisici',
+    'hrana caini',
+    'корм',
+  ]),
+  P('Trash bags', 'trash-bag', 'household', 'pcs', 'storage', undefined, undefined, [
+    'saci de gunoi',
+    'мешки для мусора',
+  ]),
+  P('Light bulbs', 'light-bulb', 'household', 'pcs', 'storage', undefined, undefined, [
+    'becuri',
+    'лампочки',
+  ]),
+  P('Batteries', 'batteries', 'household', 'pcs', 'storage', undefined, undefined, [
+    'baterii',
+    'батарейки',
+  ]),
+  P('Air freshener', 'air-freshener', 'household', 'ml', 'storage', undefined, undefined, [
+    'odorizant',
+    'освежитель воздуха',
+  ]),
+  P('Candles', 'candle', 'household', 'pcs', 'storage', undefined, undefined, [
+    'lumânări',
+    'свечи',
+  ]),
+  P('Water filter', 'water-filter', 'household', 'pcs', 'storage', undefined, undefined, [
+    'filtru de apă',
+    'brita',
+    'фильтр для воды',
+  ]),
+  // Kitchen supplies (used up in the kitchen, bought with the food)
+  P('Aluminium foil', 'roll', 'household', 'pcs', 'pantry', undefined, undefined, [
+    'folie de aluminiu',
+    'фольга',
+  ]),
+  P('Cling film', 'roll', 'household', 'pcs', 'pantry', undefined, undefined, [
+    'folie alimentară',
+    'пищевая плёнка',
+  ]),
+  P('Baking paper', 'roll', 'household', 'pcs', 'pantry', undefined, undefined, [
+    'hârtie de copt',
+    'пергамент',
   ]),
 
   // More produce
@@ -1816,6 +2046,35 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
     ],
   },
   Skyr: { units: [{ name: 'cup', size: 150, sizes: [140, 150, 400, 450] }] },
+  'Toilet paper': { units: [{ name: 'pack', size: 8, sizes: [4, 8, 10, 12, 16, 24, 32] }] },
+  'Paper towels': { units: [{ name: 'pack', size: 2, sizes: [2, 3, 4, 6] }] },
+  'Dishwasher tablets': { units: [{ name: 'box', size: 40, sizes: [20, 30, 40, 60, 80, 100] }] },
+  'Laundry pods': { units: [{ name: 'box', size: 30, sizes: [15, 20, 30, 40, 50] }] },
+  'Cat litter': {
+    units: [{ name: 'bag', size: 5000, sizes: [2500, 5000, 6000, 10000, 15000] }],
+    variants: ['Clumping', 'Tofu', 'Silica', 'Wood'],
+  },
+  'Litter box deodorizer': {
+    units: [{ name: 'pack', size: 3, sizes: [1, 2, 3, 4, 6] }],
+    variants: ['Petkit N50', 'Petkit N60'],
+  },
+  'Waste bags': {
+    units: [{ name: 'roll', size: 20, sizes: [15, 20, 30] }],
+    variants: ['PuraMax', 'Universal'],
+  },
+  'Pet food': {
+    units: [{ name: 'bag', size: 2000, sizes: [400, 1500, 2000, 4000, 10000] }],
+    variants: ['Dry', 'Wet', 'Treats'],
+  },
+  Batteries: { variants: ['AA', 'AAA', 'CR2032', '9V'] },
+  'Light bulbs': { variants: ['E27', 'E14', 'GU10'] },
+  'Trash bags': {
+    units: [{ name: 'roll', size: 30, sizes: [10, 15, 20, 30, 50] }],
+    variants: ['35 l', '60 l', '120 l'],
+  },
+  'Cotton pads': { units: [{ name: 'pack', size: 100, sizes: [50, 80, 100, 120, 150] }] },
+  'Wet wipes': { units: [{ name: 'pack', size: 1 }] },
+  Shampoo: { variants: ['Normal', 'Anti-dandruff', 'For dry hair', 'Kids'] },
 };
 
 /** Drawings of things that, once opened, belong in the fridge. */
@@ -1861,7 +2120,11 @@ export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
     : {}),
   ...(EXTRA[preset.name] ?? {}),
   ...(OPENED[preset.name] ? { openedDays: OPENED[preset.name] } : {}),
-  ...(preset.category === 'spices' || BY_LEVEL.has(preset.name) ? { track: 'level' as const } : {}),
+  ...(preset.category === 'spices' ||
+  BY_LEVEL.has(preset.name) ||
+  (areaOf(preset.category) === 'house' && preset.unit === 'ml')
+    ? { track: 'level' as const }
+    : {}),
 }));
 
 /** Lowercase, no diacritics, single spaces. */
@@ -2265,4 +2528,4 @@ export function variantIconsFor(name: string): Record<string, string> {
   return VARIANT_ICONS[name] ?? {};
 }
 
-export const CATALOG_VERSION = 2;
+export const CATALOG_VERSION = 3;

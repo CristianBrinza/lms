@@ -93,7 +93,7 @@ export function AreaGrid({ areas, className }: { areas: readonly Area[]; classNa
       aria-label="Your areas"
     >
       {areas.map((area, index) => (
-        <li key={area.id}>
+        <li key={area.id} className={area.wide ? 'col-span-full' : undefined}>
           <AreaTile area={area} index={index} />
         </li>
       ))}

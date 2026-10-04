@@ -24,11 +24,12 @@ import {
   packageLabel,
   pieceName,
   plural,
+  areaOf,
 } from '../format';
 import { FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { AddStockSheet } from '../kitchen/AddStockSheet';
 import { ProductPanel, ProductSheet } from '../kitchen/ProductSheet';
-import type { Location, StockedProduct } from '../types';
+import type { Area, Location, StockedProduct } from '../types';
 
 type Place = 'all' | Location;
 
@@ -39,6 +40,36 @@ type Place = 'all' | Location;
  * tablet the item opens in a panel beside the list instead of over it.
  */
 export default function KitchenPage() {
+  return <InventoryScreen area="food" />;
+}
+
+const AREA_TEXT = {
+  food: {
+    title: 'Kitchen',
+    back: '/food',
+    add: 'Add food',
+    search: 'Search the kitchen',
+    everywhere: 'kitchen',
+    basics: 'Basics · full, low, out',
+  },
+  house: {
+    title: 'House',
+    back: '/home',
+    add: 'Add something',
+    search: 'Search the house',
+    everywhere: 'house',
+    basics: 'Bottles and tubes · full, low, out',
+  },
+} as const;
+
+const AREA_PLACES: Record<Area, readonly Location[]> = {
+  food: ['fridge', 'freezer', 'pantry', 'garden', 'other'],
+  house: ['bathroom', 'storage', 'other'],
+};
+
+/** The kitchen's food or the house's things: one screen, the same engine, each its own items. */
+export function InventoryScreen({ area }: { area: Area }) {
+  const text = AREA_TEXT[area];
   const [params, setParams] = useSearchParams();
   const kitchen = useQuery({ queryKey: foodKeys.kitchen, queryFn: foodApi.kitchen });
   const [place, setPlace] = useState<Place>('all');
@@ -64,7 +95,15 @@ export default function KitchenPage() {
       { replace: Boolean(!id) },
     );
 
-  const products = useMemo(() => kitchen.data ?? [], [kitchen.data]);
+  // ?kind=bathroom: one kind of thing (from the House's front page).
+  const kind = params.get('kind');
+  const products = useMemo(
+    () =>
+      (kitchen.data ?? []).filter(
+        (p) => areaOf(p.category) === area && (!kind || p.category === kind),
+      ),
+    [kitchen.data, area, kind],
+  );
   const counts = useMemo(() => {
     const out: Record<Place, number> = {
       all: 0,
@@ -72,6 +111,8 @@ export default function KitchenPage() {
       freezer: 0,
       pantry: 0,
       garden: 0,
+      bathroom: 0,
+      storage: 0,
       other: 0,
     };
     for (const product of products) {
@@ -107,8 +148,12 @@ export default function KitchenPage() {
     <Screen tone="white">
       <PageHeader
         compact
-        back="/food"
-        title="Kitchen"
+        back={area === 'house' ? '/house' : text.back}
+        title={
+          kind && kind in CATEGORY_LABEL
+            ? CATEGORY_LABEL[kind as keyof typeof CATEGORY_LABEL]
+            : text.title
+        }
         subtitle={
           kitchen.data
             ? `${plural(stocked, 'item')}${useSoon.length ? ` · ${useSoon.length} to use soon` : ''}`
@@ -117,7 +162,7 @@ export default function KitchenPage() {
         actions={
           <IconButton
             icon={AddIcon}
-            label="Add food"
+            label={text.add}
             variant="ink"
             size="sm"
             onClick={() => setAdding({ open: true, initial: null })}
@@ -134,7 +179,7 @@ export default function KitchenPage() {
               dense
               icon={SearchIcon}
               surface="raised"
-              placeholder="Search the kitchen"
+              placeholder={text.search}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -146,7 +191,10 @@ export default function KitchenPage() {
               onChange={setPlace}
               options={[
                 { value: 'all' as const, label: 'All', count: counts.all },
-                ...LOCATION_OPTIONS.map((o) => ({ ...o, count: counts[o.value] })),
+                ...LOCATION_OPTIONS.filter((o) => AREA_PLACES[area].includes(o.value)).map((o) => ({
+                  ...o,
+                  count: counts[o.value],
+                })),
               ]}
             />
           </div>
@@ -172,12 +220,12 @@ export default function KitchenPage() {
                 </Button>
               </div>
             ) : !products.length ? (
-              <Empty onAdd={() => setAdding({ open: true, initial: null })} />
+              <Empty area={area} onAdd={() => setAdding({ open: true, initial: null })} />
             ) : !shown.length ? (
               <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
                 {query
                   ? `Nothing called “${query}”`
-                  : `Nothing in the ${place === 'all' ? 'kitchen' : LOCATION_LABEL[place as Location].toLowerCase()}`}
+                  : `Nothing in the ${place === 'all' ? text.everywhere : LOCATION_LABEL[place as Location].toLowerCase()}`}
               </p>
             ) : (
               <div className="2xl:columns-2 2xl:gap-6">
@@ -203,7 +251,7 @@ export default function KitchenPage() {
                 ))}
                 {basics.length ? (
                   <Group
-                    title="Basics · full, low, out"
+                    title={text.basics}
                     items={basics}
                     onOpen={setItem}
                     today={today}
@@ -263,6 +311,7 @@ export default function KitchenPage() {
       />
       <AddStockSheet
         open={adding.open}
+        area={area}
         initial={adding.initial}
         onClose={() => setAdding({ open: false, initial: null })}
       />
@@ -489,14 +538,25 @@ function BasicRow({
   );
 }
 
-function Empty({ onAdd }: { onAdd: () => void }) {
+function Empty({ area, onAdd }: { area: Area; onAdd: () => void }) {
   return (
     <div className="flex flex-col items-center rounded-[2rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
-      <SceneArt scene="kitchen" className="size-24" />
-      <h2 className="mt-4 text-h2 font-bold">Your kitchen is empty</h2>
+      {area === 'food' ? (
+        <SceneArt scene="kitchen" className="size-24" />
+      ) : (
+        <span className="flex gap-1">
+          <FoodIconTile name="shampoo" />
+          <FoodIconTile name="toilet-paper" />
+          <FoodIconTile name="cleaner-spray" />
+        </span>
+      )}
+      <h2 className="mt-4 text-h2 font-bold">
+        {area === 'food' ? 'Your kitchen is empty' : 'Nothing counted in the house yet'}
+      </h2>
       <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
-        Add what’s in the fridge, freezer and cupboards. Finishing a shop in Shopping puts it here
-        too.
+        {area === 'food'
+          ? 'Add what’s in the fridge, freezer and cupboards. Finishing a shop in Shopping puts it here too.'
+          : 'Add what’s in the bathroom and the storage: shampoo, paper towels, cleaners, the cat’s litter. Finishing a shop puts it here too.'}
       </p>
       <Button icon={AddIcon} className="mt-6" onClick={onAdd}>
         Add what you have
