@@ -1,25 +1,15 @@
 /**
- * Live checks after a deploy: `yarn deploy:verify` (APP_URL and API_ORIGIN from the environment,
- * or from ../.env.deploy). Exits non-zero when any check fails.
+ * Live checks against the public address: `yarn deploy:verify` (APP_URL from the environment;
+ * default https://lms.shades.md). Exits non-zero when any check fails.
  *
- *  - the web app, its version, manifest and security headers (Cloudflare Worker)
+ *  - the web app, its version, manifest and security headers (served by the PC, through the tunnel)
  *  - /health: the web build and the API's database, both fine
- *  - the API through the Worker: private routes need a session, bad sign-ins are refused
- *  - the tunnel hostname directly, without the Worker's keys: stopped by Cloudflare Access (or, without
- *    Access, a bare 404 from the API)
+ *  - the API: private routes need a session, bad sign-ins are refused
+ *  - the Android app downloads
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { parseDotEnv } from '../src/lib/dotenv';
+export {};
 
-const file = new URL('../../.env.deploy', import.meta.url);
-const fromFile = existsSync(file) ? parseDotEnv(readFileSync(file, 'utf8')) : {};
-const APP_URL = (process.env.APP_URL || fromFile.APP_URL || '').replace(/\/$/, '');
-const API_ORIGIN = (process.env.API_ORIGIN || fromFile.API_ORIGIN || '').replace(/\/$/, '');
-
-if (!APP_URL) {
-  console.error('[verify] set APP_URL (the public web app address) in .env.deploy or the environment');
-  process.exit(1);
-}
+const APP_URL = (process.env.APP_URL || 'https://lms.shades.md').replace(/\/$/, '');
 
 let failed = 0;
 async function check(name: string, run: () => Promise<string | void>) {
@@ -85,18 +75,11 @@ await check('wrong sign-in is refused', async () => {
   expect(response.status === 401 && body?.error?.code === 'INVALID_CREDENTIALS', `status ${response.status}: ${JSON.stringify(body)}`);
 });
 
-if (API_ORIGIN) {
-  await check('tunnel hostname is closed to everyone but the Worker', async () => {
-    const response = await get(`${API_ORIGIN}/api/health`);
-    const location = response.headers.get('location') ?? '';
-    // Best: Access turns the request away at Cloudflare's edge (a login redirect or a 403).
-    if (location.includes('cloudflareaccess.com') || response.status === 403) return 'Cloudflare Access stops it at the edge';
-    expect(response.status === 404, `status ${response.status} (neither Access nor PROXY_SECRET stops it)`);
-    return 'only PROXY_SECRET stops it: put Cloudflare Access in front (docs/production.md)';
-  });
-} else {
-  console.info('SKIP  tunnel hostname check — set API_ORIGIN to run it');
-}
+await check('Android app downloads', async () => {
+  const response = await get(`${APP_URL}/lms-health.apk`, { method: 'HEAD' });
+  expect(response.ok, `status ${response.status}`);
+  expect(response.headers.get('content-type')?.includes('android'), 'not served as an APK');
+});
 
 if (failed > 0) {
   console.error(`\n[verify] ${failed} check(s) failed`);

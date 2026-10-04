@@ -1,4 +1,5 @@
-# Cloudflare Workers Static Assets headers (API responses set their own).
+# Headers for the web app's files, per path (Cloudflare's _headers format). The production server
+# applies them (backend/src/web.ts); API responses set their own.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

@@ -41,8 +41,10 @@ const EnvSchema = z.object({
   ACCESS_TOKEN_TTL_MIN: int(15, 1, 120),
   REMEMBER_DAYS: int(365, 1, 400),
   SESSION_HOURS: int(12, 1, 168),
-  PROXY_SECRET: optionalString,
+  /** Behind the Cloudflare Tunnel: the client's address comes from Cloudflare's header. */
   TRUST_PROXY: bool(false),
+  /** The built web app (frontend/dist) to serve next to the API; unset in development. */
+  WEB_DIR: optionalString,
   RATE_LIMITS: bool(true),
   PASSWORD_HASH_COST: z.enum(['standard', 'fast']).default('standard'),
   ADMIN_EMAIL: optionalString,
@@ -73,7 +75,8 @@ export interface AppConfig {
     accessTtlSec: number;
   };
   session: { rememberDays: number; sessionHours: number };
-  proxySecret: string | null;
+  /** The built web app this server also serves (production), or null. */
+  webDir: string | null;
   trustProxy: boolean;
   rateLimits: boolean;
   passwordHashCost: 'standard' | 'fast';
@@ -103,12 +106,6 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
 
   if (isProd) {
     if (!appUrl.startsWith('https://')) problems.push('APP_URL must use https:// in production');
-    if (!env.PROXY_SECRET)
-      problems.push(
-        'PROXY_SECRET is required in production (the Worker sends it; direct tunnel hits get 404)',
-      );
-    if (env.PROXY_SECRET && env.PROXY_SECRET.length < 32)
-      problems.push('PROXY_SECRET must be at least 32 characters');
     if (PLACEHOLDER.test(env.JWT_SECRET)) problems.push('JWT_SECRET is a placeholder');
     if (env.PASSWORD_HASH_COST === 'fast')
       problems.push('PASSWORD_HASH_COST=fast is for tests only');
@@ -152,7 +149,7 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
       accessTtlSec: env.ACCESS_TOKEN_TTL_MIN * 60,
     },
     session: { rememberDays: env.REMEMBER_DAYS, sessionHours: env.SESSION_HOURS },
-    proxySecret: env.PROXY_SECRET ?? null,
+    webDir: env.WEB_DIR ?? null,
     trustProxy: env.TRUST_PROXY,
     rateLimits: env.RATE_LIMITS,
     passwordHashCost: env.PASSWORD_HASH_COST,

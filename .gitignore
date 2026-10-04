@@ -8,7 +8,6 @@ node_modules/
 # ── Builds & caches ─────────────────────────────────────────────
 dist/
 build/
-.wrangler/
 .vite/
 coverage/
 *.tsbuildinfo

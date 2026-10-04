@@ -102,7 +102,7 @@ if (command === 'login') {
 }
 
 if (command === 'health') {
-  // The Worker's /health (web + API); a dev server has only the API's.
+  // The app's /health (web + API); a dev server has only the API's.
   let response = await fetch(`${URL_BASE}/health`, { signal: AbortSignal.timeout(15_000) });
   if (!(response.headers.get('content-type') ?? '').includes('json')) response = await fetch(`${URL_BASE}/api/health`, { signal: AbortSignal.timeout(15_000) });
   console.info(JSON.stringify(await response.json(), null, 2));

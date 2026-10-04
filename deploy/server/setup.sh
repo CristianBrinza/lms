@@ -4,10 +4,10 @@
 # with Docker). Run from the repo:  deploy/server/setup.sh
 #
 #   - checks Docker, Compose and git
-#   - writes deploy/.env: generates the database password, JWT and proxy secrets and the push
-#     (VAPID) keys, and asks for the rest (the app's address, the tunnel token, the first admin)
-#   - signs Docker in to GitHub's registry when the image is private
-#   - starts everything; from then on the updater keeps it up to date by itself
+#   - writes deploy/.env: generates the database password, the JWT secret and the push (VAPID)
+#     keys, and asks for the rest (the app's address, the tunnel token, the first admin)
+#   - builds the app from this checkout and starts everything; from then on the updater keeps it
+#     up to date, and deploy/server/live.sh puts changes made here live
 #
 # Safe to run again: an existing deploy/.env is kept (only missing values are added).
 # ─────────────────────────────────────────────────────────────────────────────
@@ -50,12 +50,13 @@ secret() { openssl rand -base64 48 | tr -d '\n/+=' | cut -c1-48; }
 say "Settings (deploy/.env)"
 set_value LMS_HOST_DIR "$(cd "$DEPLOY/.." && pwd)"
 set_value LMS_BRANCH main
+set_value LMS_UID "$(id -u)"
+set_value LMS_GID "$(id -g)"
+set_value DOCKER_GID "$(stat -c %g /var/run/docker.sock)"
 set_value TZ Europe/Chisinau
 set_value POSTGRES_PASSWORD "$(secret)"
 set_value JWT_SECRET "$(secret)"
-set_value PROXY_SECRET "$(secret)"
 ask APP_URL "The app's public address" "https://lms.shades.md"
-ask LMS_IMAGE "The API image" "ghcr.io/cristianbrinza/lms-api"
 ask TUNNEL_TOKEN "Cloudflare Tunnel token (Zero Trust → Networks → Tunnels → your tunnel)"
 ask ADMIN_EMAIL "First admin's email"
 ask ADMIN_NAME "First admin's name"
@@ -74,32 +75,17 @@ if [ -z "$(get VAPID_PUBLIC_KEY)" ]; then
 fi
 echo "deploy/.env is ready (readable by you only)."
 
-say "The API image"
-image="$(get LMS_IMAGE):${LMS_TAG:-main}"
-if ! docker pull --quiet "$image" >/dev/null 2>&1; then
-  echo "Can't pull $image. If the package is private, sign in with a GitHub token that can read packages"
-  echo "(GitHub → Settings → Developer settings → Personal access tokens → read:packages)."
-  read -r -p "GitHub user name: " ghuser
-  docker login ghcr.io -u "$ghuser" || fail "Couldn't sign in to ghcr.io"
-  docker pull --quiet "$image" >/dev/null || fail "Still can't pull $image (has CI published it yet?)"
-fi
-echo "$image is here."
-
-say "Starting"
-docker compose up -d --build
-echo "Waiting for the API…"
-for _ in $(seq 1 60); do
-  status="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q api)" 2>/dev/null || true)"
-  [ "$status" = "healthy" ] && break
-  sleep 3
-done
+say "Building and starting (the first build takes a few minutes)"
+mkdir -p "$DEPLOY/state" "$DEPLOY/backups" # yours, before Docker would make them root's
+docker compose up -d --build postgres backup updater
+docker compose exec -T updater lms-update --release || fail "The first release failed: see above and deploy/state/build.log."
 "$DEPLOY/server/status.sh"
 
 cat <<'EOF'
 
 Next:
-  • Cloudflare: the tunnel's public hostname → service http://api:8790, protected by Access
-    (see docs/production.md, "Hide the API").
+  • Cloudflare: the tunnel's public hostname lms.shades.md → service HTTP, api:8790
+    (docs/production.md).
   • Remove ADMIN_PASSWORD from deploy/.env once you have signed in.
   • Windows: keep the PC awake and Docker starting at sign-in (deploy/windows/keep-awake.ps1).
 EOF

@@ -6,7 +6,6 @@ import {
   jsonBodyLimit,
   noStore,
   originGuard,
-  proxyGuard,
   requestContext,
 } from './middleware/security';
 import { adminRoutes } from './modules/admin/routes';
@@ -18,11 +17,12 @@ import { healthRoutes } from './modules/health';
 import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
 import { reminderRoutes } from './modules/reminders/routes';
+import { webApp, webVersion } from './web';
 
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
 
-  app.use('*', proxyGuard(deps), requestContext(deps));
+  app.use('*', requestContext(deps));
   app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps), jsonBodyLimit);
 
   app.route('/api', healthRoutes(deps));
@@ -37,6 +37,30 @@ export function createApp(deps: AppDeps) {
     '/api/mcp',
     mcpRoutes(deps, () => app),
   );
+
+  // Production: the web app from the same server. /health is the one URL for uptime checks:
+  // 200 only when the web build is there and the API (with its database) is fine.
+  const webDir = deps.config.webDir;
+  if (webDir) {
+    const web = webApp(webDir);
+    app.get('/health', async (c) => {
+      const api = await app.request('/api/health');
+      const body = (await api.json().catch(() => null)) as Record<string, unknown> | null;
+      const version = webVersion(webDir);
+      const ok = api.status === 200 && body?.status === 'ok' && version !== null;
+      c.header('Cache-Control', 'no-store');
+      return c.json(
+        {
+          status: ok ? 'ok' : 'down',
+          web: version ?? { status: 'unavailable' },
+          api: body ?? { status: 'unreachable' },
+          time: new Date().toISOString(),
+        },
+        ok ? 200 : 503,
+      );
+    });
+    app.get('*', (c, next) => (c.req.path.startsWith('/api/') ? next() : web(c)));
+  }
 
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404));
 

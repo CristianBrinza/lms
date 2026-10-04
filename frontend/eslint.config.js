@@ -6,7 +6,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['dist', 'dev-dist', 'node_modules', '.wrangler', 'public', 'scripts/*.d.mts'] },
+  { ignores: ['dist', 'dev-dist', 'node_modules', 'public', 'scripts/*.d.mts'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   {

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { BUILD } from '../build-info';
 import type { AppDeps, AppEnv } from '../context';
 
-/** GET /api/health — the Worker's /health and the deploy checks read this. */
+/** GET /api/health — the app's /health, the updater and the deploy checks read this. */
 export function healthRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.get('/health', async (c) => {

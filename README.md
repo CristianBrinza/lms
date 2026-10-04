@@ -187,21 +187,20 @@ with an **access key** (Settings → Claude access):
 
 ## Stack
 
-| Part        | Tech                                                                                                                                                                                     |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frontend/` | React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, React Router, vite-plugin-pwa, MUI icons (Rounded only). Served by a Cloudflare Worker (Wrangler) that also proxies `/api`. |
-| `backend/`  | Node.js 22, Hono, PostgreSQL (`pg`, numbered migrations), zod, jose (JWT in httpOnly cookies), web-push. Runs in Docker behind a Cloudflare Tunnel.                                      |
-| `deploy/`   | Docker Compose for the server: PostgreSQL + API + cloudflared.                                                                                                                           |
+| Part        | Tech                                                                                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frontend/` | React 19, Vite, TypeScript, Tailwind CSS v4, TanStack Query, React Router, vite-plugin-pwa, MUI icons (Rounded only). Built into the same image as the API, which serves it. |
+| `backend/`  | Node.js 22, Hono, PostgreSQL (`pg`, numbered migrations), zod, jose (JWT in httpOnly cookies), web-push. Runs in Docker behind a Cloudflare Tunnel.                          |
+| `deploy/`   | Docker Compose for the server: PostgreSQL, the app (web + API), cloudflared, the updater, backups.                                                                           |
 
 ```
-Browser ──https──▶ Cloudflare Worker (lms.example.com)
-                    ├─ static app (frontend/dist)
-                    └─ /api/* ──▶ Cloudflare Tunnel (lms-api.example.com) ──▶ API container ──▶ PostgreSQL
+Browser ──https──▶ Cloudflare (lms.shades.md) ──tunnel──▶ the PC: app container ──▶ PostgreSQL
+                                                          ├─ the web app (frontend/dist)
+                                                          └─ /api/*
 ```
 
-The browser only ever talks to the app's own address: cookies are first-party and there is no
-CORS. The Worker adds a shared key (`PROXY_SECRET`) to every API request; the API answers a bare
-404 to anything without it, so the public tunnel hostname can't be used to get around the app.
+One origin for the web app and the API: cookies are first-party and there is no CORS. The PC has
+no open ports; cloudflared dials out to Cloudflare.
 
 ### Where things are
 
@@ -268,27 +267,20 @@ yarn verify       # typecheck, lint, tests and production builds of both apps
 
 ## Deploy
 
-Production runs on an always-on Windows PC (WSL + Docker Desktop) behind a Cloudflare Tunnel, with
-the web app on Cloudflare Workers. A push to `main` deploys itself:
+Production is one always-on Windows PC (WSL + Docker Desktop): the web app, the API and
+PostgreSQL, reached through a Cloudflare Tunnel at lms.shades.md. The PC builds from its own
+checkout, so a change gets there two ways:
 
-1. GitHub Actions runs every check.
-2. It publishes the API image.
-3. The PC's updater backs up, switches and health-checks, and rolls back on its own if needed.
-4. CI publishes the matching web app once the API runs it.
+- **Made on the PC** (Claude or by hand): `deploy/server/live.sh` checks, builds, backs up,
+  switches and health-checks; live in a couple of minutes, rolled back by itself if unhealthy.
+  Then commit and push.
+- **Pushed from elsewhere** to `main`: the PC's updater pulls it within a minute and does the same
+  (only while the PC's checkout has no local changes of its own). GitHub Actions only runs checks.
 
-**Everything about it is in [docs/production.md](docs/production.md)**: the one-time setup on GitHub,
-Cloudflare and the PC (`deploy/server/setup.sh`), hiding the API behind Cloudflare Access, Claude
-working on production data, backups, restores and what to do when something is off.
-`deploy/test/e2e.sh` tests the whole pipeline on local Docker.
-
-`yarn deploy` still exists for a one-off from a dev machine:
-
-```bash
-yarn deploy web          # only the web app (Worker + assets)
-yarn deploy secrets      # the Worker's keys: PROXY_SECRET and the Access service token
-yarn deploy verify       # the live checks (also: yarn deploy:verify)
-yarn deploy api          # the API stack built here (not how production updates)
-```
+**Everything about it is in [docs/production.md](docs/production.md)**: the one-time setup on
+Cloudflare and the PC (`deploy/server/setup.sh`), working on the PC, backups, restores and what to
+do when something is off. `deploy/test/e2e.sh` tests the whole flow on local Docker;
+`yarn deploy:verify` checks the live site.
 
 ## How updates reach installed apps
 

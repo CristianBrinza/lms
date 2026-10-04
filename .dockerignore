@@ -1,0 +1,16 @@
+# Only frontend/ and backend/ sources go into the image.
+**/node_modules
+**/dist
+**/dev-dist
+**/coverage
+**/.env
+**/.env.*
+**/*.log
+**/.eslintcache
+**/*.tsbuildinfo
+.git
+android
+deploy
+docs
+graphify-out
+backend/test

@@ -8,10 +8,10 @@ echo "── Containers"
 docker compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
 
 echo
-echo "── API"
+echo "── App (web + API)"
 container="$(docker compose ps -q api 2>/dev/null)"
 if [ -n "$container" ]; then
-  docker exec "$container" node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/health',{headers:{'x-lms-proxy-key':process.env.PROXY_SECRET||''}}).then(r=>r.json()).then(b=>console.log(JSON.stringify(b,null,2))).catch(e=>console.log('unreachable: '+e.message))"
+  docker exec "$container" node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>r.json()).then(b=>console.log(JSON.stringify(b,null,2))).catch(e=>console.log('unreachable: '+e.message))"
 else
   echo "not running"
 fi
@@ -27,3 +27,5 @@ echo "── Backups (deploy/backups)"
 ls -lht backups/*.dump 2>/dev/null | head -n 5 | awk '{print "  " $6, $7, $8, $5, $9}' || echo "  none yet"
 echo
 echo "── Code: $(git log -1 --format='%h %s (%cr)')"
+changes="$(git status --porcelain | wc -l | tr -d ' ')"
+[ "$changes" != 0 ] && echo "   $changes local change(s): live.sh puts them live; the updater doesn't pull meanwhile"

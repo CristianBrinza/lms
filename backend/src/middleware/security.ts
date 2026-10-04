@@ -2,14 +2,9 @@ import { bodyLimit } from 'hono/body-limit';
 import { createMiddleware } from 'hono/factory';
 import { secureHeaders } from 'hono/secure-headers';
 import type { AppDeps, AppEnv } from '../context';
-import { timingSafeEqualStr } from '../lib/crypto';
 import { AppError } from '../lib/errors';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
-/** The header the Cloudflare Worker adds to every request it forwards (frontend/worker/index.ts). */
-export const PROXY_KEY_HEADER = 'x-lms-proxy-key';
-export const CLIENT_IP_HEADER = 'x-lms-client-ip';
 
 /** Request id + resolved client IP, available to every handler. */
 export function requestContext(deps: AppDeps) {
@@ -19,20 +14,6 @@ export function requestContext(deps: AppDeps) {
     c.set('ip', deps.clientIp(c));
     await next();
     c.header('X-Request-Id', requestId);
-  });
-}
-
-/**
- * The tunnel hostname is public, so in production every legitimate request carries the Worker's
- * shared key. Anything else gets a bare 404: the API reveals nothing and cannot be used to get
- * around the Worker (or its same-origin cookies).
- */
-export function proxyGuard(deps: AppDeps) {
-  const secret = deps.config.proxySecret;
-  return createMiddleware<AppEnv>(async (c, next) => {
-    if (secret && !timingSafeEqualStr(c.req.header(PROXY_KEY_HEADER) ?? '', secret))
-      return c.text('Not Found', 404);
-    await next();
   });
 }
 

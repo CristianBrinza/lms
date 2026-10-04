@@ -1,5 +1,7 @@
 # Local PostgreSQL for development: `yarn db:up`. Dev-only credentials, bound to localhost.
 # Port 5433 so it can run next to other projects' databases on 5432.
+# Its own project name: on the production machine, production is the project "lms" (deploy/).
+name: lms-dev
 services:
   postgres:
     image: postgres:16-alpine
@@ -20,3 +22,4 @@ services:
 
 volumes:
   postgres-data:
+    name: lms_postgres-data # the name it had before the project was named

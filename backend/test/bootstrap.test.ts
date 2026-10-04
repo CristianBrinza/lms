@@ -21,10 +21,10 @@ describe('first admin from the environment', () => {
     expect((await t.browser().login('owner@example.com', 'owner-password-1')).status).toBe(200);
   });
 
-  it('refuses to start in production without the Worker key and https', () => {
+  it('refuses to start in production without https', () => {
     expect(() =>
       testConfig({ NODE_ENV: 'production', PASSWORD_HASH_COST: 'standard', RATE_LIMITS: 'true' }),
-    ).toThrow(/PROXY_SECRET|https/);
+    ).toThrow(/https/);
   });
 });
 

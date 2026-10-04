@@ -6,9 +6,7 @@ import { BUILD } from './build-info';
 import { ConfigError, loadConfig, type AppConfig } from './config';
 import { createDatabase, describeDatabase } from './db';
 import { cleanup } from './db/migrations';
-import { timingSafeEqualStr } from './lib/crypto';
 import { loadDotEnv } from './lib/dotenv';
-import { CLIENT_IP_HEADER, PROXY_KEY_HEADER } from './middleware/security';
 import { runReminders } from './modules/reminders/service';
 import { createDeps, prepare } from './runtime';
 
@@ -19,14 +17,11 @@ import { createDeps, prepare } from './runtime';
 
 function clientIpResolver(config: AppConfig) {
   return (c: Context): string => {
-    // Behind the Cloudflare Worker: trust its client-IP header only with a valid proxy key.
-    if (config.proxySecret) {
-      const forwarded = c.req.header(CLIENT_IP_HEADER);
-      if (forwarded && timingSafeEqualStr(c.req.header(PROXY_KEY_HEADER) ?? '', config.proxySecret))
-        return forwarded;
-    }
+    // Behind the Cloudflare Tunnel (production): only cloudflared reaches this port, and
+    // Cloudflare sets the visitor's address in cf-connecting-ip.
     if (config.trustProxy) {
-      const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+      const forwarded =
+        c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
       if (forwarded) return forwarded;
     }
     try {

@@ -1,13 +1,13 @@
 ---
 name: lms-production
-description: Use when Cristian asks to change or look at LMS data in production (the live app at lms.shades.md) — add food to the kitchen, write or change a recipe, plan meals or a week, fill shopping lists, set allergies, count kitchenware, plan or log workouts and home equipment — or to check that production is up and which version runs. Not for changing the app's code (that is a normal commit; CI deploys it).
+description: Use when Cristian asks to change or look at LMS data in production (the live app at lms.shades.md) — add food to the kitchen, write or change a recipe, plan meals or a week, fill shopping lists, set allergies, count kitchenware, plan or log workouts and home equipment — or to check that production is up and which version runs. Not for changing the app's code (a normal commit: pushed to main it goes live from the PC; on the PC itself, lms-server's live.sh).
 ---
 
 # Working on production LMS data
 
-Production is the live app at **https://lms.shades.md**, served by a Cloudflare Worker; the API
-and database run on the always-on Windows PC behind a Cloudflare Tunnel. Claude never touches
-that PC or its database directly: it works through the app's public address with an **access
+Production is the live app at **https://lms.shades.md**: the web app, the API and the database
+all run on the always-on Windows PC, behind a Cloudflare Tunnel. For data, Claude never touches
+the database directly: it works through the app's public address with an **access
 key**, under the same rules as the app (the key's owner's kitchen, the key's scope).
 
 ## How to reach it

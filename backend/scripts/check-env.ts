@@ -5,7 +5,7 @@ import { loadDotEnv } from '../src/lib/dotenv';
 loadDotEnv(process.env.ENV_FILE ?? '.env');
 try {
   const config = loadConfig(process.env);
-  console.info(`[check-env] OK — ${config.env}, app ${config.appUrl}, cookies ${config.cookieSecure ? 'secure' : 'plain (http)'}, proxy key ${config.proxySecret ? 'set' : 'not set'}`);
+  console.info(`[check-env] OK — ${config.env}, app ${config.appUrl}, cookies ${config.cookieSecure ? 'secure' : 'plain (http)'}, web app ${config.webDir ?? 'not served (development)'}`);
 } catch (error) {
   if (error instanceof ConfigError) {
     console.error(`[check-env] ${error.message}`);

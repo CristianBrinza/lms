@@ -1,20 +1,22 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# LMS server: PostgreSQL, the API, a Cloudflare Tunnel, the updater and nightly backups, on the
-# always-on machine (the Windows PC, inside WSL; or any Linux box with Docker).
+# LMS in production, all on the always-on machine (the Windows PC, inside WSL; or any Linux box
+# with Docker): PostgreSQL, the app (web app + API in one container), a Cloudflare Tunnel, the
+# updater and nightly backups.
 #
-# Nothing listens on the internet: cloudflared dials out to Cloudflare, the tunnel's hostname
-# reaches the API inside this network, and only the Cloudflare Worker may use that hostname
-# (Cloudflare Access service token + PROXY_SECRET).
+# Nothing listens on the internet: cloudflared dials out to Cloudflare, and the tunnel's public
+# hostname (lms.shades.md) reaches the app inside this network.
 #
-# The API is not built here: GitHub Actions builds it after every check passes and publishes
-# ghcr.io/<owner>/lms-api:main. The updater pulls it (and this repo's deploy files) every minute,
-# backs the database up, switches over, and rolls back if the new API isn't healthy.
+# The app is built here, from this checkout (the root Dockerfile), never pulled:
+#   - a change made on this machine goes live with  deploy/server/live.sh
+#   - a change pushed from elsewhere: the updater pulls it within a minute (when this checkout has
+#     no local changes) and puts it live the same way
+# Both back the database up first, switch, wait for the health check, and roll back if unhealthy.
 #
 #   deploy/server/setup.sh            # once: settings, secrets, first start
 #   deploy/server/status.sh           # what runs, which version, last backups
 #
 # Settings: deploy/.env (git-ignored; see .env.template). LMS_HOST_DIR there is this repo's path
-# on the machine: the updater runs `docker compose` itself and must see the same paths.
+# on the machine: the updater runs `docker` itself and must see the same paths.
 # ─────────────────────────────────────────────────────────────────────────────
 name: lms
 
@@ -34,10 +36,10 @@ services:
       timeout: 5s
       retries: 10
 
+  # The web app and the API (one image, built by deploy/updater/update.sh as lms-app:live).
   api:
-    image: ${LMS_IMAGE:-ghcr.io/cristianbrinza/lms-api}:${LMS_TAG:-main}
-    # Only the updater pulls (after a backup); a restart never fetches a new version by itself.
-    pull_policy: missing
+    image: lms-app:live
+    pull_policy: never
     restart: unless-stopped
     env_file: .env
     environment:
@@ -45,6 +47,8 @@ services:
       HOST: 0.0.0.0
       PORT: '8790'
       DATABASE_URL: postgres://lms:${POSTGRES_PASSWORD}@postgres:5432/lms
+      # Only cloudflared reaches it: the visitor's address comes from Cloudflare's header.
+      TRUST_PROXY: 'true'
       # The kitchen's local time: today, best-before dates, meal times and reminders.
       TZ: ${TZ:-Europe/Chisinau}
     depends_on:
@@ -63,11 +67,19 @@ services:
     depends_on:
       - api
 
-  # Every minute: new deploy files on the branch, or a new API image → back up, switch, check, roll back.
+  # Every minute: new commits on the branch → build, back up, switch, check, roll back.
+  # deploy/server/live.sh asks it to do the same for this checkout as it is, right now.
   updater:
     build: ./updater
     restart: unless-stopped
+    # As the checkout's owner (people edit it too: files it pulls must stay theirs), with the
+    # Docker socket's group. setup.sh writes the ids into deploy/.env.
+    user: '${LMS_UID:-1000}:${LMS_GID:-1000}'
+    group_add:
+      - '${DOCKER_GID:-0}'
     environment:
+      HOME: /tmp
+      BUILDX_GIT_INFO: 'false'
       LMS_HOST_DIR: ${LMS_HOST_DIR:?set LMS_HOST_DIR in deploy/.env (this repo's path on the machine)}
       LMS_BRANCH: ${LMS_BRANCH:-main}
       CHECK_EVERY: ${CHECK_EVERY:-60}

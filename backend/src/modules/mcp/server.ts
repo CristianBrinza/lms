@@ -3,7 +3,6 @@ import type { AppDeps, AppEnv } from '../../context';
 import { AppError } from '../../lib/errors';
 import { enforceRateLimits } from '../../lib/rate-limit';
 import { bearerToken } from '../../middleware/auth';
-import { PROXY_KEY_HEADER } from '../../middleware/security';
 import { ensureKitchen, foodCtx } from '../food/kitchen';
 import { localDate } from '../food/stock';
 import { authenticateToken, type TokenScope } from '../tokens';
@@ -171,7 +170,6 @@ export function mcpRoutes(deps: AppDeps, getApp: () => Hono<AppEnv>) {
       internal: async (method, path, payload) => {
         const headers: Record<string, string> = { authorization: `Bearer ${raw}` };
         if (payload !== undefined) headers['content-type'] = 'application/json';
-        if (deps.config.proxySecret) headers[PROXY_KEY_HEADER] = deps.config.proxySecret;
         const res = await getApp().request(path, {
           method,
           headers,
