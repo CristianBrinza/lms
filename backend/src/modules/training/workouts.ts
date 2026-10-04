@@ -288,7 +288,7 @@ function noonOf(day: string): Date {
 export async function updateSet(ctx: Ctx, id: string, patch: SetPatch): Promise<TrainingSet> {
   const current = await findSet(ctx, id);
   const next = { ...current, ...patch };
-  if (next.reps == null && next.seconds == null && next.distance == null)
+  if (next.reps === null && next.seconds === null && next.distance === null)
     throw new AppError(400, 'VALIDATION', 'Say how many, how long or how far');
   await ctx.db.query(
     'UPDATE training_sets SET reps = $3, weight = $4, seconds = $5, distance = $6, effort = $7, note = $8 WHERE id = $1 AND household_id = $2',

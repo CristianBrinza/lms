@@ -184,7 +184,10 @@ export const SetInput = z
     setNumber: z.number().int().min(1).max(20).optional(),
   })
   .refine(
-    (body) => body.reps != null || body.seconds != null || body.distance != null,
+    (body) =>
+      [body.reps, body.seconds, body.distance].some(
+        (value) => value !== null && value !== undefined,
+      ),
     'Say how many, how long or how far',
   );
 export type SetInput = z.infer<typeof SetInput>;
