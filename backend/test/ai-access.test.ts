@@ -15,7 +15,10 @@ function keyed(token: string) {
   async function request(method: string, path: string, body?: unknown) {
     const res = await t.app.request(path, {
       method,
-      headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await res.text();
@@ -27,13 +30,22 @@ function keyed(token: string) {
   };
 }
 
-async function newKey(b: Awaited<ReturnType<typeof person>>['b'], scope: 'food:read' | 'food' | 'admin', name = 'Claude') {
+async function newKey(
+  b: Awaited<ReturnType<typeof person>>['b'],
+  scope: 'food:read' | 'food' | 'admin',
+  name = 'Claude',
+) {
   const res = await b.post('/api/me/tokens', { name, scope });
   return res;
 }
 
 let rpcId = 0;
-const rpc = (method: string, params?: unknown) => ({ jsonrpc: '2.0', id: ++rpcId, method, ...(params ? { params } : {}) });
+const rpc = (method: string, params?: unknown) => ({
+  jsonrpc: '2.0',
+  id: ++rpcId,
+  method,
+  ...(params ? { params } : {}),
+});
 
 describe('AI access keys', () => {
   it('are shown once and act as their owner in Food', async () => {
@@ -59,7 +71,9 @@ describe('AI access keys', () => {
     const { b } = await person('ana@example.com');
     const ai = keyed((await newKey(b, 'food')).body.token);
     expect((await ai.get('/api/me')).status).toBe(200);
-    expect((await ai.post('/api/me/password', { newPassword: 'another-password-1' })).status).toBe(403);
+    expect((await ai.post('/api/me/password', { newPassword: 'another-password-1' })).status).toBe(
+      403,
+    );
     expect((await ai.get('/api/me/sessions')).status).toBe(403);
     expect((await ai.get('/api/me/tokens')).status).toBe(403);
     expect((await ai.post('/api/me/tokens', { name: 'x', scope: 'food' })).status).toBe(403);
@@ -93,7 +107,9 @@ describe('AI access keys', () => {
     expect((await keyed(two.body.token).get('/api/food/kitchen')).status).toBe(200);
     await t.db.query('UPDATE users SET is_active = false WHERE id = $1', [user.id]);
     expect((await keyed(two.body.token).get('/api/food/kitchen')).status).toBe(401);
-    expect((await keyed('lms_not-a-real-key-not-a-real-key-000000').get('/api/food/kitchen')).status).toBe(401);
+    expect(
+      (await keyed('lms_not-a-real-key-not-a-real-key-000000').get('/api/food/kitchen')).status,
+    ).toBe(401);
   });
 });
 
@@ -101,25 +117,55 @@ describe('MCP endpoint', () => {
   it('introduces itself and lists the tools the key may use', async () => {
     const { b } = await person('ana@example.com');
     const write = keyed((await newKey(b, 'food')).body.token);
-    const init = await write.post('/api/mcp', rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } }));
+    const init = await write.post(
+      '/api/mcp',
+      rpc('initialize', {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'test', version: '1' },
+      }),
+    );
     expect(init.status).toBe(200);
-    expect(init.body.result).toMatchObject({ protocolVersion: '2025-06-18', serverInfo: { name: 'lms-kitchen' }, capabilities: { tools: {}, prompts: {} } });
+    expect(init.body.result).toMatchObject({
+      protocolVersion: '2025-06-18',
+      serverInfo: { name: 'lms-kitchen' },
+      capabilities: { tools: {}, prompts: {} },
+    });
     expect(init.body.result.instructions).toMatch(/Start with kitchen_overview/);
-    expect((await write.post('/api/mcp', { jsonrpc: '2.0', method: 'notifications/initialized' })).status).toBe(202);
+    expect(
+      (await write.post('/api/mcp', { jsonrpc: '2.0', method: 'notifications/initialized' }))
+        .status,
+    ).toBe(202);
 
     const tools = (await write.post('/api/mcp', rpc('tools/list'))).body.result.tools;
     const names = tools.map((tool: any) => tool.name);
-    expect(names).toEqual(expect.arrayContaining(['kitchen_overview', 'add_stock', 'save_recipe', 'plan_meal', 'plan_needs', 'add_to_shopping_list']));
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'kitchen_overview',
+        'add_stock',
+        'save_recipe',
+        'plan_meal',
+        'plan_needs',
+        'add_to_shopping_list',
+      ]),
+    );
     expect(names).not.toContain('list_people');
     for (const tool of tools) {
       expect(tool.inputSchema.type).toBe('object');
       expect(JSON.stringify(tool.inputSchema)).not.toContain('$schema');
     }
-    expect(tools.find((tool: any) => tool.name === 'add_stock').inputSchema.properties.items.items.properties.name).toBeTruthy();
-    expect(tools.find((tool: any) => tool.name === 'update_meal').inputSchema.properties).toHaveProperty('mealId');
+    expect(
+      tools.find((tool: any) => tool.name === 'add_stock').inputSchema.properties.items.items
+        .properties.name,
+    ).toBeTruthy();
+    expect(
+      tools.find((tool: any) => tool.name === 'update_meal').inputSchema.properties,
+    ).toHaveProperty('mealId');
 
     const read = keyed((await newKey(b, 'food:read')).body.token);
-    const readNames = (await read.post('/api/mcp', rpc('tools/list'))).body.result.tools.map((tool: any) => tool.name);
+    const readNames = (await read.post('/api/mcp', rpc('tools/list'))).body.result.tools.map(
+      (tool: any) => tool.name,
+    );
     expect(readNames).toContain('list_stock');
     expect(readNames).not.toContain('add_stock');
   });
@@ -141,10 +187,17 @@ describe('MCP endpoint', () => {
       ],
     });
     expect(added.isError).toBeUndefined();
-    expect(JSON.parse(added.content[0].text).map((x: any) => x.item)).toEqual(['Beef steak', 'Beef steak', 'Tomatoes']);
+    expect(JSON.parse(added.content[0].text).map((x: any) => x.item)).toEqual([
+      'Beef steak',
+      'Beef steak',
+      'Tomatoes',
+    ]);
 
     const stock = JSON.parse((await call('list_stock', {})).content[0].text);
-    expect(stock.find((x: any) => x.name === 'Beef steak')).toMatchObject({ total: 1600, unit: 'g' });
+    expect(stock.find((x: any) => x.name === 'Beef steak')).toMatchObject({
+      total: 1600,
+      unit: 'g',
+    });
     expect(stock.find((x: any) => x.name === 'Beef steak').lots).toHaveLength(2);
 
     const saved = JSON.parse(
@@ -162,7 +215,10 @@ describe('MCP endpoint', () => {
     );
     expect(saved).toMatchObject({ title: 'Steak and tomatoes', ready: true, have: '2/2' });
 
-    const planned = JSON.parse((await call('plan_meal', { date: '2026-10-05', time: '19:00', recipeId: saved.id })).content[0].text);
+    const planned = JSON.parse(
+      (await call('plan_meal', { date: '2026-10-05', time: '19:00', recipeId: saved.id }))
+        .content[0].text,
+    );
     expect(planned).toMatchObject({ title: 'Steak and tomatoes', status: 'planned' });
     const done = JSON.parse((await call('complete_meal', { mealId: planned.id })).content[0].text);
     expect(done.meal.status).toBe('done');
@@ -174,15 +230,79 @@ describe('MCP endpoint', () => {
     expect(recipes.body.recipes[0].createdVia).toBe('ai');
   });
 
+  it('trains through tools: equipment, a made-up workout, planned, a set logged; a read key only looks', async () => {
+    const { b } = await person('ana@example.com');
+    const ai = keyed((await newKey(b, 'food')).body.token);
+    const call = async (name: string, args: unknown) => {
+      const res = await ai.post('/api/mcp', rpc('tools/call', { name, arguments: args }));
+      expect(res.status).toBe(200);
+      return res.body.result;
+    };
+    const json = async (name: string, args: unknown) =>
+      JSON.parse((await call(name, args)).content[0].text);
+
+    await json('add_equipment', { kind: 'kettlebell', weights: [12] });
+    const swings = (await json('list_exercises', { query: 'swing' }))[0];
+    expect(swings).toMatchObject({
+      name: 'Kettlebell swings',
+      available: true,
+      weights: [{ kg: 12, pair: false }],
+    });
+    const made = await json('suggest_workout', { minutes: 15, focus: 'lower', quiet: true });
+    const planned = await json('plan_workout', {
+      date: '2026-10-06',
+      title: made.title,
+      items: made.items,
+    });
+    expect(planned.status).toBe('planned');
+    const logged = await json('log_exercise', {
+      workoutId: planned.id,
+      exerciseId: planned.items[0].exerciseId,
+      reps: 10,
+    });
+    expect(logged.set.workoutId).toBe(planned.id);
+    const quick = await json('log_exercise', { exerciseId: swings.id, reps: 20, weight: 12 });
+    expect(quick.set).toMatchObject({ workoutId: null, reps: 20, weight: 12 });
+    expect(
+      (await b.get('/api/training/workouts?from=2026-10-06&to=2026-10-06')).body.workouts[0].status,
+    ).toBe('active');
+
+    const reader = keyed((await newKey(b, 'food:read', 'Reader')).body.token);
+    expect((await reader.get('/api/training/overview')).status).toBe(200);
+    expect(
+      (await reader.post('/api/training/sets', { exerciseId: swings.id, reps: 1 })).status,
+    ).toBe(403);
+    const refused = await reader.post(
+      '/api/mcp',
+      rpc('tools/call', { name: 'log_exercise', arguments: { exerciseId: swings.id, reps: 1 } }),
+    );
+    expect(JSON.stringify(refused.body)).toMatch(/error/i);
+  });
+
   it('answers mistakes as tool errors the model can fix', async () => {
     const { b } = await person('ana@example.com');
     const ai = keyed((await newKey(b, 'food:read')).body.token);
-    const bad = await ai.post('/api/mcp', rpc('tools/call', { name: 'list_meals', arguments: { from: 'tomorrow' } }));
+    const bad = await ai.post(
+      '/api/mcp',
+      rpc('tools/call', { name: 'list_meals', arguments: { from: 'tomorrow' } }),
+    );
     expect(bad.body.result.isError).toBe(true);
     expect(bad.body.result.content[0].text).toMatch(/from/);
-    const denied = await ai.post('/api/mcp', rpc('tools/call', { name: 'add_stock', arguments: { items: [{ name: 'Eggs', quantity: 1 }] } }));
+    const denied = await ai.post(
+      '/api/mcp',
+      rpc('tools/call', {
+        name: 'add_stock',
+        arguments: { items: [{ name: 'Eggs', quantity: 1 }] },
+      }),
+    );
     expect(denied.body.result).toMatchObject({ isError: true });
-    const missing = await ai.post('/api/mcp', rpc('tools/call', { name: 'get_recipe', arguments: { recipeId: '00000000-0000-4000-8000-000000000000' } }));
+    const missing = await ai.post(
+      '/api/mcp',
+      rpc('tools/call', {
+        name: 'get_recipe',
+        arguments: { recipeId: '00000000-0000-4000-8000-000000000000' },
+      }),
+    );
     expect(missing.body.result.content[0].text).toBe('Recipe not found');
     expect((await ai.post('/api/mcp', rpc('nope'))).body.error.code).toBe(-32601);
     expect((await ai.post('/api/mcp', { hello: 'world' })).body.error.code).toBe(-32600);
@@ -191,28 +311,65 @@ describe('MCP endpoint', () => {
   it('takes the key in the path for URL-only clients, and refuses without one', async () => {
     const { b } = await person('ana@example.com');
     const token = (await newKey(b, 'food')).body.token;
-    const viaPath = await t.app.request(`/api/mcp/k/${token}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(rpc('ping')) });
+    const viaPath = await t.app.request(`/api/mcp/k/${token}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(rpc('ping')),
+    });
     expect(viaPath.status).toBe(200);
     expect(((await viaPath.json()) as { result: unknown }).result).toEqual({});
-    const none = await t.app.request('/api/mcp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(rpc('ping')) });
+    const none = await t.app.request('/api/mcp', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(rpc('ping')),
+    });
     expect(none.status).toBe(401);
     expect(none.headers.get('www-authenticate')).toMatch(/Bearer/);
-    expect((await t.app.request('/api/mcp', { method: 'GET', headers: { authorization: `Bearer ${token}` } })).status).toBe(405);
+    expect(
+      (
+        await t.app.request('/api/mcp', {
+          method: 'GET',
+          headers: { authorization: `Bearer ${token}` },
+        })
+      ).status,
+    ).toBe(405);
     const prompts = (await keyed(token).post('/api/mcp', rpc('prompts/list'))).body.result.prompts;
-    expect(prompts.map((p: any) => p.name)).toEqual(['plan_week', 'use_it_up', 'shop_for_month', 'save_recipe_from']);
-    const prompt = (await keyed(token).post('/api/mcp', rpc('prompts/get', { name: 'plan_week', arguments: { people: '3' } }))).body.result;
+    expect(prompts.map((p: any) => p.name)).toEqual([
+      'plan_week',
+      'use_it_up',
+      'shop_for_month',
+      'save_recipe_from',
+    ]);
+    const prompt = (
+      await keyed(token).post(
+        '/api/mcp',
+        rpc('prompts/get', { name: 'plan_week', arguments: { people: '3' } }),
+      )
+    ).body.result;
     expect(prompt.messages[0].content.text).toMatch(/for 3 people/);
   });
 
   it('lets an admin key manage people through the same rules', async () => {
     const admin = await person('boss@example.com', 'admin', 'Cristian');
     const ai = keyed((await newKey(admin.b, 'admin')).body.token);
-    const created = await ai.post('/api/mcp', rpc('tools/call', { name: 'create_person', arguments: { email: 'mama@example.com', name: 'Elena' } }));
+    const created = await ai.post(
+      '/api/mcp',
+      rpc('tools/call', {
+        name: 'create_person',
+        arguments: { email: 'mama@example.com', name: 'Elena' },
+      }),
+    );
     const body = JSON.parse(created.body.result.content[0].text);
     expect(body.user).toMatchObject({ email: 'mama@example.com', mustChangePassword: true });
     expect(body.password).toMatch(/^[a-z2-9]{4}-/);
-    const people = JSON.parse((await ai.post('/api/mcp', rpc('tools/call', { name: 'list_people', arguments: {} }))).body.result.content[0].text);
-    expect(people.map((p: any) => p.email).sort()).toEqual(['boss@example.com', 'mama@example.com']);
+    const people = JSON.parse(
+      (await ai.post('/api/mcp', rpc('tools/call', { name: 'list_people', arguments: {} }))).body
+        .result.content[0].text,
+    );
+    expect(people.map((p: any) => p.email).sort()).toEqual([
+      'boss@example.com',
+      'mama@example.com',
+    ]);
   });
 });
 
@@ -227,14 +384,20 @@ describe('admin: shared kitchens', () => {
     expect(households).toHaveLength(2);
     const adminKitchen = households.find((h: any) => h.members[0].name === 'Cristian');
 
-    const seated = await admin.b.put(`/api/admin/users/${mama.user.id}/kitchen`, { householdId: adminKitchen.id });
+    const seated = await admin.b.put(`/api/admin/users/${mama.user.id}/kitchen`, {
+      householdId: adminKitchen.id,
+    });
     expect(seated.body.user.kitchen).toMatchObject({ id: adminKitchen.id, members: 2 });
     expect((await mama.b.get('/api/food/kitchen')).body.products[0].name).toBe('Milk');
 
-    const own = await admin.b.put(`/api/admin/users/${mama.user.id}/kitchen`, { householdId: null });
+    const own = await admin.b.put(`/api/admin/users/${mama.user.id}/kitchen`, {
+      householdId: null,
+    });
     expect(own.body.user.kitchen).toMatchObject({ name: 'Elena’s kitchen', members: 1 });
     expect((await mama.b.get('/api/food/kitchen')).body.products).toEqual([]);
-    expect((await mama.b.put(`/api/admin/users/${admin.user.id}/kitchen`, { householdId: null })).status).toBe(403);
+    expect(
+      (await mama.b.put(`/api/admin/users/${admin.user.id}/kitchen`, { householdId: null })).status,
+    ).toBe(403);
     void APP_URL;
   });
 });

@@ -78,6 +78,13 @@ import {
 } from '../food/stock';
 import { addRestriction, kitchenPeople, listRestrictions } from '../food/restrictions';
 import { createStore, listStores } from '../food/stores';
+import { EQUIPMENT_PRESETS } from '../training/catalog';
+import { generateWorkout } from '../training/generate';
+import { addEquipment, listEquipment, listExercises, syncCatalog } from '../training/library';
+import { EquipmentInput, GenerateInput, SetInput, WorkoutInput } from '../training/schemas';
+import { stats, trainingOverview } from '../training/stats';
+import { createWorkout, listWorkouts, logSet, personId } from '../training/workouts';
+import { localDate } from '../food/stock';
 import type { TokenScope } from '../tokens';
 
 /**
@@ -851,6 +858,132 @@ export const TOOLS: Tool[] = [
     input: z.object({}),
     run: async ({ internal }) =>
       ((await internal('GET', '/api/admin/households')).body as { households: unknown }).households,
+  }),
+  // Training: home workouts, each person's own (userId: someone in the household; default the key's owner).
+  tool({
+    name: 'training_overview',
+    title: 'Training today',
+    description:
+      'One person’s training: today’s and the next planned workout, this week day by day, streaks, pinned exercises with today’s count, sets logged today. Also lists the household’s people.',
+    access: 'read',
+    input: z.object({ userId: idField.optional(), today: dateField.optional() }),
+    run: async ({ ctx }, args) => {
+      await syncCatalog(ctx);
+      return trainingOverview(ctx, await personId(ctx, args.userId), args.today);
+    },
+  }),
+  tool({
+    name: 'list_exercises',
+    title: 'Exercises',
+    description:
+      'The household’s exercises: id, name, category, muscles, measure (reps/time/distance), whether it can be done with the equipment at home (available) and the weights owned for it. Filter by text or availability.',
+    access: 'read',
+    input: z.object({
+      query: z.string().max(60).optional(),
+      availableOnly: z.boolean().optional(),
+    }),
+    run: async ({ ctx }, args) => {
+      const all = await listExercises(ctx, ctx.actor.userId);
+      const q = args.query?.toLowerCase();
+      return all
+        .filter(
+          (e) =>
+            (!args.availableOnly || e.available) &&
+            (!q || e.name.toLowerCase().includes(q) || e.muscles.some((m) => m.includes(q))),
+        )
+        .map((e) => ({
+          id: e.id,
+          name: e.name,
+          category: e.category,
+          muscles: e.muscles,
+          measure: e.measure,
+          weighted: e.weighted,
+          unilateral: e.unilateral,
+          available: e.available,
+          weights: e.weights,
+          reps: e.reps,
+          seconds: e.seconds,
+          level: e.level,
+          impact: e.impact,
+        }));
+    },
+  }),
+  tool({
+    name: 'training_equipment',
+    title: 'Home equipment',
+    description:
+      'What the household trains with: mat, dumbbells (weights in kg, pairs or single), pull-up bar, treadmill, running route…',
+    access: 'read',
+    input: z.object({}),
+    run: async ({ ctx }) => ({
+      equipment: await listEquipment(ctx),
+      kinds: EQUIPMENT_PRESETS.map((p) => p.kind),
+    }),
+  }),
+  tool({
+    name: 'add_equipment',
+    title: 'Add home equipment',
+    description:
+      'Adds equipment the household owns. kind from training_equipment.kinds (or "other" with a name); weights in kg; pairs when they come two of each.',
+    access: 'write',
+    input: EquipmentInput,
+    run: async ({ ctx }, args) => addEquipment(ctx, args),
+  }),
+  tool({
+    name: 'plan_workout',
+    title: 'Plan a workout',
+    description:
+      'Plans a workout for someone on a date: an ordered list of exercises (exerciseId from list_exercises) with sets and a target (reps, seconds or distance in metres; weight in kg), rest in seconds. rounds > 1 repeats the main block as a circuit; block "warmup"/"cooldown" items are done once. Or routineId to copy a saved routine.',
+    access: 'write',
+    input: WorkoutInput,
+    run: async ({ ctx }, args) => createWorkout(ctx, args),
+  }),
+  tool({
+    name: 'suggest_workout',
+    title: 'Make up a workout',
+    description:
+      'Builds a workout from the equipment at home for a length (minutes), a focus (full, upper, lower, core, cardio, mobility), a level 1–3 and quiet (no jumping). Returns items to pass to plan_workout; saves nothing.',
+    access: 'read',
+    input: GenerateInput,
+    run: async ({ ctx }, args) => generateWorkout(ctx, await personId(ctx, args.userId), args),
+  }),
+  tool({
+    name: 'list_workouts',
+    title: 'Planned and done workouts',
+    description:
+      'Workouts between two dates for one person (or everyone: true), with status, sets done of planned, time and the exercises.',
+    access: 'read',
+    input: z.object({
+      from: dateField,
+      to: dateField,
+      userId: idField.optional(),
+      everyone: z.boolean().optional(),
+    }),
+    run: async ({ ctx }, args) =>
+      listWorkouts(ctx, {
+        from: args.from,
+        to: args.to,
+        userId: args.everyone ? null : await personId(ctx, args.userId),
+      }),
+  }),
+  tool({
+    name: 'log_exercise',
+    title: 'Log a set',
+    description:
+      'Records a set done: reps (and weight in kg), seconds, or distance in metres. Now by default; at for an exact time, or day when only the day is known. With workoutId it counts in that workout. Returns personal bests it set.',
+    access: 'write',
+    input: z.object({ workoutId: idField.optional() }).and(SetInput),
+    run: async ({ ctx }, args) => logSet(ctx, args, args.workoutId ?? null),
+  }),
+  tool({
+    name: 'training_stats',
+    title: 'Training statistics',
+    description:
+      'For one person between two dates: days trained, workouts, minutes, sets, reps, distance, sets per muscle, top exercises, and streaks.',
+    access: 'read',
+    input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
+    run: async ({ ctx }, args) =>
+      stats(ctx, await personId(ctx, args.userId), args.from, args.to, localDate(ctx.now)),
   }),
 ];
 

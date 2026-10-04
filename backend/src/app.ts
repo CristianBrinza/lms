@@ -1,10 +1,18 @@
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from './context';
 import { AppError } from './lib/errors';
-import { apiSecurityHeaders, jsonBodyLimit, noStore, originGuard, proxyGuard, requestContext } from './middleware/security';
+import {
+  apiSecurityHeaders,
+  jsonBodyLimit,
+  noStore,
+  originGuard,
+  proxyGuard,
+  requestContext,
+} from './middleware/security';
 import { adminRoutes } from './modules/admin/routes';
 import { authRoutes } from './modules/auth/routes';
 import { foodRoutes } from './modules/food/routes';
+import { trainingRoutes } from './modules/training/routes';
 import { healthRoutes } from './modules/health';
 import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
@@ -22,7 +30,11 @@ export function createApp(deps: AppDeps) {
   app.route('/api/me', meRoutes(deps));
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/food', foodRoutes(deps));
-  app.route('/api/mcp', mcpRoutes(deps, () => app));
+  app.route('/api/training', trainingRoutes(deps));
+  app.route(
+    '/api/mcp',
+    mcpRoutes(deps, () => app),
+  );
 
   app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404));
 
@@ -30,7 +42,13 @@ export function createApp(deps: AppDeps) {
     if (error instanceof AppError) {
       for (const [name, value] of Object.entries(error.headers ?? {})) c.header(name, value);
       return c.json(
-        { error: { code: error.code, message: error.message, ...(error.fields ? { fields: error.fields } : {}) } },
+        {
+          error: {
+            code: error.code,
+            message: error.message,
+            ...(error.fields ? { fields: error.fields } : {}),
+          },
+        },
         error.status as 400,
       );
     }

@@ -507,10 +507,141 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE meals ADD COLUMN out_cost numeric(10, 2) CHECK (out_cost >= 0);
     `,
   },
+  {
+    version: 18,
+    name: 'training',
+    sql: `
+      ALTER TABLE households ADD COLUMN training_catalog_version integer NOT NULL DEFAULT 0;
+
+      -- What the household trains with at home. Weights in kg; pairs = the weights come two of each.
+      CREATE TABLE training_equipment (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        kind text NOT NULL,
+        name text NOT NULL,
+        icon text NOT NULL DEFAULT 'mat',
+        weights numeric(6, 2)[] NOT NULL DEFAULT '{}',
+        pairs boolean NOT NULL DEFAULT false,
+        count integer NOT NULL DEFAULT 1 CHECK (count >= 0),
+        note text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX training_equipment_household_idx ON training_equipment (household_id);
+
+      -- The household's exercises: the catalog's (preset) and its own.
+      CREATE TABLE training_exercises (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        preset text,
+        name text NOT NULL,
+        category text NOT NULL CHECK (category IN ('strength', 'cardio', 'core', 'mobility', 'stretch')),
+        muscles text[] NOT NULL DEFAULT '{}',
+        secondary text[] NOT NULL DEFAULT '{}',
+        equipment jsonb NOT NULL DEFAULT '[]',
+        measure text NOT NULL CHECK (measure IN ('reps', 'time', 'distance')),
+        weighted boolean NOT NULL DEFAULT false,
+        unilateral boolean NOT NULL DEFAULT false,
+        reps integer CHECK (reps > 0),
+        seconds integer CHECK (seconds > 0),
+        distance integer CHECK (distance > 0),
+        rest integer NOT NULL DEFAULT 60 CHECK (rest >= 0),
+        level smallint NOT NULL DEFAULT 1 CHECK (level BETWEEN 1 AND 3),
+        impact text NOT NULL DEFAULT 'low' CHECK (impact IN ('low', 'high')),
+        icon text NOT NULL DEFAULT 'squat',
+        steps text[] NOT NULL DEFAULT '{}',
+        note text NOT NULL DEFAULT '',
+        archived_at timestamptz,
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (household_id, preset)
+      );
+      CREATE INDEX training_exercises_household_idx ON training_exercises (household_id);
+
+      -- Exercises someone keeps at hand for logging a set in passing.
+      CREATE TABLE training_pins (
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        exercise_id uuid NOT NULL REFERENCES training_exercises (id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, exercise_id)
+      );
+
+      -- Saved workouts to plan again: an ordered list of exercises with their sets.
+      CREATE TABLE training_routines (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        note text NOT NULL DEFAULT '',
+        items jsonb NOT NULL DEFAULT '[]',
+        rounds integer NOT NULL DEFAULT 1 CHECK (rounds BETWEEN 1 AND 20),
+        round_rest integer NOT NULL DEFAULT 60 CHECK (round_rest >= 0),
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX training_routines_household_idx ON training_routines (household_id);
+
+      -- One person's workout on a day: planned, under way, done or skipped.
+      CREATE TABLE training_workouts (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        date date NOT NULL,
+        time text,
+        title text NOT NULL,
+        routine_id uuid REFERENCES training_routines (id) ON DELETE SET NULL,
+        items jsonb NOT NULL DEFAULT '[]',
+        rounds integer NOT NULL DEFAULT 1 CHECK (rounds BETWEEN 1 AND 20),
+        round_rest integer NOT NULL DEFAULT 60 CHECK (round_rest >= 0),
+        status text NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'active', 'done', 'skipped')),
+        started_at timestamptz,
+        finished_at timestamptz,
+        duration_seconds integer CHECK (duration_seconds >= 0),
+        feeling smallint CHECK (feeling BETWEEN 1 AND 5),
+        note text NOT NULL DEFAULT '',
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX training_workouts_person_idx ON training_workouts (household_id, user_id, date);
+
+      -- Every set done: in a workout, or logged on its own (a push-up in passing).
+      CREATE TABLE training_sets (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        exercise_id uuid NOT NULL REFERENCES training_exercises (id) ON DELETE CASCADE,
+        workout_id uuid REFERENCES training_workouts (id) ON DELETE CASCADE,
+        item_index integer,
+        round integer,
+        set_number integer,
+        side text CHECK (side IN ('left', 'right')),
+        reps integer CHECK (reps >= 0),
+        weight numeric(6, 2) CHECK (weight >= 0),
+        seconds integer CHECK (seconds >= 0),
+        distance integer CHECK (distance >= 0),
+        performed_at timestamptz NOT NULL,
+        day date NOT NULL,
+        time_known boolean NOT NULL DEFAULT true,
+        effort smallint CHECK (effort BETWEEN 1 AND 10),
+        note text NOT NULL DEFAULT '',
+        via text NOT NULL DEFAULT 'app' CHECK (via IN ('app', 'ai')),
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX training_sets_person_day_idx ON training_sets (household_id, user_id, day);
+      CREATE INDEX training_sets_exercise_idx ON training_sets (user_id, exercise_id, performed_at DESC);
+      CREATE INDEX training_sets_workout_idx ON training_sets (workout_id) WHERE workout_id IS NOT NULL;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */
-export async function migrate(db: Database, log: (message: string) => void = () => undefined): Promise<void> {
+export async function migrate(
+  db: Database,
+  log: (message: string) => void = () => undefined,
+): Promise<void> {
   await db.tx(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(727274)');
     await client.query(
@@ -520,12 +651,17 @@ export async function migrate(db: Database, log: (message: string) => void = () 
          applied_at timestamptz NOT NULL DEFAULT now()
        )`,
     );
-    const { rows } = await client.query<{ version: number }>('SELECT version FROM schema_migrations');
+    const { rows } = await client.query<{ version: number }>(
+      'SELECT version FROM schema_migrations',
+    );
     const applied = new Set(rows.map((row) => row.version));
     for (const migration of MIGRATIONS) {
       if (applied.has(migration.version)) continue;
       await client.query(migration.sql);
-      await client.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2)', [migration.version, migration.name]);
+      await client.query('INSERT INTO schema_migrations (version, name) VALUES ($1, $2)', [
+        migration.version,
+        migration.name,
+      ]);
       log(`applied migration ${migration.version}: ${migration.name}`);
     }
   });
@@ -539,5 +675,7 @@ export async function cleanup(db: Database, now: Date): Promise<void> {
     `DELETE FROM sessions WHERE expires_at < $1::timestamptz - interval '30 days' OR revoked_at < $1::timestamptz - interval '30 days'`,
     [now],
   );
-  await db.query(`DELETE FROM audit_log WHERE created_at < $1::timestamptz - interval '365 days'`, [now]);
+  await db.query(`DELETE FROM audit_log WHERE created_at < $1::timestamptz - interval '365 days'`, [
+    now,
+  ]);
 }
