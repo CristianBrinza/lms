@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { toast } from '@/components/ui';
-import { ArrowOutIcon, HourglassIcon } from '@/components/ui/icons';
+import { ArrowOutIcon, ChevronRightIcon, HourglassIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { TONES, type Area } from './registry';
 
@@ -13,6 +13,7 @@ import { TONES, type Area } from './registry';
 export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   const tone = TONES[area.tone];
   const Icon = area.icon;
+  if (area.wide && area.to) return <AreaRow area={{ ...area, to: area.to }} index={index} />;
   const classes = cx(
     'group/tile relative flex aspect-[4/5] w-full flex-col rounded-[1.75rem] p-4 text-left sm:aspect-[5/5] sm:p-5 lg:aspect-[6/5] lg:p-6',
     'animate-deal transition-[translate,box-shadow] duration-300 ease-(--ease-lift)',
@@ -79,6 +80,51 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
     >
       {content}
     </button>
+  );
+}
+
+/**
+ * A full-width area (Shopping) as one compact row, like Kitchenware on Food home: the icon in a
+ * small square, the name and its line, a chevron.
+ */
+function AreaRow({ area, index }: { area: Area & { to: string }; index: number }) {
+  const tone = TONES[area.tone];
+  const Icon = area.icon;
+  return (
+    <Link
+      to={area.to}
+      viewTransition
+      style={{ animationDelay: `${80 + index * 70}ms` }}
+      className={cx(
+        'press group/tile flex min-h-16 items-center gap-3 rounded-[1.25rem] py-2.5 pl-2.5 pr-3 shadow-[var(--shadow-card)]',
+        'animate-deal transition-[translate,box-shadow] duration-300 ease-(--ease-lift) hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]',
+        tone.surface,
+        tone.text,
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cx(
+          'grid size-11 shrink-0 place-items-center rounded-[0.875rem] text-[1.4rem]',
+          tone.button,
+        )}
+      >
+        <Icon fontSize="inherit" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[0.9375rem] font-bold leading-tight">{area.name}</span>
+        <span className={cx('mt-0.5 block truncate text-[0.8125rem] font-medium', tone.muted)}>
+          {area.summary}
+        </span>
+      </span>
+      <ChevronRightIcon
+        fontSize="inherit"
+        className={cx(
+          'shrink-0 text-[1.4rem] transition-transform duration-200 group-hover/tile:translate-x-0.5',
+          tone.muted,
+        )}
+      />
+    </Link>
   );
 }
 
