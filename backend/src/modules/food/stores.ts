@@ -28,7 +28,15 @@ interface StoreRow {
   created_at: Date;
 }
 
-const toStore = (row: StoreRow): Store => ({ id: row.id, name: row.name, tone: row.tone, sort: row.sort, open: row.open, inCart: row.in_cart, createdAt: row.created_at.toISOString() });
+const toStore = (row: StoreRow): Store => ({
+  id: row.id,
+  name: row.name,
+  tone: row.tone,
+  sort: row.sort,
+  open: row.open,
+  inCart: row.in_cart,
+  createdAt: row.created_at.toISOString(),
+});
 
 export async function listStores(ctx: FoodCtx): Promise<Store[]> {
   const { rows } = await ctx.db.query<StoreRow>(
@@ -51,43 +59,52 @@ export async function findStore(ctx: FoodCtx, id: string): Promise<Store> {
 }
 
 async function nameTaken(ctx: FoodCtx, name: string, except?: string): Promise<boolean> {
-  const { rowCount } = await ctx.db.query('SELECT 1 FROM stores WHERE household_id = $1 AND lower(name) = lower($2) AND id IS DISTINCT FROM $3', [
-    ctx.actor.householdId,
-    name,
-    except ?? null,
-  ]);
+  const { rowCount } = await ctx.db.query(
+    'SELECT 1 FROM stores WHERE household_id = $1 AND lower(name) = lower($2) AND id IS DISTINCT FROM $3',
+    [ctx.actor.householdId, name, except ?? null],
+  );
   return Boolean(rowCount);
 }
 
 export async function createStore(ctx: FoodCtx, input: z.infer<typeof StoreInput>): Promise<Store> {
-  if (await nameTaken(ctx, input.name)) throw new AppError(409, 'EXISTS', `${input.name} is already a store`, { fields: { name: 'You already have this store' } });
-  const { rows } = await ctx.db.query<{ next: number }>('SELECT coalesce(max(sort) + 1, 0)::int AS next FROM stores WHERE household_id = $1', [ctx.actor.householdId]);
+  if (await nameTaken(ctx, input.name))
+    throw new AppError(409, 'EXISTS', `${input.name} is already a store`, {
+      fields: { name: 'You already have this store' },
+    });
+  const { rows } = await ctx.db.query<{ next: number }>(
+    'SELECT coalesce(max(sort) + 1, 0)::int AS next FROM stores WHERE household_id = $1',
+    [ctx.actor.householdId],
+  );
   const id = randomUUID();
-  await ctx.db.query('INSERT INTO stores (id, household_id, name, tone, sort, created_at) VALUES ($1, $2, $3, $4, $5, $6)', [
-    id,
-    ctx.actor.householdId,
-    input.name,
-    input.tone ?? 'butter',
-    rows[0]!.next,
-    ctx.now,
-  ]);
+  await ctx.db.query(
+    'INSERT INTO stores (id, household_id, name, tone, sort, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+    [id, ctx.actor.householdId, input.name, input.tone ?? 'butter', rows[0]!.next, ctx.now],
+  );
   return findStore(ctx, id);
 }
 
-export async function updateStore(ctx: FoodCtx, id: string, patch: z.infer<typeof StorePatch>): Promise<Store> {
+export async function updateStore(
+  ctx: FoodCtx,
+  id: string,
+  patch: z.infer<typeof StorePatch>,
+): Promise<Store> {
   await findStore(ctx, id);
-  if (patch.name && (await nameTaken(ctx, patch.name, id))) throw new AppError(409, 'EXISTS', `${patch.name} is already a store`, { fields: { name: 'You already have this store' } });
-  await ctx.db.query('UPDATE stores SET name = coalesce($2, name), tone = coalesce($3, tone), sort = coalesce($4, sort) WHERE id = $1', [
-    id,
-    patch.name ?? null,
-    patch.tone ?? null,
-    patch.sort ?? null,
-  ]);
+  if (patch.name && (await nameTaken(ctx, patch.name, id)))
+    throw new AppError(409, 'EXISTS', `${patch.name} is already a store`, {
+      fields: { name: 'You already have this store' },
+    });
+  await ctx.db.query(
+    'UPDATE stores SET name = coalesce($2, name), tone = coalesce($3, tone), sort = coalesce($4, sort) WHERE id = $1',
+    [id, patch.name ?? null, patch.tone ?? null, patch.sort ?? null],
+  );
   return findStore(ctx, id);
 }
 
 /** Removes a store: its open lines move to “any store”; past trips keep its name. */
 export async function deleteStore(ctx: FoodCtx, id: string): Promise<void> {
   await findStore(ctx, id);
-  await ctx.db.query('DELETE FROM stores WHERE id = $1 AND household_id = $2', [id, ctx.actor.householdId]);
+  await ctx.db.query('DELETE FROM stores WHERE id = $1 AND household_id = $2', [
+    id,
+    ctx.actor.householdId,
+  ]);
 }

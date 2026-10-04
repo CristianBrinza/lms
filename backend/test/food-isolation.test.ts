@@ -70,16 +70,14 @@ describe('food: kitchens are separate', () => {
       ],
       [
         'use Ana’s lot from his milk',
-        bob
-          .post('/api/food/stock', { name: 'Milk', quantity: 500, unit: 'ml' })
-          .then((r) =>
-            bob.post('/api/food/stock/use', {
-              productId: r.body.product.id,
-              lotId: milk.lot.id,
-              quantity: 10,
-              unit: 'ml',
-            }),
-          ),
+        bob.post('/api/food/stock', { name: 'Milk', quantity: 500, unit: 'ml' }).then((r) =>
+          bob.post('/api/food/stock/use', {
+            productId: r.body.product.id,
+            lotId: milk.lot.id,
+            quantity: 10,
+            unit: 'ml',
+          }),
+        ),
       ],
       ['change Ana’s lot', bob.patch(`/api/food/lots/${milk.lot.id}`, { quantity: 1 })],
       [

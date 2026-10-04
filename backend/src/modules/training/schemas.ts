@@ -41,6 +41,11 @@ export const EquipmentInput = z.object({
   pairs: z.boolean().optional().describe('The weights come two of each (a pair of 8 kg dumbbells)'),
   count: z.number().int().min(0).max(100).optional(),
   note: noteField.optional(),
+  variants: z
+    .array(z.object({ name: z.string().trim().min(1).max(40), kg: kgField.nullable().optional() }))
+    .max(30)
+    .optional()
+    .describe('Its pieces: each band with its resistance in kg, each grip of the bar'),
 });
 export type EquipmentInput = z.infer<typeof EquipmentInput>;
 export const EquipmentPatch = EquipmentInput.omit({ kind: true }).partial();
@@ -71,8 +76,15 @@ export const ExerciseInput = z.object({
   icon: z.string().trim().max(40).optional(),
   steps: z.array(z.string().trim().min(1).max(300)).max(10).optional(),
   note: noteField.optional(),
+  variants: z
+    .array(z.string().trim().min(1).max(40))
+    .max(20)
+    .optional()
+    .describe('Ways to do it: grips, stances, positions'),
 });
 export type ExerciseInput = z.infer<typeof ExerciseInput>;
+export const ExerciseCreate = ExerciseInput.extend({ userId: userField });
+export type ExerciseCreate = z.infer<typeof ExerciseCreate>;
 export const ExercisePatch = ExerciseInput.partial()
   .extend({ archived: z.boolean().optional() })
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
@@ -94,6 +106,12 @@ export const WorkoutItem = z.object({
     .optional()
     .describe('Seconds of rest after each set; default the exercise’s'),
   note: z.string().trim().max(200).optional(),
+  variant: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .describe('Grip, stance or band: one of the exercise’s options'),
   block: z
     .enum(['warmup', 'main', 'cooldown'])
     .optional()
@@ -111,6 +129,7 @@ const roundsField = z
 const roundRestField = z.number().int().min(0).max(1800).describe('Seconds of rest between rounds');
 
 export const RoutineInput = z.object({
+  userId: userField,
   name: nameField,
   note: noteField.optional(),
   items: itemsField.min(1, 'Add an exercise'),
@@ -118,10 +137,9 @@ export const RoutineInput = z.object({
   roundRest: roundRestField.optional(),
 });
 export type RoutineInput = z.infer<typeof RoutineInput>;
-export const RoutinePatch = RoutineInput.partial().refine(
-  (body) => Object.keys(body).length > 0,
-  'Nothing to change',
-);
+export const RoutinePatch = RoutineInput.omit({ userId: true })
+  .partial()
+  .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type RoutinePatch = z.infer<typeof RoutinePatch>;
 
 export const WorkoutInput = z.object({
@@ -177,6 +195,11 @@ export const SetInput = z
     side: z.enum(['left', 'right']).nullable().optional(),
     effort: z.number().int().min(1).max(10).nullable().optional().describe('How hard, 1–10'),
     note: z.string().trim().max(200).optional(),
+    variant: z.string().trim().max(60).optional().describe('Grip, stance or band used'),
+    clientId: z
+      .uuid()
+      .optional()
+      .describe('The app’s own id for this set: sending it twice logs it once'),
     at: z.iso.datetime({ offset: true }).optional().describe('When it was done; default now'),
     day: dateField.optional().describe('Only the day is known ("sometime yesterday")'),
     itemIndex: z.number().int().min(0).max(40).optional(),
@@ -200,6 +223,7 @@ export const SetPatch = z
     distance: z.number().int().min(0).max(1_000_000).nullable(),
     effort: z.number().int().min(1).max(10).nullable(),
     note: z.string().trim().max(200),
+    variant: z.string().trim().max(60),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');

@@ -19,7 +19,10 @@ import { revokeAllSessions } from '../modules/auth/sessions';
 function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    const output = rl as unknown as { _writeToOutput: (text: string) => void; output: NodeJS.WriteStream };
+    const output = rl as unknown as {
+      _writeToOutput: (text: string) => void;
+      output: NodeJS.WriteStream;
+    };
     let prompted = false;
     output._writeToOutput = (text: string) => {
       if (!prompted) {
@@ -38,7 +41,11 @@ function askHidden(question: string): Promise<string> {
 async function main() {
   loadDotEnv(process.env.ENV_FILE ?? '.env');
   const { values } = parseArgs({
-    options: { email: { type: 'string' }, name: { type: 'string' }, surname: { type: 'string', default: '' } },
+    options: {
+      email: { type: 'string' },
+      name: { type: 'string' },
+      surname: { type: 'string', default: '' },
+    },
   });
   const email = emailField.safeParse(values.email ?? '');
   if (!email.success) throw new Error('Pass --email you@example.com');
@@ -56,16 +63,24 @@ async function main() {
     const existing = await findUserByEmail(db, email.data);
     if (existing) {
       await db.tx(async (tx) => {
-        await tx.query(`UPDATE users SET role = 'admin', is_active = true, password_hash = $2, must_change_password = false, updated_at = now() WHERE id = $1`, [
-          existing.id,
-          hash,
-        ]);
+        await tx.query(
+          `UPDATE users SET role = 'admin', is_active = true, password_hash = $2, must_change_password = false, updated_at = now() WHERE id = $1`,
+          [existing.id, hash],
+        );
         await revokeAllSessions(tx, existing.id, new Date());
       });
       console.info(`[create-admin] ${email.data} is now an admin with the new password.`);
     } else {
       if (!values.name) throw new Error('Pass --name for a new account');
-      await insertUser(db, { email: email.data, name: values.name, surname: values.surname ?? '', role: 'admin', passwordHash: hash, mustChangePassword: false, createdBy: null });
+      await insertUser(db, {
+        email: email.data,
+        name: values.name,
+        surname: values.surname ?? '',
+        role: 'admin',
+        passwordHash: hash,
+        mustChangePassword: false,
+        createdBy: null,
+      });
       console.info(`[create-admin] created admin ${email.data}.`);
     }
   } finally {

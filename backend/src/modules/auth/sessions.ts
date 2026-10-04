@@ -27,12 +27,18 @@ interface SessionRow {
 }
 
 function sessionExpiry(deps: AppDeps, remember: boolean, from: Date): Date {
-  const ms = remember ? deps.config.session.rememberDays * 86_400_000 : deps.config.session.sessionHours * 3_600_000;
+  const ms = remember
+    ? deps.config.session.rememberDays * 86_400_000
+    : deps.config.session.sessionHours * 3_600_000;
   return new Date(from.getTime() + ms);
 }
 
 export function issueAccessToken(deps: AppDeps, user: User, sessionId: string): Promise<string> {
-  return signAccessToken(deps.config, { sub: user.id, sid: sessionId, role: user.role, tv: user.tokenVersion }, deps.now());
+  return signAccessToken(
+    deps.config,
+    { sub: user.id, sid: sessionId, role: user.role, tv: user.tokenVersion },
+    deps.now(),
+  );
 }
 
 export async function createSession(
@@ -46,18 +52,37 @@ export async function createSession(
   await deps.db.query(
     `INSERT INTO sessions (id, user_id, token_hash, remember, user_agent, ip, created_at, last_used_at, expires_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8)`,
-    [id, user.id, sha256Hex(refreshToken), meta.remember, truncate(meta.userAgent, 300), maskIp(meta.ip), now, sessionExpiry(deps, meta.remember, now)],
+    [
+      id,
+      user.id,
+      sha256Hex(refreshToken),
+      meta.remember,
+      truncate(meta.userAgent, 300),
+      maskIp(meta.ip),
+      now,
+      sessionExpiry(deps, meta.remember, now),
+    ],
   );
-  return { accessToken: await issueAccessToken(deps, user, id), refreshToken, remember: meta.remember, sessionId: id };
+  return {
+    accessToken: await issueAccessToken(deps, user, id),
+    refreshToken,
+    remember: meta.remember,
+    sessionId: id,
+  };
 }
 
-export type RotateResult = { status: 'ok'; tokens: IssuedTokens; user: User } | { status: 'race' } | { status: 'invalid' };
+export type RotateResult =
+  { status: 'ok'; tokens: IssuedTokens; user: User } | { status: 'race' } | { status: 'invalid' };
 
 /**
  * Refresh-token rotation with reuse detection: every refresh swaps the token; presenting an
  * already-rotated token after the grace window revokes the whole session.
  */
-export async function rotateSession(deps: AppDeps, refreshToken: string, meta: { userAgent?: string; ip?: string }): Promise<RotateResult> {
+export async function rotateSession(
+  deps: AppDeps,
+  refreshToken: string,
+  meta: { userAgent?: string; ip?: string },
+): Promise<RotateResult> {
   const now = deps.now();
   const hash = sha256Hex(refreshToken);
   const nextToken = randomToken(32);
@@ -73,7 +98,15 @@ export async function rotateSession(deps: AppDeps, refreshToken: string, meta: {
          user_agent = COALESCE(NULLIF($6, ''), user_agent), ip = COALESCE(NULLIF($7, ''), ip)
        WHERE id = $1 AND token_hash = $2 AND revoked_at IS NULL
        RETURNING id, user_id, remember, rotated_at, revoked_at, expires_at`,
-      [session.id, hash, sha256Hex(nextToken), now, sessionExpiry(deps, session.remember, now), truncate(meta.userAgent, 300), maskIp(meta.ip)],
+      [
+        session.id,
+        hash,
+        sha256Hex(nextToken),
+        now,
+        sessionExpiry(deps, session.remember, now),
+        truncate(meta.userAgent, 300),
+        maskIp(meta.ip),
+      ],
     );
     const rotated = updated[0];
     if (!rotated) return { status: 'race' };
@@ -86,7 +119,12 @@ export async function rotateSession(deps: AppDeps, refreshToken: string, meta: {
     return {
       status: 'ok',
       user,
-      tokens: { accessToken: await issueAccessToken(deps, user, rotated.id), refreshToken: nextToken, remember: rotated.remember, sessionId: rotated.id },
+      tokens: {
+        accessToken: await issueAccessToken(deps, user, rotated.id),
+        refreshToken: nextToken,
+        remember: rotated.remember,
+        sessionId: rotated.id,
+      },
     };
   }
 
@@ -100,26 +138,48 @@ export async function rotateSession(deps: AppDeps, refreshToken: string, meta: {
     if (rotatedAgo <= REFRESH_RACE_GRACE_MS) return { status: 'race' };
     // An old token came back long after rotation: assume it was stolen and end the session.
     await revokeSession(deps.db, old.id, now);
-    await audit(deps, { actorId: old.user_id, action: 'auth.session_reuse', targetId: old.user_id, ip: maskIp(meta.ip) });
+    await audit(deps, {
+      actorId: old.user_id,
+      action: 'auth.session_reuse',
+      targetId: old.user_id,
+      ip: maskIp(meta.ip),
+    });
   }
   return { status: 'invalid' };
 }
 
 export async function revokeSession(db: Queryable, sessionId: string, now: Date): Promise<void> {
-  await db.query('UPDATE sessions SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL', [sessionId, now]);
+  await db.query('UPDATE sessions SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL', [
+    sessionId,
+    now,
+  ]);
 }
 
 export async function revokeSessionByToken(deps: AppDeps, refreshToken: string): Promise<void> {
-  await deps.db.query('UPDATE sessions SET revoked_at = $2 WHERE token_hash = $1 AND revoked_at IS NULL', [sha256Hex(refreshToken), deps.now()]);
+  await deps.db.query(
+    'UPDATE sessions SET revoked_at = $2 WHERE token_hash = $1 AND revoked_at IS NULL',
+    [sha256Hex(refreshToken), deps.now()],
+  );
 }
 
 /**
  * Signs a person out everywhere: revokes their sessions (but `keep`) and bumps the token
  * version, so access tokens already handed out stop working at once.
  */
-export async function revokeAllSessions(db: Queryable, userId: string, now: Date, keep: string | null = null): Promise<void> {
-  await db.query('UPDATE sessions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL AND id IS DISTINCT FROM $3', [userId, now, keep]);
-  await db.query('UPDATE users SET token_version = token_version + 1, updated_at = $2 WHERE id = $1', [userId, now]);
+export async function revokeAllSessions(
+  db: Queryable,
+  userId: string,
+  now: Date,
+  keep: string | null = null,
+): Promise<void> {
+  await db.query(
+    'UPDATE sessions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL AND id IS DISTINCT FROM $3',
+    [userId, now, keep],
+  );
+  await db.query(
+    'UPDATE users SET token_version = token_version + 1, updated_at = $2 WHERE id = $1',
+    [userId, now],
+  );
 }
 
 export interface DeviceSession {
@@ -132,7 +192,11 @@ export interface DeviceSession {
   current: boolean;
 }
 
-export async function listActiveSessions(deps: AppDeps, userId: string, currentId: string | null): Promise<DeviceSession[]> {
+export async function listActiveSessions(
+  deps: AppDeps,
+  userId: string,
+  currentId: string | null,
+): Promise<DeviceSession[]> {
   const { rows } = await deps.db.query<{
     id: string;
     user_agent: string;

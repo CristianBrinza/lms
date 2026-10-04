@@ -33,7 +33,9 @@ export async function enforceRateLimits(
   deps: AppDeps,
   buckets: Array<{ key: string; limit: number; windowSec: number }>,
 ): Promise<void> {
-  const results = await Promise.all(buckets.map((bucket) => hitRateLimit(deps, bucket.key, bucket.limit, bucket.windowSec)));
+  const results = await Promise.all(
+    buckets.map((bucket) => hitRateLimit(deps, bucket.key, bucket.limit, bucket.windowSec)),
+  );
   const blocked = results.filter((result) => !result.allowed);
   if (blocked.length > 0) {
     const retryAfter = Math.max(...blocked.map((result) => result.retryAfterSec));

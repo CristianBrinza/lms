@@ -7,7 +7,7 @@
  * Raising CATALOG_VERSION brings new catalog exercises into every household once.
  */
 
-export const CATALOG_VERSION = 1;
+export const CATALOG_VERSION = 2;
 
 export const MUSCLES = [
   'chest',
@@ -45,6 +45,8 @@ export interface EquipmentPreset {
   /** Weights to offer when adding it. */
   weights?: number[];
   note?: string;
+  /** Pieces to offer when adding it: the bands of a set, the grips a bar has. */
+  pieces?: Array<{ name: string; kg: number | null }>;
 }
 
 export const EQUIPMENT_PRESETS: EquipmentPreset[] = [
@@ -77,8 +79,26 @@ export const EQUIPMENT_PRESETS: EquipmentPreset[] = [
     icon: 'bands',
     weighted: false,
     note: 'Light, medium, heavy',
+    pieces: [
+      { name: 'Yellow, light', kg: 5 },
+      { name: 'Red, medium', kg: 10 },
+      { name: 'Green, heavy', kg: 15 },
+      { name: 'Blue, extra heavy', kg: 20 },
+      { name: 'Black, very heavy', kg: 30 },
+    ],
   },
-  { kind: 'pullup_bar', name: 'Pull-up bar', icon: 'pullup-bar', weighted: false },
+  {
+    kind: 'pullup_bar',
+    name: 'Pull-up bar',
+    icon: 'pullup-bar',
+    weighted: false,
+    pieces: [
+      { name: 'Wide grip', kg: null },
+      { name: 'Shoulder-width', kg: null },
+      { name: 'Close grip', kg: null },
+      { name: 'Neutral grip (parallel)', kg: null },
+    ],
+  },
   { kind: 'dip_bars', name: 'Dip bars', icon: 'dip-bars', weighted: false },
   { kind: 'chair', name: 'Sturdy chair', icon: 'chair', weighted: false },
   { kind: 'bench', name: 'Bench', icon: 'bench', weighted: false },
@@ -113,7 +133,16 @@ export const EQUIPMENT_PRESETS: EquipmentPreset[] = [
     weighted: true,
     weights: [5, 10, 15, 20],
   },
-  { kind: 'rings', name: 'Gymnastic rings', icon: 'rings', weighted: false },
+  {
+    kind: 'rings',
+    name: 'Gymnastic rings',
+    icon: 'rings',
+    weighted: false,
+    pieces: [
+      { name: 'Rings high', kg: null },
+      { name: 'Rings low', kg: null },
+    ],
+  },
   { kind: 'suspension', name: 'Suspension trainer', icon: 'suspension', weighted: false },
   { kind: 'parallettes', name: 'Parallettes', icon: 'parallettes', weighted: false },
   { kind: 'hand_grip', name: 'Hand grip', icon: 'hand-grip', weighted: false },
@@ -145,6 +174,8 @@ export interface ExercisePreset {
   impact?: 'low' | 'high';
   icon: string;
   steps: string[];
+  /** Ways to do it: grips, stances, positions. Equipment pieces (bands, bar grips) add theirs. */
+  variants?: string[];
 }
 
 const NONE: string[][] = [];
@@ -165,6 +196,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 2,
     icon: 'push-up',
+    variants: ['Wide hands', 'Shoulder-width', 'Close hands', 'On fists', 'Slow down, 3 s'],
     steps: [
       'Hands under the shoulders, body in one line from head to heels.',
       'Lower until the chest nearly touches the floor, elbows at about 45°.',
@@ -273,6 +305,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'dip',
+    variants: ['Knees bent', 'Legs straight', 'Feet raised'],
     steps: [
       'Hands on the edge behind you, fingers forward.',
       'Lower until the elbows reach 90°.',
@@ -293,6 +326,14 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 90,
     level: 3,
     icon: 'pull-up',
+    variants: [
+      'Wide grip',
+      'Shoulder-width',
+      'Close grip',
+      'Neutral grip (parallel)',
+      'Mixed grip',
+      'Arms straight hang',
+    ],
     steps: [
       'Hang with hands a bit wider than the shoulders, palms away.',
       'Pull until the chin is over the bar.',
@@ -312,6 +353,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 90,
     level: 3,
     icon: 'pull-up',
+    variants: ['Shoulder-width', 'Close grip', 'Neutral grip (parallel)'],
     steps: ['Palms toward you, shoulder-width.', 'Pull the chest toward the bar.', 'Lower slowly.'],
   },
   {
@@ -326,6 +368,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 90,
     level: 2,
     icon: 'pull-up',
+    variants: ['Wide grip', 'Shoulder-width', 'Close grip', 'Neutral grip (parallel)'],
     steps: [
       'Jump or step up so the chin is over the bar.',
       'Lower yourself over 4–5 seconds.',
@@ -344,6 +387,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'hang',
+    variants: ['Two hands', 'One hand', 'Wide grip', 'Neutral grip (parallel)'],
     steps: [
       'Hang with straight arms.',
       'Shoulders a little engaged, not up by the ears.',
@@ -362,6 +406,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 2,
     icon: 'hanging-knee-raise',
+    variants: ['Knees bent', 'Legs straight', 'Knees to the side'],
     steps: [
       'Hang from the bar.',
       'Bring the knees up toward the chest without swinging.',
@@ -380,6 +425,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 2,
     icon: 'inverted-row',
+    variants: ['Wide grip', 'Close grip', 'Neutral grip (parallel)', 'Feet raised'],
     steps: [
       'Lean back holding the handles, body straight.',
       'Pull the chest to the hands.',
@@ -418,6 +464,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'squat',
+    variants: ['Wide stance', 'Narrow stance', 'Pause at the bottom', 'Tempo 3-1-1'],
     steps: [
       'Feet shoulder-width, toes a little out.',
       'Sit back and down until the thighs are level with the floor.',
@@ -457,6 +504,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'lunge',
+    variants: ['Forward', 'Walking', 'Side lunge'],
     steps: [
       'Step forward and lower until both knees are at 90°.',
       'Front knee over the ankle.',
@@ -554,6 +602,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 45,
     level: 1,
     icon: 'bridge',
+    variants: ['Feet close', 'Feet wide', 'Pause at the top'],
     steps: [
       'On your back, knees bent, feet flat.',
       'Push the hips up until the body is straight from shoulders to knees.',
@@ -610,6 +659,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 45,
     level: 1,
     icon: 'calf-raise',
+    variants: ['Both legs', 'Single leg', 'On a step'],
     steps: ['Stand tall, a hand on the wall for balance.', 'Rise onto the toes.', 'Lower slowly.'],
   },
   {
@@ -625,6 +675,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 75,
     level: 1,
     icon: 'goblet-squat',
+    variants: ['Wide stance', 'Narrow stance', 'Pause at the bottom'],
     steps: ['Hold the weight at the chest.', 'Squat between the knees, chest up.', 'Stand up.'],
   },
   {
@@ -640,6 +691,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 75,
     level: 2,
     icon: 'deadlift',
+    variants: ['Both legs', 'Single leg', 'Pause at the bottom'],
     steps: [
       'Weights in front of the thighs, knees soft.',
       'Push the hips back, weights close to the legs, back flat.',
@@ -659,6 +711,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 2,
     icon: 'kettlebell-swing',
+    variants: ['Two hands', 'One hand', 'Alternating hands'],
     steps: [
       'Hinge and hike the bell back between the legs.',
       'Snap the hips forward to float it to chest height.',
@@ -698,6 +751,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'curl',
+    variants: ['Both arms', 'Alternating', 'Slow down, 3 s'],
     steps: ['Elbows by the sides.', 'Curl the weights up without swinging.', 'Lower slowly.'],
   },
   {
@@ -727,6 +781,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 75,
     level: 1,
     icon: 'shoulder-press',
+    variants: ['Standing', 'Seated', 'One arm at a time', 'Neutral grip (palms in)'],
     steps: [
       'Weights at shoulder height.',
       'Press straight up without arching the back.',
@@ -765,6 +820,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'row',
+    variants: ['Palm in', 'Palm back', 'Elbow wide'],
     steps: [
       'One hand and knee on a bench or chair.',
       'Pull the weight to the hip.',
@@ -784,6 +840,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 75,
     level: 2,
     icon: 'row',
+    variants: ['Palms down', 'Palms in', 'Underhand'],
     steps: ['Hinge forward, back flat.', 'Pull both weights to the lower ribs.', 'Lower slowly.'],
   },
   {
@@ -889,6 +946,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 45,
     level: 1,
     icon: 'band-pull-apart',
+    variants: ['Palms down', 'Palms up', 'Overhead'],
     steps: [
       'Hold the band in front at shoulder height.',
       'Pull it apart until it touches the chest.',
@@ -907,6 +965,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 45,
     level: 1,
     icon: 'band-row',
+    variants: ['Seated', 'Standing', 'Wide grip', 'Close grip'],
     steps: [
       'Band around the feet or a door handle.',
       'Pull the hands to the ribs.',
@@ -926,6 +985,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 60,
     level: 1,
     icon: 'farmer-carry',
+    variants: ['Both hands', 'One hand (suitcase)'],
     steps: [
       'Heavy weights by the sides.',
       'Walk tall with small steps.',
@@ -980,6 +1040,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 45,
     level: 1,
     icon: 'plank',
+    variants: ['On forearms', 'Arms straight', 'Shoulder taps'],
     steps: [
       'Forearms under the shoulders.',
       'Body in one line, glutes squeezed.',
@@ -999,6 +1060,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 30,
     level: 1,
     icon: 'side-plank',
+    variants: ['On forearm', 'Arm straight', 'With leg lift'],
     steps: [
       'Forearm under the shoulder, feet stacked.',
       'Lift the hips into a straight line.',
@@ -1016,6 +1078,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 30,
     level: 1,
     icon: 'crunch',
+    variants: ['Hands by the head', 'Arms crossed', 'Arms straight up'],
     steps: ['On your back, knees bent.', 'Curl the shoulders off the floor.', 'Lower slowly.'],
   },
   {
@@ -1311,6 +1374,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     rest: 0,
     level: 1,
     icon: 'run',
+    variants: ['Easy', 'Tempo', 'Long'],
     steps: [
       'Start easy for the first few minutes.',
       'A pace you could still talk at.',

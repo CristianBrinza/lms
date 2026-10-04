@@ -12,7 +12,9 @@ const bool = (fallback: boolean) =>
   z
     .string()
     .optional()
-    .transform((value) => (value === undefined || value === '' ? fallback : /^(1|true|yes|on)$/i.test(value)));
+    .transform((value) =>
+      value === undefined || value === '' ? fallback : /^(1|true|yes|on)$/i.test(value),
+    );
 
 const int = (fallback: number, min: number, max: number) =>
   z
@@ -90,7 +92,9 @@ export class ConfigError extends Error {
 export function loadConfig(source: Record<string, string | undefined>): AppConfig {
   const parsed = EnvSchema.safeParse(source);
   if (!parsed.success) {
-    throw new ConfigError(parsed.error.issues.map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`));
+    throw new ConfigError(
+      parsed.error.issues.map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`),
+    );
   }
   const env = parsed.data;
   const isProd = env.NODE_ENV === 'production';
@@ -99,10 +103,15 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
 
   if (isProd) {
     if (!appUrl.startsWith('https://')) problems.push('APP_URL must use https:// in production');
-    if (!env.PROXY_SECRET) problems.push('PROXY_SECRET is required in production (the Worker sends it; direct tunnel hits get 404)');
-    if (env.PROXY_SECRET && env.PROXY_SECRET.length < 32) problems.push('PROXY_SECRET must be at least 32 characters');
+    if (!env.PROXY_SECRET)
+      problems.push(
+        'PROXY_SECRET is required in production (the Worker sends it; direct tunnel hits get 404)',
+      );
+    if (env.PROXY_SECRET && env.PROXY_SECRET.length < 32)
+      problems.push('PROXY_SECRET must be at least 32 characters');
     if (PLACEHOLDER.test(env.JWT_SECRET)) problems.push('JWT_SECRET is a placeholder');
-    if (env.PASSWORD_HASH_COST === 'fast') problems.push('PASSWORD_HASH_COST=fast is for tests only');
+    if (env.PASSWORD_HASH_COST === 'fast')
+      problems.push('PASSWORD_HASH_COST=fast is for tests only');
     if (!env.RATE_LIMITS) problems.push('RATE_LIMITS cannot be turned off in production');
   }
 
@@ -115,7 +124,8 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
           surname: env.ADMIN_SURNAME ?? '',
         }
       : null;
-  if (admin && admin.password.length < 10) problems.push('ADMIN_PASSWORD must be at least 10 characters');
+  if (admin && admin.password.length < 10)
+    problems.push('ADMIN_PASSWORD must be at least 10 characters');
   if (problems.length > 0) throw new ConfigError(problems);
 
   const extraOrigins = (env.ALLOWED_ORIGINS ?? '')
@@ -149,7 +159,11 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
     bootstrapAdmin: admin,
     push:
       env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY
-        ? { publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT ?? `mailto:admin@${new URL(appUrl).hostname}` }
+        ? {
+            publicKey: env.VAPID_PUBLIC_KEY,
+            privateKey: env.VAPID_PRIVATE_KEY,
+            subject: env.VAPID_SUBJECT ?? `mailto:admin@${new URL(appUrl).hostname}`,
+          }
         : null,
   };
 }

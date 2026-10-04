@@ -30,7 +30,8 @@ export function requestContext(deps: AppDeps) {
 export function proxyGuard(deps: AppDeps) {
   const secret = deps.config.proxySecret;
   return createMiddleware<AppEnv>(async (c, next) => {
-    if (secret && !timingSafeEqualStr(c.req.header(PROXY_KEY_HEADER) ?? '', secret)) return c.text('Not Found', 404);
+    if (secret && !timingSafeEqualStr(c.req.header(PROXY_KEY_HEADER) ?? '', secret))
+      return c.text('Not Found', 404);
     await next();
   });
 }
@@ -62,17 +63,22 @@ export const noStore = createMiddleware<AppEnv>(async (c, next) => {
 export function originGuard(deps: AppDeps) {
   const allowed = new Set(deps.config.allowedOrigins);
   const isAllowed = (origin: string) =>
-    allowed.has(origin) || (deps.config.env === 'development' && isLanDevOrigin(origin, deps.config.appUrl));
+    allowed.has(origin) ||
+    (deps.config.env === 'development' && isLanDevOrigin(origin, deps.config.appUrl));
   return createMiddleware<AppEnv>(async (c, next) => {
     if (UNSAFE_METHODS.has(c.req.method)) {
       const site = c.req.header('sec-fetch-site');
-      if (site && site !== 'same-origin' && site !== 'none') throw new AppError(403, 'CSRF_REJECTED', 'Cross-site request rejected');
+      if (site && site !== 'same-origin' && site !== 'none')
+        throw new AppError(403, 'CSRF_REJECTED', 'Cross-site request rejected');
       const origin = c.req.header('origin');
-      if (origin && !isAllowed(origin)) throw new AppError(403, 'CSRF_REJECTED', 'Origin not allowed');
+      if (origin && !isAllowed(origin))
+        throw new AppError(403, 'CSRF_REJECTED', 'Origin not allowed');
       // Judge by the headers, not by `body`: the Node adapter gives every POST a body stream,
       // even an empty one (logout, refresh), which must not need a Content-Type.
       const length = c.req.header('content-length');
-      const hasBody = (length !== undefined && Number(length) > 0) || c.req.header('transfer-encoding') !== undefined;
+      const hasBody =
+        (length !== undefined && Number(length) > 0) ||
+        c.req.header('transfer-encoding') !== undefined;
       const type = (c.req.header('content-type') ?? '').toLowerCase();
       if (hasBody && !type.startsWith('application/json')) {
         throw new AppError(415, 'BAD_REQUEST', 'Content-Type must be application/json');

@@ -7,10 +7,10 @@ import { isUuid } from '../users';
 import {
   describeExercise,
   exercisesById,
+  ownItems,
   findExercise,
   listEquipment,
   pinsOf,
-  syncCatalog,
   type Equipment,
   type Exercise,
   type LibraryExercise,
@@ -77,6 +77,8 @@ export interface TrainingSet {
   timeKnown: boolean;
   effort: number | null;
   note: string;
+  /** Grip, stance or band. */
+  variant: string;
 }
 
 interface SetRow {
@@ -99,10 +101,11 @@ interface SetRow {
   time_known: boolean;
   effort: number | null;
   note: string;
+  variant: string;
 }
 
 const SET_SELECT = `SELECT s.id, s.user_id, s.exercise_id, e.name AS exercise, e.icon, s.workout_id, s.item_index, s.round, s.set_number, s.side,
-       s.reps, s.weight, s.seconds, s.distance, s.performed_at, to_char(s.day, 'YYYY-MM-DD') AS day, s.time_known, s.effort, s.note
+       s.reps, s.weight, s.seconds, s.distance, s.performed_at, to_char(s.day, 'YYYY-MM-DD') AS day, s.time_known, s.effort, s.note, s.variant
   FROM training_sets s JOIN training_exercises e ON e.id = s.exercise_id`;
 
 const toSet = (row: SetRow): TrainingSet => ({
@@ -125,6 +128,7 @@ const toSet = (row: SetRow): TrainingSet => ({
   timeKnown: row.time_known,
   effort: row.effort,
   note: row.note,
+  variant: row.variant,
 });
 
 /** A personal best one set can set. */
@@ -228,11 +232,24 @@ export async function logSet(
     if (workout?.status === 'skipped')
       throw new AppError(409, 'SKIPPED', 'That workout was skipped; plan it again first');
     const userId = workout ? workout.user_id : await personId(tx, input.userId);
-    const exercise = await findExercise(tx, input.exerciseId).catch(() => {
-      throw new AppError(400, 'VALIDATION', 'Unknown exercise', {
-        fields: { exerciseId: 'Unknown exercise' },
-      });
-    });
+    // Someone else's exercise (logging for a son from the mother's list) is his own one of the same.
+    const owned = await ownItems(tx, userId, [{ exerciseId: input.exerciseId, sets: 1 }]).catch(
+      () => {
+        throw new AppError(400, 'VALIDATION', 'Unknown exercise', {
+          fields: { exerciseId: 'Unknown exercise' },
+        });
+      },
+    );
+    const exercise = owned.exercises.get(owned.items[0]!.exerciseId)!;
+    // The app's id for the set: a retry after a lost answer finds the set already there.
+    const externalId = input.clientId ? `app:${input.clientId}` : null;
+    if (externalId) {
+      const { rows: existing } = await tx.db.query<{ id: string }>(
+        'SELECT id FROM training_sets WHERE user_id = $1 AND external_id = $2',
+        [userId, externalId],
+      );
+      if (existing[0]) return { set: await findSet(tx, existing[0].id), records: [] };
+    }
     const at = input.at ? new Date(input.at) : input.day ? noonOf(input.day) : tx.now;
     if (at.getTime() > tx.now.getTime() + 5 * 60_000)
       throw new AppError(400, 'VALIDATION', 'That time hasn’t come yet', {
@@ -242,8 +259,8 @@ export async function logSet(
     const before = await bestsBefore(tx, userId, exercise.id, null);
     const { rows } = await tx.db.query<{ id: string }>(
       `INSERT INTO training_sets (id, household_id, user_id, exercise_id, workout_id, item_index, round, set_number, side, reps, weight, seconds,
-                                  distance, performed_at, day, time_known, effort, note, via, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id`,
+                                  distance, performed_at, day, time_known, effort, note, via, created_by, created_at, variant, external_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id`,
       [
         randomUUID(),
         tx.actor.householdId,
@@ -266,6 +283,8 @@ export async function logSet(
         tx.actor.via,
         tx.actor.userId,
         tx.now,
+        input.variant ?? '',
+        externalId,
       ],
     );
     if (workout && workout.status === 'planned') {
@@ -291,7 +310,7 @@ export async function updateSet(ctx: Ctx, id: string, patch: SetPatch): Promise<
   if (next.reps === null && next.seconds === null && next.distance === null)
     throw new AppError(400, 'VALIDATION', 'Say how many, how long or how far');
   await ctx.db.query(
-    'UPDATE training_sets SET reps = $3, weight = $4, seconds = $5, distance = $6, effort = $7, note = $8 WHERE id = $1 AND household_id = $2',
+    'UPDATE training_sets SET reps = $3, weight = $4, seconds = $5, distance = $6, effort = $7, note = $8, variant = $9 WHERE id = $1 AND household_id = $2',
     [
       id,
       ctx.actor.householdId,
@@ -301,6 +320,7 @@ export async function updateSet(ctx: Ctx, id: string, patch: SetPatch): Promise<
       next.distance,
       next.effort,
       next.note,
+      next.variant,
     ],
   );
   return findSet(ctx, id);
@@ -332,6 +352,7 @@ export interface LastTime {
     seconds: number | null;
     distance: number | null;
     side: 'left' | 'right' | null;
+    variant: string;
   }>;
 }
 
@@ -359,12 +380,13 @@ async function lastTimes(
     seconds: number | null;
     distance: number | null;
     side: 'left' | 'right' | null;
+    variant: string;
   }>(
     `WITH last AS (
        SELECT exercise_id, max(day) AS day FROM training_sets
         WHERE user_id = $1 AND exercise_id = ANY($2::uuid[]) AND ($3::uuid IS NULL OR workout_id IS DISTINCT FROM $3)
         GROUP BY exercise_id)
-     SELECT s.exercise_id, to_char(s.day, 'YYYY-MM-DD') AS day, s.reps, s.weight, s.seconds, s.distance, s.side
+     SELECT s.exercise_id, to_char(s.day, 'YYYY-MM-DD') AS day, s.reps, s.weight, s.seconds, s.distance, s.side, s.variant
        FROM training_sets s JOIN last l ON l.exercise_id = s.exercise_id AND l.day = s.day
       WHERE s.user_id = $1 AND ($3::uuid IS NULL OR s.workout_id IS DISTINCT FROM $3)
       ORDER BY s.performed_at`,
@@ -379,6 +401,7 @@ async function lastTimes(
       seconds: row.seconds,
       distance: row.distance,
       side: row.side,
+      variant: row.variant,
     });
     found.set(row.exercise_id, entry);
   }
@@ -395,7 +418,9 @@ export function suggest(
   last: LastTime | undefined,
 ): Suggestion | null {
   if (!last?.sets.length) return null;
-  const sets = last.sets;
+  // A wide-grip target is measured against wide-grip sets, when there were any.
+  const same = item.variant ? last.sets.filter((s) => s.variant === item.variant) : [];
+  const sets = same.length ? same : last.sets;
   if (exercise.measure === 'reps' && item.reps) {
     const reps = sets.map((s) => s.reps ?? 0);
     const worst = Math.min(...reps);
@@ -445,6 +470,8 @@ export function suggest(
 
 export interface Routine {
   id: string;
+  /** Whose program it is. */
+  userId: string;
   name: string;
   note: string;
   items: WorkoutItem[];
@@ -457,20 +484,13 @@ export interface Routine {
 
 interface RoutineRow {
   id: string;
+  user_id: string;
   name: string;
   note: string;
   items: WorkoutItem[];
   rounds: number;
   round_rest: number;
   updated_at: Date;
-}
-
-async function checkItems(ctx: Ctx, items: WorkoutItem[]): Promise<Map<string, Exercise>> {
-  return exercisesById(
-    ctx,
-    items.map((item) => item.exerciseId),
-    'items',
-  );
 }
 
 async function describeRoutines(ctx: Ctx, rows: RoutineRow[]): Promise<Routine[]> {
@@ -486,6 +506,7 @@ async function describeRoutines(ctx: Ctx, rows: RoutineRow[]): Promise<Routine[]
       .map((e) => describeExercise(e, equipment, new Set()));
     return {
       id: row.id,
+      userId: row.user_id,
       name: row.name,
       note: row.note,
       items: row.items,
@@ -503,13 +524,13 @@ async function describeRoutines(ctx: Ctx, rows: RoutineRow[]): Promise<Routine[]
   });
 }
 
-const ROUTINE_COLUMNS = 'id, name, note, items, rounds, round_rest, updated_at';
+const ROUTINE_COLUMNS = 'id, user_id, name, note, items, rounds, round_rest, updated_at';
 
-export async function listRoutines(ctx: Ctx): Promise<Routine[]> {
-  await syncCatalog(ctx);
+/** One person's saved programs (everyone's with null). */
+export async function listRoutines(ctx: Ctx, userId: string | null): Promise<Routine[]> {
   const { rows } = await ctx.db.query<RoutineRow>(
-    `SELECT ${ROUTINE_COLUMNS} FROM training_routines WHERE household_id = $1 ORDER BY updated_at DESC`,
-    [ctx.actor.householdId],
+    `SELECT ${ROUTINE_COLUMNS} FROM training_routines WHERE household_id = $1 AND ($2::uuid IS NULL OR user_id = $2) ORDER BY updated_at DESC`,
+    [ctx.actor.householdId, userId],
   );
   return describeRoutines(ctx, rows);
 }
@@ -525,16 +546,18 @@ async function findRoutine(ctx: Ctx, id: string): Promise<RoutineRow> {
 }
 
 export async function createRoutine(ctx: Ctx, input: RoutineInput): Promise<Routine> {
-  await checkItems(ctx, input.items);
+  const userId = await personId(ctx, input.userId);
+  const { items } = await ownItems(ctx, userId, input.items);
   const { rows } = await ctx.db.query<RoutineRow>(
-    `INSERT INTO training_routines (id, household_id, name, note, items, rounds, round_rest, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) RETURNING ${ROUTINE_COLUMNS}`,
+    `INSERT INTO training_routines (id, household_id, user_id, name, note, items, rounds, round_rest, created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10) RETURNING ${ROUTINE_COLUMNS}`,
     [
       randomUUID(),
       ctx.actor.householdId,
+      userId,
       input.name,
       input.note ?? '',
-      JSON.stringify(input.items),
+      JSON.stringify(items),
       input.rounds ?? 1,
       input.roundRest ?? 60,
       ctx.actor.userId,
@@ -546,7 +569,9 @@ export async function createRoutine(ctx: Ctx, input: RoutineInput): Promise<Rout
 
 export async function updateRoutine(ctx: Ctx, id: string, patch: RoutinePatch): Promise<Routine> {
   const current = await findRoutine(ctx, id);
-  if (patch.items) await checkItems(ctx, patch.items);
+  const items = patch.items
+    ? (await ownItems(ctx, current.user_id, patch.items)).items
+    : current.items;
   const { rows } = await ctx.db.query<RoutineRow>(
     `UPDATE training_routines SET name = $3, note = $4, items = $5, rounds = $6, round_rest = $7, updated_at = $8
       WHERE id = $1 AND household_id = $2 RETURNING ${ROUTINE_COLUMNS}`,
@@ -555,7 +580,7 @@ export async function updateRoutine(ctx: Ctx, id: string, patch: RoutinePatch): 
       ctx.actor.householdId,
       patch.name ?? current.name,
       patch.note ?? current.note,
-      JSON.stringify(patch.items ?? current.items),
+      JSON.stringify(items),
       patch.rounds ?? current.rounds,
       patch.roundRest ?? current.round_rest,
       ctx.now,
@@ -819,7 +844,9 @@ export async function createWorkout(ctx: Ctx, input: WorkoutInput): Promise<Work
     title ??= routine.name;
     if (!input.note) note = routine.note;
   }
-  const exercises = await checkItems(ctx, items);
+  const owned = await ownItems(ctx, userId, items);
+  items = owned.items;
+  const exercises = owned.exercises;
   const id = randomUUID();
   await ctx.db.query(
     `INSERT INTO training_workouts (id, household_id, user_id, date, time, title, routine_id, items, rounds, round_rest, note, created_by, created_at, updated_at)
@@ -847,7 +874,10 @@ export async function updateWorkout(ctx: Ctx, id: string, patch: WorkoutPatch): 
   await ctx.tx(async (tx) => {
     const current = await lockWorkout(tx, id);
     let items = current.items;
-    if (patch.items) items = withDefaults(patch.items, await checkItems(tx, patch.items));
+    if (patch.items) {
+      const owned = await ownItems(tx, current.user_id, patch.items);
+      items = withDefaults(owned.items, owned.exercises);
+    }
     let status = current.status;
     let startedAt = current.started_at;
     let finishedAt = current.finished_at;

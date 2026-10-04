@@ -658,6 +658,58 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE UNIQUE INDEX training_sets_external_idx ON training_sets (user_id, external_id) WHERE external_id IS NOT NULL;
     `,
   },
+  {
+    version: 20,
+    name: 'each person their own exercises; equipment pieces, variations; profile',
+    sql: `
+      -- The profile: a picture, gender, birth date, height.
+      ALTER TABLE users ADD COLUMN gender text CHECK (gender IN ('female', 'male', 'other'));
+      ALTER TABLE users ADD COLUMN birth_date date;
+      ALTER TABLE users ADD COLUMN height_cm smallint CHECK (height_cm BETWEEN 40 AND 250);
+      ALTER TABLE users ADD COLUMN avatar bytea;
+      ALTER TABLE users ADD COLUMN avatar_type text;
+      ALTER TABLE users ADD COLUMN avatar_at timestamptz;
+      ALTER TABLE users ADD COLUMN training_catalog_version integer NOT NULL DEFAULT 0;
+
+      -- Equipment pieces with their own name and resistance: each band, each grip of the bar.
+      ALTER TABLE training_equipment ADD COLUMN variants jsonb NOT NULL DEFAULT '[]';
+
+      -- Exercises and routines are each person's; equipment stays the household's. What exists
+      -- goes to the household's first member (the catalog copy) or whoever made it; the others get
+      -- their own copy of the catalog on their next visit.
+      ALTER TABLE training_exercises ADD COLUMN user_id uuid REFERENCES users (id) ON DELETE CASCADE;
+      ALTER TABLE training_exercises ADD COLUMN variants text[] NOT NULL DEFAULT '{}';
+      UPDATE training_exercises e SET user_id = coalesce(e.created_by,
+        (SELECT u.id FROM users u WHERE u.household_id = e.household_id ORDER BY u.created_at LIMIT 1));
+      -- Someone else's sets on those exercises: their own copy, and the sets moved onto it.
+      INSERT INTO training_exercises (id, household_id, user_id, preset, name, category, muscles, secondary, equipment, measure, weighted,
+                                      unilateral, reps, seconds, distance, rest, level, impact, icon, steps, note, archived_at, created_at, updated_at)
+        SELECT DISTINCT ON (s.user_id, e.id) gen_random_uuid(), e.household_id, s.user_id, e.preset, e.name, e.category, e.muscles, e.secondary,
+               e.equipment, e.measure, e.weighted, e.unilateral, e.reps, e.seconds, e.distance, e.rest, e.level, e.impact, e.icon, e.steps,
+               e.note, e.archived_at, now(), now()
+          FROM training_sets s JOIN training_exercises e ON e.id = s.exercise_id WHERE e.user_id <> s.user_id;
+      UPDATE training_sets s SET exercise_id = mine.id
+        FROM training_exercises theirs, training_exercises mine
+       WHERE theirs.id = s.exercise_id AND theirs.user_id <> s.user_id
+         AND mine.user_id = s.user_id AND mine.name = theirs.name AND mine.household_id = theirs.household_id;
+      DELETE FROM training_exercises WHERE user_id IS NULL;
+      ALTER TABLE training_exercises ALTER COLUMN user_id SET NOT NULL;
+      ALTER TABLE training_exercises DROP CONSTRAINT training_exercises_household_id_preset_key;
+      CREATE UNIQUE INDEX training_exercises_person_preset_idx ON training_exercises (user_id, preset) WHERE preset IS NOT NULL;
+      CREATE INDEX training_exercises_person_idx ON training_exercises (user_id);
+      UPDATE users u SET training_catalog_version = h.training_catalog_version
+        FROM households h WHERE h.id = u.household_id AND EXISTS (SELECT 1 FROM training_exercises e WHERE e.user_id = u.id);
+
+      ALTER TABLE training_routines ADD COLUMN user_id uuid REFERENCES users (id) ON DELETE CASCADE;
+      UPDATE training_routines r SET user_id = coalesce(r.created_by,
+        (SELECT u.id FROM users u WHERE u.household_id = r.household_id ORDER BY u.created_at LIMIT 1));
+      DELETE FROM training_routines WHERE user_id IS NULL;
+      ALTER TABLE training_routines ALTER COLUMN user_id SET NOT NULL;
+
+      -- Which grip, stance or band a set was done with.
+      ALTER TABLE training_sets ADD COLUMN variant text NOT NULL DEFAULT '';
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

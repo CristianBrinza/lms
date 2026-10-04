@@ -29,10 +29,14 @@ export function createPushSender(config: AppConfig['push']): PushSender | null {
     publicKey: config.publicKey,
     async send(target, message) {
       try {
-        await webpush.sendNotification({ endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } }, JSON.stringify(message), {
-          TTL: 4 * 60 * 60,
-          urgency: 'normal',
-        });
+        await webpush.sendNotification(
+          { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
+          JSON.stringify(message),
+          {
+            TTL: 4 * 60 * 60,
+            urgency: 'normal',
+          },
+        );
         return 'ok';
       } catch (error) {
         const status = (error as { statusCode?: number }).statusCode;

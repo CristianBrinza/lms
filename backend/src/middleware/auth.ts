@@ -66,7 +66,8 @@ export function requireRole(...roles: Role[]) {
   const allowed = new Set(roles);
   return createMiddleware<AppEnv>(async (c, next) => {
     const user = c.get('user');
-    if (!user || !allowed.has(user.role)) throw new AppError(403, 'FORBIDDEN', 'You do not have access to this');
+    if (!user || !allowed.has(user.role))
+      throw new AppError(403, 'FORBIDDEN', 'You do not have access to this');
     await next();
   });
 }

@@ -192,12 +192,10 @@ export interface ExerciseHistory {
   totals: { sets: number; reps: number; seconds: number; distance: number };
 }
 
-export async function exerciseHistory(
-  ctx: Ctx,
-  userId: string,
-  exerciseId: string,
-): Promise<ExerciseHistory> {
+/** An exercise's history: it is in one person's library, so these are that person's sets. */
+export async function exerciseHistory(ctx: Ctx, exerciseId: string): Promise<ExerciseHistory> {
   const exercise = await findExercise(ctx, exerciseId);
+  const userId = exercise.userId;
   const { rows } = await ctx.db.query<{
     id: string;
     day: string;
@@ -211,8 +209,9 @@ export async function exerciseHistory(
     time_known: boolean;
     effort: number | null;
     note: string;
+    variant: string;
   }>(
-    `SELECT id, to_char(day, 'YYYY-MM-DD') AS day, reps, weight, seconds, distance, side, performed_at, workout_id, time_known, effort, note
+    `SELECT id, to_char(day, 'YYYY-MM-DD') AS day, reps, weight, seconds, distance, side, performed_at, workout_id, time_known, effort, note, variant
        FROM training_sets WHERE household_id = $1 AND user_id = $2 AND exercise_id = $3 ORDER BY performed_at DESC LIMIT 600`,
     [ctx.actor.householdId, userId, exerciseId],
   );
@@ -236,6 +235,7 @@ export async function exerciseHistory(
     timeKnown: row.time_known,
     effort: row.effort,
     note: row.note,
+    variant: row.variant,
   }));
   const bests: ExerciseHistory['bests'] = {
     reps: null,

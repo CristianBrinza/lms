@@ -53,12 +53,18 @@ const POURABLE = new Set(['dairy', 'drinks', 'spices', 'pantry']);
 /** The item's own unit a word names ("slice", "Slices"), if any. */
 export function customUnit(unit: string, product: Measured): CustomUnit | null {
   const word = unit.trim().toLowerCase();
-  return product.units?.find((u) => u.name.toLowerCase() === word || (u.plural ?? `${u.name}s`).toLowerCase() === word) ?? null;
+  return (
+    product.units?.find(
+      (u) => u.name.toLowerCase() === word || (u.plural ?? `${u.name}s`).toLowerCase() === word,
+    ) ?? null
+  );
 }
 
 export class UnitMismatchError extends Error {
   constructor(unit: string, product: Measured) {
-    super(`This item is counted in ${product.unit}; ${unit} can’t be converted${product.pieceSize ? '' : ' without a piece size'}`);
+    super(
+      `This item is counted in ${product.unit}; ${unit} can’t be converted${product.pieceSize ? '' : ' without a piece size'}`,
+    );
     this.name = 'UnitMismatchError';
   }
 }
@@ -75,9 +81,15 @@ function factorOf(unit: string, product: Measured): number | null {
   const base = BASE_FAMILY[product.unit];
   if (measure.family === base) return measure.factor;
   // Spoons and cups of something weighed: about a gram per millilitre, unless the item says (honey: 21 g a tablespoon).
-  if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup')) return measure.factor;
+  if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup'))
+    return measure.factor;
   // Grams of milk, millilitres of honey: about the same, for things poured or spooned.
-  if (product.category && POURABLE.has(product.category) && ((base === 'mass' && measure.family === 'volume') || (base === 'volume' && measure.family === 'mass'))) {
+  if (
+    product.category &&
+    POURABLE.has(product.category) &&
+    ((base === 'mass' && measure.family === 'volume') ||
+      (base === 'volume' && measure.family === 'mass'))
+  ) {
     return measure.factor;
   }
   if (!product.pieceSize || product.pieceSize <= 0) return null;

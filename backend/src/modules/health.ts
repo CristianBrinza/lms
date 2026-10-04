@@ -14,7 +14,14 @@ export function healthRoutes(deps: AppDeps) {
     }
     const ok = database === 'ok';
     return c.json(
-      { status: ok ? 'ok' : 'down', service: 'lms-api', version: BUILD.version, builtAt: BUILD.builtAt, database, time: deps.now().toISOString() },
+      {
+        status: ok ? 'ok' : 'down',
+        service: 'lms-api',
+        version: BUILD.version,
+        builtAt: BUILD.builtAt,
+        database,
+        time: deps.now().toISOString(),
+      },
       ok ? 200 : 503,
     );
   });

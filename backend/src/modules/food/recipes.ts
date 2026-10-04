@@ -2,10 +2,25 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import { allocatePlan } from './allocation';
-import { describeNeeds, listTools, recipeTools, setRecipeTools, type ToolNeed } from './kitchenware';
+import {
+  describeNeeds,
+  listTools,
+  recipeTools,
+  setRecipeTools,
+  type ToolNeed,
+} from './kitchenware';
 import { listRestrictions } from './restrictions';
 import { localDate } from './stock';
-import { describeLines, ingredientRows, insertIngredientRows, resolveIngredients, stockSnapshot, type Availability, type IngredientLine, type StockInfo } from './ingredients';
+import {
+  describeLines,
+  ingredientRows,
+  insertIngredientRows,
+  resolveIngredients,
+  stockSnapshot,
+  type Availability,
+  type IngredientLine,
+  type StockInfo,
+} from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import type { RecipeInput } from './schemas';
@@ -67,7 +82,12 @@ const RECIPE_SELECT = `SELECT r.id, r.title, r.description, r.servings, r.prep_m
        (SELECT max(m.date) FROM meals m WHERE m.recipe_id = r.id AND m.status = 'done') AS last_cooked
   FROM recipes r`;
 
-function toRecipe(row: RecipeRow, lines: ReturnType<typeof describeLines>, shownServings: number, tools: ToolNeed[]): Recipe {
+function toRecipe(
+  row: RecipeRow,
+  lines: ReturnType<typeof describeLines>,
+  shownServings: number,
+  tools: ToolNeed[],
+): Recipe {
   return {
     id: row.id,
     title: row.title,
@@ -93,30 +113,63 @@ function toRecipe(row: RecipeRow, lines: ReturnType<typeof describeLines>, shown
   };
 }
 
-async function build(ctx: FoodCtx, rows: RecipeRow[], stock?: Map<string, StockInfo>, servings?: number): Promise<Recipe[]> {
+async function build(
+  ctx: FoodCtx,
+  rows: RecipeRow[],
+  stock?: Map<string, StockInfo>,
+  servings?: number,
+): Promise<Recipe[]> {
   const snapshot = stock ?? (await stockSnapshot(ctx));
-  const ingredients = await ingredientRows(ctx, 'recipe_ingredients', rows.map((r) => r.id));
+  const ingredients = await ingredientRows(
+    ctx,
+    'recipe_ingredients',
+    rows.map((r) => r.id),
+  );
   // Cooking now may only use what planned meals haven't claimed.
   const { reserved } = await allocatePlan(ctx, snapshot, localDate(ctx.now));
   const restrictions = await listRestrictions(ctx);
-  const needs = await recipeTools(ctx, rows.map((r) => r.id));
+  const needs = await recipeTools(
+    ctx,
+    rows.map((r) => r.id),
+  );
   const tools = needs.size ? await listTools(ctx) : [];
   return rows.map((row) => {
     const shown = servings ?? row.servings;
-    const lines = describeLines(ingredients.get(row.id) ?? [], snapshot, ctx.now, shown / row.servings, { reserved, restrictions });
-    return toRecipe(row, lines, shown, describeNeeds(tools, (needs.get(row.id) ?? []).map((need) => ({ ...need, servings: shown })), ctx.now));
+    const lines = describeLines(
+      ingredients.get(row.id) ?? [],
+      snapshot,
+      ctx.now,
+      shown / row.servings,
+      { reserved, restrictions },
+    );
+    return toRecipe(
+      row,
+      lines,
+      shown,
+      describeNeeds(
+        tools,
+        (needs.get(row.id) ?? []).map((need) => ({ ...need, servings: shown })),
+        ctx.now,
+      ),
+    );
   });
 }
 
 /** All recipes: favourites first, then ready to cook, then by name. */
 export async function listRecipes(ctx: FoodCtx): Promise<Recipe[]> {
-  const { rows } = await ctx.db.query<RecipeRow>(`${RECIPE_SELECT} WHERE r.household_id = $1 AND r.archived_at IS NULL ORDER BY lower(r.title)`, [ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<RecipeRow>(
+    `${RECIPE_SELECT} WHERE r.household_id = $1 AND r.archived_at IS NULL ORDER BY lower(r.title)`,
+    [ctx.actor.householdId],
+  );
   return build(ctx, rows);
 }
 
 export async function getRecipe(ctx: FoodCtx, id: string, servings?: number): Promise<Recipe> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Recipe not found');
-  const { rows } = await ctx.db.query<RecipeRow>(`${RECIPE_SELECT} WHERE r.id = $1 AND r.household_id = $2 AND r.archived_at IS NULL`, [id, ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<RecipeRow>(
+    `${RECIPE_SELECT} WHERE r.id = $1 AND r.household_id = $2 AND r.archived_at IS NULL`,
+    [id, ctx.actor.householdId],
+  );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'Recipe not found');
   return (await build(ctx, rows, undefined, servings))[0]!;
 }
@@ -155,7 +208,11 @@ export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Re
 }
 
 /** Changes what is given; `ingredients`, when given, replace the list. */
-export async function updateRecipe(ctx: FoodCtx, id: string, patch: Partial<RecipeInput>): Promise<Recipe> {
+export async function updateRecipe(
+  ctx: FoodCtx,
+  id: string,
+  patch: Partial<RecipeInput>,
+): Promise<Recipe> {
   await getRecipe(ctx, id);
   await ctx.tx(async (tx) => {
     const columns: Record<string, unknown> = {
@@ -181,7 +238,13 @@ export async function updateRecipe(ctx: FoodCtx, id: string, patch: Partial<Reci
     values.push(tx.now);
     sets.push(`updated_at = $${values.length}`);
     await tx.db.query(`UPDATE recipes SET ${sets.join(', ')} WHERE id = $1`, values);
-    if (patch.ingredients) await insertIngredientRows(tx, 'recipe_ingredients', id, await resolveIngredients(tx, patch.ingredients));
+    if (patch.ingredients)
+      await insertIngredientRows(
+        tx,
+        'recipe_ingredients',
+        id,
+        await resolveIngredients(tx, patch.ingredients),
+      );
     if (patch.tools) await setRecipeTools(tx, id, patch.tools);
   });
   return getRecipe(ctx, id);
@@ -190,7 +253,10 @@ export async function updateRecipe(ctx: FoodCtx, id: string, patch: Partial<Reci
 /** Archives a recipe: planned and past meals keep their own copy of it. */
 export async function deleteRecipe(ctx: FoodCtx, id: string): Promise<void> {
   await getRecipe(ctx, id);
-  await ctx.db.query('UPDATE recipes SET archived_at = $2, favorite = false WHERE id = $1', [id, ctx.now]);
+  await ctx.db.query('UPDATE recipes SET archived_at = $2, favorite = false WHERE id = $1', [
+    id,
+    ctx.now,
+  ]);
 }
 
 export async function recipeIngredients(ctx: FoodCtx, id: string) {

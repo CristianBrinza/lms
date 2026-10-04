@@ -22,7 +22,8 @@ function clientIpResolver(config: AppConfig) {
     // Behind the Cloudflare Worker: trust its client-IP header only with a valid proxy key.
     if (config.proxySecret) {
       const forwarded = c.req.header(CLIENT_IP_HEADER);
-      if (forwarded && timingSafeEqualStr(c.req.header(PROXY_KEY_HEADER) ?? '', config.proxySecret)) return forwarded;
+      if (forwarded && timingSafeEqualStr(c.req.header(PROXY_KEY_HEADER) ?? '', config.proxySecret))
+        return forwarded;
     }
     if (config.trustProxy) {
       const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
@@ -43,7 +44,9 @@ async function main() {
     config = loadConfig(process.env);
   } catch (error) {
     if (error instanceof ConfigError) {
-      console.error(`[api] ${error.message}\n  See backend/.env.template (development) or deploy/.env.template (server).`);
+      console.error(
+        `[api] ${error.message}\n  See backend/.env.template (development) or deploy/.env.template (server).`,
+      );
       process.exit(1);
     }
     throw error;
@@ -56,18 +59,26 @@ async function main() {
   const app = createApp(deps);
   const hostname = process.env.HOST || '127.0.0.1';
   const server = serve({ fetch: app.fetch, port: config.port, hostname }, (info) => {
-    console.info(`[api] ${config.env} ${BUILD.version} on http://${hostname}:${info.port} (db: ${describeDatabase(config.database.url)})`);
+    console.info(
+      `[api] ${config.env} ${BUILD.version} on http://${hostname}:${info.port} (db: ${describeDatabase(config.database.url)})`,
+    );
   });
 
   let cleanupTimer: NodeJS.Timeout | undefined;
   let reminderTimer: NodeJS.Timeout | undefined;
   void retry(() => prepare(deps, (message) => console.info(`[db] ${message}`))).then(() => {
-    const tidy = () => void cleanup(db, new Date()).catch((error) => console.error('[db] cleanup failed', error.message));
+    const tidy = () =>
+      void cleanup(db, new Date()).catch((error) =>
+        console.error('[db] cleanup failed', error.message),
+      );
     tidy();
     cleanupTimer = setInterval(tidy, 60 * 60 * 1000);
     // Reminders: a look every minute at what is due (only when push keys are configured).
     if (deps.push) {
-      reminderTimer = setInterval(() => void runReminders(deps).catch((error) => console.error('[reminders] failed', error)), 60 * 1000);
+      reminderTimer = setInterval(
+        () => void runReminders(deps).catch((error) => console.error('[reminders] failed', error)),
+        60 * 1000,
+      );
       console.info('[reminders] on');
     }
   });
@@ -92,7 +103,9 @@ async function retry(task: () => Promise<void>): Promise<void> {
       console.info('[api] database ready');
       return;
     } catch (error) {
-      console.error(`[api] database not ready (${(error as Error).message}); retrying in ${delay / 1000} s`);
+      console.error(
+        `[api] database not ready (${(error as Error).message}); retrying in ${delay / 1000} s`,
+      );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }

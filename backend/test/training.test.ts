@@ -424,3 +424,181 @@ describe('training: a household, each person their own', () => {
     ).toBe(404);
   });
 });
+
+describe('training: each person their own library, one home gym', () => {
+  it('keeps exercises and routines per person, equipment shared, and maps plans across people', async () => {
+    const ana = await signIn('ana@example.com', 'Ana');
+    const ion = await signIn('ion@example.com', 'Ion');
+    const anaId = (await ana.get('/api/me')).body.user.id;
+    const ionId = (await ion.get('/api/me')).body.user.id;
+    await ana.get('/api/food/kitchen');
+    const { rows } = await t.db.query<{ household_id: string }>(
+      'SELECT household_id FROM users WHERE id = $1',
+      [anaId],
+    );
+    await t.db.query('UPDATE users SET household_id = $2 WHERE id = $1', [
+      ionId,
+      rows[0]!.household_id,
+    ]);
+
+    // One bar for both, with its grips; one set of bands, each with its resistance.
+    await ana.post('/api/training/equipment', {
+      kind: 'pullup_bar',
+      variants: [{ name: 'Wide grip' }, { name: 'Neutral grip (parallel)' }, { name: 'wide grip' }],
+    });
+    const bands = (
+      await ana.post('/api/training/equipment', {
+        kind: 'bands',
+        variants: [
+          { name: 'Red', kg: 10 },
+          { name: 'Black', kg: 25 },
+        ],
+      })
+    ).body.equipment;
+    expect(bands.variants).toEqual([
+      { name: 'Red', kg: 10 },
+      { name: 'Black', kg: 25 },
+    ]);
+    expect((await ion.get('/api/training/equipment')).body.equipment).toHaveLength(2);
+
+    // Two libraries: Ana hides burpees and adds her own; Ion's stay whole.
+    const anaEx = (await ana.get('/api/training/exercises')).body.exercises;
+    const ionEx = (await ion.get('/api/training/exercises')).body.exercises;
+    expect(byName(anaEx, 'Burpees').id).not.toBe(byName(ionEx, 'Burpees').id);
+    await ana.patch(`/api/training/exercises/${byName(anaEx, 'Burpees').id}`, { archived: true });
+    await ana.post('/api/training/exercises', {
+      name: 'Pilates hundred',
+      category: 'core',
+      measure: 'reps',
+      variants: ['Legs bent', 'Legs straight'],
+    });
+    expect(
+      byName((await ana.get('/api/training/exercises')).body.exercises, 'Burpees'),
+    ).toBeUndefined();
+    expect(
+      byName((await ion.get('/api/training/exercises')).body.exercises, 'Burpees'),
+    ).toBeDefined();
+    expect(
+      byName((await ion.get('/api/training/exercises')).body.exercises, 'Pilates hundred'),
+    ).toBeUndefined();
+    // Ana adds one to Ion's library, from her phone.
+    expect(
+      (
+        await ana.post('/api/training/exercises', {
+          userId: ionId,
+          name: 'Shadow footwork',
+          category: 'cardio',
+          measure: 'time',
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      byName((await ion.get('/api/training/exercises')).body.exercises, 'Shadow footwork'),
+    ).toBeDefined();
+
+    // The ways to do a pull-up: the bar's grips first (one "Wide grip"), then its own.
+    const pullUps = byName(ionEx, 'Pull-ups');
+    const options = byName(
+      (await ion.get('/api/training/exercises')).body.exercises,
+      'Pull-ups',
+    ).options;
+    expect(options.filter((o: any) => o.name.toLowerCase() === 'wide grip')).toHaveLength(1);
+    expect(options[0]).toMatchObject({
+      name: 'Wide grip',
+      from: 'equipment',
+      equipment: 'Pull-up bar',
+    });
+    expect(options.map((o: any) => o.name)).toContain('Close grip');
+    expect(
+      byName((await ion.get('/api/training/exercises')).body.exercises, 'Band rows').options,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Black', kg: 25, from: 'equipment' }),
+      ]),
+    );
+
+    // Routines are each person's; a routine of Ana's planned for Ion uses Ion's exercises.
+    const pilates = byName(
+      (await ana.get('/api/training/exercises')).body.exercises,
+      'Pilates hundred',
+    );
+    const routine = (
+      await ana.post('/api/training/routines', {
+        name: 'Ana’s core',
+        items: [
+          { exerciseId: pilates.id, sets: 2, reps: 20 },
+          { exerciseId: byName(anaEx, 'Plank').id, sets: 2 },
+        ],
+      })
+    ).body.routine;
+    expect(routine.userId).toBe(anaId);
+    expect((await ion.get('/api/training/routines')).body.routines).toEqual([]);
+    expect((await ion.get('/api/training/routines?everyone=true')).body.routines).toHaveLength(1);
+    const forIon = (
+      await ana.post('/api/training/workouts', {
+        userId: ionId,
+        date: '2026-10-06',
+        routineId: routine.id,
+      })
+    ).body.workout;
+    const ionNow = (await ion.get('/api/training/exercises')).body.exercises;
+    expect(forIon.items.map((i: any) => i.exerciseId)).toEqual([
+      byName(ionNow, 'Pilates hundred').id,
+      byName(ionNow, 'Plank').id,
+    ]);
+    expect(byName(ionNow, 'Pilates hundred').variants).toEqual(['Legs bent', 'Legs straight']);
+
+    // A grip is kept with the set; the target compares like with like; a retried set counts once.
+    const w = (
+      await ion.post('/api/training/workouts', {
+        date: '2026-10-05',
+        items: [{ exerciseId: pullUps.id, sets: 2, reps: 5, variant: 'Wide grip' }],
+      })
+    ).body.workout;
+    const clientId = '4b9cbd6e-6bd4-4c1e-9d0b-2a1d2f1e7c11';
+    const first = (
+      await ion.post(`/api/training/workouts/${w.id}/sets`, {
+        exerciseId: pullUps.id,
+        reps: 6,
+        variant: 'Wide grip',
+        clientId,
+        itemIndex: 0,
+        round: 1,
+        setNumber: 1,
+      })
+    ).body.set;
+    const again = (
+      await ion.post(`/api/training/workouts/${w.id}/sets`, {
+        exerciseId: pullUps.id,
+        reps: 6,
+        variant: 'Wide grip',
+        clientId,
+        itemIndex: 0,
+        round: 1,
+        setNumber: 1,
+      })
+    ).body.set;
+    expect(again.id).toBe(first.id);
+    expect(first.variant).toBe('Wide grip');
+    await ion.post('/api/training/sets', {
+      exerciseId: pullUps.id,
+      reps: 12,
+      variant: 'Neutral grip (parallel)',
+    });
+    const next = (
+      await ion.post('/api/training/workouts', {
+        date: '2026-10-07',
+        items: [{ exerciseId: pullUps.id, sets: 2, reps: 5, variant: 'Wide grip' }],
+      })
+    ).body.workout;
+    expect(next.items[0].suggest.text).toContain('6');
+    // A pin belongs to its own library.
+    expect(
+      (await ana.put(`/api/training/exercises/${pullUps.id}/pin`, { pinned: true })).status,
+    ).toBe(400);
+    expect(
+      (await ana.put(`/api/training/exercises/${pullUps.id}/pin`, { pinned: true, userId: ionId }))
+        .status,
+    ).toBe(200);
+  });
+});

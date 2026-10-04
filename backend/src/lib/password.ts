@@ -47,7 +47,14 @@ export function createPasswordHasher(cost: 'standard' | 'fast'): PasswordHasher 
     async hash(password) {
       const salt = randomBytes(SALT_LENGTH);
       const key = await derive(password, salt, params);
-      return ['scrypt', params.N, params.r, params.p, salt.toString('base64'), key.toString('base64')].join('$');
+      return [
+        'scrypt',
+        params.N,
+        params.r,
+        params.p,
+        salt.toString('base64'),
+        key.toString('base64'),
+      ].join('$');
     },
 
     async verify(password, stored) {
@@ -55,13 +62,22 @@ export function createPasswordHasher(cost: 'standard' | 'fast'): PasswordHasher 
       if (parts.length !== 6 || parts[0] !== 'scrypt') return { ok: false, needsRehash: false };
       const [N, r, p] = [Number(parts[1]), Number(parts[2]), Number(parts[3])];
       const validParams =
-        Number.isInteger(N) && Number.isInteger(r) && Number.isInteger(p) &&
-        N >= 2 ** 10 && N <= 2 ** 17 && (N & (N - 1)) === 0 && r >= 1 && r <= 16 && p >= 1 && p <= 16;
+        Number.isInteger(N) &&
+        Number.isInteger(r) &&
+        Number.isInteger(p) &&
+        N >= 2 ** 10 &&
+        N <= 2 ** 17 &&
+        (N & (N - 1)) === 0 &&
+        r >= 1 &&
+        r <= 16 &&
+        p >= 1 &&
+        p <= 16;
       if (!validParams) return { ok: false, needsRehash: false };
 
       const salt = Buffer.from(parts[4] ?? '', 'base64');
       const expected = Buffer.from(parts[5] ?? '', 'base64');
-      if (salt.length === 0 || expected.length !== KEY_LENGTH) return { ok: false, needsRehash: false };
+      if (salt.length === 0 || expected.length !== KEY_LENGTH)
+        return { ok: false, needsRehash: false };
 
       const key = await derive(password, salt, { N, r, p });
       const ok = timingSafeEqual(key, expected);

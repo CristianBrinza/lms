@@ -4,7 +4,15 @@ import type { FoodCtx } from './kitchen';
 import { CATEGORIES, type Category, type FoodIcon } from './presets';
 import type { Product } from './products';
 import { localDate } from './stock';
-import { toBase, amountIn, canConvert, displayUnit, round, type BaseUnit, type Unit } from './units';
+import {
+  toBase,
+  amountIn,
+  canConvert,
+  displayUnit,
+  round,
+  type BaseUnit,
+  type Unit,
+} from './units';
 
 /**
  * What the plan needs from the shops: the plan is played forward against the kitchen (earlier
@@ -54,13 +62,25 @@ function levelLine(product: Product, total: number, needBy: string): NeedLine {
   };
 }
 
-export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }> {
+export async function planNeeds(
+  ctx: FoodCtx,
+  from: string,
+  to: string,
+): Promise<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }> {
   const stock = await stockSnapshot(ctx);
   // The whole plan from today plays forward (earlier meals take first, nothing past its date counts);
   // only the meals in the range ask for shopping.
-  const allocation = await allocatePlan(ctx, stock, localDate(ctx.now) < from ? localDate(ctx.now) : from);
+  const allocation = await allocatePlan(
+    ctx,
+    stock,
+    localDate(ctx.now) < from ? localDate(ctx.now) : from,
+  );
   const meals = allocation.meals.filter((m) => m.date >= from && m.date <= to);
-  const ingredients = await ingredientRows(ctx, 'meal_ingredients', meals.map((m) => m.id));
+  const ingredients = await ingredientRows(
+    ctx,
+    'meal_ingredients',
+    meals.map((m) => m.id),
+  );
   const lines = new Map<string, NeedLine>();
   const toCheck: Array<{ name: string; meal: string }> = [];
 
@@ -70,7 +90,10 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
       if (row.optional) continue;
       // The option this meal takes (milk, or the whipped cream picked or used instead).
       const option = allocation.lines.get(row.id)?.option ?? 0;
-      const productId = option > 0 ? (row.alternatives?.[option - 1]?.product_id ?? row.product_id) : row.product_id;
+      const productId =
+        option > 0
+          ? (row.alternatives?.[option - 1]?.product_id ?? row.product_id)
+          : row.product_id;
       const info = productId ? stock.get(productId) : undefined;
       if (!info || info.product.trackMode === 'none') continue;
       const product = info.product;
@@ -113,7 +136,11 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
   }
 
   if (lines.size) {
-    const { rows: listed } = await ctx.db.query<{ product_id: string; amount: number | null; unit: string | null }>(
+    const { rows: listed } = await ctx.db.query<{
+      product_id: string;
+      amount: number | null;
+      unit: string | null;
+    }>(
       `SELECT product_id, amount, unit FROM shopping_items WHERE household_id = $1 AND trip_id IS NULL AND product_id = ANY($2::uuid[])`,
       [ctx.actor.householdId, [...lines.keys()]],
     );
@@ -126,14 +153,20 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
       const product = stock.get(item.product_id)!.product;
       const unit = item.unit ?? product.unit;
       // A line with no amount still counts as one piece (or as "enough" when it can't be counted).
-      const base = item.amount !== null && canConvert(unit, product) ? toBase(item.amount, unit, product) : product.unit === 'pcs' ? 1 : (product.pieceSize ?? line.toBuy);
+      const base =
+        item.amount !== null && canConvert(unit, product)
+          ? toBase(item.amount, unit, product)
+          : product.unit === 'pcs'
+            ? 1
+            : (product.pieceSize ?? line.toBuy);
       line.onList = round(line.onList + base);
     }
   }
 
   const order = (category: Category) => CATEGORIES.indexOf(category);
   const result = [...lines.values()].map((line) => {
-    if (line.level) return { ...line, toBuy: line.onList ? 0 : 1, toBuyAmount: line.onList ? 0 : 1 };
+    if (line.level)
+      return { ...line, toBuy: line.onList ? 0 : 1, toBuyAmount: line.onList ? 0 : 1 };
     const product = stock.get(line.productId)!.product;
     let toBuy = Math.max(0, round(line.toBuy - line.onList));
     if (line.unit === 'pcs') toBuy = Math.ceil(toBuy - 1e-9);
@@ -141,6 +174,11 @@ export async function planNeeds(ctx: FoodCtx, from: string, to: string): Promise
     return { ...line, toBuy, toBuyUnit, toBuyAmount: amountIn(toBuy, toBuyUnit, product) };
   });
   // What is needed soonest first, then the shop's aisle order.
-  result.sort((a, b) => (a.needBy ?? '9999').localeCompare(b.needBy ?? '9999') || order(a.category) - order(b.category) || a.name.localeCompare(b.name));
+  result.sort(
+    (a, b) =>
+      (a.needBy ?? '9999').localeCompare(b.needBy ?? '9999') ||
+      order(a.category) - order(b.category) ||
+      a.name.localeCompare(b.name),
+  );
   return { lines: result, toCheck };
 }

@@ -15,7 +15,10 @@ pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
 
 /** Anything that runs a parameterised query: the pool, or the client inside a transaction. */
 export interface Queryable {
-  query<T extends pg.QueryResultRow = pg.QueryResultRow>(text: string, params?: unknown[]): Promise<pg.QueryResult<T>>;
+  query<T extends pg.QueryResultRow = pg.QueryResultRow>(
+    text: string,
+    params?: unknown[],
+  ): Promise<pg.QueryResult<T>>;
 }
 
 export interface Database extends Queryable {
@@ -43,7 +46,9 @@ export function createDatabase(config: Pick<AppConfig, 'database'>): Database {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        const result = await work({ query: (text, params) => client.query(text, params as unknown[]) });
+        const result = await work({
+          query: (text, params) => client.query(text, params as unknown[]),
+        });
         await client.query('COMMIT');
         return result;
       } catch (error) {

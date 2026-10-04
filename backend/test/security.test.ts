@@ -26,16 +26,29 @@ describe('behind the Cloudflare Worker', () => {
 describe('request checks', () => {
   it('rejects cross-site and foreign-origin writes', async () => {
     const b = t.browser();
-    const crossSite = await b.post('/api/auth/login', { email: 'a@example.com', password: 'x' }, { ...viaWorker, 'sec-fetch-site': 'cross-site' });
+    const crossSite = await b.post(
+      '/api/auth/login',
+      { email: 'a@example.com', password: 'x' },
+      { ...viaWorker, 'sec-fetch-site': 'cross-site' },
+    );
     expect(crossSite.status).toBe(403);
-    const foreign = await b.post('/api/auth/login', { email: 'a@example.com', password: 'x' }, { ...viaWorker, origin: 'https://evil.example' });
+    const foreign = await b.post(
+      '/api/auth/login',
+      { email: 'a@example.com', password: 'x' },
+      { ...viaWorker, origin: 'https://evil.example' },
+    );
     expect(foreign.status).toBe(403);
   });
 
   it('accepts only JSON bodies', async () => {
     const res = await t.app.request('/api/auth/login', {
       method: 'POST',
-      headers: { ...viaWorker, origin: APP_URL, 'content-type': 'application/x-www-form-urlencoded', 'content-length': '20' },
+      headers: {
+        ...viaWorker,
+        origin: APP_URL,
+        'content-type': 'application/x-www-form-urlencoded',
+        'content-length': '20',
+      },
       body: 'email=a&password=b&x',
     });
     expect(res.status).toBe(415);
@@ -45,10 +58,18 @@ describe('request checks', () => {
     await t.createUser({ email: 'ana@example.com' });
     const b = t.browser();
     for (let i = 0; i < 10; i += 1) {
-      const res = await b.post('/api/auth/login', { email: 'ana@example.com', password: 'wrong-password' }, viaWorker);
+      const res = await b.post(
+        '/api/auth/login',
+        { email: 'ana@example.com', password: 'wrong-password' },
+        viaWorker,
+      );
       expect(res.status).toBe(401);
     }
-    const blocked = await b.post('/api/auth/login', { email: 'ana@example.com', password: PASSWORD }, viaWorker);
+    const blocked = await b.post(
+      '/api/auth/login',
+      { email: 'ana@example.com', password: PASSWORD },
+      viaWorker,
+    );
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
   });

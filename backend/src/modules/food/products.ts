@@ -2,7 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
-import { findPreset, normalizeName, PRESETS, presetOrGuess, sameName, type Category, type FoodIcon, type Level, type Location, type TrackMode } from './presets';
+import {
+  findPreset,
+  normalizeName,
+  PRESETS,
+  presetOrGuess,
+  sameName,
+  type Category,
+  type FoodIcon,
+  type Level,
+  type Location,
+  type TrackMode,
+} from './presets';
 import type { ProductInput } from './schemas';
 import { canConvert, type BaseUnit, type CustomUnit, type Measured } from './units';
 
@@ -106,7 +117,11 @@ export function toProduct(row: ProductRow): Product {
   };
 }
 
-export async function findProduct(ctx: FoodCtx, id: string, options: { lock?: boolean } = {}): Promise<Product> {
+export async function findProduct(
+  ctx: FoodCtx,
+  id: string,
+  options: { lock?: boolean } = {},
+): Promise<Product> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Item not found');
   const { rows } = await ctx.db.query<ProductRow>(
     `SELECT ${PRODUCT_COLUMNS} FROM products WHERE id = $1 AND household_id = $2${options.lock ? ' FOR UPDATE' : ''}`,
@@ -134,26 +149,46 @@ export async function listProducts(ctx: FoodCtx, q = ''): Promise<Product[]> {
 
 async function ensureStore(ctx: FoodCtx, storeId: string | null | undefined): Promise<void> {
   if (!storeId) return;
-  const { rowCount } = await ctx.db.query('SELECT 1 FROM stores WHERE id = $1 AND household_id = $2', [storeId, ctx.actor.householdId]);
-  if (!rowCount) throw new AppError(400, 'VALIDATION', 'That store is not in your kitchen', { fields: { storeId: 'Unknown store' } });
+  const { rowCount } = await ctx.db.query(
+    'SELECT 1 FROM stores WHERE id = $1 AND household_id = $2',
+    [storeId, ctx.actor.householdId],
+  );
+  if (!rowCount)
+    throw new AppError(400, 'VALIDATION', 'That store is not in your kitchen', {
+      fields: { storeId: 'Unknown store' },
+    });
 }
 
-function checkPiece(input: { unit?: BaseUnit; pieceSize?: number | null; pieceUnit?: 'g' | 'ml' | null }) {
+function checkPiece(input: {
+  unit?: BaseUnit;
+  pieceSize?: number | null;
+  pieceUnit?: 'g' | 'ml' | null;
+}) {
   if (input.unit && input.unit !== 'pcs' && input.pieceUnit && input.pieceUnit !== input.unit) {
-    throw new AppError(400, 'VALIDATION', 'A piece of this item is measured in its own unit', { fields: { pieceUnit: `Use ${input.unit}` } });
+    throw new AppError(400, 'VALIDATION', 'A piece of this item is measured in its own unit', {
+      fields: { pieceUnit: `Use ${input.unit}` },
+    });
   }
 }
 
 /** The product with a name like this one (tomato ↔ Tomatoes), including an archived one. */
 async function findByName(ctx: FoodCtx, name: string): Promise<ProductRow | null> {
-  const { rows } = await ctx.db.query<ProductRow>(`SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`, [ctx.actor.householdId]);
-  return rows.find((row) => normalizeName(row.name) === normalizeName(name)) ?? rows.find((row) => sameName(row.name, name)) ?? null;
+  const { rows } = await ctx.db.query<ProductRow>(
+    `SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`,
+    [ctx.actor.householdId],
+  );
+  return (
+    rows.find((row) => normalizeName(row.name) === normalizeName(name)) ??
+    rows.find((row) => sameName(row.name, name)) ??
+    null
+  );
 }
 
 /** A unit hint ("kg") tells a new product how it is counted when nothing else does. */
 function baseFor(unit: string | undefined): BaseUnit {
   if (unit === 'g' || unit === 'kg') return 'g';
-  if (unit === 'ml' || unit === 'l' || unit === 'tsp' || unit === 'tbsp' || unit === 'cup') return 'ml';
+  if (unit === 'ml' || unit === 'l' || unit === 'tsp' || unit === 'tbsp' || unit === 'cup')
+    return 'ml';
   return 'pcs';
 }
 
@@ -163,7 +198,10 @@ function modeOf(input: Pick<ProductInput, 'trackMode' | 'trackStock'>): TrackMod
   return input.trackMode ?? (input.trackStock === false ? 'none' : undefined);
 }
 
-async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUnit }): Promise<Product> {
+async function insertProduct(
+  ctx: FoodCtx,
+  input: ProductInput & { unit: BaseUnit },
+): Promise<Product> {
   const preset = presetOrGuess(input.name);
   const mode = modeOf(input) ?? preset?.track ?? 'exact';
   const { rows } = await ctx.db.query<ProductRow>(
@@ -194,7 +232,9 @@ async function insertProduct(ctx: FoodCtx, input: ProductInput & { unit: BaseUni
       input.level ?? 'full',
       input.freezerDays ?? preset?.freezerDays ?? null,
       input.thawedDays ?? preset?.thawedDays ?? null,
-      JSON.stringify(input.units ?? (preset && preset.unit === input.unit ? (preset.units ?? []) : [])),
+      JSON.stringify(
+        input.units ?? (preset && preset.unit === input.unit ? (preset.units ?? []) : []),
+      ),
       input.variants ?? preset?.variants ?? [],
       input.openedLocation === undefined ? (preset?.openedLocation ?? null) : input.openedLocation,
     ],
@@ -208,10 +248,15 @@ export async function createProduct(ctx: FoodCtx, input: ProductInput): Promise<
   await ensureStore(ctx, input.storeId);
   const existing = await findByName(ctx, input.name);
   if (existing && !existing.archived_at) {
-    throw new AppError(409, 'EXISTS', `${existing.name} is already in your kitchen`, { fields: { name: 'You already have this item' } });
+    throw new AppError(409, 'EXISTS', `${existing.name} is already in your kitchen`, {
+      fields: { name: 'You already have this item' },
+    });
   }
   if (existing) {
-    await ctx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [existing.id, ctx.now]);
+    await ctx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [
+      existing.id,
+      ctx.now,
+    ]);
     return updateProduct(ctx, existing.id, input);
   }
   const preset = presetOrGuess(input.name);
@@ -223,7 +268,12 @@ export async function createProduct(ctx: FoodCtx, input: ProductInput): Promise<
  * built-in catalog, else a plain new item counted the way `unitHint` suggests. Used wherever people
  * or the assistant type a name: adding stock, shopping lines, recipe ingredients.
  */
-export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<Product> {
+export async function resolveProduct(
+  ctx: FoodCtx,
+  name: string,
+  unitHint?: string,
+  options: { level?: Level } = {},
+): Promise<Product> {
   return (await resolveNamed(ctx, name, unitHint, options)).product;
 }
 
@@ -232,13 +282,22 @@ export async function resolveProduct(ctx: FoodCtx, name: string, unitHint?: stri
  * Zero" is Coca-Cola, Zero; "Borjomi" is Mineral water, Borjomi. Only items that come in types
  * are split this way, so "cherry tomatoes" or "olive oil" stay items of their own.
  */
-export async function resolveNamed(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<{ product: Product; variant: string }> {
+export async function resolveNamed(
+  ctx: FoodCtx,
+  name: string,
+  unitHint?: string,
+  options: { level?: Level } = {},
+): Promise<{ product: Product; variant: string }> {
   const direct = findPreset(name) ?? (await findByName(ctx, name));
   if (!direct) {
     const split = await splitVariant(ctx, name);
     if (split) {
       const product = await resolveExact(ctx, split.item, unitHint, options);
-      return { product, variant: variantNamed(product, split.variant) ?? variantNamed(product, name) ?? split.variant };
+      return {
+        product,
+        variant:
+          variantNamed(product, split.variant) ?? variantNamed(product, name) ?? split.variant,
+      };
     }
   }
   const product = await resolveExact(ctx, name, unitHint, options);
@@ -252,20 +311,35 @@ function variantNamed(product: Product, word: string): string | null {
 }
 
 /** "mango peach juice" → Juice + "Mango peach", when Juice is an item that comes in types. */
-export async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: string; variant: string } | null> {
+export async function splitVariant(
+  ctx: FoodCtx,
+  name: string,
+): Promise<{ item: string; variant: string } | null> {
   const words = normalizeName(name).split(' ');
-  const { rows } = await ctx.db.query<{ name: string; variants: string[] }>(`SELECT name, variants FROM products WHERE household_id = $1 AND cardinality(variants) > 0`, [
-    ctx.actor.householdId,
-  ]);
+  const { rows } = await ctx.db.query<{ name: string; variants: string[] }>(
+    `SELECT name, variants FROM products WHERE household_id = $1 AND cardinality(variants) > 0`,
+    [ctx.actor.householdId],
+  );
   const typed = [
     ...rows.map((row) => ({ item: row.name, forms: [row.name], variants: row.variants })),
-    ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({ item: preset.name, forms: [preset.name, ...(preset.aliases ?? [])], variants: preset.variants! })),
+    ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({
+      item: preset.name,
+      forms: [preset.name, ...(preset.aliases ?? [])],
+      variants: preset.variants!,
+    })),
   ];
   // A type on its own ("Absolut", "Cheddar") finds its item, when only one item has it.
-  const owners = new Set(typed.filter((t) => t.variants.some((v) => normalizeName(v) === words.join(' '))).map((t) => normalizeName(t.item)));
+  const owners = new Set(
+    typed
+      .filter((t) => t.variants.some((v) => normalizeName(v) === words.join(' ')))
+      .map((t) => normalizeName(t.item)),
+  );
   if (owners.size === 1) {
     const owner = typed.find((t) => owners.has(normalizeName(t.item)))!;
-    return { item: owner.item, variant: owner.variants.find((v) => normalizeName(v) === words.join(' '))! };
+    return {
+      item: owner.item,
+      variant: owner.variants.find((v) => normalizeName(v) === words.join(' '))!,
+    };
   }
   if (words.length < 2) return null;
   // The longest name wins; between equals, the name at the end ("apple juice" is juice, not apples).
@@ -295,10 +369,17 @@ export async function splitVariant(ctx: FoodCtx, name: string): Promise<{ item: 
 }
 
 /** Remembers a type the first time it is used, so it is offered from then on. */
-export async function rememberVariant(ctx: FoodCtx, product: Product, variant: string | undefined): Promise<Product> {
+export async function rememberVariant(
+  ctx: FoodCtx,
+  product: Product,
+  variant: string | undefined,
+): Promise<Product> {
   const name = variant?.trim().slice(0, 40);
   if (!name || variantNamed(product, name)) return product;
-  await ctx.db.query('UPDATE products SET variants = array_append(variants, $2), updated_at = $3 WHERE id = $1', [product.id, name, ctx.now]);
+  await ctx.db.query(
+    'UPDATE products SET variants = array_append(variants, $2), updated_at = $3 WHERE id = $1',
+    [product.id, name, ctx.now],
+  );
   return { ...product, variants: [...product.variants, name] };
 }
 
@@ -308,70 +389,141 @@ export async function rememberVariant(ctx: FoodCtx, product: Product, variant: s
  * and where it goes once opened. Never changes how an item is counted. Returns how many items changed.
  */
 export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
-  const { rows } = await ctx.db.query<ProductRow>(`SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`, [ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<ProductRow>(
+    `SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`,
+    [ctx.actor.householdId],
+  );
   let changed = 0;
   for (const row of rows) {
     const product = toProduct(row);
     const preset = findPreset(product.name);
     if (!preset) continue;
-    const sameCount = preset.unit === product.unit && (preset.pieceSize ?? null) === (product.pieceSize ?? null);
+    const sameCount =
+      preset.unit === product.unit && (preset.pieceSize ?? null) === (product.pieceSize ?? null);
     const units = !product.units.length && sameCount && preset.units?.length ? preset.units : null;
     const known = new Set(product.variants.map((v) => normalizeName(v)));
     const variants = (preset.variants ?? []).filter((v) => !known.has(normalizeName(v)));
-    const openedLocation = !product.openedLocation && preset.openedLocation ? preset.openedLocation : null;
+    const openedLocation =
+      !product.openedLocation && preset.openedLocation ? preset.openedLocation : null;
     const openedDays = product.openedDays === null && preset.openedDays ? preset.openedDays : null;
     if (!units && !variants.length && !openedLocation && !openedDays) continue;
     await ctx.db.query(
       `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location),
               opened_days = coalesce($6, opened_days), updated_at = $5 WHERE id = $1`,
-      [product.id, units ? JSON.stringify(units) : null, variants, openedLocation, ctx.now, openedDays],
+      [
+        product.id,
+        units ? JSON.stringify(units) : null,
+        variants,
+        openedLocation,
+        ctx.now,
+        openedDays,
+      ],
     );
     changed += 1;
   }
   return changed;
 }
 
-async function resolveExact(ctx: FoodCtx, name: string, unitHint?: string, options: { level?: Level } = {}): Promise<Product> {
+async function resolveExact(
+  ctx: FoodCtx,
+  name: string,
+  unitHint?: string,
+  options: { level?: Level } = {},
+): Promise<Product> {
   const preset = findPreset(name);
   // "roșii" and "steak" find the Tomatoes and Beef steak already in the kitchen.
-  const existing = (await findByName(ctx, name)) ?? (preset ? await findByName(ctx, preset.name) : null);
+  const existing =
+    (await findByName(ctx, name)) ?? (preset ? await findByName(ctx, preset.name) : null);
   if (existing) {
-    if (existing.archived_at) await ctx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [existing.id, ctx.now]);
+    if (existing.archived_at)
+      await ctx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [
+        existing.id,
+        ctx.now,
+      ]);
     return toProduct({ ...existing, archived_at: null });
   }
   const known = preset ?? presetOrGuess(name);
-  const measured: Measured | null = known ? { unit: known.unit, pieceSize: known.pieceSize ?? null, pieceUnit: known.pieceUnit ?? null, units: known.units } : null;
-  const unit = known && measured && (!unitHint || canConvert(unitHint, measured)) ? known.unit : baseFor(unitHint);
+  const measured: Measured | null = known
+    ? {
+        unit: known.unit,
+        pieceSize: known.pieceSize ?? null,
+        pieceUnit: known.pieceUnit ?? null,
+        units: known.units,
+      }
+    : null;
+  const unit =
+    known && measured && (!unitHint || canConvert(unitHint, measured))
+      ? known.unit
+      : baseFor(unitHint);
   const tidy = name.trim().replace(/\s+/g, ' ');
   // A catalog item keeps the catalog's name ("roșii" becomes Tomatoes); anything else keeps what was typed.
-  return insertProduct(ctx, { name: preset && unit === preset.unit ? preset.name : tidy.charAt(0).toUpperCase() + tidy.slice(1), unit, level: options.level });
+  return insertProduct(ctx, {
+    name:
+      preset && unit === preset.unit ? preset.name : tidy.charAt(0).toUpperCase() + tidy.slice(1),
+    unit,
+    level: options.level,
+  });
 }
 
-export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<ProductInput>): Promise<Product> {
+export async function updateProduct(
+  ctx: FoodCtx,
+  id: string,
+  patch: Partial<ProductInput>,
+): Promise<Product> {
   const product = await findProduct(ctx, id, { lock: true });
-  checkPiece({ unit: patch.unit ?? product.unit, pieceSize: patch.pieceSize, pieceUnit: patch.pieceUnit });
+  checkPiece({
+    unit: patch.unit ?? product.unit,
+    pieceSize: patch.pieceSize,
+    pieceUnit: patch.pieceUnit,
+  });
   await ensureStore(ctx, patch.storeId);
   const nextMode = modeOf(patch);
   if (nextMode === 'level' && product.trackMode !== 'level') {
     // To level: what was weighed becomes simply "full" (or "out" if there was none).
-    const { rows: lots } = await ctx.db.query<{ id: string; quantity: number }>('SELECT id, quantity FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL', [id]);
+    const { rows: lots } = await ctx.db.query<{ id: string; quantity: number }>(
+      'SELECT id, quantity FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL',
+      [id],
+    );
     for (const lot of lots) {
       await ctx.db.query(
         `INSERT INTO stock_events (household_id, product_id, lot_id, kind, delta, actor_id, via, note, created_at) VALUES ($1, $2, $3, 'adjusted', $4, $5, $6, 'Now kept by level', $7)`,
-        [ctx.actor.householdId, id, lot.id, -lot.quantity, ctx.actor.userId, ctx.actor.via, ctx.now],
+        [
+          ctx.actor.householdId,
+          id,
+          lot.id,
+          -lot.quantity,
+          ctx.actor.userId,
+          ctx.actor.via,
+          ctx.now,
+        ],
       );
     }
-    await ctx.db.query('UPDATE stock_lots SET quantity = 0, finished_at = $2 WHERE product_id = $1 AND finished_at IS NULL', [id, ctx.now]);
-    if (patch.level === undefined) patch = { ...patch, level: lots.some((lot) => lot.quantity > 0) ? 'full' : 'out' };
+    await ctx.db.query(
+      'UPDATE stock_lots SET quantity = 0, finished_at = $2 WHERE product_id = $1 AND finished_at IS NULL',
+      [id, ctx.now],
+    );
+    if (patch.level === undefined)
+      patch = { ...patch, level: lots.some((lot) => lot.quantity > 0) ? 'full' : 'out' };
   }
   if (patch.unit && patch.unit !== product.unit) {
-    const { rowCount } = await ctx.db.query('SELECT 1 FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL LIMIT 1', [id]);
-    if (rowCount) throw new AppError(409, 'HAS_STOCK', 'Use up or remove its stock before changing how it is counted', { fields: { unit: 'It still has stock' } });
+    const { rowCount } = await ctx.db.query(
+      'SELECT 1 FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL LIMIT 1',
+      [id],
+    );
+    if (rowCount)
+      throw new AppError(
+        409,
+        'HAS_STOCK',
+        'Use up or remove its stock before changing how it is counted',
+        { fields: { unit: 'It still has stock' } },
+      );
   }
   if (patch.name && normalizeName(patch.name) !== normalizeName(product.name)) {
     const clash = await findByName(ctx, patch.name);
     if (clash && clash.id !== id && normalizeName(clash.name) === normalizeName(patch.name)) {
-      throw new AppError(409, 'EXISTS', `${clash.name} is already in your kitchen`, { fields: { name: 'Another item has this name' } });
+      throw new AppError(409, 'EXISTS', `${clash.name} is already in your kitchen`, {
+        fields: { name: 'Another item has this name' },
+      });
     }
   }
   const columns: Record<string, unknown> = {
@@ -406,7 +558,10 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
   }
   values.push(ctx.now);
   sets.push(`updated_at = $${values.length}`);
-  const { rows } = await ctx.db.query<ProductRow>(`UPDATE products SET ${sets.join(', ')} WHERE id = $1 RETURNING ${PRODUCT_COLUMNS}`, values);
+  const { rows } = await ctx.db.query<ProductRow>(
+    `UPDATE products SET ${sets.join(', ')} WHERE id = $1 RETURNING ${PRODUCT_COLUMNS}`,
+    values,
+  );
   return toProduct(rows[0]!);
 }
 
@@ -414,14 +569,23 @@ export async function updateProduct(ctx: FoodCtx, id: string, patch: Partial<Pro
 export async function archiveProduct(ctx: FoodCtx, id: string): Promise<void> {
   await ctx.tx(async (tx) => {
     await findProduct(tx, id, { lock: true });
-    const { rows } = await tx.db.query<{ id: string; quantity: number }>('SELECT id, quantity FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL', [id]);
+    const { rows } = await tx.db.query<{ id: string; quantity: number }>(
+      'SELECT id, quantity FROM stock_lots WHERE product_id = $1 AND finished_at IS NULL',
+      [id],
+    );
     for (const lot of rows) {
       await tx.db.query(
         `INSERT INTO stock_events (household_id, product_id, lot_id, kind, delta, actor_id, via, note, created_at) VALUES ($1, $2, $3, 'adjusted', $4, $5, $6, 'Item removed', $7)`,
         [tx.actor.householdId, id, lot.id, -lot.quantity, tx.actor.userId, tx.actor.via, tx.now],
       );
     }
-    await tx.db.query('UPDATE stock_lots SET quantity = 0, finished_at = $2 WHERE product_id = $1 AND finished_at IS NULL', [id, tx.now]);
-    await tx.db.query('UPDATE products SET archived_at = $2, updated_at = $2 WHERE id = $1', [id, tx.now]);
+    await tx.db.query(
+      'UPDATE stock_lots SET quantity = 0, finished_at = $2 WHERE product_id = $1 AND finished_at IS NULL',
+      [id, tx.now],
+    );
+    await tx.db.query('UPDATE products SET archived_at = $2, updated_at = $2 WHERE id = $1', [
+      id,
+      tx.now,
+    ]);
   });
 }

@@ -45,7 +45,8 @@ How it works
 - Dates are YYYY-MM-DD and times HH:MM, local to the kitchen (Europe/Chisinau). Prices are in lei (MDL).
 
 Training (home workouts, each person's own)
-- training_overview first: whose (userId; default you), today's and next workouts, the week, streaks. People are the household's.
+- training_overview first: whose (userId; default you), today's and next workouts, the week, streaks. People are the household's, with gender, age and height: "for Maria" means her userId. Each person has their own exercise library and routines (exercise ids differ per person; plan_workout maps another person's to theirs); the equipment is shared.
+- Equipment pieces: bands each with a resistance (kg), the bar's grips. An exercise's options are its variations plus those pieces; plan items and sets take variant ("Wide grip", "Black band").
 - The household trains at home with what training_equipment lists. list_exercises says which exercises that allows (available) and the weights owned (kg, pair or single); never plan an exercise that isn't available.
 - plan_workout: exercises in order with sets and a target — reps (weight in kg if weighted), seconds, or distance in metres; rest in seconds. rounds > 1 makes a circuit of the main block; warm-up/cool-down items (block) are done once. suggest_workout makes one up for minutes, focus, level and quiet (no jumping).
 - log_exercise records sets: during a workout (workoutId) or on their own — "I did 10 push-ups" is a set now; "20 squats yesterday" is day only. It reports new personal bests.

@@ -13,7 +13,15 @@ export interface FoodOverview {
   kitchen: { name: string; currency: string };
   stock: {
     products: number;
-    expiring: Array<{ lotId: string; productId: string; name: string; icon: FoodIcon; quantity: number; unit: BaseUnit; expiresOn: string }>;
+    expiring: Array<{
+      lotId: string;
+      productId: string;
+      name: string;
+      icon: FoodIcon;
+      quantity: number;
+      unit: BaseUnit;
+      expiresOn: string;
+    }>;
     expired: number;
     /** Started packages (an opened can, a cut cake): use these first, so nothing is thrown away. */
     opened: Array<{
@@ -29,10 +37,23 @@ export interface FoodOverview {
       /** Recipes that use it. */
       recipes: number;
     }>;
-    low: Array<{ productId: string; name: string; icon: FoodIcon; total: number; minStock: number; unit: BaseUnit; level: 'full' | 'low' | 'out' | null }>;
+    low: Array<{
+      productId: string;
+      name: string;
+      icon: FoodIcon;
+      total: number;
+      minStock: number;
+      unit: BaseUnit;
+      level: 'full' | 'low' | 'out' | null;
+    }>;
   };
   recipes: { total: number; ready: number; favorites: number };
-  shopping: { open: number; inCart: number; stores: Array<{ id: string; name: string; tone: string; open: number }>; anyStore: number };
+  shopping: {
+    open: number;
+    inCart: number;
+    stores: Array<{ id: string; name: string; tone: string; open: number }>;
+    anyStore: number;
+  };
   meals: { today: Meal[]; upcoming: Meal[]; plannedThisWeek: number };
 }
 
@@ -41,7 +62,10 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
   const soon = localDate(day, 3);
   const weekEnd = localDate(day, 6);
   const [{ rows: kitchenRow }, products, recipes, items, stores, meals] = await Promise.all([
-    ctx.db.query<{ name: string; currency: string }>('SELECT name, currency FROM households WHERE id = $1', [ctx.actor.householdId]),
+    ctx.db.query<{ name: string; currency: string }>(
+      'SELECT name, currency FROM households WHERE id = $1',
+      [ctx.actor.householdId],
+    ),
     kitchen(ctx),
     listRecipes(ctx),
     listShopping(ctx),
@@ -53,17 +77,33 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
     .flatMap((product) =>
       product.lots
         .filter((lot) => lot.expiresOn && lot.expiresOn <= soon)
-        .map((lot) => ({ lotId: lot.id, productId: product.id, name: product.name, icon: product.icon, quantity: lot.quantity, unit: product.unit, expiresOn: lot.expiresOn! })),
+        .map((lot) => ({
+          lotId: lot.id,
+          productId: product.id,
+          name: product.name,
+          icon: product.icon,
+          quantity: lot.quantity,
+          unit: product.unit,
+          expiresOn: lot.expiresOn!,
+        })),
     )
     .sort((a, b) => a.expiresOn.localeCompare(b.expiresOn));
 
   const usedIn = new Map<string, number>();
-  for (const recipe of recipes) for (const id of new Set(recipe.ingredients.map((i) => i.productId).filter(Boolean))) usedIn.set(id!, (usedIn.get(id!) ?? 0) + 1);
+  for (const recipe of recipes)
+    for (const id of new Set(recipe.ingredients.map((i) => i.productId).filter(Boolean)))
+      usedIn.set(id!, (usedIn.get(id!) ?? 0) + 1);
   const opened = products
     .flatMap((product) =>
       product.lots
         // Packages, or things that keep less once opened: a started tomato or steak isn't "opened".
-        .filter((lot) => lot.openedAt && lot.quantity > 0 && product.trackMode === 'exact' && (lot.package || product.openedDays))
+        .filter(
+          (lot) =>
+            lot.openedAt &&
+            lot.quantity > 0 &&
+            product.trackMode === 'exact' &&
+            (lot.package || product.openedDays),
+        )
         .map((lot) => ({
           lotId: lot.id,
           productId: product.id,
@@ -82,15 +122,29 @@ export async function overview(ctx: FoodCtx, today = localDate(ctx.now)): Promis
   return {
     kitchen: kitchenRow[0] ?? { name: 'Kitchen', currency: 'MDL' },
     stock: {
-      products: products.filter((p) => p.total > 0 || (p.trackMode === 'level' && p.level !== 'out')).length,
+      products: products.filter(
+        (p) => p.total > 0 || (p.trackMode === 'level' && p.level !== 'out'),
+      ).length,
       expiring: expiring.slice(0, 12),
       expired: expiring.filter((lot) => lot.expiresOn < today).length,
       opened: opened.slice(0, 12),
       low: products
         .filter((p) => p.low)
-        .map((p) => ({ productId: p.id, name: p.name, icon: p.icon, total: p.total, minStock: p.minStock ?? 0, unit: p.unit, level: p.trackMode === 'level' ? p.level : null })),
+        .map((p) => ({
+          productId: p.id,
+          name: p.name,
+          icon: p.icon,
+          total: p.total,
+          minStock: p.minStock ?? 0,
+          unit: p.unit,
+          level: p.trackMode === 'level' ? p.level : null,
+        })),
     },
-    recipes: { total: recipes.length, ready: recipes.filter((r) => r.availability.ready).length, favorites: recipes.filter((r) => r.favorite).length },
+    recipes: {
+      total: recipes.length,
+      ready: recipes.filter((r) => r.availability.ready).length,
+      favorites: recipes.filter((r) => r.favorite).length,
+    },
     shopping: {
       open: items.filter((i) => !i.checked).length,
       inCart: items.filter((i) => i.checked).length,

@@ -16,15 +16,26 @@ describe('admin: accounts', () => {
     const b = t.browser();
     await b.login('ana@example.com');
     expect((await b.get('/api/admin/users')).status).toBe(403);
-    expect((await b.post('/api/admin/users', { email: 'x@example.com', name: 'X' })).status).toBe(403);
+    expect((await b.post('/api/admin/users', { email: 'x@example.com', name: 'X' })).status).toBe(
+      403,
+    );
   });
 
   it('creates a person with a one-time password they must replace', async () => {
     const { b } = await signedInAdmin();
-    const res = await b.post('/api/admin/users', { email: 'Mama@Example.com', name: 'Elena', surname: 'Brinza' });
+    const res = await b.post('/api/admin/users', {
+      email: 'Mama@Example.com',
+      name: 'Elena',
+      surname: 'Brinza',
+    });
     expect(res.status).toBe(201);
     expect(res.body.password).toMatch(/^[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}$/);
-    expect(res.body.user).toMatchObject({ email: 'mama@example.com', role: 'member', isActive: true, mustChangePassword: true });
+    expect(res.body.user).toMatchObject({
+      email: 'mama@example.com',
+      role: 'member',
+      isActive: true,
+      mustChangePassword: true,
+    });
 
     const person = t.browser();
     const login = await person.login('mama@example.com', res.body.password);
@@ -34,10 +45,18 @@ describe('admin: accounts', () => {
 
   it('creates an account with a chosen password', async () => {
     const { b } = await signedInAdmin();
-    const res = await b.post('/api/admin/users', { email: 'dad@example.com', name: 'Ion', password: 'family-password-1', mustChangePassword: false });
+    const res = await b.post('/api/admin/users', {
+      email: 'dad@example.com',
+      name: 'Ion',
+      password: 'family-password-1',
+      mustChangePassword: false,
+    });
     expect(res.status).toBe(201);
     expect(res.body.password).toBeNull();
-    expect((await t.browser().login('dad@example.com', 'family-password-1')).body.user.mustChangePassword).toBe(false);
+    expect(
+      (await t.browser().login('dad@example.com', 'family-password-1')).body.user
+        .mustChangePassword,
+    ).toBe(false);
   });
 
   it('refuses a taken email and invalid fields', async () => {
@@ -47,7 +66,9 @@ describe('admin: accounts', () => {
     expect(taken.body.error.fields.email).toBeTruthy();
     const invalid = await b.post('/api/admin/users', { email: 'not-an-email', name: '' });
     expect(invalid.status).toBe(400);
-    expect(Object.keys(invalid.body.error.fields)).toEqual(expect.arrayContaining(['email', 'name']));
+    expect(Object.keys(invalid.body.error.fields)).toEqual(
+      expect.arrayContaining(['email', 'name']),
+    );
   });
 
   it('lists and searches people', async () => {
@@ -86,8 +107,12 @@ describe('admin: accounts', () => {
 
   it('never leaves the app without an active admin', async () => {
     const { admin, b } = await signedInAdmin();
-    expect((await b.patch(`/api/admin/users/${admin.id}`, { role: 'member' })).body.error.code).toBe('LAST_ADMIN');
-    expect((await b.patch(`/api/admin/users/${admin.id}`, { isActive: false })).body.error.code).toBe('SELF');
+    expect(
+      (await b.patch(`/api/admin/users/${admin.id}`, { role: 'member' })).body.error.code,
+    ).toBe('LAST_ADMIN');
+    expect(
+      (await b.patch(`/api/admin/users/${admin.id}`, { isActive: false })).body.error.code,
+    ).toBe('SELF');
     expect((await b.delete(`/api/admin/users/${admin.id}`)).body.error.code).toBe('SELF');
 
     const second = await t.createUser({ email: 'second@example.com', role: 'admin' });
@@ -96,7 +121,10 @@ describe('admin: accounts', () => {
     expect((await b.get('/api/admin/users')).status).toBe(403);
     const secondBrowser = t.browser();
     await secondBrowser.login('second@example.com');
-    expect((await secondBrowser.patch(`/api/admin/users/${second.id}`, { role: 'member' })).body.error.code).toBe('LAST_ADMIN');
+    expect(
+      (await secondBrowser.patch(`/api/admin/users/${second.id}`, { role: 'member' })).body.error
+        .code,
+    ).toBe('LAST_ADMIN');
   });
 
   it('resets a password: old sessions end, the new one-time password works', async () => {
@@ -129,7 +157,10 @@ describe('admin: accounts', () => {
     expect((await b.delete(`/api/admin/users/${ana.id}`)).status).toBe(204);
     expect((await b.get(`/api/admin/users/${ana.id}`)).status).toBe(404);
     const activity = await b.get('/api/admin/activity');
-    expect(activity.body.activity[0]).toMatchObject({ action: 'user.deleted', actor: { name: 'Cristian Popescu' } });
+    expect(activity.body.activity[0]).toMatchObject({
+      action: 'user.deleted',
+      actor: { name: 'Cristian Popescu' },
+    });
     expect(activity.body.activity[0].meta.email).toBe('ana@example.com');
   });
 

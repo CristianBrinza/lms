@@ -147,14 +147,15 @@ const WORKOUT_PRESET: Array<[RegExp, string]> = [
 
 async function exerciseForWorkout(
   ctx: Ctx,
+  userId: string,
   type: string,
 ): Promise<{ id: string; measure: string }> {
   const preset = WORKOUT_PRESET.find(([pattern]) => pattern.test(type))?.[1];
   const { rows } = await ctx.db.query<{ id: string; measure: string }>(
     preset
-      ? 'SELECT id, measure FROM training_exercises WHERE household_id = $1 AND preset = $2'
-      : 'SELECT id, measure FROM training_exercises WHERE household_id = $1 AND lower(name) = lower($2) ORDER BY archived_at NULLS FIRST LIMIT 1',
-    [ctx.actor.householdId, preset ?? type],
+      ? 'SELECT id, measure FROM training_exercises WHERE user_id = $1 AND preset = $2'
+      : 'SELECT id, measure FROM training_exercises WHERE user_id = $1 AND lower(name) = lower($2) ORDER BY archived_at NULLS FIRST LIMIT 1',
+    [userId, preset ?? type],
   );
   if (rows[0]) return rows[0];
   // Yoga, Swimming, Tennis… become the household's own timed exercise, named as the app names it.
@@ -163,14 +164,15 @@ async function exerciseForWorkout(
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .trim();
   const created = await ctx.db.query<{ id: string; measure: string }>(
-    `INSERT INTO training_exercises (id, household_id, name, category, muscles, measure, icon, rest, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, 'cardio', '{heart}', 'time', 'jumping-jack', 0, $4, $5, $5) RETURNING id, measure`,
+    `INSERT INTO training_exercises (id, household_id, name, category, muscles, measure, icon, rest, created_by, created_at, updated_at, user_id)
+     VALUES ($1, $2, $3, 'cardio', '{heart}', 'time', 'jumping-jack', 0, $4, $5, $5, $6) RETURNING id, measure`,
     [
       randomUUID(),
       ctx.actor.householdId,
       name.charAt(0).toUpperCase() + name.slice(1),
       ctx.actor.userId,
       ctx.now,
+      userId,
     ],
   );
   return created.rows[0]!;
@@ -205,7 +207,7 @@ export async function importHealth(
       }
     }
     let workouts = 0;
-    if (input.workouts?.length) await syncCatalog(tx);
+    if (input.workouts?.length) await syncCatalog(tx, userId);
     for (const w of input.workouts ?? []) {
       const start = new Date(w.start);
       if (start.getTime() > tx.now.getTime() + 5 * 60_000) continue;
@@ -218,7 +220,7 @@ export async function importHealth(
       const km = looseNumber(w.distanceKm, false);
       const metres = looseNumber(w.distance, false) ?? (km !== null ? km * 1000 : null);
       if (!seconds && !metres) continue;
-      const exercise = await exerciseForWorkout(tx, w.type);
+      const exercise = await exerciseForWorkout(tx, userId, w.type);
       const externalId = `${input.source}:${w.id ?? `${w.type}:${w.start}`}`;
       const energy = looseNumber(w.energy, true);
       await tx.db.query(

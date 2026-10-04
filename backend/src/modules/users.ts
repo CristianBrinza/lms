@@ -20,7 +20,16 @@ export interface User {
   householdId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  gender: Gender | null;
+  /** YYYY-MM-DD */
+  birthDate: string | null;
+  heightCm: number | null;
+  /** When the picture was last set; null without one. */
+  avatarAt: Date | null;
 }
+
+export const GENDERS = ['female', 'male', 'other'] as const;
+export type Gender = (typeof GENDERS)[number];
 
 interface UserRow {
   id: string;
@@ -37,10 +46,14 @@ interface UserRow {
   household_id: string | null;
   created_at: Date;
   updated_at: Date;
+  gender: Gender | null;
+  birth_date: string | null;
+  height_cm: number | null;
+  avatar_at: Date | null;
 }
 
 export const USER_COLUMNS =
-  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at';
+  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at, gender, birth_date::text AS birth_date, height_cm, avatar_at';
 
 export function toUser(row: UserRow): User {
   return {
@@ -58,6 +71,10 @@ export function toUser(row: UserRow): User {
     householdId: row.household_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    gender: row.gender,
+    birthDate: row.birth_date,
+    heightCm: row.height_cm,
+    avatarAt: row.avatar_at,
   };
 }
 
@@ -71,7 +88,10 @@ export async function findUserById(db: Queryable, id: string): Promise<User | nu
 }
 
 export async function findUserByEmail(db: Queryable, email: string): Promise<User | null> {
-  const { rows } = await db.query<UserRow>(`SELECT ${USER_COLUMNS} FROM users WHERE lower(email) = lower($1)`, [email]);
+  const { rows } = await db.query<UserRow>(
+    `SELECT ${USER_COLUMNS} FROM users WHERE lower(email) = lower($1)`,
+    [email],
+  );
   return rows[0] ? toUser(rows[0]) : null;
 }
 
@@ -91,14 +111,25 @@ export async function insertUser(
     `INSERT INTO users (id, email, name, surname, role, password_hash, must_change_password, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING ${USER_COLUMNS}`,
-    [randomUUID(), input.email, input.name, input.surname, input.role, input.passwordHash, input.mustChangePassword, input.createdBy],
+    [
+      randomUUID(),
+      input.email,
+      input.name,
+      input.surname,
+      input.role,
+      input.passwordHash,
+      input.mustChangePassword,
+      input.createdBy,
+    ],
   );
   return toUser(rows[0]!);
 }
 
 /** Active admins left: the last one can never be demoted, deactivated or deleted. */
 export async function countActiveAdmins(db: Queryable): Promise<number> {
-  const { rows } = await db.query<{ count: number }>(`SELECT count(*)::int AS count FROM users WHERE role = 'admin' AND is_active`);
+  const { rows } = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM users WHERE role = 'admin' AND is_active`,
+  );
   return rows[0]?.count ?? 0;
 }
 
@@ -111,7 +142,16 @@ export interface PublicUser {
   role: Role;
   mustChangePassword: boolean;
   createdAt: string;
+  gender: Gender | null;
+  birthDate: string | null;
+  heightCm: number | null;
+  /** The picture's address (it changes with the picture), or null. */
+  avatarUrl: string | null;
 }
+
+/** A person's picture, for an <img>: the address changes when the picture does, so it caches forever. */
+export const avatarUrl = (id: string, at: Date | null) =>
+  at ? `/api/users/${id}/avatar?v=${at.getTime()}` : null;
 
 export function toPublicUser(user: User): PublicUser {
   return {
@@ -122,14 +162,23 @@ export function toPublicUser(user: User): PublicUser {
     role: user.role,
     mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt.toISOString(),
+    gender: user.gender,
+    birthDate: user.birthDate,
+    heightCm: user.heightCm,
+    avatarUrl: avatarUrl(user.id, user.avatarAt),
   };
 }
 
 /** Creates the first admin from ADMIN_EMAIL / ADMIN_PASSWORD when the database has none. */
-export async function ensureBootstrapAdmin(deps: AppDeps, log: (message: string) => void): Promise<void> {
+export async function ensureBootstrapAdmin(
+  deps: AppDeps,
+  log: (message: string) => void,
+): Promise<void> {
   const admin = deps.config.bootstrapAdmin;
   if (!admin) return;
-  const { rows } = await deps.db.query<{ count: number }>(`SELECT count(*)::int AS count FROM users WHERE role = 'admin'`);
+  const { rows } = await deps.db.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM users WHERE role = 'admin'`,
+  );
   if ((rows[0]?.count ?? 0) > 0) return;
   if (await findUserByEmail(deps.db, admin.email)) {
     log(`ADMIN_EMAIL ${admin.email} already belongs to a member; not creating an admin`);
@@ -144,5 +193,7 @@ export async function ensureBootstrapAdmin(deps: AppDeps, log: (message: string)
     mustChangePassword: false,
     createdBy: null,
   });
-  log(`created the first admin, ${admin.email} (you can now remove ADMIN_PASSWORD from the environment)`);
+  log(
+    `created the first admin, ${admin.email} (you can now remove ADMIN_PASSWORD from the environment)`,
+  );
 }

@@ -21,6 +21,7 @@ const READABLE = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 /** A one-time password the admin hands over: three groups of four, e.g. "k7mq-x2pf-9tcd" (~70 bits). */
 export function readablePassword(): string {
-  const group = () => Array.from({ length: 4 }, () => READABLE[randomInt(READABLE.length)]).join('');
+  const group = () =>
+    Array.from({ length: 4 }, () => READABLE[randomInt(READABLE.length)]).join('');
   return `${group()}-${group()}-${group()}`;
 }

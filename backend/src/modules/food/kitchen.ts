@@ -29,21 +29,36 @@ export interface Kitchen {
 }
 
 /** The person's kitchen, created on first use. Safe under concurrent first requests. */
-export async function ensureKitchen(deps: AppDeps, user: Pick<User, 'id' | 'name' | 'householdId'>): Promise<Kitchen> {
+export async function ensureKitchen(
+  deps: AppDeps,
+  user: Pick<User, 'id' | 'name' | 'householdId'>,
+): Promise<Kitchen> {
   // Almost always the person already has one: no transaction, no lock.
   if (user.householdId) {
-    const { rows } = await deps.db.query<Kitchen>('SELECT id, name, currency, catalog_version AS "catalogVersion" FROM households WHERE id = $1', [user.householdId]);
+    const { rows } = await deps.db.query<Kitchen>(
+      'SELECT id, name, currency, catalog_version AS "catalogVersion" FROM households WHERE id = $1',
+      [user.householdId],
+    );
     if (rows[0]) return rows[0];
   }
   return deps.db.tx(async (tx) => {
-    const { rows } = await tx.query<{ household_id: string | null }>('SELECT household_id FROM users WHERE id = $1 FOR UPDATE', [user.id]);
+    const { rows } = await tx.query<{ household_id: string | null }>(
+      'SELECT household_id FROM users WHERE id = $1 FOR UPDATE',
+      [user.id],
+    );
     let id = rows[0]?.household_id ?? null;
     if (!id) {
       id = randomUUID();
-      await tx.query('INSERT INTO households (id, name) VALUES ($1, $2)', [id, `${user.name}’s kitchen`]);
+      await tx.query('INSERT INTO households (id, name) VALUES ($1, $2)', [
+        id,
+        `${user.name}’s kitchen`,
+      ]);
       await tx.query('UPDATE users SET household_id = $2 WHERE id = $1', [user.id, id]);
     }
-    const kitchen = await tx.query<Kitchen>('SELECT id, name, currency, catalog_version AS "catalogVersion" FROM households WHERE id = $1', [id]);
+    const kitchen = await tx.query<Kitchen>(
+      'SELECT id, name, currency, catalog_version AS "catalogVersion" FROM households WHERE id = $1',
+      [id],
+    );
     return kitchen.rows[0]!;
   });
 }
@@ -53,11 +68,19 @@ export function requireKitchen(deps: AppDeps) {
   return createMiddleware<AppEnv>(async (c, next) => {
     const user = c.get('user');
     const kitchen = await ensureKitchen(deps, user);
-    const actor: Actor = { householdId: kitchen.id, userId: user.id, via: c.get('via') ?? 'app', currency: kitchen.currency };
+    const actor: Actor = {
+      householdId: kitchen.id,
+      userId: user.id,
+      via: c.get('via') ?? 'app',
+      currency: kitchen.currency,
+    };
     // A newer catalog (more packages, types, keeping times): bring the kitchen's own items up to it, once.
     if (kitchen.catalogVersion < CATALOG_VERSION) {
       await refreshFromCatalog(foodCtx(deps, actor));
-      await deps.db.query('UPDATE households SET catalog_version = $2 WHERE id = $1 AND catalog_version < $2', [kitchen.id, CATALOG_VERSION]);
+      await deps.db.query(
+        'UPDATE households SET catalog_version = $2 WHERE id = $1 AND catalog_version < $2',
+        [kitchen.id, CATALOG_VERSION],
+      );
     }
     c.set('actor', actor);
     await next();

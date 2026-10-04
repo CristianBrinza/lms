@@ -13,6 +13,7 @@ import { adminRoutes } from './modules/admin/routes';
 import { authRoutes } from './modules/auth/routes';
 import { foodRoutes } from './modules/food/routes';
 import { trainingRoutes } from './modules/training/routes';
+import { avatarRoutes } from './modules/profile';
 import { healthRoutes } from './modules/health';
 import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
@@ -31,6 +32,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/food', foodRoutes(deps));
   app.route('/api/training', trainingRoutes(deps));
+  app.route('/api/users', avatarRoutes(deps));
   app.route(
     '/api/mcp',
     mcpRoutes(deps, () => app),

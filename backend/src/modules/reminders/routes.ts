@@ -5,7 +5,16 @@ import { AppError } from '../../lib/errors';
 import { readJson } from '../../lib/validation';
 import { requireAuth, sessionOf } from '../../middleware/auth';
 import { isUuid } from '../users';
-import { deleteReminder, deviceCount, listReminders, REMINDER_KINDS, saveReminder, sendToUser, subscribe, unsubscribe } from './service';
+import {
+  deleteReminder,
+  deviceCount,
+  listReminders,
+  REMINDER_KINDS,
+  saveReminder,
+  sendToUser,
+  subscribe,
+  unsubscribe,
+} from './service';
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 18:30');
 const ReminderBody = z.object({
@@ -36,12 +45,17 @@ export function reminderRoutes(deps: AppDeps) {
     const user = c.get('user');
     return c.json({
       reminders: await listReminders(deps, user.id),
-      push: { available: Boolean(deps.push), publicKey: deps.push?.publicKey ?? null, devices: await deviceCount(deps, user.id) },
+      push: {
+        available: Boolean(deps.push),
+        publicKey: deps.push?.publicKey ?? null,
+        devices: await deviceCount(deps, user.id),
+      },
     });
   });
   app.post('/reminders', async (c) => {
     const body = await readJson(c, ReminderBody);
-    if ((body.kind ?? 'custom') !== 'meal' && !body.time) throw new AppError(400, 'VALIDATION', 'Pick a time', { fields: { time: 'Pick a time' } });
+    if ((body.kind ?? 'custom') !== 'meal' && !body.time)
+      throw new AppError(400, 'VALIDATION', 'Pick a time', { fields: { time: 'Pick a time' } });
     return c.json({ reminder: await saveReminder(deps, c.get('user').id, null, body) }, 201);
   });
   app.patch('/reminders/:id', async (c) => {
@@ -58,9 +72,15 @@ export function reminderRoutes(deps: AppDeps) {
   });
 
   app.post('/push', async (c) => {
-    if (!deps.push) throw new AppError(503, 'PUSH_OFF', 'Reminders aren’t set up on the server yet');
+    if (!deps.push)
+      throw new AppError(503, 'PUSH_OFF', 'Reminders aren’t set up on the server yet');
     const body = await readJson(c, SubscriptionBody);
-    await subscribe(deps, c.get('user').id, { endpoint: body.endpoint, p256dh: body.keys.p256dh, auth: body.keys.auth, userAgent: c.req.header('user-agent') ?? '' });
+    await subscribe(deps, c.get('user').id, {
+      endpoint: body.endpoint,
+      p256dh: body.keys.p256dh,
+      auth: body.keys.auth,
+      userAgent: c.req.header('user-agent') ?? '',
+    });
     return c.json({ devices: await deviceCount(deps, c.get('user').id) }, 201);
   });
   app.delete('/push', async (c) => {
@@ -69,7 +89,12 @@ export function reminderRoutes(deps: AppDeps) {
     return c.body(null, 204);
   });
   app.post('/push/test', async (c) => {
-    const sent = await sendToUser(deps, c.get('user').id, { title: 'LMS reminders are on', body: 'This is how they will look.', url: '/settings/reminders', tag: 'test' });
+    const sent = await sendToUser(deps, c.get('user').id, {
+      title: 'LMS reminders are on',
+      body: 'This is how they will look.',
+      url: '/settings/reminders',
+      tag: 'test',
+    });
     if (!sent) throw new AppError(409, 'NO_DEVICES', 'No phone has reminders turned on yet');
     return c.json({ sent });
   });

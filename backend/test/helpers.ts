@@ -26,21 +26,40 @@ export function testConfig(overrides: Record<string, string> = {}): AppConfig {
 }
 
 /** One app per test file, a clean database before every test. */
-export function setupTestApp(overrides: Record<string, string> = {}, options: { push?: PushSender | null } = {}) {
+export function setupTestApp(
+  overrides: Record<string, string> = {},
+  options: { push?: PushSender | null } = {},
+) {
   const config = testConfig(overrides);
   const db = createDatabase(config);
   let clock: Date | null = null;
-  const deps: AppDeps = createDeps(config, db, { clientIp: () => '203.0.113.7', now: () => clock ?? new Date(), push: options.push ?? null });
+  const deps: AppDeps = createDeps(config, db, {
+    clientIp: () => '203.0.113.7',
+    now: () => clock ?? new Date(),
+    push: options.push ?? null,
+  });
   const app = createApp(deps);
 
   beforeEach(async () => {
     clock = null;
     await migrate(db);
-    await db.query('TRUNCATE users, sessions, rate_limits, audit_log, households RESTART IDENTITY CASCADE');
+    await db.query(
+      'TRUNCATE users, sessions, rate_limits, audit_log, households RESTART IDENTITY CASCADE',
+    );
   });
   afterAll(() => db.close());
 
-  async function createUser(input: Partial<{ email: string; name: string; surname: string; role: Role; password: string; mustChangePassword: boolean; isActive: boolean }> = {}): Promise<User> {
+  async function createUser(
+    input: Partial<{
+      email: string;
+      name: string;
+      surname: string;
+      role: Role;
+      password: string;
+      mustChangePassword: boolean;
+      isActive: boolean;
+    }> = {},
+  ): Promise<User> {
     const user = await insertUser(db, {
       email: input.email ?? `person${Math.random().toString(36).slice(2, 8)}@example.com`,
       name: input.name ?? 'Ana',
@@ -50,21 +69,29 @@ export function setupTestApp(overrides: Record<string, string> = {}, options: { 
       mustChangePassword: input.mustChangePassword ?? false,
       createdBy: null,
     });
-    if (input.isActive === false) await db.query('UPDATE users SET is_active = false WHERE id = $1', [user.id]);
+    if (input.isActive === false)
+      await db.query('UPDATE users SET is_active = false WHERE id = $1', [user.id]);
     return user;
   }
 
   /** A browser: keeps cookies between requests and sends same-origin headers like the app. */
   function browser() {
     const jar = new Map<string, string>();
-    async function request(method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+    async function request(
+      method: string,
+      path: string,
+      body?: unknown,
+      headers: Record<string, string> = {},
+    ) {
       const response = await app.request(path, {
         method,
         headers: {
           origin: APP_URL,
           'sec-fetch-site': 'same-origin',
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-          ...(jar.size ? { cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; ') } : {}),
+          ...(jar.size
+            ? { cookie: [...jar].map(([name, value]) => `${name}=${value}`).join('; ') }
+            : {}),
           ...headers,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -78,16 +105,24 @@ export function setupTestApp(overrides: Record<string, string> = {}, options: { 
         else jar.set(name, value);
       }
       const text = await response.text();
-      return { status: response.status, headers: response.headers, body: text ? (JSON.parse(text) as any) : null, setCookies: response.headers.getSetCookie() };
+      return {
+        status: response.status,
+        headers: response.headers,
+        body: text ? (JSON.parse(text) as any) : null,
+        setCookies: response.headers.getSetCookie(),
+      };
     }
     return {
       jar,
-      get: (path: string, headers?: Record<string, string>) => request('GET', path, undefined, headers),
-      post: (path: string, body?: unknown, headers?: Record<string, string>) => request('POST', path, body, headers),
+      get: (path: string, headers?: Record<string, string>) =>
+        request('GET', path, undefined, headers),
+      post: (path: string, body?: unknown, headers?: Record<string, string>) =>
+        request('POST', path, body, headers),
       patch: (path: string, body?: unknown) => request('PATCH', path, body),
       put: (path: string, body?: unknown) => request('PUT', path, body),
       delete: (path: string) => request('DELETE', path),
-      login: (email: string, password = PASSWORD, remember = true) => request('POST', '/api/auth/login', { email, password, remember }),
+      login: (email: string, password = PASSWORD, remember = true) =>
+        request('POST', '/api/auth/login', { email, password, remember }),
     };
   }
 

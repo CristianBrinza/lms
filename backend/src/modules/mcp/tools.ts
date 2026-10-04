@@ -81,10 +81,25 @@ import { createStore, listStores } from '../food/stores';
 import { EQUIPMENT_PRESETS } from '../training/catalog';
 import { generateWorkout } from '../training/generate';
 import { healthSummary } from '../training/health';
-import { addEquipment, listEquipment, listExercises, syncCatalog } from '../training/library';
-import { EquipmentInput, GenerateInput, SetInput, WorkoutInput } from '../training/schemas';
+import {
+  addEquipment,
+  createExercise,
+  listEquipment,
+  listExercises,
+  syncCatalog,
+  updateExercise,
+} from '../training/library';
+import {
+  EquipmentInput,
+  ExerciseCreate,
+  ExercisePatch,
+  GenerateInput,
+  RoutineInput,
+  SetInput,
+  WorkoutInput,
+} from '../training/schemas';
 import { stats, trainingOverview } from '../training/stats';
-import { createWorkout, listWorkouts, logSet, personId } from '../training/workouts';
+import { createRoutine, createWorkout, listWorkouts, logSet, personId } from '../training/workouts';
 import { localDate } from '../food/stock';
 import type { TokenScope } from '../tokens';
 
@@ -129,6 +144,9 @@ interface PersonRow {
   role: string;
   isActive: boolean;
   kitchen: { name: string } | null;
+  gender: string | null;
+  birthDate: string | null;
+  heightCm: number | null;
 }
 
 export const scopeAllows = (scope: TokenScope, access: Access) =>
@@ -272,6 +290,9 @@ export const TOOLS: Tool[] = [
       people: (await kitchenPeople(ctx)).map((p) => ({
         id: p.id,
         name: `${p.name} ${p.surname}`.trim(),
+        gender: p.gender ?? undefined,
+        age: p.age ?? undefined,
+        heightCm: p.heightCm ?? undefined,
       })),
       restrictions: (await listRestrictions(ctx)).map((r) => ({
         id: r.id,
@@ -804,6 +825,9 @@ export const TOOLS: Tool[] = [
         role: u.role,
         active: u.isActive,
         kitchen: u.kitchen?.name ?? null,
+        gender: u.gender,
+        birthDate: u.birthDate,
+        heightCm: u.heightCm,
       }));
     },
   }),
@@ -824,7 +848,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'update_person',
     title: 'Change an account',
-    description: 'Admin: name, email, role, or switch an account off/on (isActive).',
+    description:
+      'Admin: name, email, role, profile (gender, birthDate YYYY-MM-DD, heightCm), or switch an account off/on (isActive).',
     access: 'admin',
     input: z.object({
       userId: idField,
@@ -833,6 +858,9 @@ export const TOOLS: Tool[] = [
       surname: z.string().max(60).optional(),
       role: z.enum(['member', 'admin']).optional(),
       isActive: z.boolean().optional(),
+      gender: z.enum(['female', 'male', 'other']).nullable().optional(),
+      birthDate: z.string().max(10).nullable().optional(),
+      heightCm: z.number().int().nullable().optional(),
     }),
     run: async ({ internal }, { userId, ...patch }) =>
       (await internal('PATCH', `/api/admin/users/${userId}`, patch)).body,
@@ -865,26 +893,28 @@ export const TOOLS: Tool[] = [
     name: 'training_overview',
     title: 'Training today',
     description:
-      'One person’s training: today’s and the next planned workout, this week day by day, streaks, pinned exercises with today’s count, sets logged today. Also lists the household’s people.',
+      'One person’s training: today’s and the next planned workout, this week day by day, streaks, pinned exercises with today’s count, sets logged today. Also lists the household’s people with gender and age: plan for the person asked about (userId).',
     access: 'read',
     input: z.object({ userId: idField.optional(), today: dateField.optional() }),
     run: async ({ ctx }, args) => {
-      await syncCatalog(ctx);
-      return trainingOverview(ctx, await personId(ctx, args.userId), args.today);
+      const userId = await personId(ctx, args.userId);
+      await syncCatalog(ctx, userId);
+      return trainingOverview(ctx, userId, args.today);
     },
   }),
   tool({
     name: 'list_exercises',
     title: 'Exercises',
     description:
-      'The household’s exercises: id, name, category, muscles, measure (reps/time/distance), whether it can be done with the equipment at home (available) and the weights owned for it. Filter by text or availability.',
+      'One person’s exercise library (userId; default you): id, name, category, muscles, measure (reps/time/distance), whether it can be done with the equipment at home (available), the weights owned for it, and its options (grips, stances, bands). Filter by text or availability.',
     access: 'read',
     input: z.object({
+      userId: idField.optional(),
       query: z.string().max(60).optional(),
       availableOnly: z.boolean().optional(),
     }),
     run: async ({ ctx }, args) => {
-      const all = await listExercises(ctx, ctx.actor.userId);
+      const all = await listExercises(ctx, await personId(ctx, args.userId));
       const q = args.query?.toLowerCase();
       return all
         .filter(
@@ -906,8 +936,38 @@ export const TOOLS: Tool[] = [
           seconds: e.seconds,
           level: e.level,
           impact: e.impact,
+          options: e.options.length
+            ? e.options.map((o) => (o.kg ? `${o.name} (${o.kg} kg)` : o.name))
+            : undefined,
         }));
     },
+  }),
+  tool({
+    name: 'add_exercise',
+    title: 'Add an exercise to someone’s library',
+    description:
+      'A new exercise in one person’s library (userId): name, category, measure, muscles, equipment alternatives ([] = none; [["dumbbells"],["kettlebell"]]), weighted, unilateral, default reps/seconds/distance, rest, level, impact, steps, variants (grips, stances).',
+    access: 'write',
+    input: ExerciseCreate,
+    run: async ({ ctx }, args) => createExercise(ctx, await personId(ctx, args.userId), args),
+  }),
+  tool({
+    name: 'update_exercise',
+    title: 'Change or hide an exercise',
+    description:
+      'Changes an exercise in someone’s library (any field of add_exercise), or hides it (archived: true) / shows it again.',
+    access: 'write',
+    input: z.object({ exerciseId: idField }).and(ExercisePatch),
+    run: async ({ ctx }, { exerciseId, ...patch }) => updateExercise(ctx, exerciseId, patch),
+  }),
+  tool({
+    name: 'save_routine',
+    title: 'Save a program',
+    description:
+      'A saved routine (program) for one person (userId): name, items like plan_workout’s, rounds, roundRest. Plan it on days with plan_workout routineId.',
+    access: 'write',
+    input: RoutineInput,
+    run: async ({ ctx }, args) => createRoutine(ctx, args),
   }),
   tool({
     name: 'training_equipment',

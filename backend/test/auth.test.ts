@@ -48,10 +48,11 @@ describe('sign-in', () => {
   });
 
   it('has no sign-up', async () => {
-    const res = await t.browser().post('/api/auth/register', { email: 'new@example.com', password: PASSWORD });
+    const res = await t
+      .browser()
+      .post('/api/auth/register', { email: 'new@example.com', password: PASSWORD });
     expect(res.status).toBe(404);
   });
-
 });
 
 describe('session refresh', () => {
@@ -72,7 +73,10 @@ describe('session refresh', () => {
     await b.login('ana@example.com');
     const old = b.jar.get('lms_rt')!;
     await b.post('/api/auth/refresh');
-    const other = await t.app.request('/api/auth/refresh', { method: 'POST', headers: { cookie: `lms_rt=${old}`, origin: 'http://localhost:5190' } });
+    const other = await t.app.request('/api/auth/refresh', {
+      method: 'POST',
+      headers: { cookie: `lms_rt=${old}`, origin: 'http://localhost:5190' },
+    });
     expect(other.status).toBe(409);
     expect((await b.get('/api/me')).status).toBe(200);
   });
@@ -84,7 +88,10 @@ describe('session refresh', () => {
     const old = b.jar.get('lms_rt')!;
     await b.post('/api/auth/refresh');
     t.setNow(new Date(Date.now() + 5 * 60_000));
-    const thief = await t.app.request('/api/auth/refresh', { method: 'POST', headers: { cookie: `lms_rt=${old}`, origin: 'http://localhost:5190' } });
+    const thief = await t.app.request('/api/auth/refresh', {
+      method: 'POST',
+      headers: { cookie: `lms_rt=${old}`, origin: 'http://localhost:5190' },
+    });
     expect(thief.status).toBe(401);
     const owner = await b.post('/api/auth/refresh');
     expect(owner.status).toBe(401);
@@ -98,7 +105,10 @@ describe('session refresh', () => {
     const out = await b.post('/api/auth/logout');
     expect(out.status).toBe(204);
     expect(b.jar.has('lms_rt')).toBe(false);
-    const reuse = await t.app.request('/api/auth/refresh', { method: 'POST', headers: { cookie: `lms_rt=${token}`, origin: 'http://localhost:5190' } });
+    const reuse = await t.app.request('/api/auth/refresh', {
+      method: 'POST',
+      headers: { cookie: `lms_rt=${token}`, origin: 'http://localhost:5190' },
+    });
     expect(reuse.status).toBe(401);
   });
 });
@@ -111,11 +121,17 @@ describe('own account', () => {
     await phone.login('ana@example.com');
     await laptop.login('ana@example.com');
 
-    const wrong = await phone.post('/api/me/password', { currentPassword: 'nope-nope-nope', newPassword: 'a-brand-new-password' });
+    const wrong = await phone.post('/api/me/password', {
+      currentPassword: 'nope-nope-nope',
+      newPassword: 'a-brand-new-password',
+    });
     expect(wrong.status).toBe(400);
     expect(wrong.body.error.fields.currentPassword).toBeTruthy();
 
-    const ok = await phone.post('/api/me/password', { currentPassword: PASSWORD, newPassword: 'a-brand-new-password' });
+    const ok = await phone.post('/api/me/password', {
+      currentPassword: PASSWORD,
+      newPassword: 'a-brand-new-password',
+    });
     expect(ok.status).toBe(200);
     expect((await phone.get('/api/me')).status).toBe(200);
     expect((await laptop.get('/api/me')).status).toBe(401);
@@ -137,7 +153,10 @@ describe('own account', () => {
     await t.createUser({ email: 'ana@example.com' });
     const b = t.browser();
     await b.login('ana@example.com');
-    const res = await b.post('/api/me/password', { currentPassword: PASSWORD, newPassword: 'short' });
+    const res = await b.post('/api/me/password', {
+      currentPassword: PASSWORD,
+      newPassword: 'short',
+    });
     expect(res.status).toBe(400);
     expect(res.body.error.fields.newPassword).toMatch(/10 characters/);
   });

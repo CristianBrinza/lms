@@ -14,17 +14,85 @@ import type { ToolInput, ToolNeedInput, WashInput } from './schemas';
  * paper, foil, skewers): cooking takes one and they run low.
  */
 
-export const TOOL_KINDS = ['cookware', 'bakeware', 'utensil', 'dishes', 'bar', 'appliance', 'disposable', 'other'] as const;
+export const TOOL_KINDS = [
+  'cookware',
+  'bakeware',
+  'utensil',
+  'dishes',
+  'bar',
+  'appliance',
+  'disposable',
+  'other',
+] as const;
 export type ToolKind = (typeof TOOL_KINDS)[number];
 
 export const TOOL_ICONS = [
-  'pot', 'big-pot', 'saucepan', 'pan', 'wok', 'tray', 'baking-dish', 'bowl', 'board', 'knife', 'colander', 'whisk', 'grater',
-  'ladle', 'spatula', 'blender', 'mixer', 'kettle', 'toaster', 'oven', 'shaker', 'jigger', 'glass', 'wine-glass', 'mug', 'plate',
-  'cutlery', 'lunchbox', 'ice-tray', 'pen', 'scissors', 'box',
-  'electric-kettle', 'grill', 'air-fryer', 'rice-cooker', 'microwave', 'coffee-machine', 'french-press', 'slow-cooker', 'pressure-cooker',
-  'steamer', 'thermos', 'water-bottle', 'scale', 'peeler', 'can-opener', 'garlic-press', 'rolling-pin', 'tongs', 'muffin-tin', 'cake-tin',
-  'salad-spinner', 'measuring-cup', 'ceramic-knife', 'bread-knife', 'baking-paper', 'foil', 'cling-film', 'zip-bag', 'paper-towel', 'napkins',
-  'toothpicks', 'skewers', 'muffin-cups', 'paper-cup',
+  'pot',
+  'big-pot',
+  'saucepan',
+  'pan',
+  'wok',
+  'tray',
+  'baking-dish',
+  'bowl',
+  'board',
+  'knife',
+  'colander',
+  'whisk',
+  'grater',
+  'ladle',
+  'spatula',
+  'blender',
+  'mixer',
+  'kettle',
+  'toaster',
+  'oven',
+  'shaker',
+  'jigger',
+  'glass',
+  'wine-glass',
+  'mug',
+  'plate',
+  'cutlery',
+  'lunchbox',
+  'ice-tray',
+  'pen',
+  'scissors',
+  'box',
+  'electric-kettle',
+  'grill',
+  'air-fryer',
+  'rice-cooker',
+  'microwave',
+  'coffee-machine',
+  'french-press',
+  'slow-cooker',
+  'pressure-cooker',
+  'steamer',
+  'thermos',
+  'water-bottle',
+  'scale',
+  'peeler',
+  'can-opener',
+  'garlic-press',
+  'rolling-pin',
+  'tongs',
+  'muffin-tin',
+  'cake-tin',
+  'salad-spinner',
+  'measuring-cup',
+  'ceramic-knife',
+  'bread-knife',
+  'baking-paper',
+  'foil',
+  'cling-film',
+  'zip-bag',
+  'paper-towel',
+  'napkins',
+  'toothpicks',
+  'skewers',
+  'muffin-cups',
+  'paper-cup',
 ] as const;
 export type ToolIcon = (typeof TOOL_ICONS)[number];
 
@@ -41,7 +109,13 @@ interface ToolPreset {
 
 type Care = 'dishwasher' | 'hand' | 'never';
 
-const T = (name: string, icon: ToolIcon, kind: ToolKind, aliases?: string[], care: Care = 'dishwasher'): ToolPreset => ({
+const T = (
+  name: string,
+  icon: ToolIcon,
+  kind: ToolKind,
+  aliases?: string[],
+  care: Care = 'dishwasher',
+): ToolPreset => ({
   name,
   icon,
   kind,
@@ -52,23 +126,45 @@ const T = (name: string, icon: ToolIcon, kind: ToolKind, aliases?: string[], car
 
 export const TOOL_PRESETS: readonly ToolPreset[] = [
   // Cooking
-  T('Big pot', 'big-pot', 'cookware', ['pasta pot', 'stock pot', 'oală mare', 'кастрюля большая', 'pot for spaghetti']),
+  T('Big pot', 'big-pot', 'cookware', [
+    'pasta pot',
+    'stock pot',
+    'oală mare',
+    'кастрюля большая',
+    'pot for spaghetti',
+  ]),
   T('Pot', 'pot', 'cookware', ['oală', 'oala', 'кастрюля']),
   T('Saucepan', 'saucepan', 'cookware', ['crăticioară', 'ковш', 'small pot']),
   T('Frying pan', 'pan', 'cookware', ['tigaie', 'сковорода', 'skillet', 'pan']),
   T('Wok', 'wok', 'cookware', ['вок']),
-  T('Grill', 'grill', 'cookware', ['grătar', 'gratar', 'гриль', 'grill pan', 'contact grill'], 'hand'),
+  T(
+    'Grill',
+    'grill',
+    'cookware',
+    ['grătar', 'gratar', 'гриль', 'grill pan', 'contact grill'],
+    'hand',
+  ),
   T('Steamer', 'steamer', 'cookware', ['aburi', 'пароварка']),
   // Baking
   T('Baking tray', 'tray', 'bakeware', ['tavă', 'tava', 'противень', 'sheet pan']),
-  T('Baking dish', 'baking-dish', 'bakeware', ['formă de copt', 'форма для запекания', 'casserole dish']),
+  T('Baking dish', 'baking-dish', 'bakeware', [
+    'formă de copt',
+    'форма для запекания',
+    'casserole dish',
+  ]),
   T('Muffin tin', 'muffin-tin', 'bakeware', ['formă de brioșe', 'форма для маффинов']),
   T('Cake tin', 'cake-tin', 'bakeware', ['formă de tort', 'форма для торта', 'springform']),
   T('Rolling pin', 'rolling-pin', 'bakeware', ['sucitor', 'скалка'], 'hand'),
   // Tools
   T('Mixing bowl', 'bowl', 'utensil', ['bol', 'миска']),
   T('Cutting board', 'board', 'utensil', ['tocător', 'tocator', 'разделочная доска'], 'hand'),
-  T('Chef’s knife', 'knife', 'utensil', ['chef knife', 'cuțit de bucătar', 'поварской нож'], 'hand'),
+  T(
+    'Chef’s knife',
+    'knife',
+    'utensil',
+    ['chef knife', 'cuțit de bucătar', 'поварской нож'],
+    'hand',
+  ),
   T('Ceramic knife', 'ceramic-knife', 'utensil', ['cuțit ceramic', 'керамический нож'], 'hand'),
   T('Knife', 'knife', 'utensil', ['cuțit', 'cutit', 'нож', 'kitchen knife'], 'hand'),
   T('Bread knife', 'bread-knife', 'utensil', ['cuțit de pâine', 'нож для хлеба'], 'hand'),
@@ -86,13 +182,37 @@ export const TOOL_PRESETS: readonly ToolPreset[] = [
   // Appliances
   T('Blender', 'blender', 'appliance', ['блендер'], 'hand'),
   T('Mixer', 'mixer', 'appliance', ['миксер'], 'hand'),
-  T('Air fryer', 'air-fryer', 'appliance', ['friteuză cu aer', 'аэрогриль', 'аэрофритюрница', 'airfryer'], 'hand'),
+  T(
+    'Air fryer',
+    'air-fryer',
+    'appliance',
+    ['friteuză cu aer', 'аэрогриль', 'аэрофритюрница', 'airfryer'],
+    'hand',
+  ),
   T('Rice cooker', 'rice-cooker', 'appliance', ['aparat de orez', 'рисоварка'], 'hand'),
   T('Slow cooker', 'slow-cooker', 'appliance', ['multicooker', 'мультиварка'], 'hand'),
-  T('Pressure cooker', 'pressure-cooker', 'appliance', ['oală sub presiune', 'скороварка', 'instant pot'], 'hand'),
-  T('Coffee machine', 'coffee-machine', 'appliance', ['espressor', 'кофемашина', 'coffee maker'], 'hand'),
+  T(
+    'Pressure cooker',
+    'pressure-cooker',
+    'appliance',
+    ['oală sub presiune', 'скороварка', 'instant pot'],
+    'hand',
+  ),
+  T(
+    'Coffee machine',
+    'coffee-machine',
+    'appliance',
+    ['espressor', 'кофемашина', 'coffee maker'],
+    'hand',
+  ),
   T('French press', 'french-press', 'appliance', ['френч-пресс', 'presă de cafea']),
-  T('Electric kettle', 'electric-kettle', 'appliance', ['kettle', 'fierbător', 'ceainic electric', 'электрочайник', 'чайник'], 'never'),
+  T(
+    'Electric kettle',
+    'electric-kettle',
+    'appliance',
+    ['kettle', 'fierbător', 'ceainic electric', 'электрочайник', 'чайник'],
+    'never',
+  ),
   T('Microwave', 'microwave', 'appliance', ['cuptor cu microunde', 'микроволновка'], 'never'),
   T('Toaster', 'toaster', 'appliance', ['тостер'], 'never'),
   T('Oven', 'oven', 'appliance', ['cuptor', 'духовка'], 'never'),
@@ -107,14 +227,24 @@ export const TOOL_PRESETS: readonly ToolPreset[] = [
   T('Mugs', 'mug', 'dishes', ['căni', 'кружки', 'cups']),
   T('Plates', 'plate', 'dishes', ['farfurii', 'тарелки']),
   T('Bowls', 'bowl', 'dishes', ['boluri', 'тарелки глубокие', 'soup bowls']),
-  T('Cutlery', 'cutlery', 'dishes', ['tacâmuri', 'столовые приборы', 'forks', 'spoons', 'fork and knife']),
+  T('Cutlery', 'cutlery', 'dishes', [
+    'tacâmuri',
+    'столовые приборы',
+    'forks',
+    'spoons',
+    'fork and knife',
+  ]),
   T('Lunch box', 'lunchbox', 'dishes', ['caserolă', 'ланчбокс', 'food container']),
   T('Food flask', 'thermos', 'dishes', ['termos', 'термос', 'thermos']),
   T('Water bottle', 'water-bottle', 'dishes', ['sticlă de apă', 'бутылка для воды']),
   // Used up
   T('Baking paper', 'baking-paper', 'disposable', ['hârtie de copt', 'пергамент', 'parchment']),
   T('Aluminium foil', 'foil', 'disposable', ['folie de aluminiu', 'фольга', 'foil']),
-  T('Cling film', 'cling-film', 'disposable', ['folie alimentară', 'пищевая плёнка', 'plastic wrap']),
+  T('Cling film', 'cling-film', 'disposable', [
+    'folie alimentară',
+    'пищевая плёнка',
+    'plastic wrap',
+  ]),
   T('Zip bags', 'zip-bag', 'disposable', ['pungi cu fermoar', 'зип-пакеты', 'freezer bags']),
   T('Paper towels', 'paper-towel', 'disposable', ['prosoape de hârtie', 'бумажные полотенца']),
   T('Napkins', 'napkins', 'disposable', ['șervețele', 'салфетки']),
@@ -131,7 +261,12 @@ export const TOOL_PRESETS: readonly ToolPreset[] = [
 const PER_PERSON_KINDS = new Set<ToolKind>(['dishes']);
 
 export function findToolPreset(name: string): ToolPreset | null {
-  return TOOL_PRESETS.find((preset) => sameName(preset.name, name) || preset.aliases?.some((alias) => sameName(alias, name))) ?? null;
+  return (
+    TOOL_PRESETS.find(
+      (preset) =>
+        sameName(preset.name, name) || preset.aliases?.some((alias) => sameName(alias, name)),
+    ) ?? null
+  );
 }
 
 export interface Tool {
@@ -173,7 +308,8 @@ interface ToolRow {
   note: string;
 }
 
-const TOOL_COLUMNS = 'id, name, icon, kind, count, dirty, washing, washing_until, washable, dishwasher_safe, min_count, place, note';
+const TOOL_COLUMNS =
+  'id, name, icon, kind, count, dirty, washing, washing_until, washable, dishwasher_safe, min_count, place, note';
 
 const toTool = (row: ToolRow): Tool => ({
   id: row.id,
@@ -195,32 +331,36 @@ const toTool = (row: ToolRow): Tool => ({
 
 /** A dishwasher run that is over leaves its load clean. */
 async function settle(ctx: FoodCtx): Promise<void> {
-  await ctx.db.query('UPDATE tools SET washing = 0, washing_until = NULL WHERE household_id = $1 AND washing_until IS NOT NULL AND washing_until <= $2', [
-    ctx.actor.householdId,
-    ctx.now,
-  ]);
+  await ctx.db.query(
+    'UPDATE tools SET washing = 0, washing_until = NULL WHERE household_id = $1 AND washing_until IS NOT NULL AND washing_until <= $2',
+    [ctx.actor.householdId, ctx.now],
+  );
 }
 
 export async function listTools(ctx: FoodCtx): Promise<Tool[]> {
   await settle(ctx);
-  const { rows } = await ctx.db.query<ToolRow>(`SELECT ${TOOL_COLUMNS} FROM tools WHERE household_id = $1 AND archived_at IS NULL ORDER BY kind, lower(name)`, [
-    ctx.actor.householdId,
-  ]);
+  const { rows } = await ctx.db.query<ToolRow>(
+    `SELECT ${TOOL_COLUMNS} FROM tools WHERE household_id = $1 AND archived_at IS NULL ORDER BY kind, lower(name)`,
+    [ctx.actor.householdId],
+  );
   return rows.map(toTool);
 }
 
 async function findTool(ctx: FoodCtx, id: string, lock = false): Promise<ToolRow> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'That is not in your kitchenware');
-  const { rows } = await ctx.db.query<ToolRow>(`SELECT ${TOOL_COLUMNS} FROM tools WHERE id = $1 AND household_id = $2${lock ? ' FOR UPDATE' : ''}`, [
-    id,
-    ctx.actor.householdId,
-  ]);
+  const { rows } = await ctx.db.query<ToolRow>(
+    `SELECT ${TOOL_COLUMNS} FROM tools WHERE id = $1 AND household_id = $2${lock ? ' FOR UPDATE' : ''}`,
+    [id, ctx.actor.householdId],
+  );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'That is not in your kitchenware');
   return rows[0];
 }
 
 async function findToolByName(ctx: FoodCtx, name: string): Promise<ToolRow | null> {
-  const { rows } = await ctx.db.query<ToolRow & { archived_at: Date | null }>(`SELECT ${TOOL_COLUMNS}, archived_at FROM tools WHERE household_id = $1`, [ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<ToolRow & { archived_at: Date | null }>(
+    `SELECT ${TOOL_COLUMNS}, archived_at FROM tools WHERE household_id = $1`,
+    [ctx.actor.householdId],
+  );
   const preset = findToolPreset(name);
   return (
     rows.find((row) => normalizeName(row.name) === normalizeName(name)) ??
@@ -261,9 +401,11 @@ export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string })
     );
     return toTool(await findTool(ctx, tool.id));
   }
-  if (!input.name) throw new AppError(400, 'VALIDATION', 'Name it', { fields: { name: 'Required' } });
+  if (!input.name)
+    throw new AppError(400, 'VALIDATION', 'Name it', { fields: { name: 'Required' } });
   const existing = await findToolByName(ctx, input.name);
-  if (existing) return saveTool(ctx, { ...input, id: existing.id, count: input.count ?? existing.count });
+  if (existing)
+    return saveTool(ctx, { ...input, id: existing.id, count: input.count ?? existing.count });
   const preset = findToolPreset(input.name);
   const id = randomUUID();
   const tidy = input.name.trim().replace(/\s+/g, ' ');
@@ -302,8 +444,16 @@ export async function archiveTool(ctx: FoodCtx, id: string): Promise<void> {
 export async function markDirty(ctx: FoodCtx, id: string, count: number): Promise<Tool> {
   await settle(ctx);
   const tool = await findTool(ctx, id, true);
-  if (tool.kind === 'disposable') await ctx.db.query('UPDATE tools SET count = greatest(0, count - $2), updated_at = $3 WHERE id = $1', [id, count, ctx.now]);
-  else if (tool.washable) await ctx.db.query('UPDATE tools SET dirty = least(count - washing, dirty + $2), updated_at = $3 WHERE id = $1', [id, count, ctx.now]);
+  if (tool.kind === 'disposable')
+    await ctx.db.query(
+      'UPDATE tools SET count = greatest(0, count - $2), updated_at = $3 WHERE id = $1',
+      [id, count, ctx.now],
+    );
+  else if (tool.washable)
+    await ctx.db.query(
+      'UPDATE tools SET dirty = least(count - washing, dirty + $2), updated_at = $3 WHERE id = $1',
+      [id, count, ctx.now],
+    );
   return toTool(await findTool(ctx, id));
 }
 
@@ -316,13 +466,15 @@ export async function wash(ctx: FoodCtx, input: WashInput): Promise<Tool[]> {
   await settle(ctx);
   const ids = input.toolIds ?? null;
   if (input.how === 'hand') {
-    await ctx.db.query(`UPDATE tools SET dirty = 0, updated_at = $3 WHERE household_id = $1 AND dirty > 0 AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))`, [
-      ctx.actor.householdId,
-      ids,
-      ctx.now,
-    ]);
+    await ctx.db.query(
+      `UPDATE tools SET dirty = 0, updated_at = $3 WHERE household_id = $1 AND dirty > 0 AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))`,
+      [ctx.actor.householdId, ids, ctx.now],
+    );
   } else {
-    const { rows } = await ctx.db.query<{ dishwasher_minutes: number }>('SELECT dishwasher_minutes FROM households WHERE id = $1', [ctx.actor.householdId]);
+    const { rows } = await ctx.db.query<{ dishwasher_minutes: number }>(
+      'SELECT dishwasher_minutes FROM households WHERE id = $1',
+      [ctx.actor.householdId],
+    );
     const minutes = input.minutes ?? rows[0]?.dishwasher_minutes ?? 180;
     const until = new Date(ctx.now.getTime() + minutes * 60_000);
     await ctx.db.query(
@@ -336,17 +488,26 @@ export async function wash(ctx: FoodCtx, input: WashInput): Promise<Tool[]> {
 
 /** Takes the dishwasher's load out early: clean now. */
 export async function unloadDishwasher(ctx: FoodCtx): Promise<Tool[]> {
-  await ctx.db.query('UPDATE tools SET washing = 0, washing_until = NULL, updated_at = $2 WHERE household_id = $1 AND washing > 0', [ctx.actor.householdId, ctx.now]);
+  await ctx.db.query(
+    'UPDATE tools SET washing = 0, washing_until = NULL, updated_at = $2 WHERE household_id = $1 AND washing > 0',
+    [ctx.actor.householdId, ctx.now],
+  );
   return listTools(ctx);
 }
 
 export async function dishwasherMinutes(ctx: FoodCtx): Promise<number> {
-  const { rows } = await ctx.db.query<{ dishwasher_minutes: number }>('SELECT dishwasher_minutes FROM households WHERE id = $1', [ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<{ dishwasher_minutes: number }>(
+    'SELECT dishwasher_minutes FROM households WHERE id = $1',
+    [ctx.actor.householdId],
+  );
   return rows[0]?.dishwasher_minutes ?? 180;
 }
 
 export async function setDishwasherMinutes(ctx: FoodCtx, minutes: number): Promise<number> {
-  await ctx.db.query('UPDATE households SET dishwasher_minutes = $2 WHERE id = $1', [ctx.actor.householdId, minutes]);
+  await ctx.db.query('UPDATE households SET dishwasher_minutes = $2 WHERE id = $1', [
+    ctx.actor.householdId,
+    minutes,
+  ]);
   return minutes;
 }
 
@@ -377,7 +538,13 @@ export interface ToolNeed {
   status: Status;
   readyAt: string | null;
   /** The tool and its alternatives, each with its status; `using` is the one to use. */
-  options: Array<{ toolId: string; name: string; icon: ToolIcon; status: Status; readyAt: string | null }>;
+  options: Array<{
+    toolId: string;
+    name: string;
+    icon: ToolIcon;
+    status: Status;
+    readyAt: string | null;
+  }>;
   using: string;
 }
 
@@ -393,35 +560,63 @@ function statusOf(tool: Tool, count: number, at: Date): { status: Status; readyA
 
 const RANK: Record<Status, number> = { ready: 0, washing: 1, dirty: 2, missing: 3 };
 
-export async function recipeTools(ctx: FoodCtx, recipeIds: string[]): Promise<Map<string, NeedSpec[]>> {
+export async function recipeTools(
+  ctx: FoodCtx,
+  recipeIds: string[],
+): Promise<Map<string, NeedSpec[]>> {
   const map = new Map<string, NeedSpec[]>();
   if (!recipeIds.length) return map;
-  const { rows } = await ctx.db.query<{ recipe_id: string; tool_id: string; count: number; per_serving: boolean; alternatives: string[] }>(
+  const { rows } = await ctx.db.query<{
+    recipe_id: string;
+    tool_id: string;
+    count: number;
+    per_serving: boolean;
+    alternatives: string[];
+  }>(
     `SELECT rt.recipe_id, rt.tool_id, rt.count, rt.per_serving, rt.alternatives FROM recipe_tools rt JOIN tools t ON t.id = rt.tool_id
       WHERE rt.recipe_id = ANY($1::uuid[]) AND t.archived_at IS NULL ORDER BY lower(t.name)`,
     [recipeIds],
   );
   for (const row of rows) {
-    const spec: NeedSpec = { toolId: row.tool_id, count: row.count, perServing: row.per_serving, alternatives: row.alternatives ?? [] };
+    const spec: NeedSpec = {
+      toolId: row.tool_id,
+      count: row.count,
+      perServing: row.per_serving,
+      alternatives: row.alternatives ?? [],
+    };
     map.set(row.recipe_id, [...(map.get(row.recipe_id) ?? []), spec]);
   }
   return map;
 }
 
 /** Replaces what a recipe needs. Names find (or add) kitchenware; plates and the like are one each unless said. */
-export async function setRecipeTools(ctx: FoodCtx, recipeId: string, inputs: ToolNeedInput[]): Promise<void> {
+export async function setRecipeTools(
+  ctx: FoodCtx,
+  recipeId: string,
+  inputs: ToolNeedInput[],
+): Promise<void> {
   await ctx.db.query('DELETE FROM recipe_tools WHERE recipe_id = $1', [recipeId]);
   for (const input of inputs) {
-    const tool = input.toolId ? toTool(await findTool(ctx, input.toolId)) : await saveTool(ctx, { name: input.name! });
+    const tool = input.toolId
+      ? toTool(await findTool(ctx, input.toolId))
+      : await saveTool(ctx, { name: input.name! });
     const alternatives: string[] = [];
     for (const alt of input.or ?? []) {
-      const other = alt.toolId ? toTool(await findTool(ctx, alt.toolId)) : await saveTool(ctx, { name: alt.name! });
+      const other = alt.toolId
+        ? toTool(await findTool(ctx, alt.toolId))
+        : await saveTool(ctx, { name: alt.name! });
       if (other.id !== tool.id && !alternatives.includes(other.id)) alternatives.push(other.id);
     }
     await ctx.db.query(
       `INSERT INTO recipe_tools (recipe_id, tool_id, count, per_serving, alternatives) VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (recipe_id, tool_id) DO UPDATE SET count = greatest(recipe_tools.count, excluded.count), alternatives = excluded.alternatives`,
-      [recipeId, tool.id, input.count ?? 1, input.perServing ?? PER_PERSON_KINDS.has(tool.kind), alternatives],
+      [
+        recipeId,
+        tool.id,
+        input.count ?? 1,
+        input.perServing ?? PER_PERSON_KINDS.has(tool.kind),
+        alternatives,
+      ],
     );
   }
 }
@@ -431,25 +626,53 @@ export async function setRecipeTools(ctx: FoodCtx, recipeId: string, inputs: Too
  * then). The same pan for two parts of a meal is one pan: the most any part needs. Of a tool and
  * its alternatives, the one to use is the readiest (the frying pan if clean, else the grill).
  */
-export function describeNeeds(tools: Tool[], specs: Array<NeedSpec & { servings: number }>, at: Date): ToolNeed[] {
+export function describeNeeds(
+  tools: Tool[],
+  specs: Array<NeedSpec & { servings: number }>,
+  at: Date,
+): ToolNeed[] {
   const byId = new Map(tools.map((tool) => [tool.id, tool]));
   const merged = new Map<string, NeedSpec & { total: number }>();
   for (const spec of specs) {
     const total = spec.perServing ? spec.count * Math.max(1, spec.servings) : spec.count;
     const known = merged.get(spec.toolId);
-    merged.set(spec.toolId, known ? { ...known, total: Math.max(known.total, total), alternatives: [...new Set([...known.alternatives, ...spec.alternatives])] } : { ...spec, total });
+    merged.set(
+      spec.toolId,
+      known
+        ? {
+            ...known,
+            total: Math.max(known.total, total),
+            alternatives: [...new Set([...known.alternatives, ...spec.alternatives])],
+          }
+        : { ...spec, total },
+    );
   }
   return [...merged.values()].flatMap((spec) => {
     const main = byId.get(spec.toolId);
     if (!main) return [];
-    const options = [main, ...spec.alternatives.map((id) => byId.get(id)).filter((tool): tool is Tool => Boolean(tool))].map((tool) => ({
+    const options = [
+      main,
+      ...spec.alternatives.map((id) => byId.get(id)).filter((tool): tool is Tool => Boolean(tool)),
+    ].map((tool) => ({
       toolId: tool.id,
       name: tool.name,
       icon: tool.icon,
       ...statusOf(tool, spec.total, at),
     }));
     const best = options.reduce((a, b) => (RANK[b.status] < RANK[a.status] ? b : a));
-    return [{ toolId: main.id, name: main.name, icon: main.icon, count: spec.total, perServing: spec.perServing, status: best.status, readyAt: best.readyAt, options, using: best.toolId }];
+    return [
+      {
+        toolId: main.id,
+        name: main.name,
+        icon: main.icon,
+        count: spec.total,
+        perServing: spec.perServing,
+        status: best.status,
+        readyAt: best.readyAt,
+        options,
+        using: best.toolId,
+      },
+    ];
   });
 }
 
@@ -462,7 +685,10 @@ export interface Dirtied {
 }
 
 /** Cooking made what it used dirty (or used up the single-use things). */
-export async function dirtyAfterCooking(ctx: FoodCtx, specs: Array<NeedSpec & { servings: number }>): Promise<Dirtied[]> {
+export async function dirtyAfterCooking(
+  ctx: FoodCtx,
+  specs: Array<NeedSpec & { servings: number }>,
+): Promise<Dirtied[]> {
   await settle(ctx);
   const done: Dirtied[] = [];
   for (const need of describeNeeds(await listTools(ctx), specs, ctx.now)) {
@@ -470,7 +696,11 @@ export async function dirtyAfterCooking(ctx: FoodCtx, specs: Array<NeedSpec & { 
     if (before.kind === 'disposable') {
       const used = Math.min(before.count, need.count);
       if (used > 0) {
-        await ctx.db.query('UPDATE tools SET count = count - $2, updated_at = $3 WHERE id = $1', [before.id, used, ctx.now]);
+        await ctx.db.query('UPDATE tools SET count = count - $2, updated_at = $3 WHERE id = $1', [
+          before.id,
+          used,
+          ctx.now,
+        ]);
         done.push({ toolId: before.id, count: used, used: true });
       }
       continue;
@@ -478,7 +708,11 @@ export async function dirtyAfterCooking(ctx: FoodCtx, specs: Array<NeedSpec & { 
     if (!before.washable) continue;
     const after = Math.min(before.count - before.washing, before.dirty + need.count);
     if (after > before.dirty) {
-      await ctx.db.query('UPDATE tools SET dirty = $2, updated_at = $3 WHERE id = $1', [before.id, after, ctx.now]);
+      await ctx.db.query('UPDATE tools SET dirty = $2, updated_at = $3 WHERE id = $1', [
+        before.id,
+        after,
+        ctx.now,
+      ]);
       done.push({ toolId: before.id, count: after - before.dirty });
     }
   }
@@ -487,7 +721,15 @@ export async function dirtyAfterCooking(ctx: FoodCtx, specs: Array<NeedSpec & { 
 
 export async function undoDirty(ctx: FoodCtx, dirtied: Dirtied[]): Promise<void> {
   for (const { toolId, count, used } of dirtied) {
-    if (used) await ctx.db.query('UPDATE tools SET count = count + $2 WHERE id = $1 AND household_id = $3', [toolId, count, ctx.actor.householdId]);
-    else await ctx.db.query('UPDATE tools SET dirty = greatest(0, dirty - $2) WHERE id = $1 AND household_id = $3', [toolId, count, ctx.actor.householdId]);
+    if (used)
+      await ctx.db.query(
+        'UPDATE tools SET count = count + $2 WHERE id = $1 AND household_id = $3',
+        [toolId, count, ctx.actor.householdId],
+      );
+    else
+      await ctx.db.query(
+        'UPDATE tools SET dirty = greatest(0, dirty - $2) WHERE id = $1 AND household_id = $3',
+        [toolId, count, ctx.actor.householdId],
+      );
   }
 }

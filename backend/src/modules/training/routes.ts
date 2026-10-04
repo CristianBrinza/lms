@@ -26,7 +26,7 @@ import {
 import {
   EquipmentInput,
   EquipmentPatch,
-  ExerciseInput,
+  ExerciseCreate,
   ExercisePatch,
   FinishInput,
   GenerateInput,
@@ -69,12 +69,11 @@ export function trainingRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps), requireKitchen(deps));
   const ctx = (c: Context<AppEnv>) => foodCtx(deps, c.get('actor'));
-  const person = async (c: Context<AppEnv>) => personId(ctx(c), readQuery(c, PersonQuery).userId);
 
   app.get('/overview', async (c) => {
     const query = readQuery(c, PersonQuery.extend({ today: dateField.optional() }));
     const userId = await personId(ctx(c), query.userId);
-    await syncCatalog(ctx(c));
+    await syncCatalog(ctx(c), userId);
     return c.json(await trainingOverview(ctx(c), userId, query.today));
   });
 
@@ -121,15 +120,16 @@ export function trainingRoutes(deps: AppDeps) {
       exercises: await listExercises(ctx(c), userId, { archived: query.archived === 'true' }),
     });
   });
-  app.post('/exercises', async (c) =>
-    c.json({ exercise: await createExercise(ctx(c), await readJson(c, ExerciseInput)) }, 201),
-  );
+  app.post('/exercises', async (c) => {
+    const body = await readJson(c, ExerciseCreate);
+    const userId = await personId(ctx(c), body.userId);
+    return c.json({ exercise: await createExercise(ctx(c), userId, body) }, 201);
+  });
   app.get('/exercises/:id', async (c) => {
-    const userId = await person(c);
-    const [history, equipment, pins] = await Promise.all([
-      exerciseHistory(ctx(c), userId, c.req.param('id')),
+    const history = await exerciseHistory(ctx(c), c.req.param('id'));
+    const [equipment, pins] = await Promise.all([
       listEquipment(ctx(c)),
-      pinsOf(ctx(c), userId),
+      pinsOf(ctx(c), history.exercise.userId),
     ]);
     return c.json({ ...history, exercise: describeExercise(history.exercise, equipment, pins) });
   });
@@ -153,7 +153,14 @@ export function trainingRoutes(deps: AppDeps) {
   });
 
   // Routines
-  app.get('/routines', async (c) => c.json({ routines: await listRoutines(ctx(c)) }));
+  app.get('/routines', async (c) => {
+    const query = readQuery(
+      c,
+      PersonQuery.extend({ everyone: z.enum(['true', 'false']).optional() }),
+    );
+    const userId = query.everyone === 'true' ? null : await personId(ctx(c), query.userId);
+    return c.json({ routines: await listRoutines(ctx(c), userId) });
+  });
   app.post('/routines', async (c) =>
     c.json({ routine: await createRoutine(ctx(c), await readJson(c, RoutineInput)) }, 201),
   );

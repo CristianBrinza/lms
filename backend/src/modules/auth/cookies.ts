@@ -67,5 +67,7 @@ export function clearSessionCookies(c: Context, config: AppConfig): void {
   deleteCookie(c, names.hint, { path: '/', secure });
 }
 
-export const readAccessToken = (c: Context, config: AppConfig) => getCookie(c, cookieNames(config).access);
-export const readRefreshToken = (c: Context, config: AppConfig) => getCookie(c, cookieNames(config).refresh);
+export const readAccessToken = (c: Context, config: AppConfig) =>
+  getCookie(c, cookieNames(config).access);
+export const readRefreshToken = (c: Context, config: AppConfig) =>
+  getCookie(c, cookieNames(config).refresh);
