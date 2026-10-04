@@ -8,6 +8,7 @@ import { dateField, idField } from '../food/schemas';
 import { localDate } from '../food/stock';
 import { CATEGORIES, EQUIPMENT_PRESETS, MEASURES, MUSCLES } from './catalog';
 import { generateWorkout } from './generate';
+import { HealthImport, healthSummary, HealthQuery, importHealth } from './health';
 import {
   addEquipment,
   createExercise,
@@ -235,6 +236,16 @@ export function trainingRoutes(deps: AppDeps) {
         query.today ?? localDate(deps.now()),
       ),
     });
+  });
+
+  // Health data the phone sends (an iOS Shortcut, the Android companion) or typed in.
+  app.post('/health', async (c) =>
+    c.json(await importHealth(ctx(c), await readJson(c, HealthImport))),
+  );
+  app.get('/health', async (c) => {
+    const query = readQuery(c, HealthQuery);
+    const userId = await personId(ctx(c), query.userId);
+    return c.json({ health: await healthSummary(ctx(c), userId, query.from, query.to) });
   });
 
   app.post('/generate', async (c) => {

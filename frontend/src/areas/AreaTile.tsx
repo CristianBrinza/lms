@@ -24,21 +24,39 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   const content: ReactNode = (
     <>
       <span className="flex items-start justify-between gap-2">
-        <span className="text-[1.375rem] font-bold leading-[1.1] tracking-[-0.025em]">{area.name}</span>
+        <span className="text-[1.375rem] font-bold leading-[1.1] tracking-[-0.025em]">
+          {area.name}
+        </span>
         <Icon fontSize="inherit" className={cx('mt-0.5 shrink-0 text-[1.35rem]', tone.muted)} />
       </span>
-      <span className={cx('mt-1.5 line-clamp-3 text-sm font-medium', tone.muted)}>{area.summary}</span>
+      <span className={cx('mt-1.5 line-clamp-3 text-sm font-medium', tone.muted)}>
+        {area.summary}
+      </span>
       <span className="mt-auto flex items-center justify-between gap-2">
         <span
           aria-hidden="true"
           className={cx(
             'flex size-12 shrink-0 items-center justify-center rounded-full text-[1.35rem]',
-            area.to ? cx(tone.button, 'transition-transform duration-300 ease-(--ease-lift) group-hover/tile:rotate-45') : cx(tone.chip, 'opacity-80'),
+            area.to
+              ? cx(
+                  tone.button,
+                  'transition-transform duration-300 ease-(--ease-lift) group-hover/tile:rotate-45',
+                )
+              : cx(tone.chip, 'opacity-80'),
           )}
         >
           {area.to ? <ArrowOutIcon fontSize="inherit" /> : <HourglassIcon fontSize="inherit" />}
         </span>
-        {area.to ? null : <span className={cx('inline-flex h-8 items-center rounded-pill px-3 text-xs font-semibold', tone.chip)}>Soon</span>}
+        {area.to ? null : (
+          <span
+            className={cx(
+              'inline-flex h-8 items-center rounded-pill px-3 text-xs font-semibold',
+              tone.chip,
+            )}
+          >
+            Soon
+          </span>
+        )}
       </span>
     </>
   );
@@ -52,7 +70,12 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
       type="button"
       className={classes}
       style={style}
-      onClick={() => toast.info(`${area.name} is being built`, { id: `area-${area.id}`, description: 'Its screen arrives in a coming update.' })}
+      onClick={() =>
+        toast.info(`${area.name} is being built`, {
+          id: `area-${area.id}`,
+          description: 'Its screen arrives in a coming update.',
+        })
+      }
     >
       {content}
     </button>
@@ -62,7 +85,13 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
 /** Every area: two to a row on phones, three on tablets, as many as fit on desktop (at least 12rem, a lone pair stretching to fill the row). Built for 10+. */
 export function AreaGrid({ areas, className }: { areas: readonly Area[]; className?: string }) {
   return (
-    <ul className={cx('grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] lg:gap-4', className)} aria-label="Your areas">
+    <ul
+      className={cx(
+        'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] lg:gap-4',
+        className,
+      )}
+      aria-label="Your areas"
+    >
       {areas.map((area, index) => (
         <li key={area.id}>
           <AreaTile area={area} index={index} />

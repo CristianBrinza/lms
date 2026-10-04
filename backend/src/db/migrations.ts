@@ -635,6 +635,29 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE INDEX training_sets_workout_idx ON training_sets (workout_id) WHERE workout_id IS NOT NULL;
     `,
   },
+  {
+    version: 19,
+    name: 'health data',
+    sql: `
+      -- One value per person, day, kind and source (Apple Health, Health Connect, typed in): a
+      -- daily sync overwrites the day as it fills up.
+      CREATE TABLE health_days (
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        day date NOT NULL,
+        kind text NOT NULL,
+        source text NOT NULL CHECK (source IN ('apple', 'google', 'manual')),
+        value numeric(12, 3) NOT NULL CHECK (value >= 0),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, day, kind, source)
+      );
+      CREATE INDEX health_days_person_idx ON health_days (household_id, user_id, day);
+
+      -- Workouts brought in from a health app become sets once, however often they are synced.
+      ALTER TABLE training_sets ADD COLUMN external_id text;
+      CREATE UNIQUE INDEX training_sets_external_idx ON training_sets (user_id, external_id) WHERE external_id IS NOT NULL;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

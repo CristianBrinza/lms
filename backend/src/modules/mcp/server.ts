@@ -49,6 +49,7 @@ Training (home workouts, each person's own)
 - The household trains at home with what training_equipment lists. list_exercises says which exercises that allows (available) and the weights owned (kg, pair or single); never plan an exercise that isn't available.
 - plan_workout: exercises in order with sets and a target — reps (weight in kg if weighted), seconds, or distance in metres; rest in seconds. rounds > 1 makes a circuit of the main block; warm-up/cool-down items (block) are done once. suggest_workout makes one up for minutes, focus, level and quiet (no jumping).
 - log_exercise records sets: during a workout (workoutId) or on their own — "I did 10 push-ups" is a set now; "20 squats yesterday" is day only. It reports new personal bests.
+- Health (health_summary): steps, sleep, resting heart rate, weight… from the phone's health app. Use it to adjust plans (a short night or a raised resting heart rate: go easier). Observations, never diagnoses.
 - Progress: workouts show last time's sets and a suggestion (one more rep; a heavier owned weight when well past the target). training_stats for weeks and months.
 
 Good habits

@@ -1,7 +1,7 @@
 # LMS — Life Management System
 
-A private app for family and friends: one place for the areas of a life. Food is built, Training
-and 10+ more areas come later. It installs on a phone's or iPad's Home Screen like a native app,
+A private app for family and friends: one place for the areas of a life. Food and Training are
+built; 10+ more areas come later. It installs on a phone's or iPad's Home Screen like a native app,
 stays signed in, and updates itself as soon as a new version is live.
 
 - **Members** sign in with the email and password the admin gave them, choose their own password
@@ -100,18 +100,43 @@ Phone notifications, at times set in Settings → Reminders:
 
 They work from the installed app (on iPhone and iPad: iOS 16.4+, from the Home Screen).
 
+## Training
+
+Home workouts for everyone in the household. Equipment and exercises are shared; plans, sets and
+statistics are each person's, and anyone can look at or plan for the others (a person switcher on
+every Training screen).
+
+- **What's at home.** Equipment with its weights: dumbbells in pairs or single (2, 4, 8 kg…), a
+  kettlebell, a pull-up bar, bands, a treadmill or a running route outside, and so on. 84 home
+  exercises each know what they need (with alternatives: dumbbells _or_ a kettlebell), so only
+  what can be done at home is offered, with the weights you own. Own exercises can be added.
+- **Plan.** A calendar: tap a day, add a workout — made up from what's at home (length, focus,
+  level, quiet = no jumping, sets or circuit), from a saved routine, or built by hand as a
+  sequence of exercises with sets, targets (reps, time, distance; weight) and rest. Warm-up and
+  cool-down are done once; rounds repeat the main block. Move, copy, skip, save as a routine.
+- **The player.** Full screen: get ready, then each set with its target, last time and what to
+  aim for; timed sets count down by themselves; rest counts down with ±15 s and skip; pause,
+  previous, next; beeps, the exercise read aloud, the screen kept awake. Every set is saved as it
+  is done, so a reload or another device carries on. Finish with how it felt.
+- **A set in passing.** One push-up walking by is logged in a tap (pinned exercises on the
+  Training page), or later: earlier today at a time, or on another day.
+- **Progress.** Personal bests (most reps, heaviest, strongest set, longest hold, furthest), last
+  time and a next target (one more rep; a heavier weight you own), day and week streaks, a
+  calendar of days trained, sets per muscle, minutes per week.
+
 ## Claude
 
-Nothing in LMS calls an AI. Instead, Claude (or any assistant) works on the kitchen with an
-**access key** (Settings → Claude access):
+Nothing in LMS calls an AI. Instead, Claude (or any assistant) works on the kitchen and training
+with an **access key** (Settings → Claude access):
 
-- **REST:** `Authorization: Bearer lms_…` on `/api/food/...`. The app and the assistant share the
-  same rules.
+- **REST:** `Authorization: Bearer lms_…` on `/api/food/...` and `/api/training/...`. The app and
+  the assistant share the same rules.
 - **MCP:** `/api/mcp` (key in the `Authorization` header), or `/api/mcp/k/<key>` for clients
-  that can't send headers. About 40 tools: the kitchen, adding and using stock, pouring, shopping
-  and checkout, recipes, the plan and its parts, kitchenware, kitchen people. The server's
+  that can't send headers. About 50 tools: the kitchen, adding and using stock, pouring, shopping
+  and checkout (and undoing a shop), recipes, the plan and its parts, kitchenware, kitchen people,
+  and training (equipment, exercises, planning or making up workouts, logging sets, statistics). The server's
   instructions explain packages, kinds, alternatives and the plan.
-- **Scopes:** `food:read` (look only), `food` (the kitchen), `admin` (everything).
+- **Scopes:** `food:read` (look only), `food` (the kitchen and training), `admin` (everything).
 
 ## Stack
 
@@ -141,6 +166,8 @@ CORS. The Worker adds a shared key (`PROXY_SECRET`) to every API request; the AP
 | `backend/src/db/migrations.ts`                                   | Numbered SQL migrations, applied on start                                                                                                                                                                                                          |
 | `frontend/src/food/`                                             | Food screens (`pages/`), sheets (`kitchen/`, `shopping/`, `plan/`, `kitchenware/`), shared pieces (`components/`), API client and types                                                                                                            |
 | `frontend/src/food/icons/svg/`                                   | One SVG per food and kitchenware icon, shown by `Icon`                                                                                                                                                                                             |
+| `backend/src/modules/training/`                                  | Training: `catalog` (equipment and exercises), `library` (what can be done at home), `workouts` (plans, sets, bests, last time), `stats`, `generate` (a workout made up from the equipment)                                                        |
+| `frontend/src/training/`                                         | Training screens (`pages/`), the full-screen `player/`, sheets in `components/`, exercise and equipment SVGs in `icons/`                                                                                                                           |
 | `frontend/src/components/ui/`, `frontend/src/components/layout/` | The app's own components (buttons, sheets, fields, chips) and the shell (tab bar, side rail, screens)                                                                                                                                              |
 
 ## Run it locally
@@ -236,12 +263,13 @@ nobody is signed out by an update.
 
 ## Adding a life area
 
-Areas live in `frontend/src/areas/registry.ts`. Food has its screens (`to: '/food'`); Training is a
-tile only, and a tap says it's being built. To give an area its screen:
+Areas live in `frontend/src/areas/registry.ts`. Food (`to: '/food'`) and Training
+(`to: '/training'`) have their screens; an entry without `to` is a tile only, and a tap says it's
+being built. To give an area its screen:
 
 1. Build the page.
 2. Add its route in `frontend/src/app/router.tsx`.
-3. Set `to: '/training'` on its registry entry; the tile becomes a link.
+3. Set `to` on its registry entry; the tile becomes a link.
 
 A new area is one more registry entry; the dashboard grid takes 10+.
 

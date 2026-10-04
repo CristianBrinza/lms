@@ -85,4 +85,9 @@ export { default as StorefrontIcon } from '@mui/icons-material/StorefrontRounded
 export { default as SwapIcon } from '@mui/icons-material/SwapHorizRounded';
 export { default as TimerIcon } from '@mui/icons-material/TimerRounded';
 export { default as UndoIcon } from '@mui/icons-material/UndoRounded';
+export { default as PlayIcon } from '@mui/icons-material/PlayArrowRounded';
+export { default as PauseIcon } from '@mui/icons-material/PauseRounded';
+export { default as ChevronLeftIcon } from '@mui/icons-material/ChevronLeftRounded';
+export { default as InsightsIcon } from '@mui/icons-material/InsightsRounded';
+export { default as PushPinIcon } from '@mui/icons-material/PushPinRounded';
 export type { IconComponent } from './SvgIcon';

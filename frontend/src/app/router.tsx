@@ -6,7 +6,9 @@ import { GuestOnly, RequireAuth, RequireRole } from './guards';
 import { Root } from './Root';
 
 /** Route modules are code-split; each page downloads only when first visited. */
-const page = (load: () => Promise<{ default: ComponentType }>) => async () => ({ Component: (await load()).default });
+const page = (load: () => Promise<{ default: ComponentType }>) => async () => ({
+  Component: (await load()).default,
+});
 
 /**
  * Admin screens: only reachable through these dynamic imports, so members never download them
@@ -40,6 +42,20 @@ const foodRoutes: RouteObject = {
   ],
 };
 
+/** Training: home workouts for the family. The player runs full screen, outside the shell. */
+const trainingRoutes: RouteObject = {
+  path: 'training',
+  children: [
+    { index: true, lazy: page(() => import('@/training/pages/TrainingHomePage')) },
+    { path: 'plan', lazy: page(() => import('@/training/pages/PlanPage')) },
+    { path: 'workouts/:id', lazy: page(() => import('@/training/pages/WorkoutPage')) },
+    { path: 'exercises', lazy: page(() => import('@/training/pages/ExercisesPage')) },
+    { path: 'equipment', lazy: page(() => import('@/training/pages/EquipmentPage')) },
+    { path: 'progress', lazy: page(() => import('@/training/pages/ProgressPage')) },
+    { path: 'health', lazy: page(() => import('@/training/pages/HealthPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -49,21 +65,32 @@ const routes: RouteObject[] = [
     children: [
       { index: true, lazy: page(() => import('@/pages/landing/LandingPage')) },
       { path: 'app', lazy: page(() => import('@/pages/install/InstallPage')) },
-      { element: <GuestOnly />, children: [{ path: 'login', lazy: page(() => import('@/pages/auth/LoginPage')) }] },
+      {
+        element: <GuestOnly />,
+        children: [{ path: 'login', lazy: page(() => import('@/pages/auth/LoginPage')) }],
+      },
       {
         element: <RequireAuth />,
         children: [
           { path: 'welcome', lazy: page(() => import('@/pages/auth/WelcomePage')) },
+          {
+            path: 'training/workouts/:id/play',
+            lazy: page(() => import('@/training/player/PlayerPage')),
+          },
           {
             element: <AppShell />,
             children: [
               { path: 'home', lazy: page(() => import('@/pages/home/HomePage')) },
               { path: 'utilities', lazy: page(() => import('@/pages/utilities/UtilitiesPage')) },
               { path: 'settings', lazy: page(() => import('@/pages/settings/SettingsPage')) },
-              { path: 'settings/reminders', lazy: page(() => import('@/pages/settings/RemindersPage')) },
+              {
+                path: 'settings/reminders',
+                lazy: page(() => import('@/pages/settings/RemindersPage')),
+              },
               { path: 'settings/ai', lazy: page(() => import('@/pages/settings/AiAccessPage')) },
               { path: 'profile', lazy: page(() => import('@/pages/profile/ProfilePage')) },
               foodRoutes,
+              trainingRoutes,
               adminRoutes,
             ],
           },

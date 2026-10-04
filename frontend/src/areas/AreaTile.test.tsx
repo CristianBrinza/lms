@@ -19,17 +19,37 @@ const renderGrid = (areas: readonly Area[]) =>
 describe('dashboard area tiles', () => {
   it('shows every area in the registry', () => {
     renderGrid(AREAS);
-    for (const area of AREAS) expect(screen.getByRole(area.to ? 'link' : 'button', { name: new RegExp(area.name) })).toBeInTheDocument();
+    for (const area of AREAS)
+      expect(
+        screen.getByRole(area.to ? 'link' : 'button', { name: new RegExp(area.name) }),
+      ).toBeInTheDocument();
   });
 
   it('says an area without a screen is being built', async () => {
-    renderGrid(AREAS);
-    await userEvent.click(screen.getByRole('button', { name: /Training/ }));
-    expect(toastInfo).toHaveBeenCalledWith('Training is being built', expect.anything());
+    renderGrid([
+      {
+        id: 'sleep',
+        name: 'Sleep',
+        summary: 'Nights and naps.',
+        icon: TrainingIcon,
+        tone: 'white',
+      },
+    ]);
+    await userEvent.click(screen.getByRole('button', { name: /Sleep/ }));
+    expect(toastInfo).toHaveBeenCalledWith('Sleep is being built', expect.anything());
   });
 
   it('links an area once it has a screen', () => {
-    renderGrid([{ id: 'sleep', name: 'Sleep', summary: 'Nights and naps.', icon: TrainingIcon, tone: 'white', to: '/sleep' }]);
+    renderGrid([
+      {
+        id: 'sleep',
+        name: 'Sleep',
+        summary: 'Nights and naps.',
+        icon: TrainingIcon,
+        tone: 'white',
+        to: '/sleep',
+      },
+    ]);
     expect(screen.getByRole('link', { name: /Sleep/ })).toHaveAttribute('href', '/sleep');
     expect(screen.queryByText('Soon')).not.toBeInTheDocument();
   });

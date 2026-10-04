@@ -80,6 +80,7 @@ import { addRestriction, kitchenPeople, listRestrictions } from '../food/restric
 import { createStore, listStores } from '../food/stores';
 import { EQUIPMENT_PRESETS } from '../training/catalog';
 import { generateWorkout } from '../training/generate';
+import { healthSummary } from '../training/health';
 import { addEquipment, listEquipment, listExercises, syncCatalog } from '../training/library';
 import { EquipmentInput, GenerateInput, SetInput, WorkoutInput } from '../training/schemas';
 import { stats, trainingOverview } from '../training/stats';
@@ -984,6 +985,16 @@ export const TOOLS: Tool[] = [
     input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
     run: async ({ ctx }, args) =>
       stats(ctx, await personId(ctx, args.userId), args.from, args.to, localDate(ctx.now)),
+  }),
+  tool({
+    name: 'health_summary',
+    title: 'Health data',
+    description:
+      'Steps, distance, sleep (minutes), resting heart rate, HRV, weight, body fat… per day from Apple Health / Health Connect (or typed in), this week against the week before, and plain observations. Not medical advice.',
+    access: 'read',
+    input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
+    run: async ({ ctx }, args) =>
+      healthSummary(ctx, await personId(ctx, args.userId), args.from, args.to),
   }),
 ];
 

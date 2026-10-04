@@ -72,4 +72,8 @@ export const STORAGE_KEYS = {
   installCardHidden: 'lms:install-card-hidden',
   /** LMS is installed on this device (it has run as the app, or was just installed). */
   installed: 'lms:installed',
+  /** Whose training this device shows (someone in the household). */
+  trainingPerson: 'lms:training-person',
+  /** The workout player's sounds and voice are on. */
+  trainingSound: 'lms:training-sound',
 } as const;

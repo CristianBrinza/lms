@@ -531,7 +531,7 @@ export const EXERCISE_PRESETS: ExercisePreset[] = [
     secondary: ['glutes'],
     equipment: NONE,
     measure: 'time',
-    seconds: 45,
+    seconds: 40,
     rest: 60,
     level: 1,
     icon: 'wall-sit',
