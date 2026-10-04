@@ -25,6 +25,8 @@ import {
   pieceName,
   plural,
   areaOf,
+  kindName,
+  stockKind,
 } from '../format';
 import { FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { AddStockSheet } from '../kitchen/AddStockSheet';
@@ -428,9 +430,11 @@ function ItemRow({
         aria-current={selected ? 'true' : undefined}
         className="press flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 pr-2 text-left transition-colors hover:bg-ink-50"
       >
-        <FoodIconTile name={product.icon} className="size-10 rounded-xl [&>svg]:size-7" />
+        <FoodIconTile name={kindIconOf(product)} className="size-10 rounded-xl [&>svg]:size-7" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.9375rem] font-semibold">{product.name}</span>
+          <span className="block truncate text-[0.9375rem] font-semibold">
+            {kindName(product.name, stockKind(product.lots), product.kindInName)}
+          </span>
           <span className="block truncate text-sm text-ink-600">
             {total > 0 ? (pieces ?? places) : product.low ? 'None left · running low' : 'None left'}
           </span>
@@ -497,9 +501,11 @@ function BasicRow({
         aria-current={selected ? 'true' : undefined}
         className="press flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 text-left transition-colors hover:bg-ink-50"
       >
-        <FoodIconTile name={product.icon} className="size-10 rounded-xl [&>svg]:size-7" />
+        <FoodIconTile name={kindIconOf(product)} className="size-10 rounded-xl [&>svg]:size-7" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.9375rem] font-semibold">{product.name}</span>
+          <span className="block truncate text-[0.9375rem] font-semibold">
+            {kindName(product.name, stockKind(product.lots), product.kindInName)}
+          </span>
           <span className="block truncate text-sm text-ink-600">
             {product.trackMode === 'none' ? 'Always there' : LOCATION_LABEL[product.location]}
           </span>
@@ -563,4 +569,10 @@ function Empty({ area, onAdd }: { area: Area; onAdd: () => void }) {
       </Button>
     </div>
   );
+}
+
+/** The picture of the one kind in stock (a black can when it's all Zero), else the item's. */
+function kindIconOf(product: StockedProduct): string {
+  const kind = stockKind(product.lots);
+  return (kind && product.variantIcons?.[kind.toLowerCase()]) || product.icon;
 }

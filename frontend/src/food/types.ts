@@ -82,6 +82,8 @@ export interface Product {
   variants: string[];
   /** A picture per kind (keys in lower case), where the catalog has one. */
   variantIcons?: Record<string, string>;
+  /** A brand whose kind is part of its name: Coca-Cola + Zero reads "Coca-Cola Zero". */
+  kindInName?: boolean;
   /** The values that count (own or the catalog's typical ones), or null when unknown. */
   nutrition?: { entry: NutritionEntry; source: 'own' | 'catalog' } | null;
   minStock: number | null;
@@ -159,6 +161,7 @@ export interface Preset {
   units?: CustomUnit[];
   variants?: string[];
   variantIcons?: Record<string, string>;
+  kindInName?: boolean;
 }
 
 export interface UseResult {
@@ -210,6 +213,7 @@ export interface ShoppingItem {
   unit: string | null;
   note: string;
   variant: string;
+  kindInName?: boolean;
   priority: boolean;
   needBy: string | null;
   source: 'manual' | 'plan' | 'low_stock' | 'recipe' | 'ai';

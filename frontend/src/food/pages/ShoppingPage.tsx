@@ -30,6 +30,7 @@ import {
   parseAmount,
   relativeDay,
   areaOf,
+  kindName,
 } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { BoughtSheet } from '../shopping/BoughtSheet';
@@ -696,7 +697,7 @@ function LineRow({
               line.checked && 'text-ink-600 line-through decoration-ink-400',
             )}
           >
-            {line.name}
+            {kindName(line.name, line.variant, line.kindInName)}
           </span>
           <span className="block truncate text-[0.8125rem] text-ink-600">
             {line.checked && line.boughtTotal !== null && product ? (
@@ -711,7 +712,7 @@ function LineRow({
                 line.amount && line.unit
                   ? `at least ${formatAmount(line.amount, line.unit)}`
                   : null,
-                line.variant || null,
+                line.kindInName ? null : line.variant || null,
                 line.note || null,
                 line.source === 'plan' && !line.needBy
                   ? 'for the plan'

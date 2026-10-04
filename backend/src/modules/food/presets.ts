@@ -2513,6 +2513,20 @@ export const VARIANT_ICONS: Record<string, Record<string, string>> = {
 };
 
 /** The picture for an item of a kind: the kind's own, else the item's. */
+/**
+ * Brands whose kind is part of the name on the shelf: a can says "Coca-Cola Zero", "Fanta
+ * Lemon", "Pepsi Lime", so the app titles the line that way, not "Coca-Cola" with a note.
+ */
+export const KIND_IN_NAME = new Set([
+  'Coca-Cola',
+  'Pepsi',
+  'Sprite',
+  'Fanta',
+  'Mirinda',
+  '7UP',
+  'Dr Pepper',
+]);
+
 export function kindIcon<T extends string>(
   product: { name: string; icon: T },
   variant: string | null | undefined,

@@ -9,6 +9,8 @@ import {
   toBase,
   unitsFor,
   weekStart,
+  kindName,
+  stockKind,
 } from './format';
 
 const steak = { unit: 'g' as const, pieceSize: null, pieceUnit: null };
@@ -62,5 +64,20 @@ describe('food format', () => {
     expect(money(45.5)).toBe('45.50 lei');
     expect(money(340)).toBe('340 lei');
     expect(money(12.3, 'EUR')).toMatch(/12\.30/);
+  });
+});
+
+describe('kind names', () => {
+  it('puts a brand’s kind in its name, not a plain item’s', () => {
+    expect(kindName('Coca-Cola', 'Zero', true)).toBe('Coca-Cola Zero');
+    expect(kindName('Coca-Cola', 'Classic', true)).toBe('Coca-Cola');
+    expect(kindName('Fanta', '', true)).toBe('Fanta');
+    expect(kindName('Pasta', 'Penne', false)).toBe('Pasta');
+  });
+  it('knows the one kind in stock', () => {
+    expect(stockKind([{ variant: 'Zero' }, { variant: 'zero' }])).toBe('Zero');
+    expect(stockKind([{ variant: 'Zero' }, { variant: 'Lime' }])).toBeNull();
+    expect(stockKind([{ variant: '' }])).toBeNull();
+    expect(stockKind([])).toBeNull();
   });
 });

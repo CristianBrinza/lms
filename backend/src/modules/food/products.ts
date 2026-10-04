@@ -10,6 +10,7 @@ import {
   presetOrGuess,
   sameName,
   variantIconsFor,
+  KIND_IN_NAME,
   areaOf,
   type Category,
   type FoodIcon,
@@ -48,6 +49,8 @@ export interface Product extends Measured {
   variants: string[];
   /** A picture per kind, where the catalog has one (keys in lower case): Zero → a black can. */
   variantIcons: Record<string, string>;
+  /** A brand whose kind is part of its name: Coca-Cola + Zero reads "Coca-Cola Zero". */
+  kindInName: boolean;
   /** Food (the kitchen) or the house (bathroom, cleaning…), from its category. */
   area: 'food' | 'house';
   /** The household's own nutrition values (null: the catalog's typical ones count). */
@@ -121,6 +124,7 @@ export function toProduct(row: ProductRow): Product {
     units: row.units ?? [],
     variants: row.variants ?? [],
     variantIcons: variantIconsFor(row.name),
+    kindInName: KIND_IN_NAME.has(row.name),
     area: areaOf(row.category),
     ownNutrition: row.nutrition ?? null,
     nutrition: nutritionOf({ name: row.name, ownNutrition: row.nutrition ?? null }),

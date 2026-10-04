@@ -1,4 +1,4 @@
-import { areaOf, kindIcon } from './presets';
+import { areaOf, KIND_IN_NAME, kindIcon } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
@@ -38,6 +38,8 @@ export interface ShoppingItem {
   note: string;
   /** Which kind to buy (Cheddar). */
   variant: string;
+  /** A brand whose kind is part of its name: the line reads "Coca-Cola Zero". */
+  kindInName: boolean;
   /** Important: shown first. */
   priority: boolean;
   /** The day it is needed (a planned meal's day): buy it before. */
@@ -149,6 +151,7 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     unit: row.unit,
     note: row.note,
     variant: row.variant,
+    kindInName: row.p_name !== null && KIND_IN_NAME.has(row.p_name),
     priority: row.priority,
     needBy: row.need_by,
     source: row.source,

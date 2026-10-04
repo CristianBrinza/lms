@@ -343,3 +343,21 @@ export function parseAmount(text: string): number | null {
 /** An ingredient's alternative as people say it: "whipped cream", "syrup (caramel)". */
 export const altLabel = (alt: { name: string; variant: string }) =>
   `${alt.name.toLowerCase()}${alt.variant ? ` (${alt.variant.toLowerCase()})` : ''}`;
+
+/** "Coca-Cola" + "Zero" → "Coca-Cola Zero" for brands that print the kind in the name; else the name. */
+export function kindName(
+  name: string,
+  variant: string | null | undefined,
+  kindInName: boolean | undefined,
+): string {
+  const kind = variant?.trim();
+  if (!kindInName || !kind || /^(classic|original|regular)$/i.test(kind)) return name;
+  return `${name} ${kind}`;
+}
+
+/** The one kind everything in stock is (all Zero, all Penne), or null when mixed or unsaid. */
+export function stockKind(lots: ReadonlyArray<{ variant: string }>): string | null {
+  const kinds = new Set(lots.map((lot) => lot.variant.trim().toLowerCase()));
+  const kind = lots[0]?.variant.trim();
+  return kinds.size === 1 && kind ? kind : null;
+}

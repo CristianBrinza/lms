@@ -47,6 +47,7 @@ import {
   LOCATIONS,
   PRESETS,
   VARIANT_ICONS,
+  KIND_IN_NAME,
   presetOrGuess,
   type Location,
 } from './presets';
@@ -131,9 +132,11 @@ export function foodRoutes(deps: AppDeps) {
 
   app.get('/presets', (c) =>
     c.json({
-      presets: PRESETS.map((p) =>
-        VARIANT_ICONS[p.name] ? { ...p, variantIcons: VARIANT_ICONS[p.name] } : p,
-      ),
+      presets: PRESETS.map((p) => ({
+        ...p,
+        ...(VARIANT_ICONS[p.name] ? { variantIcons: VARIANT_ICONS[p.name] } : {}),
+        ...(KIND_IN_NAME.has(p.name) ? { kindInName: true } : {}),
+      })),
       categories: CATEGORIES,
       icons: FOOD_ICONS,
       locations: LOCATIONS,
