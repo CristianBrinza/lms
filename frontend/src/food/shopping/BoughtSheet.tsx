@@ -130,6 +130,7 @@ function BoughtForm({
       {product.variants.length || line.variant ? (
         <VariantChips
           variants={product.variants}
+          icons={product.variantIcons}
           value={variant}
           onChange={setVariant}
           label="Kind you got"

@@ -1,3 +1,4 @@
+import { kindIcon } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import type { LineAllocation, PlannedMealRef } from './allocation';
@@ -270,7 +271,7 @@ export function describeLines(
       return {
         productId: alt.product_id,
         name: alt.name,
-        icon: altInfo?.product.icon ?? 'basket',
+        icon: altInfo ? kindIcon(altInfo.product, alt.variant) : 'basket',
         amount: alt.amount === null ? null : round(alt.amount * scale),
         unit: alt.unit,
         variant: alt.variant,
@@ -310,7 +311,7 @@ export function describeLines(
       using,
       spoilsBefore: Boolean(planned?.spoils && !using),
       name: row.name,
-      icon: info?.product.icon ?? 'basket',
+      icon: info ? kindIcon(info.product, row.variant) : 'basket',
       amount: row.amount === null ? null : round(row.amount * scale),
       unit: row.unit,
       note: row.note,

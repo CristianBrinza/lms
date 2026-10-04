@@ -7,7 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { Icon } from './Icon';
 import { FOOD_ICON_KEYS, ICON_ART, ICON_NAMES, TOOL_ICON_KEYS } from './registry';
 
-const BACKEND_FOOD = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../backend/src/modules/food');
+const BACKEND_FOOD = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../../backend/src/modules/food',
+);
 
 /** The backend's own icon lists, read from its source so this test needs no backend build. */
 function backendList(file: string, name: string): string[] {
@@ -53,7 +56,9 @@ describe('Icon', () => {
     expect(tomato).toContain('class="shrink-0 overflow-visible size-8"');
     expect(tomato).toContain('aria-hidden="true"');
     expect(tomato).toContain(ICON_ART.tomato!.inner.slice(0, 40));
-    expect(renderToStaticMarkup(<Icon name="no-such-icon" />)).toContain(ICON_ART.basket!.inner.slice(0, 40));
+    expect(renderToStaticMarkup(<Icon name="no-such-icon" />)).toContain(
+      ICON_ART.basket!.inner.slice(0, 40),
+    );
   });
 
   it('is announced as an image when labelled', () => {

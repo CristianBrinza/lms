@@ -1,3 +1,4 @@
+import { kindIcon } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
@@ -69,6 +70,7 @@ interface ItemRow {
   product_id: string | null;
   name: string;
   icon: FoodIcon | null;
+  p_name: string | null;
   category: Category | null;
   amount: number | null;
   unit: string | null;
@@ -90,7 +92,7 @@ interface ItemRow {
   bought: BoughtPackage[] | null;
 }
 
-const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.category, i.amount, i.unit, i.note, i.variant, i.priority,
+const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.name AS p_name, p.category, i.amount, i.unit, i.note, i.variant, i.priority,
        to_char(i.need_by, 'YYYY-MM-DD') AS need_by, i.source, i.checked_at,
        i.price, i.trip_id, i.lot_id, i.created_at, i.package, i.bought, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units
   FROM shopping_items i LEFT JOIN products p ON p.id = i.product_id`;
@@ -135,7 +137,10 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     storeId: row.store_id,
     productId: row.product_id,
     name: row.name,
-    icon: row.icon ?? 'basket',
+    icon:
+      row.icon && row.p_name
+        ? kindIcon({ name: row.p_name, icon: row.icon }, row.variant)
+        : (row.icon ?? 'basket'),
     category: row.category ?? 'other',
     amount: row.amount,
     unit: row.unit,

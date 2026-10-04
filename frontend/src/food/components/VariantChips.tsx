@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { AddIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { FoodIcon } from '../icons/FoodIcon';
 
 /**
  * Which kind: the item's kinds as pills (Cheddar, Gouda; Finlandia, Absolut; Apple, Mango-peach),
@@ -12,8 +13,11 @@ export function VariantChips({
   onChange,
   label = 'Kind',
   anyLabel = 'Any',
+  icons = {},
 }: {
   variants: string[];
+  /** A picture per kind (keys in lower case): Zero's black can, Penne's tubes. */
+  icons?: Record<string, string>;
   value: string;
   onChange: (value: string) => void;
   label?: string;
@@ -39,10 +43,16 @@ export function VariantChips({
                 onChange(option);
               }}
               className={cx(
-                'press h-9 shrink-0 rounded-pill px-3.5 text-sm font-semibold transition-colors',
+                'press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill text-sm font-semibold transition-colors',
+                icons[option.toLowerCase()] ? 'pr-3.5 pl-1.5' : 'px-3.5',
                 on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
               )}
             >
+              {icons[option.toLowerCase()] ? (
+                <span className="grid size-6 place-items-center rounded-full bg-white">
+                  <FoodIcon name={icons[option.toLowerCase()]!} className="size-5" />
+                </span>
+              ) : null}
               {option || anyLabel}
             </button>
           );

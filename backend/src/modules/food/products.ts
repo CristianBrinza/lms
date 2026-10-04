@@ -8,6 +8,7 @@ import {
   PRESETS,
   presetOrGuess,
   sameName,
+  variantIconsFor,
   type Category,
   type FoodIcon,
   type Level,
@@ -43,6 +44,8 @@ export interface Product extends Measured {
   units: CustomUnit[];
   /** Kinds of it (cheese: cheddar, parmesan); each piece in stock can say which. */
   variants: string[];
+  /** A picture per kind, where the catalog has one (keys in lower case): Zero → a black can. */
+  variantIcons: Record<string, string>;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -108,6 +111,7 @@ export function toProduct(row: ProductRow): Product {
     thawedDays: row.thawed_days,
     units: row.units ?? [],
     variants: row.variants ?? [],
+    variantIcons: variantIconsFor(row.name),
     minStock: row.min_stock,
     storeId: row.store_id,
     note: row.note,
@@ -388,6 +392,9 @@ export async function rememberVariant(
  * item has none and counts the same way), its types (added to the item's own), how long it keeps
  * and where it goes once opened. Never changes how an item is counted. Returns how many items changed.
  */
+/** Icons a catalog item may still carry from before it had its own. */
+const OUTGROWN_ICONS = new Set(['basket', 'soda-can']);
+
 export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
   const { rows } = await ctx.db.query<ProductRow>(
     `SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1`,
@@ -406,10 +413,13 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
     const openedLocation =
       !product.openedLocation && preset.openedLocation ? preset.openedLocation : null;
     const openedDays = product.openedDays === null && preset.openedDays ? preset.openedDays : null;
-    if (!units && !variants.length && !openedLocation && !openedDays) continue;
+    // A picture the catalog has since replaced (the generic can on Sprite) or the fallback basket.
+    const icon =
+      preset.icon !== product.icon && OUTGROWN_ICONS.has(product.icon) ? preset.icon : null;
+    if (!units && !variants.length && !openedLocation && !openedDays && !icon) continue;
     await ctx.db.query(
       `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location),
-              opened_days = coalesce($6, opened_days), updated_at = $5 WHERE id = $1`,
+              opened_days = coalesce($6, opened_days), icon = coalesce($7, icon), updated_at = $5 WHERE id = $1`,
       [
         product.id,
         units ? JSON.stringify(units) : null,
@@ -417,6 +427,7 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
         openedLocation,
         ctx.now,
         openedDays,
+        icon,
       ],
     );
     changed += 1;

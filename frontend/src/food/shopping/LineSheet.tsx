@@ -100,7 +100,12 @@ function LineForm({
         </p>
       ) : null}
       {product?.variants.length || line.variant ? (
-        <VariantChips variants={product?.variants ?? []} value={variant} onChange={setVariant} />
+        <VariantChips
+          variants={product?.variants ?? []}
+          icons={product?.variantIcons}
+          value={variant}
+          onChange={setVariant}
+        />
       ) : null}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
         <label className="flex flex-col gap-2">

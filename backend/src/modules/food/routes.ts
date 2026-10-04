@@ -45,6 +45,7 @@ import {
   FOOD_ICONS,
   LOCATIONS,
   PRESETS,
+  VARIANT_ICONS,
   presetOrGuess,
   type Location,
 } from './presets';
@@ -123,7 +124,14 @@ export function foodRoutes(deps: AppDeps) {
   );
 
   app.get('/presets', (c) =>
-    c.json({ presets: PRESETS, categories: CATEGORIES, icons: FOOD_ICONS, locations: LOCATIONS }),
+    c.json({
+      presets: PRESETS.map((p) =>
+        VARIANT_ICONS[p.name] ? { ...p, variantIcons: VARIANT_ICONS[p.name] } : p,
+      ),
+      categories: CATEGORIES,
+      icons: FOOD_ICONS,
+      locations: LOCATIONS,
+    }),
   );
 
   // What a name the catalog doesn't know probably is ("Smoked salt" → a spice, kept by level).

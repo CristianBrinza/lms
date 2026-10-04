@@ -261,7 +261,12 @@ export function AddStockSheet({
             </p>
           ) : (
             <>
-              <VariantChips variants={pick.variants} value={variant} onChange={setVariant} />
+              <VariantChips
+                variants={pick.variants}
+                icons={pick.variantIcons}
+                value={variant}
+                onChange={setVariant}
+              />
               {packages.length ? (
                 <div className="flex gap-1.5" role="radiogroup" aria-label="Entered as">
                   {[

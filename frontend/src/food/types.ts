@@ -71,6 +71,8 @@ export interface Product {
   thawedDays: number | null;
   units: CustomUnit[];
   variants: string[];
+  /** A picture per kind (keys in lower case), where the catalog has one. */
+  variantIcons?: Record<string, string>;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -145,6 +147,7 @@ export interface Preset {
   thawedDays?: number;
   units?: CustomUnit[];
   variants?: string[];
+  variantIcons?: Record<string, string>;
 }
 
 export interface UseResult {

@@ -33,8 +33,21 @@ export const SCENE_ART: Record<'kitchen' | 'recipes' | 'shopping' | 'plan', Reac
       <P f={WHITE} d="M12 10c0-2.2 1.8-4 4-4h36v48H16c-2.2 0-4 1.8-4 4z" w={2.6} />
       <P f={PINK_L} d="M12 58V10c0-2.2 1.8-4 4-4h3v48h-3c-2.2 0-4 1.8-4 4z" w={2.6} />
       <P f={WHITE} d="M12 58c0-2.2 1.8-4 4-4h36v6H16c-2.2 0-4-.9-4-2z" w={2.6} />
-      <path d="M44 6v14l3.5-3 3.5 3V6" fill={RED} stroke={INK} strokeWidth={2.2} strokeLinejoin="round" />
-      <path d="M27 24v15M24 24v5a3 3 0 006 0v-5M38.5 24c-2.5 0-4 3-4 6.5s1.5 4.5 4 4.5V24zM38.5 35v4" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M44 6v14l3.5-3 3.5 3V6"
+        fill={RED}
+        stroke={INK}
+        strokeWidth={2.2}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M27 24v15M24 24v5a3 3 0 006 0v-5M38.5 24c-2.5 0-4 3-4 6.5s1.5 4.5 4 4.5V24zM38.5 35v4"
+        fill="none"
+        stroke={INK}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </>
   ),
   shopping: (
@@ -46,7 +59,14 @@ export const SCENE_ART: Record<'kitchen' | 'recipes' | 'shopping' | 'plan', Reac
       <P d="M19 31h31.5" w={2} />
       <C x={23} y={50} r={4} f={WHITE} w={2.6} />
       <C x={44} y={50} r={4} f={WHITE} w={2.6} />
-      <path d="M20 41l-1.5 4.5h31" fill="none" stroke={INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M20 41l-1.5 4.5h31"
+        fill="none"
+        stroke={INK}
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </>
   ),
   plan: (
@@ -57,11 +77,33 @@ export const SCENE_ART: Record<'kitchen' | 'recipes' | 'shopping' | 'plan', Reac
       <path d="M8 24h48M15 12h34" stroke={INK} strokeWidth={2.6} />
       <R x={8} y={12} w={48} h={44} r={7} sw={2.6} />
       <path d="M20 8v8M44 8v8" stroke={INK} strokeWidth={3.4} strokeLinecap="round" />
-      {[[16, 32], [26, 32], [36, 32], [46, 32], [16, 42], [26, 42]].map(([x, y]) => (
-        <rect key={`${x}-${y}`} x={x! - 2.5} y={y! - 2.5} width={5} height={5} rx={1.5} fill={GREY} />
+      {[
+        [16, 32],
+        [26, 32],
+        [36, 32],
+        [46, 32],
+        [16, 42],
+        [26, 42],
+      ].map(([x, y]) => (
+        <rect
+          key={`${x}-${y}`}
+          x={x! - 2.5}
+          y={y! - 2.5}
+          width={5}
+          height={5}
+          rx={1.5}
+          fill={GREY}
+        />
       ))}
       <C x={40} y={44} r={7} f={YELLOW} w={2.2} />
-      <path d="M36.8 44.2l2.2 2.3 4.2-4.6" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M36.8 44.2l2.2 2.3 4.2-4.6"
+        fill="none"
+        stroke={INK}
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </>
   ),
 };

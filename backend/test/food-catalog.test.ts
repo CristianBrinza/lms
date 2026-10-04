@@ -312,3 +312,48 @@ describe('food: drinks, jars and types', () => {
     expect(rows[0]!.catalog_version).toBeGreaterThan(0);
   });
 });
+
+describe('food: kinds with their own pictures', () => {
+  it('draws every kind it names, and names only kinds the catalog has', async () => {
+    const { FOOD_ICONS, PRESETS, VARIANT_ICONS } = await import('../src/modules/food/presets');
+    for (const [item, kinds] of Object.entries(VARIANT_ICONS)) {
+      const preset = PRESETS.find((p) => p.name === item);
+      expect(preset, item).toBeDefined();
+      const known = (preset!.variants ?? []).map((v) => v.toLowerCase());
+      for (const [kind, icon] of Object.entries(kinds)) {
+        expect(known, `${item}: ${kind}`).toContain(kind);
+        expect(FOOD_ICONS as readonly string[], `${item}: ${icon}`).toContain(icon);
+      }
+    }
+  });
+
+  it('shows the kind on lists and brings old items up to the catalog', async () => {
+    await t.createUser({ email: 'ana@example.com', name: 'Ana' });
+    const b = t.browser();
+    await b.login('ana@example.com');
+    const [zero] = (
+      await b.post('/api/food/shopping/items', { items: [{ name: 'coca cola zero' }] })
+    ).body.items;
+    expect(zero).toMatchObject({ name: 'Coca-Cola', variant: 'Zero', icon: 'cola-zero' });
+    const [penne] = (
+      await b.post('/api/food/shopping/items', { items: [{ name: 'Pasta', variant: 'Penne' }] })
+    ).body.items;
+    expect(penne.icon).toBe('penne');
+
+    // An item made before it had its own picture and kinds: the next visit updates it, once.
+    await b.post('/api/food/stock', { name: 'Sprite', quantity: 1500, unit: 'ml' });
+    await t.db.query(
+      `UPDATE products SET icon = 'soda-can', variants = '{}' WHERE name = 'Sprite'`,
+    );
+    await t.db.query('UPDATE households SET catalog_version = 1');
+    const sprite = (await b.get('/api/food/kitchen')).body.products.find(
+      (p: any) => p.name === 'Sprite',
+    );
+    expect(sprite).toMatchObject({ icon: 'sprite', variants: ['Classic', 'Zero'] });
+    expect(sprite.variantIcons).toMatchObject({ zero: 'sprite' });
+    const milk = (await b.post('/api/food/stock', { name: 'Milk', quantity: 1000, unit: 'ml' }))
+      .body.product;
+    expect(milk.variants).toContain('2.5%');
+    expect(milk.variantIcons['2.5%']).toBe('milk-semi');
+  });
+});

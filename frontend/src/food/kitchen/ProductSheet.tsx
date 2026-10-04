@@ -48,7 +48,7 @@ import {
   unitsFor,
 } from '../format';
 import { LOCATION_ICON } from '../places';
-import { FoodIconTile } from '../icons/FoodIcon';
+import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import type { Lot, StockedProduct, StockEvent } from '../types';
 import { EditItemSheet } from './EditItemSheet';
 
@@ -403,7 +403,17 @@ function LotCard({
               {LOCATION_LABEL[lot.location]}
             </Badge>
             {holds ? <Badge tone="butter">{holds}</Badge> : null}
-            {lot.variant ? <Badge tone="muted">{lot.variant}</Badge> : null}
+            {lot.variant ? (
+              <Badge tone="muted" className="gap-1">
+                {product.variantIcons?.[lot.variant.toLowerCase()] ? (
+                  <FoodIcon
+                    name={product.variantIcons[lot.variant.toLowerCase()]!}
+                    className="size-4"
+                  />
+                ) : null}
+                {lot.variant}
+              </Badge>
+            ) : null}
             {lot.openedAt ? <Badge tone="lav">Opened</Badge> : null}
             {index === 0 && product.lots.length > 1 ? <Badge tone="mint">Next up</Badge> : null}
           </span>

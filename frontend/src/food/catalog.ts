@@ -18,6 +18,7 @@ export interface PickedProduct {
   shelfLifeDays: number | null;
   units: CustomUnit[];
   variants: string[];
+  variantIcons?: Record<string, string>;
   trackMode: TrackMode;
   /** The type picked with it ("guava juice": Juice, Guava). */
   variant?: string;
@@ -78,6 +79,7 @@ export const fromProduct = (p: Product): PickedProduct => ({
   shelfLifeDays: p.shelfLifeDays,
   units: p.units,
   variants: p.variants,
+  variantIcons: p.variantIcons,
   trackMode: p.trackMode,
 });
 
@@ -92,6 +94,7 @@ export const fromPreset = (p: Preset): PickedProduct => ({
   shelfLifeDays: p.shelfLifeDays ?? null,
   units: p.units ?? [],
   variants: p.variants ?? [],
+  variantIcons: p.variantIcons,
   trackMode: p.track ?? 'exact',
 });
 

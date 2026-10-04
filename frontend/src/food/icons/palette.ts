@@ -25,7 +25,6 @@ export const PEACH = '#f4cfac';
 export const MEAT = '#df7b70';
 export const FAT = '#f8dcd2';
 
-
 /*
  * The icons themselves live as SVG files in ./svg and carry their colours as hex. These are the
  * extra tones the files use beyond the set above, kept here so new drawings reuse them.
