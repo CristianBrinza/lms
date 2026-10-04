@@ -56,7 +56,7 @@ export const AREAS: readonly Area[] = [
   {
     id: 'shopping',
     name: 'Shopping',
-    summary: 'Food and the house, store by store.',
+    summary: 'Groceries and the house, store by store.',
     icon: BasketIcon,
     tone: 'butter',
     to: '/shopping',
