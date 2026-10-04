@@ -38,7 +38,10 @@ export function VariantChips({
                 setTyping(false);
                 onChange(option);
               }}
-              className={cx('press h-9 shrink-0 rounded-pill px-3.5 text-sm font-semibold transition-colors', on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100')}
+              className={cx(
+                'press h-9 shrink-0 rounded-pill px-3.5 text-sm font-semibold transition-colors',
+                on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+              )}
             >
               {option || anyLabel}
             </button>

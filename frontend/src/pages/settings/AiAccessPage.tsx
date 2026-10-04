@@ -15,7 +15,11 @@ import { HubIcon, TerminalIcon } from './icons';
 
 type Scope = AccessKey['scope'];
 
-const SCOPE_LABEL: Record<Scope, string> = { 'food:read': 'Read only', food: 'Kitchen', admin: 'Everything' };
+const SCOPE_LABEL: Record<Scope, string> = {
+  'food:read': 'Read only',
+  food: 'Kitchen',
+  admin: 'Everything',
+};
 const SCOPE_HINT: Record<Scope, string> = {
   'food:read': 'Claude can look at the kitchen, recipes, lists and plan, and change nothing.',
   food: 'Claude can read and change everything in Food.',
@@ -55,7 +59,12 @@ export default function AiAccessPage() {
 
   return (
     <Screen tone="white">
-      <PageHeader compact back="/settings" title="Claude access" subtitle="Keys for Claude to read and run the kitchen" />
+      <PageHeader
+        compact
+        back="/settings"
+        title="Claude access"
+        subtitle="Keys for Claude to read and run the kitchen"
+      />
 
       <div className="gutter-x mt-3 md:grid md:grid-cols-2 md:items-start md:gap-4 md:px-5 lg:gap-6 lg:px-8">
         <section aria-labelledby="keys-title">
@@ -84,20 +93,30 @@ export default function AiAccessPage() {
                 <p className="mt-1 text-sm text-ink-600">{errorMessage(keys.error)}</p>
               </div>
             ) : !keys.data.length ? (
-              <p className="p-4 text-[0.9375rem] text-ink-600">No keys yet. Make one, then give it to Claude.</p>
+              <p className="p-4 text-[0.9375rem] text-ink-600">
+                No keys yet. Make one, then give it to Claude.
+              </p>
             ) : (
               keys.data.map((key) => (
                 <div key={key.id} className="flex items-center gap-3 py-2.5 pl-3.5 pr-2">
-                  <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-lav-100 text-[1.25rem] text-lav-800">
+                  <span
+                    aria-hidden="true"
+                    className="grid size-10 shrink-0 place-items-center rounded-xl bg-lav-100 text-[1.25rem] text-lav-800"
+                  >
                     <KeyIcon fontSize="inherit" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span className="truncate text-[0.9375rem] font-semibold">{key.name}</span>
-                      <span className="shrink-0 rounded-pill bg-ink-100 px-2 py-0.5 text-xs font-semibold text-ink-700">{SCOPE_LABEL[key.scope]}</span>
+                      <span className="shrink-0 rounded-pill bg-ink-100 px-2 py-0.5 text-xs font-semibold text-ink-700">
+                        {SCOPE_LABEL[key.scope]}
+                      </span>
                     </span>
                     <span className="mt-0.5 block truncate text-sm text-ink-600">
-                      <span className="font-mono text-[0.8125rem]">{key.prefix}…</span> · {key.lastUsedAt ? `used ${formatAgo(key.lastUsedAt).toLowerCase()}` : `made ${formatDate(key.createdAt)}, not used yet`}
+                      <span className="font-mono text-[0.8125rem]">{key.prefix}…</span> ·{' '}
+                      {key.lastUsedAt
+                        ? `used ${formatAgo(key.lastUsedAt).toLowerCase()}`
+                        : `made ${formatDate(key.createdAt)}, not used yet`}
                     </span>
                   </span>
                   <button
@@ -160,7 +179,9 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
     },
   });
   const fields = fieldErrors(create.error);
-  const scopes = (isAdmin ? (['food:read', 'food', 'admin'] as const) : (['food:read', 'food'] as const)).map((value) => ({ value, label: SCOPE_LABEL[value] }));
+  const scopes = (
+    isAdmin ? (['food:read', 'food', 'admin'] as const) : (['food:read', 'food'] as const)
+  ).map((value) => ({ value, label: SCOPE_LABEL[value] }));
 
   if (made) {
     const connector = `${origin()}/api/mcp/k/${made.token}`;
@@ -177,11 +198,18 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       >
         <div className="flex flex-col gap-3">
           <p className="flex items-start gap-2.5 rounded-2xl bg-butter-100 p-3 text-sm font-medium text-ink-800">
-            <WarningIcon fontSize="inherit" className="mt-0.5 shrink-0 text-[1.15rem] text-butter-800" />
+            <WarningIcon
+              fontSize="inherit"
+              className="mt-0.5 shrink-0 text-[1.15rem] text-butter-800"
+            />
             Copy it now. It won’t be shown again; if it’s lost, make a new one.
           </p>
           <CopyBlock label="Key" value={made.token} what="Key" />
-          <CopyBlock label="Connector URL (has the key in it)" value={connector} what="Connector URL" />
+          <CopyBlock
+            label="Connector URL (has the key in it)"
+            value={connector}
+            what="Connector URL"
+          />
           <p className="text-sm text-ink-600">
             {made.key.name} · {SCOPE_LABEL[made.key.scope]}. {SCOPE_HINT[made.key.scope]}
           </p>
@@ -197,8 +225,16 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       title="New key for Claude"
       footer={
         <div className="flex flex-col gap-2">
-          {create.isError && !Object.keys(fields).length ? <p className="text-sm font-medium text-danger-600">{errorMessage(create.error)}</p> : null}
-          <Button fullWidth icon={KeyIcon} onClick={() => create.mutate()} loading={create.isPending} disabled={!name.trim()}>
+          {create.isError && !Object.keys(fields).length ? (
+            <p className="text-sm font-medium text-danger-600">{errorMessage(create.error)}</p>
+          ) : null}
+          <Button
+            fullWidth
+            icon={KeyIcon}
+            onClick={() => create.mutate()}
+            loading={create.isPending}
+            disabled={!name.trim()}
+          >
             Make the key
           </Button>
         </div>
@@ -211,10 +247,24 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
           if (name.trim()) create.mutate();
         }}
       >
-        <TextField label="Name" placeholder="Claude on my laptop" value={name} onChange={(event) => setName(event.target.value)} error={fields.name} maxLength={60} />
+        <TextField
+          label="Name"
+          placeholder="Claude on my laptop"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          error={fields.name}
+          maxLength={60}
+        />
         <div>
           <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">What Claude may do</p>
-          <Chips label="What Claude may do" tone="sheet" dense value={scope} onChange={setScope} options={scopes} />
+          <Chips
+            label="What Claude may do"
+            tone="sheet"
+            dense
+            value={scope}
+            onChange={setScope}
+            options={scopes}
+          />
           <p className="mt-1.5 text-sm text-ink-600">{SCOPE_HINT[scope]}</p>
         </div>
       </form>
@@ -224,12 +274,24 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
 
 // ---------------------------------------------------------------- how Claude connects
 
-function CopyBlock({ label, value, what, className }: { label: string; value: string; what: string; className?: string }) {
+function CopyBlock({
+  label,
+  value,
+  what,
+  className,
+}: {
+  label: string;
+  value: string;
+  what: string;
+  className?: string;
+}) {
   return (
     <div className={className}>
       <p className="mb-1 text-[0.8125rem] font-semibold text-ink-700">{label}</p>
       <div className="flex items-start gap-1 rounded-2xl bg-ink-50 py-1 pl-3 pr-1 ring-1 ring-inset ring-ink-100">
-        <code className="min-w-0 flex-1 select-all break-all py-2 font-mono text-[0.8125rem] leading-snug text-ink-900">{value}</code>
+        <code className="min-w-0 flex-1 select-all break-all py-2 font-mono text-[0.8125rem] leading-snug text-ink-900">
+          {value}
+        </code>
         <button
           type="button"
           onClick={() => void copy(value, what)}
@@ -247,29 +309,62 @@ function CopyBlock({ label, value, what, className }: { label: string; value: st
 function HowTo({ className }: { className?: string }) {
   const base = origin();
   return (
-    <section aria-labelledby="howto-title" className={cx('rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70', className)}>
+    <section
+      aria-labelledby="howto-title"
+      className={cx(
+        'rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70',
+        className,
+      )}
+    >
       <h2 id="howto-title" className="text-[1rem] font-bold">
         How Claude connects
       </h2>
-      <p className="mt-0.5 text-sm text-ink-600">The key acts as you, with the access you picked. Nothing in LMS calls an AI.</p>
+      <p className="mt-0.5 text-sm text-ink-600">
+        The key acts as you, with the access you picked. Nothing in LMS calls an AI.
+      </p>
 
       <div className="mt-3.5 flex items-center gap-2 text-[0.9375rem] font-bold">
         <HubIcon fontSize="inherit" className="text-[1.2rem] text-lav-700" aria-hidden="true" />
         MCP
       </div>
-      <p className="mt-0.5 text-sm text-ink-600">For the claude.ai or desktop app, add a custom connector with the URL from your new key:</p>
-      <CopyBlock className="mt-1.5" label="Connector URL" value={`${base}/api/mcp/k/<key>`} what="Connector URL" />
-      <p className="mt-2.5 text-sm text-ink-600">Clients that send headers, like Claude Code, use the plain endpoint:</p>
-      <CopyBlock className="mt-1.5" label="Claude Code" value={`claude mcp add --transport http lms ${base}/api/mcp --header "Authorization: Bearer <key>"`} what="Command" />
+      <p className="mt-0.5 text-sm text-ink-600">
+        For the claude.ai or desktop app, add a custom connector with the URL from your new key:
+      </p>
+      <CopyBlock
+        className="mt-1.5"
+        label="Connector URL"
+        value={`${base}/api/mcp/k/<key>`}
+        what="Connector URL"
+      />
+      <p className="mt-2.5 text-sm text-ink-600">
+        Clients that send headers, like Claude Code, use the plain endpoint:
+      </p>
+      <CopyBlock
+        className="mt-1.5"
+        label="Claude Code"
+        value={`claude mcp add --transport http lms ${base}/api/mcp --header "Authorization: Bearer <key>"`}
+        what="Command"
+      />
 
       <div className="mt-3.5 flex items-center gap-2 text-[0.9375rem] font-bold">
-        <TerminalIcon fontSize="inherit" className="text-[1.2rem] text-lav-700" aria-hidden="true" />
+        <TerminalIcon
+          fontSize="inherit"
+          className="text-[1.2rem] text-lav-700"
+          aria-hidden="true"
+        />
         REST API
       </div>
       <p className="mt-0.5 text-sm text-ink-600">
-        Everything under <code className="font-mono text-[0.8125rem] text-ink-900">{base}/api/food/…</code> with the key in a header:
+        Everything under{' '}
+        <code className="font-mono text-[0.8125rem] text-ink-900">{base}/api/food/…</code> with the
+        key in a header:
       </p>
-      <CopyBlock className="mt-1.5" label="Example" value={`curl -H "Authorization: Bearer <key>" ${base}/api/food/kitchen`} what="Example" />
+      <CopyBlock
+        className="mt-1.5"
+        label="Example"
+        value={`curl -H "Authorization: Bearer <key>" ${base}/api/food/kitchen`}
+        what="Example"
+      />
     </section>
   );
 }

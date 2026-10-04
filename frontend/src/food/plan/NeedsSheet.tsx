@@ -17,9 +17,23 @@ type Range = 'next3' | 'week' | 'next7';
  * and the store it usually comes from. Lines with something to buy are ticked; covered ones stay
  * visible (unticked) so they can be checked at home.
  */
-export function NeedsSheet({ open, onClose, today }: { open: boolean; onClose: () => void; today: string }) {
+export function NeedsSheet({
+  open,
+  onClose,
+  today,
+}: {
+  open: boolean;
+  onClose: () => void;
+  today: string;
+}) {
   return (
-    <Sheet open={open} onClose={onClose} title="What the plan needs" description="Ticked lines go on the shopping lists." size="lg">
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="What the plan needs"
+      description="Ticked lines go on the shopping lists."
+      size="lg"
+    >
       {open ? <Needs today={today} onClose={onClose} /> : null}
     </Sheet>
   );
@@ -28,13 +42,23 @@ export function NeedsSheet({ open, onClose, today }: { open: boolean; onClose: (
 function Needs({ today, onClose }: { today: string; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [range, setRange] = useState<Range>('next3');
-  const to = range === 'next3' ? addDays(today, 2) : range === 'week' ? addDays(weekStart(today), 6) : addDays(today, 6);
-  const needs = useQuery({ queryKey: foodKeys.needs(today, to), queryFn: () => foodApi.needs(today, to) });
+  const to =
+    range === 'next3'
+      ? addDays(today, 2)
+      : range === 'week'
+        ? addDays(weekStart(today), 6)
+        : addDays(today, 6);
+  const needs = useQuery({
+    queryKey: foodKeys.needs(today, to),
+    queryFn: () => foodApi.needs(today, to),
+  });
   const stores = useQuery({ queryKey: [...foodKeys.all, 'stores'], queryFn: foodApi.stores });
   const [unticked, setUnticked] = useState<Set<string>>(new Set());
   const [storeFor, setStoreFor] = useState<Record<string, string>>({});
   const lines = needs.data?.lines ?? [];
-  const chosen = lines.filter((l) => (l.toBuy > 0 ? !unticked.has(l.productId) : unticked.has(l.productId)));
+  const chosen = lines.filter((l) =>
+    l.toBuy > 0 ? !unticked.has(l.productId) : unticked.has(l.productId),
+  );
 
   const add = useMutation({
     mutationFn: () =>
@@ -43,7 +67,12 @@ function Needs({ today, onClose }: { today: string; onClose: () => void }) {
           const store = storeFor[l.productId] ?? l.storeId ?? 'any';
           return {
             productId: l.productId,
-            ...(l.level ? {} : { amount: l.toBuyAmount || undefined, unit: l.toBuyAmount ? l.toBuyUnit : undefined }),
+            ...(l.level
+              ? {}
+              : {
+                  amount: l.toBuyAmount || undefined,
+                  unit: l.toBuyAmount ? l.toBuyUnit : undefined,
+                }),
             storeId: store === 'any' ? null : store,
           };
         }),
@@ -81,7 +110,10 @@ function Needs({ today, onClose }: { today: string; onClose: () => void }) {
             type="button"
             aria-pressed={range === value}
             onClick={() => setRange(value)}
-            className={cx('press h-9 rounded-pill px-3.5 text-sm font-semibold', range === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100')}
+            className={cx(
+              'press h-9 rounded-pill px-3.5 text-sm font-semibold',
+              range === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+            )}
           >
             {label}
           </button>
@@ -91,7 +123,9 @@ function Needs({ today, onClose }: { today: string; onClose: () => void }) {
         <Skeleton className="h-40" />
       ) : !lines.length ? (
         <p className="rounded-2xl bg-mint-100 px-4 py-6 text-center text-sm font-semibold text-mint-800">
-          {needs.data?.toCheck.length ? 'Nothing to buy, just check the items below.' : `Nothing to buy until ${relativeDay(to, today).toLowerCase()}.`}
+          {needs.data?.toCheck.length
+            ? 'Nothing to buy, just check the items below.'
+            : `Nothing to buy until ${relativeDay(to, today).toLowerCase()}.`}
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-ink-100 rounded-[1.25rem] ring-1 ring-inset ring-ink-100">
@@ -103,17 +137,25 @@ function Needs({ today, onClose }: { today: string; onClose: () => void }) {
               onToggle={() => toggle(line.productId)}
               stores={stores.data ?? []}
               store={storeFor[line.productId] ?? line.storeId ?? 'any'}
-              onStore={(value) => setStoreFor((current) => ({ ...current, [line.productId]: value }))}
+              onStore={(value) =>
+                setStoreFor((current) => ({ ...current, [line.productId]: value }))
+              }
             />
           ))}
         </ul>
       )}
       {needs.data?.toCheck.length ? (
         <p className="rounded-2xl bg-butter-100 px-4 py-3 text-sm text-butter-800">
-          <span className="font-semibold">Check you have:</span> {needs.data.toCheck.map((c) => `${c.name} (${c.meal})`).join(', ')}
+          <span className="font-semibold">Check you have:</span>{' '}
+          {needs.data.toCheck.map((c) => `${c.name} (${c.meal})`).join(', ')}
         </p>
       ) : null}
-      <Button fullWidth onClick={() => add.mutate()} loading={add.isPending} disabled={!chosen.length}>
+      <Button
+        fullWidth
+        onClick={() => add.mutate()}
+        loading={add.isPending}
+        disabled={!chosen.length}
+      >
         Add {plural(chosen.length, 'item')} to the lists
       </Button>
     </div>
@@ -151,15 +193,26 @@ function NeedRow({
         aria-checked={ticked}
         aria-label={`${ticked ? 'Leave out' : 'Add'} ${line.name}`}
         onClick={onToggle}
-        className={cx('press grid size-7 shrink-0 place-items-center rounded-full text-base', ticked ? 'bg-ink-900 text-white' : 'bg-white shadow-[inset_0_0_0_2px_var(--color-ink-300)]')}
+        className={cx(
+          'press grid size-7 shrink-0 place-items-center rounded-full text-base',
+          ticked
+            ? 'bg-ink-900 text-white'
+            : 'bg-white shadow-[inset_0_0_0_2px_var(--color-ink-300)]',
+        )}
       >
         {ticked ? <CheckIcon fontSize="inherit" /> : null}
       </button>
       <FoodIconTile name={line.icon} className="size-9 rounded-xl [&>svg]:size-6" />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.9375rem] font-semibold">{line.name}</span>
-        <span className={cx('block truncate text-xs', line.toBuy > 0 ? 'text-ink-700' : 'text-ink-500')}>{detail}</span>
-        <span className="block truncate text-[0.6875rem] text-ink-500">For {line.meals.map((m) => m.title).join(', ')}</span>
+        <span
+          className={cx('block truncate text-xs', line.toBuy > 0 ? 'text-ink-700' : 'text-ink-500')}
+        >
+          {detail}
+        </span>
+        <span className="block truncate text-[0.6875rem] text-ink-500">
+          For {line.meals.map((m) => m.title).join(', ')}
+        </span>
       </span>
       <select
         aria-label={`Store for ${line.name}`}

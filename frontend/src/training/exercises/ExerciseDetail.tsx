@@ -199,7 +199,9 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
               exercise.impact === 'high' ? 'text-peach-800' : 'text-mint-800',
             )}
           >
-            {exercise.impact === 'high' ? 'Jumps — loud for neighbours' : 'Quiet — fine for a flat'}
+            {exercise.impact === 'high'
+              ? 'High impact: jumps and landings'
+              : 'Low impact: no jumping'}
           </p>
           <p className="tabular text-sm text-ink-600">
             {target(exercise, exercise.measure)}
@@ -300,6 +302,24 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
         </Section>
       ) : null}
 
+      {exercise.options.length ? (
+        <Section title="Ways to do it">
+          <ul className="flex flex-wrap gap-1.5">
+            {exercise.options.map((o) => (
+              <li
+                key={`${o.from}-${o.name}`}
+                className="inline-flex h-9 items-center gap-1 rounded-pill bg-lav-100 px-3 text-sm font-semibold text-ink-900"
+              >
+                {o.name}
+                {o.kg !== null ? <span className="tabular text-lav-800">· {o.kg} kg</span> : null}
+                {o.equipment ? (
+                  <span className="text-xs font-medium text-lav-800">({o.equipment})</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      ) : null}
       {exercise.steps.length ? (
         <Section title="How to do it">
           <ol className="flex flex-col gap-2.5">
@@ -350,6 +370,7 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                         <span className="mr-1 text-ink-500">{s.side === 'left' ? 'L' : 'R'}</span>
                       ) : null}
                       {setLabel(s)}
+                      {s.variant ? <span className="ml-1 text-ink-500">· {s.variant}</span> : null}
                     </span>
                   ))}
                 </div>
@@ -438,8 +459,7 @@ function EquipmentNeeds({
   presets: EquipmentPreset[];
   owned: Equipment[];
 }) {
-  if (!needs.length)
-    return <p className="text-[0.9375rem] text-ink-700">Nothing — just you and the floor.</p>;
+  if (!needs.length) return <p className="text-[0.9375rem] text-ink-700">No equipment needed.</p>;
   const have = new Set(owned.filter((item) => item.count > 0).map((item) => item.kind));
   const preset = (kind: string) => presets.find((p) => p.kind === kind);
   const usesKey = uses?.join('+');

@@ -11,7 +11,16 @@ import { PackagesInput, type PackageRow } from '../components/PackagesInput';
 import { ProductPicker } from '../components/ProductPicker';
 import { QuantityInput } from '../components/QuantityInput';
 import { VariantChips } from '../components/VariantChips';
-import { addDays, formatAmount, formatQty, LOCATION_LABEL, localDate, packageUnits, parseAmount, unitsFor } from '../format';
+import {
+  addDays,
+  formatAmount,
+  formatQty,
+  LOCATION_LABEL,
+  localDate,
+  packageUnits,
+  parseAmount,
+  unitsFor,
+} from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import type { BaseUnit, Location, TrackMode } from '../types';
 
@@ -33,7 +42,15 @@ const TRACKING = [
  * usually is. Basics kept by level are simply marked full. "Add & next" keeps the sheet open for
  * unpacking a whole bag.
  */
-export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClose: () => void; initial?: PickedProduct | null }) {
+export function AddStockSheet({
+  open,
+  onClose,
+  initial,
+}: {
+  open: boolean;
+  onClose: () => void;
+  initial?: PickedProduct | null;
+}) {
   const queryClient = useQueryClient();
   const today = localDate();
   const [pick, setPick] = useState<PickedProduct | null>(initial ?? null);
@@ -47,7 +64,11 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
   const [expiresOn, setExpiresOn] = useState<string | null>(null);
   const [price, setPrice] = useState('');
   const [storeId, setStoreId] = useState<string>('none');
-  const stores = useQuery({ queryKey: [...foodKeys.all, 'stores'], queryFn: foodApi.stores, enabled: open });
+  const stores = useQuery({
+    queryKey: [...foodKeys.all, 'stores'],
+    queryFn: foodApi.stores,
+    enabled: open,
+  });
 
   const choose = (next: PickedProduct | null) => {
     setPick(next);
@@ -65,7 +86,10 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
   };
 
   // Each opening starts afresh, from what it was opened with.
-  const [opened, setOpened] = useState<{ open: boolean; initial: PickedProduct | null | undefined }>({ open, initial });
+  const [opened, setOpened] = useState<{
+    open: boolean;
+    initial: PickedProduct | null | undefined;
+  }>({ open, initial });
   if (opened.open !== open || opened.initial !== initial) {
     setOpened({ open, initial });
     if (open) choose(initial ?? null);
@@ -80,12 +104,26 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
       let productId = pick!.productId;
       // A name nobody knows yet: made the way it was set up here (counted in…, kept by level).
       if (!productId && pick!.isNew) {
-        const created = await foodApi.createProduct({ name: pick!.name, unit: pick!.unit, trackMode: pick!.trackMode, icon: pick!.icon, category: pick!.category, location: pick!.location });
+        const created = await foodApi.createProduct({
+          name: pick!.name,
+          unit: pick!.unit,
+          trackMode: pick!.trackMode,
+          icon: pick!.icon,
+          category: pick!.category,
+          location: pick!.location,
+        });
         productId = created.id;
       }
       return foodApi.addStock({
         ...(productId ? { productId } : { name: pick!.name }),
-        ...(level ? { quantity: 1 } : byPackage ? { package: packageName, packages: rows.map((row) => ({ count: row.count, size: row.size })) } : { quantity: amount!, unit }),
+        ...(level
+          ? { quantity: 1 }
+          : byPackage
+            ? {
+                package: packageName,
+                packages: rows.map((row) => ({ count: row.count, size: row.size })),
+              }
+            : { quantity: amount!, unit }),
         ...(variant ? { variant } : {}),
         location,
         expiresOn,
@@ -114,7 +152,10 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
           action: lots.length
             ? {
                 label: 'Undo',
-                onClick: () => void Promise.all(lots.map((lot) => foodApi.removeLot(lot.id))).then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
+                onClick: () =>
+                  void Promise.all(lots.map((lot) => foodApi.removeLot(lot.id))).then(() =>
+                    queryClient.invalidateQueries({ queryKey: foodKeys.all }),
+                  ),
               }
             : undefined,
         });
@@ -136,10 +177,21 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
       footer={
         pick ? (
           <div className="flex flex-col gap-2.5 sm:flex-row-reverse">
-            <Button fullWidth onClick={() => submit(false)} loading={save.isPending && !next} disabled={!ready || (save.isPending && next)}>
+            <Button
+              fullWidth
+              onClick={() => submit(false)}
+              loading={save.isPending && !next}
+              disabled={!ready || (save.isPending && next)}
+            >
               {level ? 'Mark it full' : 'Add to kitchen'}
             </Button>
-            <Button fullWidth variant="tint" onClick={() => submit(true)} loading={save.isPending && next} disabled={!ready || (save.isPending && !next)}>
+            <Button
+              fullWidth
+              variant="tint"
+              onClick={() => submit(true)}
+              loading={save.isPending && next}
+              disabled={!ready || (save.isPending && !next)}
+            >
               Add & next
             </Button>
           </div>
@@ -154,7 +206,13 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
             <FoodIconTile name={pick.icon} tone="bg-white" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[1.0625rem] font-bold">{pick.name}</p>
-              <p className="text-sm text-butter-800">{pick.productId ? 'In your kitchen’s list' : pick.isNew ? 'New item' : 'From the food list'}</p>
+              <p className="text-sm text-butter-800">
+                {pick.productId
+                  ? 'In your kitchen’s list'
+                  : pick.isNew
+                    ? 'New item'
+                    : 'From the food list'}
+              </p>
             </div>
             {initial ? null : (
               <Button size="sm" variant="ghost" onClick={() => choose(null)}>
@@ -167,7 +225,14 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
             <div className="grid gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <span className="text-[0.8125rem] font-semibold text-ink-700">Kept track of</span>
-                <Chips label="Kept track of" tone="sheet" dense value={pick.trackMode === 'level' ? 'level' : 'exact'} options={TRACKING} onChange={(value: TrackMode) => setPick({ ...pick, trackMode: value })} />
+                <Chips
+                  label="Kept track of"
+                  tone="sheet"
+                  dense
+                  value={pick.trackMode === 'level' ? 'level' : 'exact'}
+                  options={TRACKING}
+                  onChange={(value: TrackMode) => setPick({ ...pick, trackMode: value })}
+                />
               </div>
               {pick.trackMode !== 'level' ? (
                 <div className="flex flex-col gap-2">
@@ -191,7 +256,8 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
 
           {level ? (
             <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-700">
-              {pick.name} is kept as full, low or out. Adding it marks it <span className="font-semibold">full</span>.
+              {pick.name} is kept as full, low or out. Adding it marks it{' '}
+              <span className="font-semibold">full</span>.
             </p>
           ) : (
             <>
@@ -216,7 +282,15 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
                 </div>
               ) : null}
               {byPackage && packages.length ? (
-                <PackagesInput product={pick} packages={packages} packageName={packageName} onPackageName={setPackageName} rows={rows} onChange={setRows} label="What you got" />
+                <PackagesInput
+                  product={pick}
+                  packages={packages}
+                  packageName={packageName}
+                  onPackageName={setPackageName}
+                  rows={rows}
+                  onChange={setRows}
+                  label="What you got"
+                />
               ) : (
                 <QuantityInput
                   label="Amount"
@@ -231,7 +305,9 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
                   autoFocus={pick.unit !== 'pcs'}
                 />
               )}
-              {fields.packages ? <p className="-mt-3 text-sm font-medium text-danger-600">{fields.packages}</p> : null}
+              {fields.packages ? (
+                <p className="-mt-3 text-sm font-medium text-danger-600">{fields.packages}</p>
+              ) : null}
               <div className="grid gap-5 md:grid-cols-2">
                 <LocationPicker value={location} onChange={setLocation} />
                 <ExpiryPicker value={expiresOn} onChange={setExpiresOn} today={today} />
@@ -240,7 +316,13 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
           )}
 
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-3">
-            <TextField label={byPackage && rows.length > 1 ? 'Paid for all (lei)' : 'Paid (lei)'} inputMode="decimal" placeholder="Optional" value={price} onChange={(event) => setPrice(event.target.value)} />
+            <TextField
+              label={byPackage && rows.length > 1 ? 'Paid for all (lei)' : 'Paid (lei)'}
+              inputMode="decimal"
+              placeholder="Optional"
+              value={price}
+              onChange={(event) => setPrice(event.target.value)}
+            />
             {stores.data?.length ? (
               <label className="flex min-w-0 flex-col gap-2">
                 <span className="text-[0.8125rem] font-semibold text-ink-700">Bought at</span>
@@ -259,7 +341,9 @@ export function AddStockSheet({ open, onClose, initial }: { open: boolean; onClo
               </label>
             ) : null}
           </div>
-          {save.error && !fields.quantity && !fields.unit && !fields.packages ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
+          {save.error && !fields.quantity && !fields.unit && !fields.packages ? (
+            <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
+          ) : null}
         </div>
       )}
     </Sheet>

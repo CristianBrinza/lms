@@ -25,7 +25,20 @@ export interface PickedProduct {
   isNew?: boolean;
 }
 
-export const COMMON = ['Tomatoes', 'Cucumbers', 'Eggs', 'Milk', 'Bread', 'Chicken breast', 'Beef steak', 'Potatoes', 'Onions', 'Apples', 'Cheese', 'Water'];
+export const COMMON = [
+  'Tomatoes',
+  'Cucumbers',
+  'Eggs',
+  'Milk',
+  'Bread',
+  'Chicken breast',
+  'Beef steak',
+  'Potatoes',
+  'Onions',
+  'Apples',
+  'Cheese',
+  'Water',
+];
 
 /** Lowercase, no diacritics, punctuation as spaces: "Coca-Cola" and "coca cola" are the same (as in the API). */
 export const normalize = (value: string) =>
@@ -40,7 +53,12 @@ export const normalize = (value: string) =>
 export function sameName(a: string, b: string): boolean {
   const forms = (value: string) => {
     const base = normalize(value);
-    const out = new Set([base, base.replace(/ies$/, 'y'), base.replace(/oes$/, 'o'), base.replace(/s$/, '')]);
+    const out = new Set([
+      base,
+      base.replace(/ies$/, 'y'),
+      base.replace(/oes$/, 'o'),
+      base.replace(/s$/, ''),
+    ]);
     return out;
   };
   const left = forms(a);
@@ -78,7 +96,12 @@ export const fromPreset = (p: Preset): PickedProduct => ({
 });
 
 export function usePresets() {
-  return useQuery({ queryKey: foodKeys.presets, queryFn: foodApi.presets, staleTime: Infinity, gcTime: Infinity });
+  return useQuery({
+    queryKey: foodKeys.presets,
+    queryFn: foodApi.presets,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
 }
 
 export function useCatalog() {
@@ -93,13 +116,25 @@ export function useProductSearch(query: string, limit = 8) {
     const q = normalize(query);
     const products = catalog.data ?? [];
     // The kitchen's items, by name or by what the catalog also calls them ("roșii", "coca cola").
-    const aliases = (name: string) => (presets.data ?? []).find((p) => sameName(p.name, name))?.aliases ?? [];
+    const aliases = (name: string) =>
+      (presets.data ?? []).find((p) => sameName(p.name, name))?.aliases ?? [];
     const own = products
-      .filter((p) => !q || normalize(p.name).includes(q) || sameName(p.name, query) || aliases(p.name).some((alias) => normalize(alias).includes(q)))
+      .filter(
+        (p) =>
+          !q ||
+          normalize(p.name).includes(q) ||
+          sameName(p.name, query) ||
+          aliases(p.name).some((alias) => normalize(alias).includes(q)),
+      )
       .map(fromProduct);
     const foods = (presets.data ?? [])
       .filter((p) => !products.some((mine) => sameName(mine.name, p.name)))
-      .filter((p) => q && (normalize(p.name).includes(q) || p.aliases?.some((alias) => normalize(alias).includes(q))))
+      .filter(
+        (p) =>
+          q &&
+          (normalize(p.name).includes(q) ||
+            p.aliases?.some((alias) => normalize(alias).includes(q))),
+      )
       .map(fromPreset);
     const results = [...own, ...foods].slice(0, limit);
     // Typed a known name or a catalog alias ("steak", "roșii"): nothing new to offer.
@@ -107,7 +142,12 @@ export function useProductSearch(query: string, limit = 8) {
       q &&
       ([...own, ...foods].some((p) => sameName(p.name, query)) ||
         (presets.data ?? []).some((p) => p.aliases?.some((alias) => sameName(alias, query))));
-    return { results, exact: Boolean(exact), loading: catalog.isPending || presets.isPending, products, presets: presets.data ?? [] };
+    return {
+      results,
+      exact: Boolean(exact),
+      loading: catalog.isPending || presets.isPending,
+      products,
+      presets: presets.data ?? [],
+    };
   }, [catalog.data, catalog.isPending, presets.data, presets.isPending, query, limit]);
 }
-

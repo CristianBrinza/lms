@@ -21,14 +21,22 @@ export function InstallCard() {
     setHidden(true);
   };
   return (
-    <section className="relative flex animate-rise flex-col rounded-[1.75rem] bg-butter-300 p-5 shadow-[0_18px_32px_-20px_rgb(110_80_0/0.55)]" aria-labelledby="install-card-title">
-      <span aria-hidden="true" className="flex size-14 items-center justify-center rounded-full bg-white text-[1.6rem] text-ink-900">
+    <section
+      className="relative flex animate-rise flex-col rounded-[1.75rem] bg-butter-300 p-5 shadow-[0_18px_32px_-20px_rgb(110_80_0/0.55)]"
+      aria-labelledby="install-card-title"
+    >
+      <span
+        aria-hidden="true"
+        className="flex size-14 items-center justify-center rounded-full bg-white text-[1.6rem] text-ink-900"
+      >
         <InstallIcon fontSize="inherit" />
       </span>
       <h3 id="install-card-title" className="mt-5 pr-6 text-h2 font-bold text-ink-900">
         Put LMS on your Home Screen
       </h3>
-      <p className="mt-1.5 max-w-xs text-[0.9375rem] leading-snug text-butter-800">It opens full screen, stays signed in and updates by itself.</p>
+      <p className="mt-1.5 max-w-xs text-[0.9375rem] leading-snug text-butter-800">
+        It opens full screen, stays signed in and updates by itself.
+      </p>
       <Link
         to="/app"
         viewTransition

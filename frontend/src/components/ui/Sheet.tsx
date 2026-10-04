@@ -23,7 +23,16 @@ const CLOSE_MS = 200;
  * middle on wider screens, rising in over an indigo-tinted dim. Built on <dialog> + showModal(),
  * so focus trapping, Escape and the inert page behind come from the platform.
  */
-export function Sheet({ open, onClose, title, description, children, footer, hideTitle, size = 'md' }: SheetProps) {
+export function Sheet({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  hideTitle,
+  size = 'md',
+}: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const releaseScroll = useRef<(() => void) | null>(null);
@@ -127,7 +136,9 @@ export function Sheet({ open, onClose, title, description, children, footer, hid
             <h2 id={titleId} className={cx('text-h2 font-bold', hideTitle && 'sr-only')}>
               {title}
             </h2>
-            {description ? <div className="mt-1.5 text-[0.9375rem] text-ink-600">{description}</div> : null}
+            {description ? (
+              <div className="mt-1.5 text-[0.9375rem] text-ink-600">{description}</div>
+            ) : null}
           </div>
           <button
             type="button"
@@ -139,7 +150,9 @@ export function Sheet({ open, onClose, title, description, children, footer, hid
             <CloseIcon fontSize="inherit" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-6 pb-6 pt-4">{children}</div>
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain px-6 pb-6 pt-4">
+          {children}
+        </div>
         {footer ? <footer className="px-6 pb-6">{footer}</footer> : null}
       </div>
     </dialog>

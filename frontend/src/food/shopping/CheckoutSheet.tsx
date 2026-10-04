@@ -23,27 +23,71 @@ function gotText(line: ShoppingItem, products: Product[] | undefined): string | 
  * and whether it goes into the kitchen. Saving records the shop with its total and stocks the
  * kitchen; anything not ticked stays on the list for next time.
  */
-export function CheckoutSheet({ store, cart, open, onClose }: { store: Store | null; cart: ShoppingItem[]; open: boolean; onClose: () => void }) {
+export function CheckoutSheet({
+  store,
+  cart,
+  open,
+  onClose,
+}: {
+  store: Store | null;
+  cart: ShoppingItem[];
+  open: boolean;
+  onClose: () => void;
+}) {
   return (
-    <Sheet open={open} onClose={onClose} title={store ? `Finish at ${store.name}` : 'Finish the shop'} description="Check prices, then everything ticked goes into the kitchen." size="lg">
-      {open ? <CheckoutForm key={cart.map((l) => l.id).join()} store={store} cart={cart} onClose={onClose} /> : null}
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={store ? `Finish at ${store.name}` : 'Finish the shop'}
+      description="Check prices, then everything ticked goes into the kitchen."
+      size="lg"
+    >
+      {open ? (
+        <CheckoutForm
+          key={cart.map((l) => l.id).join()}
+          store={store}
+          cart={cart}
+          onClose={onClose}
+        />
+      ) : null}
     </Sheet>
   );
 }
 
-function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: ShoppingItem[]; onClose: () => void }) {
+function CheckoutForm({
+  store,
+  cart,
+  onClose,
+}: {
+  store: Store | null;
+  cart: ShoppingItem[];
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [prices, setPrices] = useState<Record<string, string>>(() =>
-    Object.fromEntries(cart.map((line) => [line.id, line.price !== null ? String(line.price) : line.estimate !== null ? '' : ''])),
+    Object.fromEntries(
+      cart.map((line) => [
+        line.id,
+        line.price !== null ? String(line.price) : line.estimate !== null ? '' : '',
+      ]),
+    ),
   );
-  const [stock, setStock] = useState<Record<string, boolean>>(() => Object.fromEntries(cart.map((line) => [line.id, line.category !== 'household'])));
+  const [stock, setStock] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(cart.map((line) => [line.id, line.category !== 'household'])),
+  );
   // Less than needed was bought: the rest stays on the list unless told otherwise.
-  const short = (line: ShoppingItem) => line.need !== null && line.boughtTotal !== null && line.boughtTotal + 1e-6 < line.need;
-  const [keepRest, setKeepRest] = useState<Record<string, boolean>>(() => Object.fromEntries(cart.filter(short).map((line) => [line.id, true])));
+  const short = (line: ShoppingItem) =>
+    line.need !== null && line.boughtTotal !== null && line.boughtTotal + 1e-6 < line.need;
+  const [keepRest, setKeepRest] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(cart.filter(short).map((line) => [line.id, true])),
+  );
   const catalog = useCatalog();
   const total = cart.reduce((sum, line) => sum + (parseAmount(prices[line.id] ?? '') ?? 0), 0);
-  const estimated = cart.reduce((sum, line) => sum + (parseAmount(prices[line.id] ?? '') === null ? (line.estimate ?? 0) : 0), 0);
+  const estimated = cart.reduce(
+    (sum, line) => sum + (parseAmount(prices[line.id] ?? '') === null ? (line.estimate ?? 0) : 0),
+    0,
+  );
 
   const finish = useMutation({
     mutationFn: () =>
@@ -61,10 +105,17 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       toast.success(`Shop saved${trip.total !== null ? ` · ${money(trip.total)}` : ''}`, {
         description:
-          [stocked ? `${stocked} ${stocked === 1 ? 'item is' : 'items are'} in your kitchen` : null, leftOver.length ? `Still to buy: ${leftOver.join(', ')}` : null]
+          [
+            stocked
+              ? `${stocked} ${stocked === 1 ? 'item is' : 'items are'} in your kitchen`
+              : null,
+            leftOver.length ? `Still to buy: ${leftOver.join(', ')}` : null,
+          ]
             .filter(Boolean)
             .join('. ') || undefined,
-        action: stocked ? { label: 'Kitchen', onClick: () => navigate('/food/kitchen') } : undefined,
+        action: stocked
+          ? { label: 'Kitchen', onClick: () => navigate('/food/kitchen') }
+          : undefined,
       });
       onClose();
     },
@@ -85,17 +136,23 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
                 <input
                   type="checkbox"
                   checked={stock[line.id] ?? true}
-                  onChange={(event) => setStock((current) => ({ ...current, [line.id]: event.target.checked }))}
+                  onChange={(event) =>
+                    setStock((current) => ({ ...current, [line.id]: event.target.checked }))
+                  }
                   className="size-4 accent-ink-900"
                 />
-                {gotText(line, catalog.data) ?? (line.amount && line.unit ? `${formatAmount(line.amount, line.unit)} · ` : '')}into the kitchen
+                {gotText(line, catalog.data) ??
+                  (line.amount && line.unit ? `${formatAmount(line.amount, line.unit)} · ` : '')}
+                into the kitchen
               </label>
               {short(line) ? (
                 <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-peach-800">
                   <input
                     type="checkbox"
                     checked={keepRest[line.id] ?? true}
-                    onChange={(event) => setKeepRest((current) => ({ ...current, [line.id]: event.target.checked }))}
+                    onChange={(event) =>
+                      setKeepRest((current) => ({ ...current, [line.id]: event.target.checked }))
+                    }
                     className="size-4 accent-ink-900"
                   />
                   Keep the rest on the list
@@ -108,7 +165,9 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
                 inputMode="decimal"
                 value={prices[line.id] ?? ''}
                 placeholder={line.estimate !== null ? `~${Math.round(line.estimate)}` : '—'}
-                onChange={(event) => setPrices((current) => ({ ...current, [line.id]: event.target.value }))}
+                onChange={(event) =>
+                  setPrices((current) => ({ ...current, [line.id]: event.target.value }))
+                }
                 className="tabular h-11 w-full min-w-0 bg-transparent text-right text-base font-semibold outline-none placeholder:font-medium placeholder:text-ink-400"
               />
               <span className="ml-1 text-sm text-ink-500">lei</span>
@@ -120,7 +179,11 @@ function CheckoutForm({ store, cart, onClose }: { store: Store | null; cart: Sho
         <span className="text-[0.9375rem] font-semibold">Total</span>
         <span className="tabular text-h2 font-bold">
           {money(Math.round(total * 100) / 100)}
-          {estimated > 0 ? <span className={cx('ml-2 text-sm font-medium text-butter-800')}>+ ~{money(Math.round(estimated))}</span> : null}
+          {estimated > 0 ? (
+            <span className={cx('ml-2 text-sm font-medium text-butter-800')}>
+              + ~{money(Math.round(estimated))}
+            </span>
+          ) : null}
         </span>
       </div>
       <Button fullWidth onClick={() => finish.mutate()} loading={finish.isPending}>

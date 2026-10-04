@@ -11,7 +11,8 @@ export function RequireAuth({ children }: { children?: ReactNode }) {
   const { pathname, search } = useLocation();
   if (!user) {
     const next = signedOut ? null : safeNextPath(`${pathname}${search}`);
-    if (next && next !== '/home') return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
+    if (next && next !== '/home')
+      return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />;
     return <Navigate to={signedOutStart()} replace />;
   }
   if (user.mustChangePassword && pathname !== '/welcome') return <Navigate to="/welcome" replace />;
@@ -34,7 +35,8 @@ export function GuestOnly() {
   const { user } = useAuth();
   const [params] = useSearchParams();
   const next = safeNextPath(params.get('next'));
-  if (user) return <Navigate to={user.mustChangePassword ? '/welcome' : (next ?? '/home')} replace />;
+  if (user)
+    return <Navigate to={user.mustChangePassword ? '/welcome' : (next ?? '/home')} replace />;
   if (needsLanding() && !next) return <Navigate to="/" replace />;
   return <Outlet />;
 }

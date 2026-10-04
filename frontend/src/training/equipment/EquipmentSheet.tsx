@@ -10,12 +10,14 @@ import { haptic } from '@/lib/haptics';
 import { trainingApi, trainingKeys } from '../api';
 import { kg } from '../format';
 import { EquipmentIcon } from '../icons/TrainingIcon';
-import type { Equipment, EquipmentPreset } from '../types';
+import type { Equipment, EquipmentPreset, Piece } from '../types';
+import { PiecesEditor } from './PiecesEditor';
 import { addWeights, parseWeights, removeWeight } from './weights';
 
 /**
  * One piece of equipment: its name, how many (0 while it's away: lent out, at the cottage), the
- * weights owned and whether they come in pairs, a note. Removing it takes it off the list.
+ * weights owned and whether they come in pairs, its pieces (each band with its kg, the bar's
+ * grips), a note. Removing it takes it off the list.
  */
 export function EquipmentSheet({
   open,
@@ -36,6 +38,7 @@ export function EquipmentSheet({
   const [typed, setTyped] = useState('');
   const [note, setNote] = useState('');
   const [icon, setIcon] = useState('');
+  const [pieces, setPieces] = useState<Piece[]>([]);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   // Opening the sheet (or opening it on another thing) starts from it as saved.
@@ -51,6 +54,7 @@ export function EquipmentSheet({
       setTyped('');
       setNote(item.note);
       setIcon(item.icon);
+      setPieces(item.variants);
     }
   }
 
@@ -70,6 +74,7 @@ export function EquipmentSheet({
         pairs,
         weights: all,
         note: note.trim(),
+        variants: pieces,
         ...(item!.kind === 'other' ? { icon } : {}),
       });
     },
@@ -248,6 +253,15 @@ export function EquipmentSheet({
                   </div>
                 ) : null}
               </fieldset>
+            ) : null}
+
+            {item ? (
+              <PiecesEditor
+                kind={item.kind}
+                value={pieces}
+                onChange={setPieces}
+                suggestions={preset?.pieces ?? []}
+              />
             ) : null}
 
             <TextField

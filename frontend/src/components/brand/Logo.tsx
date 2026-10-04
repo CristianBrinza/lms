@@ -5,7 +5,13 @@ import { cx } from '@/lib/cx';
  * The LMS logo: the red tile with its white sparkle (brand/logo.svg, copied to src/assets by
  * scripts/brand-assets.mjs). Red lives here and nowhere else in the interface.
  */
-export function LogoTile({ className, label = 'LMS' }: { className?: string; label?: string | null }) {
+export function LogoTile({
+  className,
+  label = 'LMS',
+}: {
+  className?: string;
+  label?: string | null;
+}) {
   return (
     <img
       src={logoUrl}
@@ -14,7 +20,10 @@ export function LogoTile({ className, label = 'LMS' }: { className?: string; lab
       width={56}
       height={56}
       draggable={false}
-      className={cx('block aspect-square select-none rounded-[26%] shadow-[0_8px_18px_-10px_rgb(42_43_102/0.45)]', className)}
+      className={cx(
+        'block aspect-square select-none rounded-[26%] shadow-[0_8px_18px_-10px_rgb(42_43_102/0.45)]',
+        className,
+      )}
     />
   );
 }

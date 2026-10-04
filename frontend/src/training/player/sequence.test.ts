@@ -17,7 +17,10 @@ import {
 function exercise(over: Partial<LibraryExercise> = {}): LibraryExercise {
   return {
     id: over.id ?? 'ex-push',
+    userId: 'u',
     preset: null,
+    variants: [],
+    options: [],
     name: 'Push-ups',
     category: 'strength',
     muscles: ['chest'],
@@ -80,6 +83,7 @@ function set(over: Partial<TrainingSet>): TrainingSet {
   return {
     id: Math.random().toString(36),
     userId: 'u',
+    variant: '',
     exerciseId: 'ex-push',
     exercise: 'Push-ups',
     icon: 'pushup',

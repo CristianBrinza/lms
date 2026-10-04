@@ -27,7 +27,15 @@ interface ChipsProps<T extends string> {
  * Completed"): the chosen one is ink, the rest wait in white. A radio group to assistive tech,
  * with arrow keys moving the choice. Scrolls sideways when the row is wider than the screen.
  */
-export function Chips<T extends string>({ label, value, options, onChange, tone = 'field', dense, className }: ChipsProps<T>) {
+export function Chips<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  tone = 'field',
+  dense,
+  className,
+}: ChipsProps<T>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const onKeyDown = (event: KeyboardEvent, index: number) => {
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
@@ -38,7 +46,11 @@ export function Chips<T extends string>({ label, value, options, onChange, tone 
     refs.current[next]?.focus();
   };
   return (
-    <div role="radiogroup" aria-label={label} className={cx('-mx-1 flex gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none]', className)}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cx('-mx-1 flex gap-2 overflow-x-auto px-1 py-1 [scrollbar-width:none]', className)}
+    >
       {options.map((option, index) => {
         const active = option.value === value;
         return (
@@ -65,10 +77,19 @@ export function Chips<T extends string>({ label, value, options, onChange, tone 
                   : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
             )}
           >
-            {option.icon ? <option.icon fontSize="inherit" className="-ml-1 text-[1.2rem]" /> : null}
+            {option.icon ? (
+              <option.icon fontSize="inherit" className="-ml-1 text-[1.2rem]" />
+            ) : null}
             {option.label}
             {option.count !== undefined ? (
-              <span className={cx('tabular rounded-pill px-1.5 text-xs font-semibold', active && tone === 'field' ? 'bg-white/15 text-white' : 'bg-ink-900/6 text-ink-700')}>
+              <span
+                className={cx(
+                  'tabular rounded-pill px-1.5 text-xs font-semibold',
+                  active && tone === 'field'
+                    ? 'bg-white/15 text-white'
+                    : 'bg-ink-900/6 text-ink-700',
+                )}
+              >
                 {option.count}
               </span>
             ) : null}

@@ -12,7 +12,17 @@ import { KIND_LABEL, KIND_ORDER } from './status';
 import { Stepper } from './Stepper';
 
 /** One thing's details: name, how many, kind, drawing, dishwasher-safe, where it's kept, a note. */
-export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool: Tool | null; icons: string[]; onClose: () => void }) {
+export function ToolSheet({
+  open,
+  tool,
+  icons,
+  onClose,
+}: {
+  open: boolean;
+  tool: Tool | null;
+  icons: string[];
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [count, setCount] = useState(1);
@@ -53,7 +63,12 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
         icon,
         washable,
         dishwasherSafe,
-        ...(kind === 'disposable' ? { minCount: minCount.trim() === '' ? null : Math.max(0, Math.round(Number(minCount)) || 0) } : {}),
+        ...(kind === 'disposable'
+          ? {
+              minCount:
+                minCount.trim() === '' ? null : Math.max(0, Math.round(Number(minCount)) || 0),
+            }
+          : {}),
         place: place.trim(),
         note: note.trim(),
       }),
@@ -85,8 +100,15 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
         size="lg"
         footer={
           <div className="flex flex-col gap-2">
-            {save.isError && !Object.keys(fields).length ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
-            <Button fullWidth onClick={() => save.mutate()} loading={save.isPending} disabled={!name.trim()}>
+            {save.isError && !Object.keys(fields).length ? (
+              <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
+            ) : null}
+            <Button
+              fullWidth
+              onClick={() => save.mutate()}
+              loading={save.isPending}
+              disabled={!name.trim()}
+            >
               Save
             </Button>
           </div>
@@ -94,7 +116,13 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
       >
         <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:gap-x-5">
           <div className="flex flex-col gap-4">
-            <TextField label="Name" value={name} onChange={(event) => setName(event.target.value)} error={fields.name} maxLength={60} />
+            <TextField
+              label="Name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              error={fields.name}
+              maxLength={60}
+            />
             <Stepper label="How many" value={count} onChange={setCount} min={0} max={500} />
             <fieldset>
               <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Kind</legend>
@@ -108,7 +136,9 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
                     onClick={() => setKind(value)}
                     className={cx(
                       'press h-11 rounded-pill px-3.5 text-sm font-semibold',
-                      kind === value ? 'bg-butter-300 text-ink-900' : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
+                      kind === value
+                        ? 'bg-butter-300 text-ink-900'
+                        : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
                     )}
                   >
                     {KIND_LABEL[value]}
@@ -131,25 +161,53 @@ export function ToolSheet({ open, tool, icons, onClose }: { open: boolean; tool:
                   checked={washable}
                   onChange={setWashable}
                   label="Gets washed"
-                  hint={washable ? 'Using it makes it dirty' : 'Never dirty, like an electric kettle or the oven'}
+                  hint={
+                    washable
+                      ? 'Using it makes it dirty'
+                      : 'Never dirty, like an electric kettle or the oven'
+                  }
                 />
                 {washable ? (
                   <Switch
                     checked={dishwasherSafe}
                     onChange={setDishwasherSafe}
                     label="In the dishwasher"
-                    hint={dishwasherSafe ? 'The dishwasher takes it' : 'By hand only, like knives or the grill'}
+                    hint={
+                      dishwasherSafe
+                        ? 'The dishwasher takes it'
+                        : 'By hand only, like knives or the grill'
+                    }
                   />
                 ) : null}
               </>
             )}
           </div>
           <div className="flex flex-col gap-4">
-            <TextField label="Kept in" placeholder="Desk drawer" value={place} onChange={(event) => setPlace(event.target.value)} error={fields.place} maxLength={60} />
-            <TextField label="Note" placeholder="Optional" value={note} onChange={(event) => setNote(event.target.value)} error={fields.note} maxLength={200} />
+            <TextField
+              label="Kept in"
+              placeholder="Desk drawer"
+              value={place}
+              onChange={(event) => setPlace(event.target.value)}
+              error={fields.place}
+              maxLength={60}
+            />
+            <TextField
+              label="Note"
+              placeholder="Optional"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              error={fields.note}
+              maxLength={200}
+            />
             <fieldset>
-              <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Drawing</legend>
-              <div role="radiogroup" aria-label="Drawing" className="grid max-h-[9.5rem] grid-cols-6 gap-1 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-8 md:grid-cols-6">
+              <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
+                Drawing
+              </legend>
+              <div
+                role="radiogroup"
+                aria-label="Drawing"
+                className="grid max-h-[9.5rem] grid-cols-6 gap-1 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-8 md:grid-cols-6"
+              >
                 {shownIcons.map((key) => (
                   <button
                     key={key}

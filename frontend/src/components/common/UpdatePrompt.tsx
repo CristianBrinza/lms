@@ -27,7 +27,11 @@ export function UpdatePrompt() {
 
   return (
     <>
-      {import.meta.env.DEV ? <DevVersionWatch onReady={onReady} /> : <ServiceWorkerWatch onReady={onReady} />}
+      {import.meta.env.DEV ? (
+        <DevVersionWatch onReady={onReady} />
+      ) : (
+        <ServiceWorkerWatch onReady={onReady} />
+      )}
       {ready ? <UpdateToast apply={applyUpdate} /> : null}
     </>
   );
@@ -91,7 +95,9 @@ function DevVersionWatch({ onReady }: { onReady: (update?: () => void) => void }
     let stopped = false;
     const read = () =>
       fetch('/version.json', { cache: 'no-store' })
-        .then((response) => (response.ok ? (response.json() as Promise<{ version?: string }>) : null))
+        .then((response) =>
+          response.ok ? (response.json() as Promise<{ version?: string }>) : null,
+        )
         .then((body) => body?.version ?? null)
         .catch(() => null);
     const check = async () => {

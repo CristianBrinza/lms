@@ -12,7 +12,11 @@ export interface PackageRow {
 }
 
 /** The units a size is typed in: litres or millilitres, grams or kilos, pieces. */
-const SIZE_UNITS: Record<Measured['unit'], string[]> = { ml: ['l', 'ml'], g: ['g', 'kg'], pcs: ['pcs'] };
+const SIZE_UNITS: Record<Measured['unit'], string[]> = {
+  ml: ['l', 'ml'],
+  g: ['g', 'kg'],
+  pcs: ['pcs'],
+};
 
 /**
  * What was bought, package by package: "1 bottle of 1.25 l and 2 of 0.5 l", "a jar of 14
@@ -41,7 +45,10 @@ export function PackagesInput({
   const total = rows.reduce((sum, row) => sum + row.count * row.size, 0);
   const count = rows.reduce((sum, row) => sum + row.count, 0);
   const plural = (n: number, u: CustomUnit) => (n === 1 ? u.name : (u.plural ?? `${u.name}s`));
-  const set = (index: number, next: PackageRow | null) => onChange(next ? rows.map((row, i) => (i === index ? next : row)) : rows.filter((_, i) => i !== index));
+  const set = (index: number, next: PackageRow | null) =>
+    onChange(
+      next ? rows.map((row, i) => (i === index ? next : row)) : rows.filter((_, i) => i !== index),
+    );
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -60,7 +67,12 @@ export function PackagesInput({
                   // Another kind of package: its usual size.
                   onChange(rows.map((row) => ({ ...row, size: p.size })));
                 }}
-                className={cx('press h-8 rounded-pill px-3 text-sm font-semibold capitalize', p.name === unit.name ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100')}
+                className={cx(
+                  'press h-8 rounded-pill px-3 text-sm font-semibold capitalize',
+                  p.name === unit.name
+                    ? 'bg-ink-900 text-white'
+                    : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+                )}
               >
                 {p.name}
               </button>
@@ -104,12 +116,22 @@ export function PackagesInput({
                 {plural(row.count, unit)} of {formatQty(row.size, product)}
               </span>
               {rows.length > 1 ? (
-                <button type="button" aria-label="Remove this size" onClick={() => set(index, null)} className="press grid size-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-white">
+                <button
+                  type="button"
+                  aria-label="Remove this size"
+                  onClick={() => set(index, null)}
+                  className="press grid size-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-white"
+                >
                   <CloseIcon fontSize="inherit" />
                 </button>
               ) : null}
             </div>
-            <SizePicker product={product} sizes={sizes} value={row.size} onChange={(size) => set(index, { ...row, size })} />
+            <SizePicker
+              product={product}
+              sizes={sizes}
+              value={row.size}
+              onChange={(size) => set(index, { ...row, size })}
+            />
           </li>
         ))}
       </ul>
@@ -117,14 +139,18 @@ export function PackagesInput({
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
-          onClick={() => onChange([...rows, { count: 1, size: rows[rows.length - 1]?.size ?? unit.size }])}
+          onClick={() =>
+            onChange([...rows, { count: 1, size: rows[rows.length - 1]?.size ?? unit.size }])
+          }
           className="press inline-flex h-9 items-center gap-1 rounded-pill bg-butter-100 px-3.5 text-sm font-semibold hover:bg-butter-200"
         >
           <AddIcon fontSize="inherit" className="text-base" />
           Another size
         </button>
         <span className="tabular text-sm font-semibold text-ink-600">
-          {count > 1 || rows.length > 1 ? `${formatQty(total, product)} in ${count} ${plural(count, unit)}` : null}
+          {count > 1 || rows.length > 1
+            ? `${formatQty(total, product)} in ${count} ${plural(count, unit)}`
+            : null}
         </span>
       </div>
     </div>
@@ -132,7 +158,17 @@ export function PackagesInput({
 }
 
 /** The usual sizes as pills, and "Other" to type one (0.75 l, 380 g, 16). */
-function SizePicker({ product, sizes, value, onChange }: { product: Measured; sizes: number[]; value: number; onChange: (size: number) => void }) {
+function SizePicker({
+  product,
+  sizes,
+  value,
+  onChange,
+}: {
+  product: Measured;
+  sizes: number[];
+  value: number;
+  onChange: (size: number) => void;
+}) {
   const id = useId();
   const units = SIZE_UNITS[product.unit];
   const known = sizes.includes(value);
@@ -152,7 +188,9 @@ function SizePicker({ product, sizes, value, onChange }: { product: Measured; si
           }}
           className={cx(
             'press h-8 rounded-pill px-2.5 text-[0.8125rem] font-semibold transition-colors',
-            !typing && size === value ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 hover:bg-butter-100',
+            !typing && size === value
+              ? 'bg-ink-900 text-white'
+              : 'bg-white text-ink-700 hover:bg-butter-100',
           )}
         >
           {formatQty(size, product)}
@@ -193,7 +231,11 @@ function SizePicker({ product, sizes, value, onChange }: { product: Measured; si
           ) : null}
         </span>
       ) : (
-        <button type="button" onClick={() => setTyping(true)} className="press h-8 rounded-pill bg-white px-2.5 text-[0.8125rem] font-semibold text-lav-700 hover:bg-butter-100">
+        <button
+          type="button"
+          onClick={() => setTyping(true)}
+          className="press h-8 rounded-pill bg-white px-2.5 text-[0.8125rem] font-semibold text-lav-700 hover:bg-butter-100"
+        >
           Other…
         </button>
       )}

@@ -1,3 +1,5 @@
+import { PhotoPicker, ProfileFieldsForm } from '@/components/common/ProfileFields';
+import { profileInput, profileValues } from '@/lib/profile';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -214,6 +216,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
         <div className="xl:col-start-1">
           {/* Keyed by the saved version: a save (or a change elsewhere) starts the form from the new values. */}
           <DetailsForm key={person.updatedAt} person={person} isMe={isMe} onSaved={refresh} />
+          <AboutCard key={`about-${person.updatedAt}`} person={person} onSaved={refresh} />
         </div>
       </div>
 
@@ -378,5 +381,41 @@ function DetailsForm({
         Save changes
       </Button>
     </form>
+  );
+}
+
+/** Picture, gender, birth date, height: the admin can set them for anyone (a child without a phone). */
+function AboutCard({ person, onSaved }: { person: AdminUser; onSaved: (user: AdminUser) => void }) {
+  const [value, setValue] = useState(() => profileValues(person));
+  const save = useMutation({
+    mutationFn: () => adminApi.update(person.id, profileInput(value)),
+    onSuccess: (user) => {
+      onSaved(user);
+      toast.success('Saved');
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  return (
+    <section
+      aria-labelledby="about"
+      className="mt-5 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
+    >
+      <h2 id="about" className="text-h3 font-bold">
+        About {person.name}
+      </h2>
+      <p className="mt-1 text-sm text-ink-600">Used for their training plans and health numbers.</p>
+      <div className="mt-4 grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+        <PhotoPicker
+          person={person}
+          onSave={(image) => adminApi.setAvatar(person.id, image).then(onSaved)}
+        />
+        <div className="flex flex-col gap-4">
+          <ProfileFieldsForm value={value} onChange={setValue} />
+          <Button size="md" loading={save.isPending} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </div>
+      </div>
+    </section>
   );
 }

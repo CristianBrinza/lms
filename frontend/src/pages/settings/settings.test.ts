@@ -11,8 +11,17 @@ describe('reminder text', () => {
   });
 
   it('says when', () => {
-    expect(reminderWhen({ kind: 'shopping', time: '18:30', minutesBefore: null, days: [1, 2, 3, 4, 5, 6, 7] })).toBe('18:30 · Every day');
-    expect(reminderWhen({ kind: 'meal', time: null, minutesBefore: 45, days: [6, 7] })).toBe('45 min before · Weekends');
+    expect(
+      reminderWhen({
+        kind: 'shopping',
+        time: '18:30',
+        minutesBefore: null,
+        days: [1, 2, 3, 4, 5, 6, 7],
+      }),
+    ).toBe('18:30 · Every day');
+    expect(reminderWhen({ kind: 'meal', time: null, minutesBefore: 45, days: [6, 7] })).toBe(
+      '45 min before · Weekends',
+    );
   });
 });
 

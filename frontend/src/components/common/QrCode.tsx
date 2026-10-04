@@ -6,7 +6,15 @@ import { cx } from '@/lib/cx';
  * A QR code drawn as one SVG path (crisp at any size, no canvas, no innerHTML). Medium error
  * correction so a phone camera reads it from a laptop screen.
  */
-export function QrCode({ value, label, className }: { value: string; label: string; className?: string }) {
+export function QrCode({
+  value,
+  label,
+  className,
+}: {
+  value: string;
+  label: string;
+  className?: string;
+}) {
   const { path, size } = useMemo(() => {
     const qr = encode(value, { ecc: 'M', border: 2 });
     let d = '';

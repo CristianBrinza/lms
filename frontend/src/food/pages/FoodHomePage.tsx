@@ -22,21 +22,36 @@ import type { FoodOverview } from '../types';
  */
 export default function FoodHomePage() {
   const today = localDate();
-  const overview = useQuery({ queryKey: [...foodKeys.overview, today], queryFn: () => foodApi.overview(today) });
+  const overview = useQuery({
+    queryKey: [...foodKeys.overview, today],
+    queryFn: () => foodApi.overview(today),
+  });
   const data = overview.data;
 
   return (
-    <Screen tone="field" className="lg:grid lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start lg:gap-x-6 lg:pr-8">
+    <Screen
+      tone="field"
+      className="lg:grid lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start lg:gap-x-6 lg:pr-8"
+    >
       <div className="min-w-0 lg:col-start-1 lg:row-start-1">
         <PageHeader compact back="/home" title="Food" subtitle={data ? data.kitchen.name : ' '} />
       </div>
 
       <div className="gutter-x mt-3 md:px-5 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-6 lg:px-0">
-        <Today overview={overview.data} loading={overview.isPending} error={overview.error} onRetry={() => void overview.refetch()} today={today} />
+        <Today
+          overview={overview.data}
+          loading={overview.isPending}
+          error={overview.error}
+          onRetry={() => void overview.refetch()}
+          today={today}
+        />
         <AskClaude className="mt-3 hidden lg:flex" />
       </div>
 
-      <section aria-label="Sections" className="gutter-x mt-3 md:px-5 lg:col-start-1 lg:row-start-2 lg:mt-5 lg:px-8">
+      <section
+        aria-label="Sections"
+        className="gutter-x mt-3 md:px-5 lg:col-start-1 lg:row-start-2 lg:mt-5 lg:px-8"
+      >
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3 lg:grid-cols-2 lg:gap-4">
           <SectionCard
             to="/food/kitchen"
@@ -46,7 +61,13 @@ export default function FoodHomePage() {
             index={0}
             value={data ? String(data.stock.products) : null}
             unit={data ? (data.stock.products === 1 ? 'item' : 'items') : ''}
-            detail={data ? (data.stock.expiring.length ? `${data.stock.expiring.length} to use soon` : 'Nothing expiring') : null}
+            detail={
+              data
+                ? data.stock.expiring.length
+                  ? `${data.stock.expiring.length} to use soon`
+                  : 'Nothing expiring'
+                : null
+            }
           />
           <SectionCard
             to="/food/recipes"
@@ -56,7 +77,13 @@ export default function FoodHomePage() {
             index={1}
             value={data ? String(data.recipes.total) : null}
             unit={data ? (data.recipes.total === 1 ? 'recipe' : 'recipes') : ''}
-            detail={data ? (data.recipes.total ? `${data.recipes.ready} ready to cook` : 'Add your first') : null}
+            detail={
+              data
+                ? data.recipes.total
+                  ? `${data.recipes.ready} ready to cook`
+                  : 'Add your first'
+                : null
+            }
           />
           <SectionCard
             to="/food/shopping"
@@ -99,10 +126,26 @@ function shoppingDetail(data: FoodOverview): string {
 }
 
 const CARD_TONES = {
-  ink: { surface: 'bg-ink-900 text-white shadow-[var(--shadow-tile)]', muted: 'text-white/70', button: 'bg-butter-300 text-ink-900' },
-  butter: { surface: 'bg-butter-300 text-ink-900 shadow-[0_18px_34px_-22px_rgb(110_80_0/0.7)]', muted: 'text-butter-800', button: 'bg-white text-ink-900' },
-  cyan: { surface: 'bg-cyan-200 text-ink-900 shadow-[0_18px_34px_-22px_rgb(20_94_112/0.6)]', muted: 'text-cyan-800', button: 'bg-ink-900 text-white' },
-  white: { surface: 'bg-white text-ink-900 shadow-[var(--shadow-tile)]', muted: 'text-ink-600', button: 'bg-butter-300 text-ink-900' },
+  ink: {
+    surface: 'bg-ink-900 text-white shadow-[var(--shadow-tile)]',
+    muted: 'text-white/70',
+    button: 'bg-butter-300 text-ink-900',
+  },
+  butter: {
+    surface: 'bg-butter-300 text-ink-900 shadow-[0_18px_34px_-22px_rgb(110_80_0/0.7)]',
+    muted: 'text-butter-800',
+    button: 'bg-white text-ink-900',
+  },
+  cyan: {
+    surface: 'bg-cyan-200 text-ink-900 shadow-[0_18px_34px_-22px_rgb(20_94_112/0.6)]',
+    muted: 'text-cyan-800',
+    button: 'bg-ink-900 text-white',
+  },
+  white: {
+    surface: 'bg-white text-ink-900 shadow-[var(--shadow-tile)]',
+    muted: 'text-ink-600',
+    button: 'bg-butter-300 text-ink-900',
+  },
 } as const;
 
 function SectionCard({
@@ -137,16 +180,34 @@ function SectionCard({
       )}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="text-[1.125rem] font-bold leading-tight tracking-[-0.02em] lg:text-[1.375rem]">{title}</span>
-        <span aria-hidden="true" className={cx('grid size-8 shrink-0 place-items-center rounded-full text-base transition-transform duration-300 ease-(--ease-lift) group-hover/card:rotate-45', t.button)}>
+        <span className="text-[1.125rem] font-bold leading-tight tracking-[-0.02em] lg:text-[1.375rem]">
+          {title}
+        </span>
+        <span
+          aria-hidden="true"
+          className={cx(
+            'grid size-8 shrink-0 place-items-center rounded-full text-base transition-transform duration-300 ease-(--ease-lift) group-hover/card:rotate-45',
+            t.button,
+          )}
+        >
           <ArrowOutIcon fontSize="inherit" />
         </span>
       </span>
       <span className="mt-1.5 flex items-baseline gap-1.5">
-        {value === null ? <Skeleton className="h-7 w-10 opacity-40" /> : <span className="tabular text-[1.75rem] font-bold leading-none tracking-[-0.03em]">{value}</span>}
+        {value === null ? (
+          <Skeleton className="h-7 w-10 opacity-40" />
+        ) : (
+          <span className="tabular text-[1.75rem] font-bold leading-none tracking-[-0.03em]">
+            {value}
+          </span>
+        )}
         <span className={cx('text-[0.8125rem] font-semibold', t.muted)}>{unit}</span>
       </span>
-      <span className={cx('mt-1 line-clamp-2 max-w-[62%] text-xs font-medium leading-snug', t.muted)}>{detail ?? '\u00a0'}</span>
+      <span
+        className={cx('mt-1 line-clamp-2 max-w-[62%] text-xs font-medium leading-snug', t.muted)}
+      >
+        {detail ?? '\u00a0'}
+      </span>
       {/* The drawing sits wholly inside the corner, clear of the text. */}
       <SceneArt
         scene={scene}
@@ -170,7 +231,10 @@ function Today({
   today: string;
 }) {
   return (
-    <section aria-labelledby="today-title" className="rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-raised)] lg:rounded-[2rem] lg:p-5">
+    <section
+      aria-labelledby="today-title"
+      className="rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-raised)] lg:rounded-[2rem] lg:p-5"
+    >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="today-title" className="text-h3 font-bold">
           Today
@@ -196,7 +260,15 @@ function Today({
         <div className="md:grid md:grid-cols-2 md:gap-x-6 lg:block">
           <div className="min-w-0">
             <Meals overview={overview} />
-            <CookIdeas planned={new Set(overview.meals.today.map((m) => m.recipeId).filter((id): id is string => Boolean(id)))} />
+            <CookIdeas
+              planned={
+                new Set(
+                  overview.meals.today
+                    .map((m) => m.recipeId)
+                    .filter((id): id is string => Boolean(id)),
+                )
+              }
+            />
           </div>
           <div className="min-w-0">
             <Opened overview={overview} today={today} />
@@ -217,7 +289,11 @@ function Meals({ overview }: { overview: FoodOverview }) {
         <FoodIconTile name="pot" tone="bg-white" className="size-10 rounded-xl [&>svg]:size-7" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[0.9375rem] font-semibold">No meals today</p>
-          <p className="truncate text-sm text-ink-600">{overview.meals.upcoming[0] ? `Next: ${overview.meals.upcoming[0].title}` : 'Plan what to cook'}</p>
+          <p className="truncate text-sm text-ink-600">
+            {overview.meals.upcoming[0]
+              ? `Next: ${overview.meals.upcoming[0].title}`
+              : 'Plan what to cook'}
+          </p>
         </div>
         <ButtonLink to="/food/plan" size="sm" variant="primary" icon={AddIcon}>
           Plan
@@ -231,11 +307,25 @@ function Meals({ overview }: { overview: FoodOverview }) {
         <li key={meal.id}>
           <Link
             to={`/food/plan?meal=${meal.id}`}
-            className={cx('press -mx-1.5 flex items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50', meal.status !== 'planned' && 'opacity-70')}
+            className={cx(
+              'press -mx-1.5 flex items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50',
+              meal.status !== 'planned' && 'opacity-70',
+            )}
           >
-            <FoodIconTile name={meal.icon} tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'} className="size-10 rounded-xl [&>svg]:size-7" />
+            <FoodIconTile
+              name={meal.icon}
+              tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'}
+              className="size-10 rounded-xl [&>svg]:size-7"
+            />
             <span className="min-w-0 flex-1">
-              <span className={cx('block truncate text-[0.9375rem] font-semibold', meal.status === 'done' && 'line-through decoration-ink-400')}>{meal.title}</span>
+              <span
+                className={cx(
+                  'block truncate text-[0.9375rem] font-semibold',
+                  meal.status === 'done' && 'line-through decoration-ink-400',
+                )}
+              >
+                {meal.title}
+              </span>
               <span className="block truncate text-sm text-ink-600">
                 {meal.time ?? SLOT_LABEL[meal.slot]} · {plural(meal.servings, 'serving')}
                 {meal.toGo ? ' · to go' : ''}
@@ -258,7 +348,9 @@ function ToolWarning({ meal }: { meal: FoodOverview['meals']['today'][number] })
   if (!dirty.length && !washing.length) return null;
   return (
     <span className="mt-0.5 block truncate text-xs font-semibold text-peach-800">
-      {dirty.length ? `Wash first: ${dirty.map((t) => t.name.toLowerCase()).join(', ')}` : `In the dishwasher: ${washing.map((t) => t.name.toLowerCase()).join(', ')}`}
+      {dirty.length
+        ? `Wash first: ${dirty.map((t) => t.name.toLowerCase()).join(', ')}`
+        : `In the dishwasher: ${washing.map((t) => t.name.toLowerCase()).join(', ')}`}
     </span>
   );
 }
@@ -271,7 +363,10 @@ function Opened({ overview, today }: { overview: FoodOverview; today: string }) 
     <div className="mt-3.5 md:mt-2">
       <div className="flex items-center justify-between">
         <h3 className="text-[0.9375rem] font-bold">Opened, use first</h3>
-        <Link to="/food/kitchen" className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800">
+        <Link
+          to="/food/kitchen"
+          className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
+        >
           Kitchen
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
@@ -279,8 +374,15 @@ function Opened({ overview, today }: { overview: FoodOverview; today: string }) 
       <ul className="mt-1.5 flex flex-col gap-1">
         {items.slice(0, 4).map((item) => (
           <li key={item.lotId} className="flex items-center gap-1">
-            <Link to={`/food/kitchen?item=${item.productId}`} className="press -mx-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50">
-              <FoodIconTile name={item.icon} tone="bg-peach-100" className="size-10 rounded-xl [&>svg]:size-7" />
+            <Link
+              to={`/food/kitchen?item=${item.productId}`}
+              className="press -mx-1.5 flex min-w-0 flex-1 items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50"
+            >
+              <FoodIconTile
+                name={item.icon}
+                tone="bg-peach-100"
+                className="size-10 rounded-xl [&>svg]:size-7"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[0.9375rem] font-semibold">{item.name}</span>
                 <span className="block truncate text-xs text-ink-600">
@@ -310,14 +412,20 @@ function CookIdeas({ planned }: { planned: Set<string> }) {
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const ideas = (recipes.data ?? [])
     .filter((r) => r.availability.ready && r.availability.total > 0 && !planned.has(r.id))
-    .sort((a, b) => b.availability.useSoon - a.availability.useSoon || Number(b.favorite) - Number(a.favorite))
+    .sort(
+      (a, b) =>
+        b.availability.useSoon - a.availability.useSoon || Number(b.favorite) - Number(a.favorite),
+    )
     .slice(0, 3);
   if (!ideas.length) return null;
   return (
     <div className="mt-3.5">
       <div className="flex items-center justify-between">
         <h3 className="text-[0.9375rem] font-bold">From what you have</h3>
-        <Link to="/food/recipes" className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800">
+        <Link
+          to="/food/recipes"
+          className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
+        >
           Recipes
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
@@ -325,15 +433,28 @@ function CookIdeas({ planned }: { planned: Set<string> }) {
       <ul className="mt-1.5 flex flex-col gap-1">
         {ideas.map((recipe) => (
           <li key={recipe.id}>
-            <Link to={`/food/recipes/${recipe.id}`} className="press -mx-1.5 flex items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50">
-              <FoodIconTile name={recipe.icon} tone="bg-mint-100" className="size-10 rounded-xl [&>svg]:size-7" />
+            <Link
+              to={`/food/recipes/${recipe.id}`}
+              className="press -mx-1.5 flex items-center gap-3 rounded-2xl p-1.5 transition-colors hover:bg-ink-50"
+            >
+              <FoodIconTile
+                name={recipe.icon}
+                tone="bg-mint-100"
+                className="size-10 rounded-xl [&>svg]:size-7"
+              />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[0.9375rem] font-semibold">{recipe.title}</span>
+                <span className="block truncate text-[0.9375rem] font-semibold">
+                  {recipe.title}
+                </span>
                 <span className="block truncate text-xs text-ink-600">
-                  {recipe.availability.useSoon ? `Uses ${plural(recipe.availability.useSoon, 'thing')} to eat soon` : 'Everything’s in the kitchen'}
+                  {recipe.availability.useSoon
+                    ? `Uses ${plural(recipe.availability.useSoon, 'thing')} to eat soon`
+                    : 'Everything’s in the kitchen'}
                 </span>
               </span>
-              <span className="inline-flex h-8 shrink-0 items-center rounded-pill bg-ink-900 px-3 text-xs font-semibold text-white">Cook</span>
+              <span className="inline-flex h-8 shrink-0 items-center rounded-pill bg-ink-900 px-3 text-xs font-semibold text-white">
+                Cook
+              </span>
             </Link>
           </li>
         ))}
@@ -351,7 +472,10 @@ function UseSoon({ overview, today }: { overview: FoodOverview; today: string })
     <div className="mt-3.5">
       <div className="flex items-center justify-between">
         <h3 className="text-[0.9375rem] font-bold">Use soon</h3>
-        <Link to="/food/kitchen" className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800">
+        <Link
+          to="/food/kitchen"
+          className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
+        >
           Kitchen
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
@@ -359,13 +483,18 @@ function UseSoon({ overview, today }: { overview: FoodOverview; today: string })
       <ul className="-mx-3.5 mt-2 flex gap-2 overflow-x-auto px-3.5 pb-0.5 [scrollbar-width:none] md:mx-0 md:flex-wrap md:px-0 lg:-mx-5 lg:flex-nowrap lg:px-5">
         {items.map((item) => (
           <li key={item.lotId} className="shrink-0">
-            <Link to={`/food/kitchen?item=${item.productId}`} className="press flex w-[7.5rem] flex-col gap-1.5 rounded-2xl bg-ink-50 p-2.5 transition-colors hover:bg-ink-100">
+            <Link
+              to={`/food/kitchen?item=${item.productId}`}
+              className="press flex w-[7.5rem] flex-col gap-1.5 rounded-2xl bg-ink-50 p-2.5 transition-colors hover:bg-ink-100"
+            >
               <span className="flex items-start justify-between">
                 <FoodIcon name={item.icon} className="size-8" />
                 <ExpiryChip expiresOn={item.expiresOn} today={today} compact />
               </span>
               <span className="truncate text-sm font-semibold">{item.name}</span>
-              <span className="-mt-1.5 text-xs font-medium text-ink-600">{formatQty(item.quantity, item)}</span>
+              <span className="-mt-1.5 text-xs font-medium text-ink-600">
+                {formatQty(item.quantity, item)}
+              </span>
             </Link>
           </li>
         ))}
@@ -377,7 +506,8 @@ function UseSoon({ overview, today }: { overview: FoodOverview; today: string })
 function RunningLow({ overview }: { overview: FoodOverview }) {
   const queryClient = useQueryClient();
   const add = useMutation({
-    mutationFn: (item: FoodOverview['stock']['low'][number]) => foodApi.addLines([{ productId: item.productId }], 'low_stock'),
+    mutationFn: (item: FoodOverview['stock']['low'][number]) =>
+      foodApi.addLines([{ productId: item.productId }], 'low_stock'),
     onSuccess: (_lines, item) => {
       toast.success(`${item.name} is on the list`);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
@@ -416,17 +546,24 @@ function AskClaude({ className }: { className?: string }) {
   return (
     <Link
       to="/settings/ai"
-      className={cx('press group/ai flex items-center gap-3 rounded-[1.5rem] bg-lav-100 p-3 transition-colors hover:bg-lav-200', className)}
+      className={cx(
+        'press group/ai flex items-center gap-3 rounded-[1.5rem] bg-lav-100 p-3 transition-colors hover:bg-lav-200',
+        className,
+      )}
     >
       <span className="grid size-10 shrink-0 place-items-center rounded-full bg-ink-900 text-[1.2rem] text-butter-300">
         <SparkleIcon fontSize="inherit" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[0.9375rem] font-semibold">Plan with Claude</span>
-        <span className="block text-[0.8125rem] leading-snug text-ink-600">Claude can plan the week, fill the lists and save recipes.</span>
+        <span className="block text-[0.8125rem] leading-snug text-ink-600">
+          Claude can plan the week, fill the lists and save recipes.
+        </span>
       </span>
-      <ChevronRightIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-500 transition-transform group-hover/ai:translate-x-0.5" />
+      <ChevronRightIcon
+        fontSize="inherit"
+        className="shrink-0 text-[1.4rem] text-ink-500 transition-transform group-hover/ai:translate-x-0.5"
+      />
     </Link>
   );
 }
-

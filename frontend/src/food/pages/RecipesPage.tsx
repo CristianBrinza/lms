@@ -4,7 +4,15 @@ import { Link, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, ButtonLink, Chips, IconLink, Skeleton, TextField } from '@/components/ui';
-import { AccessTimeIcon, AddIcon, FavoriteIcon, FireIcon, PeopleIcon, SearchIcon, SparkleIcon } from '@/components/ui/icons';
+import {
+  AccessTimeIcon,
+  AddIcon,
+  FavoriteIcon,
+  FireIcon,
+  PeopleIcon,
+  SearchIcon,
+  SparkleIcon,
+} from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
@@ -14,7 +22,14 @@ import type { Recipe } from '../types';
 
 type Filter = 'all' | 'ready' | 'soon' | 'favorites';
 
-const TILE = ['bg-butter-100', 'bg-cyan-100', 'bg-pink-100', 'bg-mint-100', 'bg-lav-100', 'bg-peach-100'];
+const TILE = [
+  'bg-butter-100',
+  'bg-cyan-100',
+  'bg-pink-100',
+  'bg-mint-100',
+  'bg-lav-100',
+  'bg-peach-100',
+];
 
 /**
  * The kitchen's recipes: what can be cooked now, what uses up food about to expire or already
@@ -30,18 +45,33 @@ export default function RecipesPage() {
   const all = useMemo(() => recipes.data ?? [], [recipes.data]);
   const tags = useMemo(() => [...new Set(all.flatMap((r) => r.tags))].sort(), [all]);
 
-  const usesName = uses ? all.flatMap((r) => r.ingredients).find((i) => i.productId === uses)?.name : null;
+  const usesName = uses
+    ? all.flatMap((r) => r.ingredients).find((i) => i.productId === uses)?.name
+    : null;
   const shown = all
-    .filter((r) => !uses || r.ingredients.some((i) => i.productId === uses || i.alternatives.some((alt) => alt.productId === uses)))
+    .filter(
+      (r) =>
+        !uses ||
+        r.ingredients.some(
+          (i) => i.productId === uses || i.alternatives.some((alt) => alt.productId === uses),
+        ),
+    )
     .filter((r) => filter !== 'ready' || r.availability.ready)
     .filter((r) => filter !== 'soon' || r.availability.useSoon > 0)
     .filter((r) => filter !== 'favorites' || r.favorite)
     .filter((r) => !tag || r.tags.includes(tag))
-    .filter((r) => !query.trim() || normalize(r.title).includes(normalize(query)) || r.ingredients.some((i) => normalize(i.name).includes(normalize(query))))
+    .filter(
+      (r) =>
+        !query.trim() ||
+        normalize(r.title).includes(normalize(query)) ||
+        r.ingredients.some((i) => normalize(i.name).includes(normalize(query))),
+    )
     .sort((a, b) =>
       filter === 'soon'
         ? b.availability.useSoon - a.availability.useSoon
-        : Number(b.favorite) - Number(a.favorite) || Number(b.availability.ready) - Number(a.availability.ready) || a.title.localeCompare(b.title),
+        : Number(b.favorite) - Number(a.favorite) ||
+          Number(b.availability.ready) - Number(a.availability.ready) ||
+          a.title.localeCompare(b.title),
     );
   const ready = all.filter((r) => r.availability.ready).length;
 
@@ -51,13 +81,34 @@ export default function RecipesPage() {
         compact
         back="/food"
         title="Recipes"
-        subtitle={recipes.data ? `${all.length} ${all.length === 1 ? 'recipe' : 'recipes'} · ${ready} ready to cook` : ' '}
-        actions={<IconLink to="/food/recipes/new" icon={AddIcon} label="New recipe" variant="ink" size="sm" />}
+        subtitle={
+          recipes.data
+            ? `${all.length} ${all.length === 1 ? 'recipe' : 'recipes'} · ${ready} ready to cook`
+            : ' '
+        }
+        actions={
+          <IconLink
+            to="/food/recipes/new"
+            icon={AddIcon}
+            label="New recipe"
+            variant="ink"
+            size="sm"
+          />
+        }
       />
 
       {all.length ? (
         <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-5 lg:px-8">
-          <TextField label="Search recipes" hideLabel dense icon={SearchIcon} surface="raised" placeholder="A dish or an ingredient" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <TextField
+            label="Search recipes"
+            hideLabel
+            dense
+            icon={SearchIcon}
+            surface="raised"
+            placeholder="A dish or an ingredient"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
           <Chips
             label="Show"
             tone="sheet"
@@ -67,8 +118,18 @@ export default function RecipesPage() {
             options={[
               { value: 'all', label: 'All', count: all.length },
               { value: 'ready', label: 'Ready to cook', count: ready },
-              { value: 'soon', label: 'Use it up', icon: FireIcon, count: all.filter((r) => r.availability.useSoon > 0).length },
-              { value: 'favorites', label: 'Favourites', icon: FavoriteIcon, count: all.filter((r) => r.favorite).length },
+              {
+                value: 'soon',
+                label: 'Use it up',
+                icon: FireIcon,
+                count: all.filter((r) => r.availability.useSoon > 0).length,
+              },
+              {
+                value: 'favorites',
+                label: 'Favourites',
+                icon: FavoriteIcon,
+                count: all.filter((r) => r.favorite).length,
+              },
             ]}
           />
           {uses ? (
@@ -88,7 +149,12 @@ export default function RecipesPage() {
                   type="button"
                   aria-pressed={tag === t}
                   onClick={() => setTag(tag === t ? null : t)}
-                  className={cx('press h-9 shrink-0 rounded-pill px-3.5 text-sm font-semibold', tag === t ? 'bg-ink-900 text-white' : 'bg-white text-ink-700 shadow-xs hover:bg-ink-50')}
+                  className={cx(
+                    'press h-9 shrink-0 rounded-pill px-3.5 text-sm font-semibold',
+                    tag === t
+                      ? 'bg-ink-900 text-white'
+                      : 'bg-white text-ink-700 shadow-xs hover:bg-ink-50',
+                  )}
                 >
                   #{t}
                 </button>
@@ -108,14 +174,21 @@ export default function RecipesPage() {
           <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
             <p className="font-semibold text-danger-700">Couldn’t load recipes</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(recipes.error)}</p>
-            <Button size="sm" variant="tint" className="mt-3" onClick={() => void recipes.refetch()}>
+            <Button
+              size="sm"
+              variant="tint"
+              className="mt-3"
+              onClick={() => void recipes.refetch()}
+            >
               Try again
             </Button>
           </div>
         ) : !all.length ? (
           <Empty />
         ) : !shown.length ? (
-          <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">Nothing matches. Try another filter.</p>
+          <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
+            Nothing matches. Try another filter.
+          </p>
         ) : (
           <ul className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:gap-4 xl:grid-cols-4">
             {shown.map((recipe, index) => (
@@ -140,14 +213,20 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
       className="group/recipe press flex h-full flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 transition-[translate,box-shadow] duration-300 ease-(--ease-lift) hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
     >
       <span className={cx('relative grid h-20 place-items-center sm:h-24', tone)}>
-        <FoodIcon name={recipe.icon} className="size-12 transition-transform duration-500 ease-(--ease-lift) group-hover/recipe:-rotate-6 group-hover/recipe:scale-110 sm:size-14" />
+        <FoodIcon
+          name={recipe.icon}
+          className="size-12 transition-transform duration-500 ease-(--ease-lift) group-hover/recipe:-rotate-6 group-hover/recipe:scale-110 sm:size-14"
+        />
         {recipe.favorite ? (
           <span className="absolute right-2.5 top-2.5 grid size-8 place-items-center rounded-full bg-white text-base text-pink-800 shadow-xs">
             <FavoriteIcon fontSize="inherit" />
           </span>
         ) : null}
         {recipe.createdVia === 'ai' ? (
-          <span className="absolute left-2.5 top-2.5 grid size-8 place-items-center rounded-full bg-white text-base text-lav-700 shadow-xs" title="Added by Claude">
+          <span
+            className="absolute left-2.5 top-2.5 grid size-8 place-items-center rounded-full bg-white text-base text-lav-700 shadow-xs"
+            title="Added by Claude"
+          >
             <SparkleIcon fontSize="inherit" />
           </span>
         ) : null}
@@ -168,14 +247,19 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
         </span>
         <span className="mt-auto flex flex-wrap gap-1 pt-2">
           {availability.total === 0 ? null : availability.ready ? (
-            <span className="inline-flex h-6 items-center rounded-pill bg-mint-100 px-2 text-xs font-semibold text-mint-800">Ready to cook</span>
+            <span className="inline-flex h-6 items-center rounded-pill bg-mint-100 px-2 text-xs font-semibold text-mint-800">
+              Ready to cook
+            </span>
           ) : (
             <span className="inline-flex h-6 items-center rounded-pill bg-peach-100 px-2 text-xs font-semibold text-peach-800">
               {availability.missing.length} missing
             </span>
           )}
           {availability.useSoon ? (
-            <span className="inline-flex h-6 items-center gap-0.5 rounded-pill bg-butter-100 px-2 text-xs font-semibold text-butter-800" title="Uses food that expires soon">
+            <span
+              className="inline-flex h-6 items-center gap-0.5 rounded-pill bg-butter-100 px-2 text-xs font-semibold text-butter-800"
+              title="Uses food that expires soon"
+            >
               <FireIcon fontSize="inherit" className="text-sm" />
               {availability.useSoon}
             </span>
@@ -191,7 +275,10 @@ function Empty() {
     <div className="flex flex-col items-center rounded-[2rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
       <SceneArt scene="recipes" className="size-24" />
       <h2 className="mt-4 text-h2 font-bold">No recipes yet</h2>
-      <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">Write down the dishes you make. Each ingredient links to your kitchen, so you can see what’s ready to cook.</p>
+      <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
+        Write down the dishes you make. Each ingredient links to your kitchen, so you can see what’s
+        ready to cook.
+      </p>
       <div className="mt-6 flex flex-wrap justify-center gap-2.5">
         <ButtonLink to="/food/recipes/new" icon={AddIcon}>
           Add a recipe

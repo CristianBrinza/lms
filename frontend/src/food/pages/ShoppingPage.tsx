@@ -672,7 +672,9 @@ function LineRow({
             ) : (
               [
                 line.priority ? 'Important' : null,
-                line.needBy ? `for ${relativeDay(line.needBy, today).replace(/^(Today|Tomorrow)$/, (word) => word.toLowerCase())}` : null,
+                line.needBy
+                  ? `for ${relativeDay(line.needBy, today).replace(/^(Today|Tomorrow)$/, (word) => word.toLowerCase())}`
+                  : null,
                 store ?? null,
                 line.amount && line.unit
                   ? `at least ${formatAmount(line.amount, line.unit)}`

@@ -11,7 +11,10 @@ const FIRST_OPEN_MS = 1100;
 const RELOAD_MS = 300;
 let hidden = false;
 
-if (typeof document !== 'undefined' && document.documentElement.getAttribute('data-splash') === 'skip') {
+if (
+  typeof document !== 'undefined' &&
+  document.documentElement.getAttribute('data-splash') === 'skip'
+) {
   document.getElementById('splash')?.remove();
   session.set(SPLASH_SEEN_KEY, '1');
   hidden = true;

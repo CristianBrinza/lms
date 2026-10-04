@@ -43,21 +43,45 @@ function classes(variant: Variant, size: Size, className?: string) {
 }
 
 function Dot() {
-  return <span aria-hidden="true" className="absolute right-[22%] top-[22%] size-2 rounded-full bg-lav-600 ring-2 ring-white" />;
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute right-[22%] top-[22%] size-2 rounded-full bg-lav-600 ring-2 ring-white"
+    />
+  );
 }
 
-export const IconButton = forwardRef<HTMLButtonElement, Common & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>>(
-  function IconButton({ icon: Icon, label, variant = 'white', size = 'md', dot, className, type = 'button', ...rest }, ref) {
-    return (
-      <button ref={ref} type={type} aria-label={label} title={label} className={classes(variant, size, className)} {...rest}>
-        <Icon fontSize="inherit" />
-        {dot ? <Dot /> : null}
-      </button>
-    );
-  },
-);
+export const IconButton = forwardRef<
+  HTMLButtonElement,
+  Common & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'>
+>(function IconButton(
+  { icon: Icon, label, variant = 'white', size = 'md', dot, className, type = 'button', ...rest },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      aria-label={label}
+      title={label}
+      className={classes(variant, size, className)}
+      {...rest}
+    >
+      <Icon fontSize="inherit" />
+      {dot ? <Dot /> : null}
+    </button>
+  );
+});
 
-export function IconLink({ icon: Icon, label, variant = 'white', size = 'md', dot, className, ...rest }: Common & Omit<LinkProps, 'children'>) {
+export function IconLink({
+  icon: Icon,
+  label,
+  variant = 'white',
+  size = 'md',
+  dot,
+  className,
+  ...rest
+}: Common & Omit<LinkProps, 'children'>) {
   return (
     <Link aria-label={label} title={label} className={classes(variant, size, className)} {...rest}>
       <Icon fontSize="inherit" />

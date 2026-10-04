@@ -34,7 +34,12 @@ export function daysLabel(days: number[]): string {
 }
 
 /** "18:30 · Every day", "45 min before · Weekdays". */
-export function reminderWhen(reminder: Pick<Reminder, 'kind' | 'time' | 'minutesBefore' | 'days'>): string {
-  const at = reminder.kind === 'meal' ? `${reminder.minutesBefore ?? 45} min before` : (reminder.time ?? '—');
+export function reminderWhen(
+  reminder: Pick<Reminder, 'kind' | 'time' | 'minutesBefore' | 'days'>,
+): string {
+  const at =
+    reminder.kind === 'meal'
+      ? `${reminder.minutesBefore ?? 45} min before`
+      : (reminder.time ?? '—');
   return `${at} · ${daysLabel(reminder.days)}`;
 }

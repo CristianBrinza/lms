@@ -5,7 +5,11 @@ import { Screen } from '@/components/layout/Screen';
 export function FoodPlaceholder({ title }: { title: string }) {
   return (
     <Screen tone="white">
-      <PageHeader back="/food" title={title} subtitle="This screen is being built — it appears here as soon as it’s ready." />
+      <PageHeader
+        back="/food"
+        title={title}
+        subtitle="This screen is being built — it appears here as soon as it’s ready."
+      />
     </Screen>
   );
 }

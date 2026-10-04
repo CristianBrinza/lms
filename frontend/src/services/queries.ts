@@ -7,7 +7,8 @@ export const queryClient = new QueryClient({
       staleTime: 30_000,
       refetchOnWindowFocus: true,
       // Signed out or forbidden: asking again won't change the answer.
-      retry: (count, error) => !(isApiError(error) && [401, 403, 404].includes(error.status)) && count < 2,
+      retry: (count, error) =>
+        !(isApiError(error) && [401, 403, 404].includes(error.status)) && count < 2,
     },
     mutations: { retry: false },
   },

@@ -71,16 +71,29 @@ async function readErrorBody(response: Response): Promise<Partial<ApiErrorBody> 
 async function parseError(response: Response): Promise<ApiError> {
   const body = await readErrorBody(response);
   const code = body?.error?.code ?? (response.status === 0 ? 'NETWORK' : 'HTTP_' + response.status);
-  return new ApiError(response.status, code, body?.error?.message ?? response.statusText, body?.error?.fields ?? {});
+  return new ApiError(
+    response.status,
+    code,
+    body?.error?.message ?? response.statusText,
+    body?.error?.fields ?? {},
+  );
 }
 
-export async function apiRequest<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
+export async function apiRequest<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
   const init: RequestInit = {
     method,
     credentials: 'same-origin',
     signal: options.signal,
     cache: options.cache,
-    headers: body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers:
+      body === undefined
+        ? { Accept: 'application/json' }
+        : { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   };
 
@@ -104,11 +117,16 @@ export async function apiRequest<T>(method: string, path: string, body?: unknown
 }
 
 export const api = {
-  get: <T>(path: string, options?: RequestOptions) => apiRequest<T>('GET', path, undefined, options),
-  post: <T>(path: string, body?: unknown, options?: RequestOptions) => apiRequest<T>('POST', path, body, options),
-  put: <T>(path: string, body?: unknown, options?: RequestOptions) => apiRequest<T>('PUT', path, body, options),
-  patch: <T>(path: string, body?: unknown, options?: RequestOptions) => apiRequest<T>('PATCH', path, body, options),
-  delete: <T>(path: string, body?: unknown, options?: RequestOptions) => apiRequest<T>('DELETE', path, body, options),
+  get: <T>(path: string, options?: RequestOptions) =>
+    apiRequest<T>('GET', path, undefined, options),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    apiRequest<T>('POST', path, body, options),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    apiRequest<T>('PUT', path, body, options),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    apiRequest<T>('PATCH', path, body, options),
+  delete: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    apiRequest<T>('DELETE', path, body, options),
 };
 
 /** Non-secret cookie set with the session: lets the app skip /me for signed-out visitors. */

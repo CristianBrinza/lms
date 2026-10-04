@@ -28,7 +28,14 @@ const STANDARD = new Set(['pcs', 'g', 'kg', 'ml', 'l', 'tsp', 'tbsp', 'cup']);
 
 /** The item's packages (jar, bottle, loaf, can): its own units that hold more than one piece. */
 export function packageUnits(product: Pick<Measured, 'unit' | 'units'>): CustomUnit[] {
-  return (product.units ?? []).filter((u) => !STANDARD.has(u.name.toLowerCase()) && !(product.unit === 'pcs' && u.size === 1) && u.name !== 'shot' && u.name !== 'pump' && u.name !== 'glass');
+  return (product.units ?? []).filter(
+    (u) =>
+      !STANDARD.has(u.name.toLowerCase()) &&
+      !(product.unit === 'pcs' && u.size === 1) &&
+      u.name !== 'shot' &&
+      u.name !== 'pump' &&
+      u.name !== 'glass',
+  );
 }
 
 /** Sizes to offer for a package: its own list, else its usual size. */
@@ -38,7 +45,11 @@ export function packageSizes(unit: CustomUnit): number[] {
 
 function customUnit(unit: string, product: Measured): CustomUnit | null {
   const word = unit.trim().toLowerCase();
-  return product.units?.find((u) => u.name.toLowerCase() === word || (u.plural ?? `${u.name}s`).toLowerCase() === word) ?? null;
+  return (
+    product.units?.find(
+      (u) => u.name.toLowerCase() === word || (u.plural ?? `${u.name}s`).toLowerCase() === word,
+    ) ?? null
+  );
 }
 
 const FACTOR: Record<Unit, { family: 'count' | 'mass' | 'volume'; factor: number }> = {
@@ -63,12 +74,21 @@ function factorOf(unit: string, product: Measured): number | null {
   const base = BASE_FAMILY[product.unit];
   if (measure.family === base) return measure.factor;
   // Spoons and cups of something weighed; grams of something poured: about 1 g per ml.
-  if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup')) return measure.factor;
-  if (product.category && POURABLE.has(product.category) && ((base === 'mass' && measure.family === 'volume') || (base === 'volume' && measure.family === 'mass'))) {
+  if (base === 'mass' && (unit === 'tsp' || unit === 'tbsp' || unit === 'cup'))
+    return measure.factor;
+  if (
+    product.category &&
+    POURABLE.has(product.category) &&
+    ((base === 'mass' && measure.family === 'volume') ||
+      (base === 'volume' && measure.family === 'mass'))
+  ) {
     return measure.factor;
   }
   if (!product.pieceSize) return null;
-  if (product.unit === 'pcs') return measure.family === BASE_FAMILY[product.pieceUnit ?? 'g'] ? measure.factor / product.pieceSize : null;
+  if (product.unit === 'pcs')
+    return measure.family === BASE_FAMILY[product.pieceUnit ?? 'g']
+      ? measure.factor / product.pieceSize
+      : null;
   return measure.family === 'count' ? product.pieceSize : null;
 }
 
@@ -86,10 +106,16 @@ export function fromBase(base: number, unit: string, product: Measured): number 
 export function unitsFor(product: Measured, options: { cooking?: boolean } = {}): string[] {
   const spoons = options.cooking ? ['tsp', 'tbsp', 'cup'] : [];
   const piece = pieceName(product);
-  const own: string[] = product.unit === 'g' ? ['g', 'kg', ...spoons] : product.unit === 'ml' ? ['ml', 'l', ...spoons] : [piece ? piece.name : 'pcs'];
+  const own: string[] =
+    product.unit === 'g'
+      ? ['g', 'kg', ...spoons]
+      : product.unit === 'ml'
+        ? ['ml', 'l', ...spoons]
+        : [piece ? piece.name : 'pcs'];
   const extra = (product.units ?? []).map((u) => u.name).filter((name) => !own.includes(name));
   if (!product.pieceSize) return [...own, ...extra];
-  if (product.unit === 'pcs') return [...own, ...((product.pieceUnit ?? 'g') === 'g' ? ['g', 'kg'] : ['ml', 'l']), ...extra];
+  if (product.unit === 'pcs')
+    return [...own, ...((product.pieceUnit ?? 'g') === 'g' ? ['g', 'kg'] : ['ml', 'l']), ...extra];
   return [...own, 'pcs', ...extra];
 }
 
@@ -131,7 +157,9 @@ export function packageLabel(
   const count = Math.max(1, Math.round(lot.initialQuantity / lot.packageSize));
   const own = product.units?.find((u) => u.name === lot.package);
   const many = own?.plural ?? `${lot.package}s`;
-  return count > 1 ? `${count} ${many} of ${formatQty(lot.packageSize, product)}` : `${name} of ${formatQty(lot.packageSize, product)}`;
+  return count > 1
+    ? `${count} ${many} of ${formatQty(lot.packageSize, product)}`
+    : `${name} of ${formatQty(lot.packageSize, product)}`;
 }
 
 /** The unit a person would use for this amount of this item: its piece name, kg, l, g, ml, pcs. */
@@ -140,9 +168,13 @@ export function naturalUnit(base: number, product: Pick<Measured, 'unit' | 'unit
 }
 
 /** A base quantity of an item, in the unit a person would say ("20 slices" when it names its pieces). */
-export function formatQty(base: number, product: Pick<Measured, 'unit'> & { units?: CustomUnit[] }): string {
+export function formatQty(
+  base: number,
+  product: Pick<Measured, 'unit'> & { units?: CustomUnit[] },
+): string {
   const piece = pieceName({ unit: product.unit, units: product.units });
-  if (piece) return formatAmount(round(base), base === 1 ? piece.name : (piece.plural ?? piece.name));
+  if (piece)
+    return formatAmount(round(base), base === 1 ? piece.name : (piece.plural ?? piece.name));
   const unit = displayUnit(base, product.unit);
   const factor = FACTOR[unit].factor;
   return formatAmount(round(base / factor), unit);
@@ -195,13 +227,27 @@ export function relativeDay(day: string, today = localDate()): string {
   return `${weekdayShort(day)}, ${dayAndMonth(day)}`;
 }
 
+/** relativeDay inside a sentence: "today", "tomorrow", but "Tue, Oct 6" keeps its capitals. */
+export function relativeDayInline(day: string, today = localDate()): string {
+  const label = relativeDay(day, today);
+  return /^(Today|Tomorrow|Yesterday)$/.test(label) ? label.toLowerCase() : label;
+}
+
 export type ExpiryTone = 'expired' | 'today' | 'soon' | 'later' | 'none';
 
 /** How close a best-before is: expired, today, within three days, later, or no date. */
-export function expiry(expiresOn: string | null, today = localDate()): { tone: ExpiryTone; label: string; days: number | null } {
+export function expiry(
+  expiresOn: string | null,
+  today = localDate(),
+): { tone: ExpiryTone; label: string; days: number | null } {
   if (!expiresOn) return { tone: 'none', label: 'No date', days: null };
   const days = daysBetween(today, expiresOn);
-  if (days < 0) return { tone: 'expired', label: days === -1 ? 'Expired yesterday' : `Expired ${-days} days ago`, days };
+  if (days < 0)
+    return {
+      tone: 'expired',
+      label: days === -1 ? 'Expired yesterday' : `Expired ${-days} days ago`,
+      days,
+    };
   if (days === 0) return { tone: 'today', label: 'Today', days };
   if (days === 1) return { tone: 'soon', label: 'Tomorrow', days };
   if (days <= 3) return { tone: 'soon', label: `${days} days`, days };
@@ -219,10 +265,20 @@ export function expiry(expiresOn: string | null, today = localDate()): { tone: E
 export function money(value: number, currency = 'MDL'): string {
   const decimals = Number.isInteger(value) ? 0 : 2;
   if (currency === 'MDL') return `${value.toFixed(decimals)} lei`;
-  return new Intl.NumberFormat('en', { style: 'currency', currency, minimumFractionDigits: decimals }).format(value);
+  return new Intl.NumberFormat('en', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: decimals,
+  }).format(value);
 }
 
-export const LOCATION_LABEL: Record<Location, string> = { fridge: 'Fridge', freezer: 'Freezer', pantry: 'Shelf', garden: 'Garden', other: 'Other' };
+export const LOCATION_LABEL: Record<Location, string> = {
+  fridge: 'Fridge',
+  freezer: 'Freezer',
+  pantry: 'Shelf',
+  garden: 'Garden',
+  other: 'Other',
+};
 
 export const CATEGORY_LABEL: Record<Category, string> = {
   produce: 'Fruit & veg',
@@ -242,8 +298,18 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 
 export const CATEGORY_ORDER = Object.keys(CATEGORY_LABEL) as Category[];
 
-export const SLOT_LABEL: Record<Slot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', snack: 'Snack', dinner: 'Dinner' };
-export const SLOT_TIME: Record<Slot, string> = { breakfast: '08:00', lunch: '13:00', snack: '16:30', dinner: '19:00' };
+export const SLOT_LABEL: Record<Slot, string> = {
+  breakfast: 'Breakfast',
+  lunch: 'Lunch',
+  snack: 'Snack',
+  dinner: 'Dinner',
+};
+export const SLOT_TIME: Record<Slot, string> = {
+  breakfast: '08:00',
+  lunch: '13:00',
+  snack: '16:30',
+  dinner: '19:00',
+};
 
 export function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -256,4 +322,5 @@ export function parseAmount(text: string): number | null {
 }
 
 /** An ingredient's alternative as people say it: "whipped cream", "syrup (caramel)". */
-export const altLabel = (alt: { name: string; variant: string }) => `${alt.name.toLowerCase()}${alt.variant ? ` (${alt.variant.toLowerCase()})` : ''}`;
+export const altLabel = (alt: { name: string; variant: string }) =>
+  `${alt.name.toLowerCase()}${alt.variant ? ` (${alt.variant.toLowerCase()})` : ''}`;

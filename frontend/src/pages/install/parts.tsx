@@ -48,7 +48,9 @@ export function HomeScene({ step }: { step: number }) {
             <span className={cx('block rounded-[26%]', m.className)} style={m.style}>
               <LogoTile className="w-full shadow-none" label={null} />
             </span>
-            <span className="mt-[0.35em] block truncate text-center text-[0.8em] font-semibold text-ink-900">LMS</span>
+            <span className="mt-[0.35em] block truncate text-center text-[0.8em] font-semibold text-ink-900">
+              LMS
+            </span>
           </div>
         ) : (
           <div key={i}>

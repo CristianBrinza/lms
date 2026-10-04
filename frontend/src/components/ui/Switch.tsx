@@ -41,7 +41,9 @@ export function Switch({ checked, onChange, label, hint, disabled, className }: 
           aria-hidden="true"
           className={cx(
             'absolute left-0.5 h-6 w-6 rounded-full shadow-[0_2px_6px_rgb(29_29_36/0.25)] transition-[translate,background-color,width] duration-250 ease-(--ease-lift) group-active/switch:w-7',
-            checked ? 'translate-x-5 bg-butter-300 group-active/switch:translate-x-4' : 'translate-x-0 bg-white',
+            checked
+              ? 'translate-x-5 bg-butter-300 group-active/switch:translate-x-4'
+              : 'translate-x-0 bg-white',
           )}
         />
       </button>

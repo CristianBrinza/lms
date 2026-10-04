@@ -14,7 +14,15 @@ import { QuantityInput } from './QuantityInput';
  * "Missing" tapped on a recipe or a planned meal: put it on a list, with how much is missing, at
  * which store, and by when (the day before the meal, so it's in the kitchen in time).
  */
-export function AddToListSheet({ line, needBy, onClose }: { line: IngredientLine | null; needBy?: string | null; onClose: () => void }) {
+export function AddToListSheet({
+  line,
+  needBy,
+  onClose,
+}: {
+  line: IngredientLine | null;
+  needBy?: string | null;
+  onClose: () => void;
+}) {
   return (
     <Sheet open={Boolean(line)} onClose={onClose} title="Add to the list">
       {line ? <Form key={line.id} line={line} needBy={needBy ?? null} onClose={onClose} /> : null}
@@ -22,14 +30,25 @@ export function AddToListSheet({ line, needBy, onClose }: { line: IngredientLine
   );
 }
 
-function Form({ line, needBy, onClose }: { line: IngredientLine; needBy: string | null; onClose: () => void }) {
+function Form({
+  line,
+  needBy,
+  onClose,
+}: {
+  line: IngredientLine;
+  needBy: string | null;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const catalog = useCatalog();
   const stores = useQuery({ queryKey: [...foodKeys.all, 'stores'], queryFn: foodApi.stores });
   const product = catalog.data?.find((p) => p.id === line.productId);
-  const measured = product ?? (line.baseUnit ? { unit: line.baseUnit, pieceSize: null, pieceUnit: null } : null);
+  const measured =
+    product ?? (line.baseUnit ? { unit: line.baseUnit, pieceSize: null, pieceUnit: null } : null);
   const startUnit = measured ? naturalUnit(line.missing, measured) : (line.unit ?? 'pcs');
-  const [amount, setAmount] = useState<number | null>(line.missing && measured ? fromBase(line.missing, startUnit, measured) : (line.amount ?? null));
+  const [amount, setAmount] = useState<number | null>(
+    line.missing && measured ? fromBase(line.missing, startUnit, measured) : (line.amount ?? null),
+  );
   const [unit, setUnit] = useState<string>(startUnit);
   const [storeId, setStoreId] = useState<string>(product?.storeId ?? 'any');
   // Bought the day before it's eaten.
@@ -54,7 +73,9 @@ function Form({ line, needBy, onClose }: { line: IngredientLine; needBy: string 
       ),
     onSuccess: () => {
       haptic('success');
-      toast.success(`${line.name} is on the list`, { description: amount ? `at least ${formatAmount(amount, unit)}` : undefined });
+      toast.success(`${line.name} is on the list`, {
+        description: amount ? `at least ${formatAmount(amount, unit)}` : undefined,
+      });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -70,7 +91,11 @@ function Form({ line, needBy, onClose }: { line: IngredientLine; needBy: string 
             {line.name}
             {line.variant ? ` · ${line.variant}` : ''}
           </span>
-          <span className="block text-sm text-peach-800">{line.reservedFor ? `What there is is kept for ${line.reservedFor.title}` : 'Not enough in the kitchen'}</span>
+          <span className="block text-sm text-peach-800">
+            {line.reservedFor
+              ? `What there is is kept for ${line.reservedFor.title}`
+              : 'Not enough in the kitchen'}
+          </span>
         </span>
       </div>
       <QuantityInput
@@ -110,7 +135,12 @@ function Form({ line, needBy, onClose }: { line: IngredientLine; needBy: string 
           />
         </label>
       </div>
-      <Switch checked={priority} onChange={setPriority} label="Important" hint="Shown first on the list" />
+      <Switch
+        checked={priority}
+        onChange={setPriority}
+        label="Important"
+        hint="Shown first on the list"
+      />
       <Button fullWidth onClick={() => add.mutate()} loading={add.isPending}>
         Add to the list
       </Button>

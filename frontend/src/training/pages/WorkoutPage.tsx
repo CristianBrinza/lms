@@ -15,13 +15,14 @@ import {
   PlayIcon,
   WarningIcon,
 } from '@/components/ui/icons';
-import { dayLong, localDate, relativeDay } from '@/food/format';
+import { dayLong, localDate, relativeDay, relativeDayInline } from '@/food/format';
 import { Stepper } from '@/food/kitchenware/Stepper';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { trainingApi, trainingKeys } from '../api';
 import { ExercisePicker } from '../components/ExercisePicker';
+import { WayChips } from '../components/WayChips';
 import {
   BLOCK_LABEL,
   clock,
@@ -421,7 +422,7 @@ function StatusCard({
           ) : null}
         </div>
         {done ? (
-          <CheckCircleIcon fontSize="inherit" className="shrink-0 text-[2.75rem] text-mint-700" />
+          <CheckCircleIcon fontSize="inherit" className="shrink-0 text-[2.75rem] text-mint-800" />
         ) : (
           <button
             type="button"
@@ -436,7 +437,7 @@ function StatusCard({
       </div>
       {!done && workout.date !== localDate() && workout.status === 'planned' ? (
         <p className="mt-2 text-xs text-white/60">
-          Planned for {relativeDay(workout.date).toLowerCase()}; you can still start it now.
+          Planned for {relativeDayInline(workout.date)}; you can still start it now.
         </p>
       ) : null}
     </section>
@@ -470,7 +471,9 @@ function ItemRow({
   const chip = (active: boolean) =>
     cx(
       'press h-10 min-w-10 rounded-full px-3 text-sm font-semibold tabular transition-colors',
-      active ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-800 hover:bg-ink-100',
+      active
+        ? 'bg-ink-900 text-white'
+        : 'bg-white text-ink-800 ring-1 ring-inset ring-ink-200 hover:bg-lav-50',
     );
   return (
     <li>
@@ -487,6 +490,7 @@ function ItemRow({
           <span className="block truncate text-[0.9375rem] font-semibold">{e.name}</span>
           <span className="block text-sm text-ink-700">
             {plan(item, e)}
+            {item.variant ? ` · ${item.variant}` : ''}
             {item.rest ? <span className="text-ink-500"> · rest {duration(item.rest)}</span> : null}
           </span>
           {item.suggest ? (
@@ -555,6 +559,21 @@ function ItemRow({
             format={(v) => (v ? clock(v) : 'none')}
             onChange={(rest) => onChange({ rest })}
           />
+          {e.options.length ? (
+            <div className="rounded-[1.125rem] bg-ink-50 p-3">
+              <p className="mb-2 text-[0.9375rem] font-semibold text-ink-800">How</p>
+              <WayChips
+                options={e.options}
+                value={item.variant}
+                onChange={(variant, option) =>
+                  onChange({
+                    variant,
+                    ...(option && option.kg !== null ? { weight: option.kg } : {}),
+                  })
+                }
+              />
+            </div>
+          ) : null}
           {e.weighted && e.weights.length ? (
             <div className="rounded-[1.125rem] bg-ink-50 p-3">
               <p className="mb-2 text-[0.9375rem] font-semibold text-ink-800">Weight</p>
@@ -656,6 +675,7 @@ function DoneSets({
                     <span className="tabular">
                       {s.side ? `${s.side === 'left' ? 'L' : 'R'} ` : ''}
                       {setLabel(s)}
+                      {s.variant ? ` · ${s.variant}` : ''}
                     </span>
                     <button
                       type="button"
@@ -710,15 +730,16 @@ function WorkoutSheets({
       if (sheet === 'move')
         return trainingApi
           .updateWorkout(workout.id, { date: day })
-          .then(() => done(`Moved to ${relativeDay(day).toLowerCase()}`));
+          .then(() => done(`Moved to ${relativeDayInline(day)}`));
       if (sheet === 'copy')
         return trainingApi.copyWorkout(workout.id, { date: day }).then((copy) => {
-          done(`Copied to ${relativeDay(day).toLowerCase()}`);
+          done(`Copied to ${relativeDayInline(day)}`);
           navigate(`/training/workouts/${copy.id}`);
         });
       if (sheet === 'routine')
         return trainingApi
           .createRoutine({
+            userId: workout.userId,
             name,
             note: workout.note,
             items: workout.items.map(({ exercise: _e, last: _l, suggest: _s, ...item }) => item),

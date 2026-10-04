@@ -345,7 +345,8 @@ function MealBody({
               {meal.eatenOut.place ? ` · ${meal.eatenOut.place}` : ''}
             </span>
             <span className="block text-sm text-lav-800">
-              Nothing from the kitchen{meal.eatenOut.cost !== null ? ` · ${meal.eatenOut.cost} lei` : ''}
+              Nothing from the kitchen
+              {meal.eatenOut.cost !== null ? ` · ${meal.eatenOut.cost} lei` : ''}
             </span>
           </span>
           <span className="text-sm font-semibold text-lav-800">Change</span>
@@ -467,7 +468,11 @@ function MealBody({
 
       <AddToListSheet line={missing} needBy={meal.date} onClose={() => setMissing(null)} />
       <AddPartSheet open={addingPart} meal={meal} onClose={() => setAddingPart(false)} />
-      <EatOutSheet meal={eatingOut ? meal : null} onClose={() => setEatingOut(false)} onDone={onClose} />
+      <EatOutSheet
+        meal={eatingOut ? meal : null}
+        onClose={() => setEatingOut(false)}
+        onDone={onClose}
+      />
     </div>
   );
 }

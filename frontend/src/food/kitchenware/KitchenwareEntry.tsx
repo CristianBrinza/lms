@@ -26,18 +26,34 @@ export function KitchenwareEntry({ className }: { className?: string }) {
         className,
       )}
     >
-      <FoodIconTile name="pot" tone="bg-lav-100" className="size-11 rounded-[0.875rem] [&>svg]:size-8" />
+      <FoodIconTile
+        name="pot"
+        tone="bg-lav-100"
+        className="size-11 rounded-[0.875rem] [&>svg]:size-8"
+      />
       <span className="min-w-0 flex-1">
         <span className="block text-[0.9375rem] font-bold leading-tight">Kitchenware</span>
         {state ? (
-          <span className={cx('mt-0.5 block truncate text-[0.8125rem] font-medium', busy ? 'text-peach-800' : 'text-ink-600')}>{statusLine(state)}</span>
+          <span
+            className={cx(
+              'mt-0.5 block truncate text-[0.8125rem] font-medium',
+              busy ? 'text-peach-800' : 'text-ink-600',
+            )}
+          >
+            {statusLine(state)}
+          </span>
         ) : list.isError ? (
-          <span className="mt-0.5 block truncate text-[0.8125rem] font-medium text-ink-500">Pots, pans, glasses</span>
+          <span className="mt-0.5 block truncate text-[0.8125rem] font-medium text-ink-500">
+            Pots, pans, glasses
+          </span>
         ) : (
           <Skeleton className="mt-1 h-3.5 w-32" />
         )}
       </span>
-      <ChevronRightIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-400 transition-transform duration-200 group-hover/entry:translate-x-0.5" />
+      <ChevronRightIcon
+        fontSize="inherit"
+        className="shrink-0 text-[1.4rem] text-ink-400 transition-transform duration-200 group-hover/entry:translate-x-0.5"
+      />
     </Link>
   );
 }

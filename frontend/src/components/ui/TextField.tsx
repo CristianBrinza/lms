@@ -21,16 +21,34 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
  * turning white with a crisp ink outline while you type. Errors tint the well and outline it red.
  */
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, hideLabel, icon: Icon, error, hint, trailing, surface = 'well', dense, className, id, disabled, ...rest },
+  {
+    label,
+    hideLabel,
+    icon: Icon,
+    error,
+    hint,
+    trailing,
+    surface = 'well',
+    dense,
+    className,
+    id,
+    disabled,
+    ...rest
+  },
   ref,
 ) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  const describedBy = [error ? `${inputId}-error` : null, hint ? `${inputId}-hint` : null].filter(Boolean).join(' ');
+  const describedBy = [error ? `${inputId}-error` : null, hint ? `${inputId}-hint` : null]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div className={cx('flex min-w-0 flex-col gap-2', className)}>
-      <label htmlFor={inputId} className={cx('text-[0.8125rem] font-semibold text-ink-700', hideLabel && 'sr-only')}>
+      <label
+        htmlFor={inputId}
+        className={cx('text-[0.8125rem] font-semibold text-ink-700', hideLabel && 'sr-only')}
+      >
         {label}
       </label>
       <div className="group/field relative">
@@ -63,10 +81,15 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
           )}
           {...rest}
         />
-        {trailing ? <div className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</div> : null}
+        {trailing ? (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</div>
+        ) : null}
       </div>
       {error ? (
-        <p id={`${inputId}-error`} className="flex animate-rise items-start gap-1.5 text-sm font-medium text-danger-600">
+        <p
+          id={`${inputId}-error`}
+          className="flex animate-rise items-start gap-1.5 text-sm font-medium text-danger-600"
+        >
           <ErrorIcon fontSize="inherit" className="mt-[0.15rem] text-base" />
           <span>{error}</span>
         </p>
@@ -79,7 +102,10 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   );
 });
 
-export const PasswordField = forwardRef<HTMLInputElement, Omit<TextFieldProps, 'type' | 'trailing'>>(function PasswordField(props, ref) {
+export const PasswordField = forwardRef<
+  HTMLInputElement,
+  Omit<TextFieldProps, 'type' | 'trailing'>
+>(function PasswordField(props, ref) {
   const [visible, setVisible] = useState(false);
   const Toggle = visible ? VisibilityOffIcon : VisibilityIcon;
   return (

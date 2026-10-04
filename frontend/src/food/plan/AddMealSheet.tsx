@@ -7,7 +7,15 @@ import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
 import { normalize } from '../catalog';
-import { addDays, dayAndMonth, plural, relativeDay, SLOT_LABEL, SLOT_TIME, weekdayShort } from '../format';
+import {
+  addDays,
+  dayAndMonth,
+  plural,
+  relativeDay,
+  SLOT_LABEL,
+  SLOT_TIME,
+  weekdayShort,
+} from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import type { OutKind, Recipe, Slot } from '../types';
 import { OUT_KINDS, OUT_LABEL } from './out';
@@ -33,12 +41,30 @@ export function AddMealSheet({
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Add a meal" size="lg">
-      {open ? <Form key={`${day}-${recipeId ?? ''}`} day={day} today={today} recipeId={recipeId ?? null} onClose={onClose} /> : null}
+      {open ? (
+        <Form
+          key={`${day}-${recipeId ?? ''}`}
+          day={day}
+          today={today}
+          recipeId={recipeId ?? null}
+          onClose={onClose}
+        />
+      ) : null}
     </Sheet>
   );
 }
 
-function Form({ day: initialDay, today, recipeId, onClose }: { day: string; today: string; recipeId: string | null; onClose: () => void }) {
+function Form({
+  day: initialDay,
+  today,
+  recipeId,
+  onClose,
+}: {
+  day: string;
+  today: string;
+  recipeId: string | null;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const [day, setDay] = useState(initialDay < today ? today : initialDay);
@@ -59,32 +85,48 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
         date: day,
         time,
         slot,
-        ...(out ? { out: { kind: out, place: title.trim() }, title: title.trim() || OUT_LABEL[out] } : recipe ? { recipeId: recipe.id } : { title: title.trim() }),
+        ...(out
+          ? { out: { kind: out, place: title.trim() }, title: title.trim() || OUT_LABEL[out] }
+          : recipe
+            ? { recipeId: recipe.id }
+            : { title: title.trim() }),
         servings: shownServings,
       }),
     onSuccess: (meal) => {
       haptic('success');
       const missing = meal.availability.missing;
-      toast.success(`${meal.title} · ${relativeDay(meal.date, today)}${meal.time ? ` at ${meal.time}` : ''}`, {
-        description: missing.length ? `${plural(missing.length, 'thing')} to buy: ${missing.map((m) => m.name.toLowerCase()).join(', ')}` : 'Everything’s in the kitchen',
-        duration: missing.length ? 9000 : undefined,
-        // What's missing, onto the lists in one tap: needed by that day, so it's bought the day before.
-        action: missing.length
-          ? {
-              label: 'Add to lists',
-              onClick: () =>
-                void foodApi
-                  .addLines(
-                    missing.map((m) => ({ productId: m.productId, amount: m.missing || undefined, unit: m.missing ? m.unit : undefined, needBy: meal.date })),
-                    'plan',
-                  )
-                  .then(() => {
-                    toast.success(`${plural(missing.length, 'thing')} on the lists`, { description: `Needed by ${relativeDay(meal.date, today).toLowerCase()}` });
-                    return queryClient.invalidateQueries({ queryKey: foodKeys.all });
-                  }),
-            }
-          : undefined,
-      });
+      toast.success(
+        `${meal.title} · ${relativeDay(meal.date, today)}${meal.time ? ` at ${meal.time}` : ''}`,
+        {
+          description: missing.length
+            ? `${plural(missing.length, 'thing')} to buy: ${missing.map((m) => m.name.toLowerCase()).join(', ')}`
+            : 'Everything’s in the kitchen',
+          duration: missing.length ? 9000 : undefined,
+          // What's missing, onto the lists in one tap: needed by that day, so it's bought the day before.
+          action: missing.length
+            ? {
+                label: 'Add to lists',
+                onClick: () =>
+                  void foodApi
+                    .addLines(
+                      missing.map((m) => ({
+                        productId: m.productId,
+                        amount: m.missing || undefined,
+                        unit: m.missing ? m.unit : undefined,
+                        needBy: meal.date,
+                      })),
+                      'plan',
+                    )
+                    .then(() => {
+                      toast.success(`${plural(missing.length, 'thing')} on the lists`, {
+                        description: `Needed by ${relativeDay(meal.date, today).toLowerCase()}`,
+                      });
+                      return queryClient.invalidateQueries({ queryKey: foodKeys.all });
+                    }),
+              }
+            : undefined,
+        },
+      );
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -94,7 +136,12 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
   const days = Array.from({ length: 10 }, (_, i) => addDays(today, i));
   const list = (recipes.data ?? [])
     .filter((r) => !query.trim() || normalize(r.title).includes(normalize(query)))
-    .sort((a, b) => Number(b.availability.ready) - Number(a.availability.ready) || b.availability.useSoon - a.availability.useSoon || a.title.localeCompare(b.title));
+    .sort(
+      (a, b) =>
+        Number(b.availability.ready) - Number(a.availability.ready) ||
+        b.availability.useSoon - a.availability.useSoon ||
+        a.title.localeCompare(b.title),
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -131,7 +178,12 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
                 setSlot(s);
                 setTime(SLOT_TIME[s]);
               }}
-              className={cx('press h-9 rounded-pill px-3.5 text-sm font-semibold transition-colors', s === slot ? 'bg-butter-300 text-ink-900' : 'bg-butter-100 text-ink-800 hover:bg-butter-200')}
+              className={cx(
+                'press h-9 rounded-pill px-3.5 text-sm font-semibold transition-colors',
+                s === slot
+                  ? 'bg-butter-300 text-ink-900'
+                  : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
+              )}
             >
               {SLOT_LABEL[s]}
             </button>
@@ -152,10 +204,18 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
         <span className="mb-2 block text-[0.8125rem] font-semibold text-ink-700">What</span>
         {recipe ? (
           <div className="flex items-center gap-3 rounded-2xl bg-mint-100 p-2.5">
-            <FoodIconTile name={recipe.icon} tone="bg-white" className="size-10 rounded-xl [&>svg]:size-7" />
+            <FoodIconTile
+              name={recipe.icon}
+              tone="bg-white"
+              className="size-10 rounded-xl [&>svg]:size-7"
+            />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-semibold">{recipe.title}</span>
-              <span className="block text-xs text-mint-800">{recipe.availability.ready ? 'Everything’s in the kitchen' : `${recipe.availability.missing.length} missing`}</span>
+              <span className="block text-xs text-mint-800">
+                {recipe.availability.ready
+                  ? 'Everything’s in the kitchen'
+                  : `${recipe.availability.missing.length} missing`}
+              </span>
             </span>
             <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>
               Change
@@ -163,12 +223,24 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <TextField label="Find a recipe" hideLabel dense icon={SearchIcon} placeholder="Find a recipe" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <TextField
+              label="Find a recipe"
+              hideLabel
+              dense
+              icon={SearchIcon}
+              placeholder="Find a recipe"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
             <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
               {list.map((r) => (
                 <RecipeChoice key={r.id} recipe={r} onPick={() => setPicked(r.id)} />
               ))}
-              {!list.length ? <li className="px-1 py-2 text-sm text-ink-500">{recipes.data?.length ? 'No recipe by that name' : 'No recipes yet'}</li> : null}
+              {!list.length ? (
+                <li className="px-1 py-2 text-sm text-ink-500">
+                  {recipes.data?.length ? 'No recipe by that name' : 'No recipes yet'}
+                </li>
+              ) : null}
             </ul>
             <TextField
               label={out ? 'Where' : 'Or just a name'}
@@ -186,7 +258,12 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
                   type="button"
                   aria-pressed={out === value}
                   onClick={() => setOut(out === value ? null : value)}
-                  className={cx('press h-8 rounded-pill px-3 text-xs font-semibold', out === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100')}
+                  className={cx(
+                    'press h-8 rounded-pill px-3 text-xs font-semibold',
+                    out === value
+                      ? 'bg-ink-900 text-white'
+                      : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+                  )}
                 >
                   {OUT_LABEL[value]}
                 </button>
@@ -199,17 +276,33 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
       <div className="flex items-center justify-between rounded-2xl bg-ink-50 px-3.5 py-2">
         <span className="text-sm font-semibold">Servings</span>
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="Fewer servings" disabled={shownServings <= 1} onClick={() => setServings(shownServings - 1)} className="press grid size-8 place-items-center rounded-full bg-white text-base shadow-xs disabled:opacity-40">
+          <button
+            type="button"
+            aria-label="Fewer servings"
+            disabled={shownServings <= 1}
+            onClick={() => setServings(shownServings - 1)}
+            className="press grid size-8 place-items-center rounded-full bg-white text-base shadow-xs disabled:opacity-40"
+          >
             <RemoveIcon fontSize="inherit" />
           </button>
           <span className="tabular w-8 text-center font-bold">{shownServings}</span>
-          <button type="button" aria-label="More servings" onClick={() => setServings(Math.min(100, shownServings + 1))} className="press grid size-8 place-items-center rounded-full bg-ink-900 text-base text-white">
+          <button
+            type="button"
+            aria-label="More servings"
+            onClick={() => setServings(Math.min(100, shownServings + 1))}
+            className="press grid size-8 place-items-center rounded-full bg-ink-900 text-base text-white"
+          >
             <AddIcon fontSize="inherit" />
           </button>
         </div>
       </div>
 
-      <Button fullWidth onClick={() => add.mutate()} loading={add.isPending} disabled={!recipe && !title.trim() && !out}>
+      <Button
+        fullWidth
+        onClick={() => add.mutate()}
+        loading={add.isPending}
+        disabled={!recipe && !title.trim() && !out}
+      >
         Add to {relativeDay(day, today).toLowerCase()}
       </Button>
     </div>
@@ -219,16 +312,24 @@ function Form({ day: initialDay, today, recipeId, onClose }: { day: string; toda
 function RecipeChoice({ recipe, onPick }: { recipe: Recipe; onPick: () => void }) {
   return (
     <li>
-      <button type="button" onClick={onPick} className="press flex w-full items-center gap-3 rounded-2xl p-1.5 text-left transition-colors hover:bg-ink-50">
+      <button
+        type="button"
+        onClick={onPick}
+        className="press flex w-full items-center gap-3 rounded-2xl p-1.5 text-left transition-colors hover:bg-ink-50"
+      >
         <FoodIconTile name={recipe.icon} className="size-10 rounded-xl [&>svg]:size-7" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[0.9375rem] font-semibold">{recipe.title}</span>
           <span className="block text-xs text-ink-600">{plural(recipe.servings, 'serving')}</span>
         </span>
         {recipe.availability.ready ? (
-          <span className="h-6 shrink-0 rounded-pill bg-mint-100 px-2 text-xs font-semibold leading-6 text-mint-800">Ready</span>
+          <span className="h-6 shrink-0 rounded-pill bg-mint-100 px-2 text-xs font-semibold leading-6 text-mint-800">
+            Ready
+          </span>
         ) : (
-          <span className="h-6 shrink-0 rounded-pill bg-peach-100 px-2 text-xs font-semibold leading-6 text-peach-800">{recipe.availability.missing.length} missing</span>
+          <span className="h-6 shrink-0 rounded-pill bg-peach-100 px-2 text-xs font-semibold leading-6 text-peach-800">
+            {recipe.availability.missing.length} missing
+          </span>
         )}
       </button>
     </li>

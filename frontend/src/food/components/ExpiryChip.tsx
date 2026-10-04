@@ -10,14 +10,28 @@ const TONE: Record<ExpiryTone, string> = {
 };
 
 /** How long food keeps, as a small pill: red when past, peach within three days, grey after. */
-export function ExpiryChip({ expiresOn, today, compact, className }: { expiresOn: string | null; today?: string; compact?: boolean; className?: string }) {
+export function ExpiryChip({
+  expiresOn,
+  today,
+  compact,
+  className,
+}: {
+  expiresOn: string | null;
+  today?: string;
+  compact?: boolean;
+  className?: string;
+}) {
   const state = expiry(expiresOn, today);
   if (compact && state.tone === 'none') return null;
   const label = compact && state.tone === 'expired' ? 'Expired' : state.label;
   return (
     <span
       title={expiresOn ? `Best before ${expiresOn}` : 'No best-before date'}
-      className={cx('tabular inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-pill px-2 text-xs font-semibold', TONE[state.tone], className)}
+      className={cx(
+        'tabular inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-pill px-2 text-xs font-semibold',
+        TONE[state.tone],
+        className,
+      )}
     >
       {label}
     </span>

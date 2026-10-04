@@ -5,7 +5,16 @@ import { haptic } from '@/lib/haptics';
 import { parseAmount } from '../format';
 import type { Unit } from '../types';
 
-const STEPS: Record<Unit, number> = { pcs: 1, g: 50, kg: 0.1, ml: 50, l: 0.25, tsp: 1, tbsp: 1, cup: 0.5 };
+const STEPS: Record<Unit, number> = {
+  pcs: 1,
+  g: 50,
+  kg: 0.1,
+  ml: 50,
+  l: 0.25,
+  tsp: 1,
+  tbsp: 1,
+  cup: 0.5,
+};
 /** The item's own units (slice, pack) step one at a time. */
 const stepOf = (unit: string) => STEPS[unit as Unit] ?? 1;
 const labelOf = (unit: string) => unit;
@@ -28,7 +37,16 @@ interface QuantityInputProps {
  * How much: a big number between − and + (steps that suit the unit: 1 piece, 50 g, 0.1 kg),
  * typed freely with a comma or a point, and the units the item can be counted in as pills.
  */
-export function QuantityInput({ label, value, unit, units, onChange, quick, error, autoFocus }: QuantityInputProps) {
+export function QuantityInput({
+  label,
+  value,
+  unit,
+  units,
+  onChange,
+  quick,
+  error,
+  autoFocus,
+}: QuantityInputProps) {
   const id = useId();
   const [text, setText] = useState(value === null ? '' : String(value));
   // A value set from outside (a step, a quick pick, a unit change) shows in the field; what is being
@@ -42,7 +60,11 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
   const step = (direction: 1 | -1) => {
     const size = stepOf(unit);
     const base = value ?? 0;
-    const next = clean(direction === 1 ? Math.floor(base / size + 1e-9) * size + size : Math.ceil(base / size - 1e-9) * size - size);
+    const next = clean(
+      direction === 1
+        ? Math.floor(base / size + 1e-9) * size + size
+        : Math.ceil(base / size - 1e-9) * size - size,
+    );
     haptic('tap');
     onChange(next > 0 ? next : null, unit);
   };
@@ -52,7 +74,12 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
       <label htmlFor={id} className="text-[0.8125rem] font-semibold text-ink-700">
         {label}
       </label>
-      <div className={cx('flex items-center gap-2 rounded-[1.25rem] p-1.5', error ? 'bg-danger-50 ring-2 ring-inset ring-danger-600' : 'bg-ink-50')}>
+      <div
+        className={cx(
+          'flex items-center gap-2 rounded-[1.25rem] p-1.5',
+          error ? 'bg-danger-50 ring-2 ring-inset ring-danger-600' : 'bg-ink-50',
+        )}
+      >
         <button
           type="button"
           onClick={() => step(-1)}
@@ -102,14 +129,21 @@ export function QuantityInput({ label, value, unit, units, onChange, quick, erro
                   onClick={() => onChange(value, option)}
                   className={cx(
                     'press h-9 min-w-11 rounded-pill px-3 text-sm font-semibold transition-colors',
-                    option === unit ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+                    option === unit
+                      ? 'bg-ink-900 text-white'
+                      : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
                   )}
                 >
                   {labelOf(option)}
                 </button>
               ))
             : null}
-          {quick?.length ? <span aria-hidden="true" className={cx('mx-1 h-5 w-px bg-ink-200', units.length < 2 && 'hidden')} /> : null}
+          {quick?.length ? (
+            <span
+              aria-hidden="true"
+              className={cx('mx-1 h-5 w-px bg-ink-200', units.length < 2 && 'hidden')}
+            />
+          ) : null}
           {quick?.map((option) => (
             <button
               key={option.label}

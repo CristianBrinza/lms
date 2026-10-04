@@ -30,7 +30,13 @@ const DesktopArt = lazy(() => import('./DesktopArt'));
 
 type Device = 'iphone' | 'android' | 'computer';
 
-const IN_APP_NAMES = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', telegram: 'Telegram', other: 'this app' } as const;
+const IN_APP_NAMES = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  telegram: 'Telegram',
+  other: 'this app',
+} as const;
 
 const IOS_STEPS = [
   'In Safari, tap ⋯ at the bottom right.',
@@ -58,7 +64,12 @@ const ANDROID_ALTS = [
   'The install dialog with “Install” circled.',
   'The LMS icon on the home screen, circled.',
 ];
-const PERKS = ['Opens in one\u00a0tap', 'Full screen, no browser bars', 'Stays signed in', 'Updates by itself'];
+const PERKS = [
+  'Opens in one\u00a0tap',
+  'Full screen, no browser bars',
+  'Stays signed in',
+  'Updates by itself',
+];
 const GUIDE_BELOW: Record<Device, string> = {
   iphone: 'See the guide for iPhone\u00a0below',
   android: 'See the guide for Android\u00a0below',
@@ -75,7 +86,12 @@ export default function InstallPage() {
   const { user } = useAuth();
   const platform = currentPlatform();
   const { canPrompt, installed, prompt } = useInstallPrompt();
-  const detected: Device = platform.os === 'ios' || platform.os === 'ipados' ? 'iphone' : platform.os === 'android' ? 'android' : 'computer';
+  const detected: Device =
+    platform.os === 'ios' || platform.os === 'ipados'
+      ? 'iphone'
+      : platform.os === 'android'
+        ? 'android'
+        : 'computer';
   const [device, setDevice] = useState<Device>(detected);
   // What the app gives, behind the ⓘ; the guide below comes first.
   const [perksOpen, setPerksOpen] = useState(false);
@@ -87,7 +103,10 @@ export default function InstallPage() {
   if (platform.standalone) return <Navigate to={home} replace />;
 
   const install = async () => {
-    if ((await prompt()) === 'accepted') toast.success('LMS is installed', { description: 'Open it from your Home Screen or app list.' });
+    if ((await prompt()) === 'accepted')
+      toast.success('LMS is installed', {
+        description: 'Open it from your Home Screen or app list.',
+      });
   };
   const copy = async () => {
     try {
@@ -101,7 +120,15 @@ export default function InstallPage() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="gutter-x mx-auto box-content flex h-16 w-full max-w-3xl items-center justify-between pt-[var(--safe-top)] lg:max-w-5xl lg:pt-4">
-        <IconButton icon={ArrowBackIcon} label="Back" onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate(user ? '/home' : '/', { replace: true }))} />
+        <IconButton
+          icon={ArrowBackIcon}
+          label="Back"
+          onClick={() =>
+            window.history.state?.idx > 0
+              ? navigate(-1)
+              : navigate(user ? '/home' : '/', { replace: true })
+          }
+        />
         <Lockup />
         <span className="size-12" aria-hidden="true" />
       </header>
@@ -119,7 +146,9 @@ export default function InstallPage() {
           )}
         </h1>
         <p className="mt-3 max-w-lg text-base font-medium text-lav-900">
-          {installed ? 'Open it from your Home Screen or app list.' : 'The app opens full screen with one tap, like any app. No store, nothing to download, always up to date.'}
+          {installed
+            ? 'Open it from your Home Screen or app list.'
+            : 'The app opens full screen with one tap, like any app. No store, nothing to download, always up to date.'}
           {!installed ? (
             <button
               type="button"
@@ -130,7 +159,9 @@ export default function InstallPage() {
               onClick={() => setPerksOpen((open) => !open)}
               className={cx(
                 'press -my-2 ml-1 inline-flex size-10 items-center justify-center rounded-full align-middle text-[1.3rem] transition-colors duration-150',
-                perksOpen ? 'bg-white text-ink-900' : 'text-lav-800 hover:bg-white/60 hover:text-ink-900',
+                perksOpen
+                  ? 'bg-white text-ink-900'
+                  : 'text-lav-800 hover:bg-white/60 hover:text-ink-900',
               )}
             >
               <InfoIcon fontSize="inherit" />
@@ -141,14 +172,20 @@ export default function InstallPage() {
           perksOpen ? (
             <ul id="install-perks" className="mt-4 flex flex-wrap gap-2 animate-rise">
               {PERKS.map((perk) => (
-                <li key={perk} className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-white px-3.5 text-sm font-semibold text-ink-800">
+                <li
+                  key={perk}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-white px-3.5 text-sm font-semibold text-ink-800"
+                >
                   <CheckIcon fontSize="inherit" className="text-base text-ink-900" />
                   {perk}
                 </li>
               ))}
             </ul>
           ) : (
-            <p id="install-perks" className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-ink-900">
+            <p
+              id="install-perks"
+              className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-ink-900"
+            >
               {GUIDE_BELOW[device]}
               <ExpandMoreIcon aria-hidden="true" fontSize="inherit" className="text-xl" />
             </p>
@@ -170,14 +207,18 @@ export default function InstallPage() {
           key={device}
           className="mt-8 flex-1 rounded-t-[2rem] bg-white px-5 pb-[calc(var(--safe-bottom)+2.5rem)] pt-3 shadow-sheet sm:px-8 md:mx-auto md:mb-10 md:w-full md:max-w-3xl md:flex-none md:rounded-[2rem] md:pt-8 lg:max-w-5xl lg:p-10"
         >
-          <span aria-hidden="true" className="mx-auto block h-1.5 w-10 rounded-pill bg-ink-200 md:hidden" />
+          <span
+            aria-hidden="true"
+            className="mx-auto block h-1.5 w-10 rounded-pill bg-ink-200 md:hidden"
+          />
           <h2 className="mt-5 text-h2 font-bold md:mt-0">{SHEET_TITLE[device]}</h2>
 
           {platform.inApp ? (
             <div className="mt-5 rounded-[1.5rem] bg-ink-900 p-5 text-sm text-white/85 animate-rise">
               <p>
-                You’re inside {IN_APP_NAMES[platform.inApp]}’s built-in browser, which can’t add apps. Open this page in Safari or Chrome: tap ⋯ and choose
-                “Open in browser”, or copy the link.
+                You’re inside {IN_APP_NAMES[platform.inApp]}’s built-in browser, which can’t add
+                apps. Open this page in Safari or Chrome: tap ⋯ and choose “Open in browser”, or
+                copy the link.
               </p>
               <button
                 type="button"
@@ -192,7 +233,15 @@ export default function InstallPage() {
 
           {device === 'iphone' ? (
             <>
-              <Timeline texts={IOS_STEPS} alts={IOS_ALTS} picture={(step, alt) => <Frame ratio="16 / 10"><IosArt step={step} alt={alt} /></Frame>} />
+              <Timeline
+                texts={IOS_STEPS}
+                alts={IOS_ALTS}
+                picture={(step, alt) => (
+                  <Frame ratio="16 / 10">
+                    <IosArt step={step} alt={alt} />
+                  </Frame>
+                )}
+              />
               <Notes
                 lines={[
                   'Is the Share button right in Safari’s toolbar (iOS 18 or earlier, or an iPad)? Tap it and carry on from step 3.',
@@ -212,8 +261,20 @@ export default function InstallPage() {
               </div>
             ) : (
               <>
-                <Timeline texts={ANDROID_STEPS} alts={ANDROID_ALTS} picture={(step, alt) => <Frame ratio="16 / 10"><AndroidArt step={step} alt={alt} /></Frame>} />
-                <Notes lines={['Not there? Look for “Install app” or “Add to Home screen” in your browser’s menu.']} />
+                <Timeline
+                  texts={ANDROID_STEPS}
+                  alts={ANDROID_ALTS}
+                  picture={(step, alt) => (
+                    <Frame ratio="16 / 10">
+                      <AndroidArt step={step} alt={alt} />
+                    </Frame>
+                  )}
+                />
+                <Notes
+                  lines={[
+                    'Not there? Look for “Install app” or “Add to Home screen” in your browser’s menu.',
+                  ]}
+                />
               </>
             )
           ) : null}
@@ -221,13 +282,24 @@ export default function InstallPage() {
           {device === 'computer' ? (
             <div className="mt-6 grid gap-5 md:grid-cols-[auto_minmax(0,1fr)] md:items-start md:gap-8">
               <div className="flex flex-col items-center rounded-[1.75rem] bg-butter-300 p-5 text-center">
-                <QrCode value={appUrl} label="QR code to open this guide on your phone" className="size-44 p-2" />
+                <QrCode
+                  value={appUrl}
+                  label="QR code to open this guide on your phone"
+                  className="size-44 p-2"
+                />
                 <h3 className="mt-3 font-bold">Scan with your phone</h3>
-                <p className="mt-1 max-w-56 text-sm text-butter-800">Opens this guide on the phone, ready to add LMS to its Home Screen.</p>
+                <p className="mt-1 max-w-56 text-sm text-butter-800">
+                  Opens this guide on the phone, ready to add LMS to its Home Screen.
+                </p>
               </div>
               <div className="flex flex-col gap-3">
                 {canPrompt && detected === 'computer' ? (
-                  <Button size="md" icon={InstallDesktopIcon} className="self-start" onClick={() => void install()}>
+                  <Button
+                    size="md"
+                    icon={InstallDesktopIcon}
+                    className="self-start"
+                    onClick={() => void install()}
+                  >
                     Install on this computer
                   </Button>
                 ) : (
@@ -235,8 +307,15 @@ export default function InstallPage() {
                     <Frame ratio="16 / 7">
                       <DesktopArt alt="A browser address bar with the install icon circled at its right end." />
                     </Frame>
-                    <p className="text-[0.9375rem] font-semibold leading-snug">Or install it here: in Chrome or Edge, click the install icon at the right end of the address bar.</p>
-                    <Notes lines={['No icon? In Chrome: ⋮ → “Cast, save, and share” → “Install page as app”. In Safari on a Mac: File → “Add to Dock”.']} />
+                    <p className="text-[0.9375rem] font-semibold leading-snug">
+                      Or install it here: in Chrome or Edge, click the install icon at the right end
+                      of the address bar.
+                    </p>
+                    <Notes
+                      lines={[
+                        'No icon? In Chrome: ⋮ → “Cast, save, and share” → “Install page as app”. In Safari on a Mac: File → “Add to Dock”.',
+                      ]}
+                    />
                   </>
                 )}
               </div>
@@ -263,7 +342,11 @@ const DEVICES: Array<{ value: Device; label: string; icon: IconComponent }> = [
 /** Which device the steps are for, as three tiles like the dashboard's: the chosen one goes dark. */
 function DeviceTiles({ value, onChange }: { value: Device; onChange: (device: Device) => void }) {
   return (
-    <div role="radiogroup" aria-label="Your device" className="mt-7 grid grid-cols-3 gap-3 sm:max-w-md">
+    <div
+      role="radiogroup"
+      aria-label="Your device"
+      className="mt-7 grid grid-cols-3 gap-3 sm:max-w-md"
+    >
       {DEVICES.map(({ value: option, label, icon: Icon }) => {
         const active = option === value;
         return (
@@ -280,7 +363,12 @@ function DeviceTiles({ value, onChange }: { value: Device; onChange: (device: De
           >
             <Icon fontSize="inherit" className="text-[1.5rem]" />
             <span className="text-[0.9375rem] font-semibold">{label}</span>
-            {active ? <span aria-hidden="true" className="absolute right-3.5 top-3.5 size-2.5 rounded-full bg-butter-300 animate-pop" /> : null}
+            {active ? (
+              <span
+                aria-hidden="true"
+                className="absolute right-3.5 top-3.5 size-2.5 rounded-full bg-butter-300 animate-pop"
+              />
+            ) : null}
           </button>
         );
       })}
@@ -289,15 +377,32 @@ function DeviceTiles({ value, onChange }: { value: Device; onChange: (device: De
 }
 
 /** The steps as a numbered path: butter numbers joined by a dashed line, each with a drawing of what you'll see. */
-function Timeline({ texts, alts, picture }: { texts: string[]; alts: string[]; picture: (step: number, alt: string) => ReactNode }) {
+function Timeline({
+  texts,
+  alts,
+  picture,
+}: {
+  texts: string[];
+  alts: string[];
+  picture: (step: number, alt: string) => ReactNode;
+}) {
   return (
     <ol className="mt-6 flex max-w-2xl flex-col lg:max-w-none">
       {texts.map((text, index) => (
-        <li key={text} className="relative grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3.5 pb-8 last:pb-0 animate-rise" style={{ animationDelay: `${index * 60}ms` }}>
+        <li
+          key={text}
+          className="relative grid grid-cols-[2.5rem_minmax(0,1fr)] gap-x-3.5 pb-8 last:pb-0 animate-rise"
+          style={{ animationDelay: `${index * 60}ms` }}
+        >
           {index < texts.length - 1 ? (
-            <span aria-hidden="true" className="absolute bottom-1.5 left-[1.25rem] top-12 border-l-2 border-dashed border-ink-200" />
+            <span
+              aria-hidden="true"
+              className="absolute bottom-1.5 left-[1.25rem] top-12 border-l-2 border-dashed border-ink-200"
+            />
           ) : null}
-          <span className="tabular relative flex size-10 items-center justify-center rounded-full bg-butter-300 text-[0.9375rem] font-bold text-ink-900">{index + 1}</span>
+          <span className="tabular relative flex size-10 items-center justify-center rounded-full bg-butter-300 text-[0.9375rem] font-bold text-ink-900">
+            {index + 1}
+          </span>
           <div className="min-w-0 pt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start lg:gap-8">
             <p className="text-[0.9375rem] font-semibold leading-snug lg:text-base">{text}</p>
             <div className="mt-3 max-w-md lg:mt-0">{picture(index, alts[index] ?? '')}</div>
@@ -311,7 +416,10 @@ function Timeline({ texts, alts, picture }: { texts: string[]; alts: string[]; p
 /** Fixed-ratio frame for a step drawing; one still loading leaves the same box. */
 function Frame({ ratio, children }: { ratio: string; children: ReactNode }) {
   return (
-    <figure className="@container relative w-full overflow-hidden rounded-[1.25rem] bg-lav-50 ring-1 ring-inset ring-ink-100" style={{ aspectRatio: ratio }}>
+    <figure
+      className="@container relative w-full overflow-hidden rounded-[1.25rem] bg-lav-50 ring-1 ring-inset ring-ink-100"
+      style={{ aspectRatio: ratio }}
+    >
       <Suspense fallback={null}>{children}</Suspense>
     </figure>
   );
@@ -321,7 +429,10 @@ function Notes({ lines }: { lines: string[] }) {
   return (
     <div className="mt-6 flex max-w-2xl flex-col gap-2">
       {lines.map((line) => (
-        <p key={line} className="flex items-start gap-2.5 rounded-[1.125rem] bg-ink-50 p-4 text-sm text-ink-700">
+        <p
+          key={line}
+          className="flex items-start gap-2.5 rounded-[1.125rem] bg-ink-50 p-4 text-sm text-ink-700"
+        >
           <InfoIcon fontSize="inherit" className="mt-0.5 shrink-0 text-base text-ink-500" />
           {line}
         </p>

@@ -6,7 +6,13 @@ import { Checkbox } from './Checkbox';
 
 function Remember() {
   const [checked, setChecked] = useState(true);
-  return <Checkbox label="Keep me signed in" checked={checked} onChange={(event) => setChecked(event.target.checked)} />;
+  return (
+    <Checkbox
+      label="Keep me signed in"
+      checked={checked}
+      onChange={(event) => setChecked(event.target.checked)}
+    />
+  );
 }
 
 describe('Checkbox (option row)', () => {

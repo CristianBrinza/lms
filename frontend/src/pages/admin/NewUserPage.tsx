@@ -52,12 +52,32 @@ export default function NewUserPage() {
   return (
     <Screen tone="white">
       <PageHeader title="Add a person" back="/admin/users" centered />
-      <form onSubmit={submit} noValidate className="gutter-x mt-6 flex max-w-2xl flex-col gap-5 lg:mx-auto lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:gap-y-5 lg:px-8">
-        <p className="text-[0.9375rem] text-ink-600 lg:col-span-2">They sign in with this email. Nobody can sign up on their own.</p>
+      <form
+        onSubmit={submit}
+        noValidate
+        className="gutter-x mt-6 flex max-w-2xl flex-col gap-5 lg:mx-auto lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:gap-y-5 lg:px-8"
+      >
+        <p className="text-[0.9375rem] text-ink-600 lg:col-span-2">
+          They sign in with this email. Nobody can sign up on their own.
+        </p>
         <section className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70 lg:row-span-3">
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} error={fields.name} required autoFocus />
-            <TextField label="Surname" autoComplete="off" value={surname} onChange={(e) => setSurname(e.target.value)} error={fields.surname} />
+            <TextField
+              label="Name"
+              autoComplete="off"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              error={fields.name}
+              required
+              autoFocus
+            />
+            <TextField
+              label="Surname"
+              autoComplete="off"
+              value={surname}
+              onChange={(e) => setSurname(e.target.value)}
+              error={fields.surname}
+            />
           </div>
           <TextField
             label="Email"
@@ -86,7 +106,9 @@ export default function NewUserPage() {
               ]}
             />
             <p className="pl-1 text-sm text-ink-600">
-              {role === 'admin' ? 'Admins can also add, change and remove accounts.' : 'Members use the app; they can’t manage accounts.'}
+              {role === 'admin'
+                ? 'Admins can also add, change and remove accounts.'
+                : 'Members use the app; they can’t manage accounts.'}
             </p>
           </fieldset>
         </section>
@@ -110,13 +132,25 @@ export default function NewUserPage() {
                 hint="At least 10 characters."
               />
               <PasswordStrength password={password} />
-              <Switch checked={mustChange} onChange={setMustChange} label="Ask them to choose their own at first sign-in" />
+              <Switch
+                checked={mustChange}
+                onChange={setMustChange}
+                label="Ask them to choose their own at first sign-in"
+              />
             </>
           ) : null}
         </section>
 
-        {create.error && Object.keys(fields).length === 0 ? <p className="text-sm font-medium text-danger-600">{errorMessage(create.error)}</p> : null}
-        <Button type="submit" icon={PersonAddIcon} loading={create.isPending} disabled={!name.trim() || !email.trim() || (!generate && password.length < 10)} className="sm:self-start lg:col-start-2 lg:w-full">
+        {create.error && Object.keys(fields).length === 0 ? (
+          <p className="text-sm font-medium text-danger-600">{errorMessage(create.error)}</p>
+        ) : null}
+        <Button
+          type="submit"
+          icon={PersonAddIcon}
+          loading={create.isPending}
+          disabled={!name.trim() || !email.trim() || (!generate && password.length < 10)}
+          className="sm:self-start lg:col-start-2 lg:w-full"
+        >
           Create account
         </Button>
       </form>

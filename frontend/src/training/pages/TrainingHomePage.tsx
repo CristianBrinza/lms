@@ -15,7 +15,13 @@ import {
   PlayIcon,
   SparkleIcon,
 } from '@/components/ui/icons';
-import { dayAndMonth, localDate, relativeDay, weekdayShort } from '@/food/format';
+import {
+  dayAndMonth,
+  localDate,
+  relativeDay,
+  relativeDayInline,
+  weekdayShort,
+} from '@/food/format';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { trainingApi, trainingKeys } from '../api';
@@ -52,7 +58,7 @@ export default function TrainingHomePage() {
         compact
         back="/home"
         title="Training"
-        subtitle={isMe ? 'At home, your way' : `${person?.name ?? ''}’s training`}
+        subtitle={isMe ? 'Home workouts' : `${person?.name ?? ''}’s training`}
         actions={
           <IconButton
             icon={AddIcon}
@@ -149,7 +155,7 @@ function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => voi
           </p>
           <p className="mt-1 text-sm text-white/70">
             {data.next
-              ? `Next: ${data.next.title}, ${relativeDay(data.next.date).toLowerCase()}.`
+              ? `Next: ${data.next.title}, ${relativeDayInline(data.next.date)}.`
               : 'Make one up from what’s at home, or plan the week.'}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -171,7 +177,7 @@ function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => voi
           to={`/training/workouts/${data.next.id}`}
           className="mt-3 flex items-center gap-2 text-sm text-white/70 hover:text-white"
         >
-          Next: {data.next.title}, {relativeDay(data.next.date).toLowerCase()}
+          Next: {data.next.title}, {relativeDayInline(data.next.date)}
           <ChevronRightIcon fontSize="inherit" className="text-[1.1rem]" />
         </Link>
       ) : null}
@@ -236,7 +242,7 @@ function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | n
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="quick" className="text-[1.0625rem] font-bold">
-          Did something just now?
+          Log a set
         </h2>
         <Link
           to="/training/exercises"
@@ -275,7 +281,7 @@ function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | n
       ) : (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-ink-600">
-            Ten push-ups passing by count too. Pin the ones you do often to log them with one tap.
+            Pin the exercises you do often to log a set in one tap.
           </p>
           <Button size="sm" variant="tint" icon={AddIcon} onClick={() => onLog(null)}>
             Log a set
@@ -336,7 +342,11 @@ function Week({ data }: { data: TrainingOverview }) {
                   {done ? <CheckIcon /> : Number(d.day.slice(8))}
                 </span>
                 <span className="tabular h-4 text-[0.6875rem] text-ink-500">
-                  {d.minutes ? `${d.minutes}′` : d.sets ? `${d.sets} s` : ''}
+                  {d.minutes
+                    ? `${d.minutes}′`
+                    : d.sets
+                      ? `${d.sets} ${d.sets === 1 ? 'set' : 'sets'}`
+                      : ''}
                 </span>
               </Link>
             </li>

@@ -19,11 +19,18 @@ describe('the Worker’s API proxy', () => {
     });
     vi.stubGlobal('fetch', upstream);
     const request = new Request('https://lms.example.test/api/food/kitchen?x=1', {
-      headers: { 'x-lms-proxy-key': 'forged', 'cf-access-client-secret': 'forged', 'cf-connecting-ip': '203.0.113.9', authorization: 'Bearer lms_key' },
+      headers: {
+        'x-lms-proxy-key': 'forged',
+        'cf-access-client-secret': 'forged',
+        'cf-connecting-ip': '203.0.113.9',
+        authorization: 'Bearer lms_key',
+      },
     });
     const response = await proxyApi(request, env);
     const { seen } = (await response.json()) as { seen: Record<string, string> };
-    expect(upstream.mock.calls[0]![0].toString()).toBe('https://api.example.test/api/food/kitchen?x=1');
+    expect(upstream.mock.calls[0]![0].toString()).toBe(
+      'https://api.example.test/api/food/kitchen?x=1',
+    );
     expect(seen['x-lms-proxy-key']).toBe('proxy-secret');
     expect(seen['cf-access-client-id']).toBe('access-id.access');
     expect(seen['cf-access-client-secret']).toBe('access-secret');
@@ -33,12 +40,30 @@ describe('the Worker’s API proxy', () => {
   });
 
   it('hides Cloudflare’s pages: a down tunnel or an Access refusal is a plain 502', async () => {
-    vi.stubGlobal('fetch', () => Promise.resolve(new Response('<html>Access</html>', { status: 302, headers: { location: 'https://x.cloudflareaccess.com/cdn-cgi/access/login', 'content-type': 'text/html' } })));
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        new Response('<html>Access</html>', {
+          status: 302,
+          headers: {
+            location: 'https://x.cloudflareaccess.com/cdn-cgi/access/login',
+            'content-type': 'text/html',
+          },
+        }),
+      ),
+    );
     const refused = await proxyApi(new Request('https://lms.example.test/api/health'), env);
     expect(refused.status).toBe(502);
-    vi.stubGlobal('fetch', () => Promise.resolve(new Response('<html>530</html>', { status: 530, headers: { 'content-type': 'text/html' } })));
-    expect((await proxyApi(new Request('https://lms.example.test/api/health'), env)).status).toBe(502);
-    vi.stubGlobal('fetch', () => Promise.resolve(Response.json({ error: { code: 'NOT_FOUND' } }, { status: 404 })));
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(
+        new Response('<html>530</html>', { status: 530, headers: { 'content-type': 'text/html' } }),
+      ),
+    );
+    expect((await proxyApi(new Request('https://lms.example.test/api/health'), env)).status).toBe(
+      502,
+    );
+    vi.stubGlobal('fetch', () =>
+      Promise.resolve(Response.json({ error: { code: 'NOT_FOUND' } }, { status: 404 })),
+    );
     expect((await proxyApi(new Request('https://lms.example.test/api/x'), env)).status).toBe(404);
   });
 });

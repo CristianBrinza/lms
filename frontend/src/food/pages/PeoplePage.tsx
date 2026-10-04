@@ -2,7 +2,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Avatar, Button, Chips, IconButton, Sheet, Skeleton, TextField, toast } from '@/components/ui';
+import {
+  Avatar,
+  Button,
+  Chips,
+  IconButton,
+  Sheet,
+  Skeleton,
+  TextField,
+  toast,
+} from '@/components/ui';
 import { AddIcon, CloseIcon, WarningIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
@@ -34,7 +43,10 @@ function foodOf(restriction: Restriction): string {
 export default function PeoplePage() {
   const queryClient = useQueryClient();
   const data = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
-  const [adding, setAdding] = useState<{ open: boolean; userId: string | null }>({ open: false, userId: null });
+  const [adding, setAdding] = useState<{ open: boolean; userId: string | null }>({
+    open: false,
+    userId: null,
+  });
   const people = data.data?.people ?? [];
   const restrictions = data.data?.restrictions ?? [];
   const refresh = () => queryClient.invalidateQueries({ queryKey: foodKeys.all });
@@ -51,7 +63,11 @@ export default function PeoplePage() {
               .add({
                 userId: restriction.userId,
                 kind: restriction.kind,
-                ...(restriction.productId ? { productId: restriction.productId } : restriction.category ? { category: restriction.category } : {}),
+                ...(restriction.productId
+                  ? { productId: restriction.productId }
+                  : restriction.category
+                    ? { category: restriction.category }
+                    : {}),
                 note: restriction.note,
               })
               .then(refresh)
@@ -72,7 +88,13 @@ export default function PeoplePage() {
         actions={
           // One person: their card's own Add is enough.
           people.length > 1 ? (
-            <IconButton icon={AddIcon} label="Add an allergy or a food to avoid" variant="ink" size="sm" onClick={() => setAdding({ open: true, userId: null })} />
+            <IconButton
+              icon={AddIcon}
+              label="Add an allergy or a food to avoid"
+              variant="ink"
+              size="sm"
+              onClick={() => setAdding({ open: true, userId: null })}
+            />
           ) : null
         }
       />
@@ -133,9 +155,16 @@ function PersonCard({
   const allergies = restrictions.filter((r) => r.kind === 'allergy').length;
   const avoided = restrictions.length - allergies;
   const summary = restrictions.length
-    ? [allergies ? `${allergies} ${allergies === 1 ? 'allergy' : 'allergies'}` : null, avoided ? `avoids ${avoided}` : null].filter(Boolean).join(' · ')
+    ? [
+        allergies ? `${allergies} ${allergies === 1 ? 'allergy' : 'allergies'}` : null,
+        avoided ? `avoids ${avoided}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
     : 'Eats everything';
-  const sorted = [...restrictions].sort((a, b) => (a.kind === b.kind ? foodOf(a).localeCompare(foodOf(b)) : a.kind === 'allergy' ? -1 : 1));
+  const sorted = [...restrictions].sort((a, b) =>
+    a.kind === b.kind ? foodOf(a).localeCompare(foodOf(b)) : a.kind === 'allergy' ? -1 : 1,
+  );
 
   return (
     <article className="rounded-[1.5rem] bg-white p-2.5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
@@ -143,7 +172,9 @@ function PersonCard({
         <Avatar person={person} size="sm" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[1rem] font-bold leading-tight">{fullName(person)}</h2>
-          <p className="truncate text-[0.8125rem] font-medium text-ink-600">{summary.charAt(0).toUpperCase() + summary.slice(1)}</p>
+          <p className="truncate text-[0.8125rem] font-medium text-ink-600">
+            {summary.charAt(0).toUpperCase() + summary.slice(1)}
+          </p>
         </div>
         <button
           type="button"
@@ -161,18 +192,36 @@ function PersonCard({
             const allergy = restriction.kind === 'allergy';
             const Marker = allergy ? WarningIcon : NoFoodIcon;
             return (
-              <li key={restriction.id} className={cx('flex items-center gap-2.5 rounded-2xl py-1 pl-2 pr-1', allergy ? 'bg-danger-50' : 'bg-ink-50')}>
+              <li
+                key={restriction.id}
+                className={cx(
+                  'flex items-center gap-2.5 rounded-2xl py-1 pl-2 pr-1',
+                  allergy ? 'bg-danger-50' : 'bg-ink-50',
+                )}
+              >
                 <span
                   aria-hidden="true"
-                  className={cx('grid size-8 shrink-0 place-items-center rounded-full text-[1.05rem]', allergy ? 'bg-danger-600 text-white' : 'bg-peach-200 text-peach-800')}
+                  className={cx(
+                    'grid size-8 shrink-0 place-items-center rounded-full text-[1.05rem]',
+                    allergy ? 'bg-danger-600 text-white' : 'bg-peach-200 text-peach-800',
+                  )}
                 >
                   <Marker fontSize="inherit" />
                 </span>
                 <span className="min-w-0 flex-1 py-1">
-                  <span className="block truncate text-[0.9375rem] font-semibold">{foodOf(restriction)}</span>
-                  <span className={cx('block truncate text-xs font-semibold', allergy ? 'text-danger-700' : 'text-peach-800')}>
+                  <span className="block truncate text-[0.9375rem] font-semibold">
+                    {foodOf(restriction)}
+                  </span>
+                  <span
+                    className={cx(
+                      'block truncate text-xs font-semibold',
+                      allergy ? 'text-danger-700' : 'text-peach-800',
+                    )}
+                  >
                     {allergy ? 'Allergy' : 'Avoids'}
-                    {restriction.note ? <span className="font-medium text-ink-600"> · {restriction.note}</span> : null}
+                    {restriction.note ? (
+                      <span className="font-medium text-ink-600"> · {restriction.note}</span>
+                    ) : null}
                   </span>
                 </span>
                 <button
@@ -194,7 +243,17 @@ function PersonCard({
   );
 }
 
-function AddRestrictionSheet({ open, people, userId, onClose }: { open: boolean; people: KitchenPerson[]; userId: string | null; onClose: () => void }) {
+function AddRestrictionSheet({
+  open,
+  people,
+  userId,
+  onClose,
+}: {
+  open: boolean;
+  people: KitchenPerson[];
+  userId: string | null;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const [person, setPerson] = useState('');
   const [kind, setKind] = useState<Kind>('allergy');
@@ -241,8 +300,15 @@ function AddRestrictionSheet({ open, people, userId, onClose }: { open: boolean;
       title={who ? `For ${who.name}` : 'Allergy or food to avoid'}
       footer={
         <div className="flex flex-col gap-2">
-          {save.isError && !Object.keys(fields).length ? <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
-          <Button fullWidth onClick={() => save.mutate()} loading={save.isPending} disabled={!ready}>
+          {save.isError && !Object.keys(fields).length ? (
+            <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
+          ) : null}
+          <Button
+            fullWidth
+            onClick={() => save.mutate()}
+            loading={save.isPending}
+            disabled={!ready}
+          >
             {kind === 'allergy' ? 'Add allergy' : 'Add food to avoid'}
           </Button>
         </div>
@@ -258,13 +324,31 @@ function AddRestrictionSheet({ open, people, userId, onClose }: { open: boolean;
         {people.length > 1 ? (
           <div>
             <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Who</p>
-            <Chips label="Who" tone="sheet" dense value={person} onChange={setPerson} options={people.map((p) => ({ value: p.id, label: p.name }))} />
+            <Chips
+              label="Who"
+              tone="sheet"
+              dense
+              value={person}
+              onChange={setPerson}
+              options={people.map((p) => ({ value: p.id, label: p.name }))}
+            />
           </div>
         ) : null}
         <div>
           <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">What it is</p>
-          <Chips label="What it is" tone="sheet" dense value={kind} onChange={setKind} options={KIND_OPTIONS} />
-          <p className="mt-1.5 text-sm text-ink-600">{kind === 'allergy' ? 'A hazard: shown with a warning everywhere it appears.' : 'Doesn’t eat it: a gentler note on recipes and meals.'}</p>
+          <Chips
+            label="What it is"
+            tone="sheet"
+            dense
+            value={kind}
+            onChange={setKind}
+            options={KIND_OPTIONS}
+          />
+          <p className="mt-1.5 text-sm text-ink-600">
+            {kind === 'allergy'
+              ? 'A hazard: shown with a warning everywhere it appears.'
+              : 'Doesn’t eat it: a gentler note on recipes and meals.'}
+          </p>
         </div>
         <div>
           <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Which food</p>
@@ -291,7 +375,11 @@ function AddRestrictionSheet({ open, people, userId, onClose }: { open: boolean;
               maxLength={80}
             />
           ) : (
-            <div role="radiogroup" aria-label="Kind of food" className="mt-2.5 flex flex-wrap gap-1.5">
+            <div
+              role="radiogroup"
+              aria-label="Kind of food"
+              className="mt-2.5 flex flex-wrap gap-1.5"
+            >
               {CATEGORIES.map((value) => (
                 <button
                   key={value}
@@ -301,7 +389,9 @@ function AddRestrictionSheet({ open, people, userId, onClose }: { open: boolean;
                   onClick={() => setCategory(value)}
                   className={cx(
                     'press h-11 rounded-pill px-4 text-sm font-semibold',
-                    category === value ? 'bg-butter-300 text-ink-900' : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
+                    category === value
+                      ? 'bg-butter-300 text-ink-900'
+                      : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
                   )}
                 >
                   {CATEGORY_LABEL[value]}
@@ -310,7 +400,14 @@ function AddRestrictionSheet({ open, people, userId, onClose }: { open: boolean;
             </div>
           )}
         </div>
-        <TextField label="Note" placeholder="Optional: “only raw”, “makes him ill”" value={note} onChange={(event) => setNote(event.target.value)} error={fields.note} maxLength={200} />
+        <TextField
+          label="Note"
+          placeholder="Optional: “only raw”, “makes him ill”"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          error={fields.note}
+          maxLength={200}
+        />
       </form>
     </Sheet>
   );

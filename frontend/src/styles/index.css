@@ -79,7 +79,8 @@
   /* The logo tile only. */
   --color-brand-red: #e40523;
 
-  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans:
+    'Figtree Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
   /* Phone-first sizes; wide screens step up with lg: where a page needs it. */
   --text-display: 2.75rem;
@@ -144,40 +145,85 @@
   --animate-pop: pop 260ms var(--ease-out) backwards;
 
   @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes rise {
-    from { opacity: 0; transform: translate3d(0, 10px, 0); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translate3d(0, 10px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   /* Passes are dealt into the wallet: up from below, settling into their place in the stack. */
   @keyframes deal {
-    from { opacity: 0; transform: translate3d(0, 36px, 0) scale(0.96); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translate3d(0, 36px, 0) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes sheet-in {
-    from { transform: translate3d(0, 100%, 0); }
-    to { transform: none; }
+    from {
+      transform: translate3d(0, 100%, 0);
+    }
+    to {
+      transform: none;
+    }
   }
   @keyframes page-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes shimmer {
-    from { background-position: 200% 0; }
-    to { background-position: -200% 0; }
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
   }
   @keyframes shake {
-    0%, 100% { transform: none; }
-    20% { transform: translateX(-6px); }
-    45% { transform: translateX(5px); }
-    70% { transform: translateX(-3px); }
-    85% { transform: translateX(2px); }
+    0%,
+    100% {
+      transform: none;
+    }
+    20% {
+      transform: translateX(-6px);
+    }
+    45% {
+      transform: translateX(5px);
+    }
+    70% {
+      transform: translateX(-3px);
+    }
+    85% {
+      transform: translateX(2px);
+    }
   }
   @keyframes pop {
-    from { opacity: 0; transform: scale3d(0.6, 0.6, 1); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: scale3d(0.6, 0.6, 1);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
@@ -349,16 +395,28 @@
 
 /* Tab switches slide like a native app (React Router view transitions); the bars stay put. */
 @keyframes nav-out-left {
-  to { opacity: 0; transform: translateX(-18%); }
+  to {
+    opacity: 0;
+    transform: translateX(-18%);
+  }
 }
 @keyframes nav-out-right {
-  to { opacity: 0; transform: translateX(18%); }
+  to {
+    opacity: 0;
+    transform: translateX(18%);
+  }
 }
 @keyframes nav-in-right {
-  from { opacity: 0; transform: translateX(18%); }
+  from {
+    opacity: 0;
+    transform: translateX(18%);
+  }
 }
 @keyframes nav-in-left {
-  from { opacity: 0; transform: translateX(-18%); }
+  from {
+    opacity: 0;
+    transform: translateX(-18%);
+  }
 }
 ::view-transition-old(root) {
   animation: nav-out-left 260ms cubic-bezier(0.4, 0, 1, 1) both;

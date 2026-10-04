@@ -11,7 +11,15 @@ import { formatAmount, money, parseAmount, unitsFor } from '../format';
 import type { ShoppingItem, Store } from '../types';
 
 /** One line on a list: at least how much, which kind, by when, which store, a note, what it cost; or take it off. */
-export function LineSheet({ line, stores, onClose }: { line: ShoppingItem | null; stores: Store[]; onClose: () => void }) {
+export function LineSheet({
+  line,
+  stores,
+  onClose,
+}: {
+  line: ShoppingItem | null;
+  stores: Store[];
+  onClose: () => void;
+}) {
   return (
     <Sheet open={Boolean(line)} onClose={onClose} title={line?.name ?? 'Line'}>
       {line ? <LineForm key={line.id} line={line} stores={stores} onClose={onClose} /> : null}
@@ -19,7 +27,15 @@ export function LineSheet({ line, stores, onClose }: { line: ShoppingItem | null
   );
 }
 
-function LineForm({ line, stores, onClose }: { line: ShoppingItem; stores: Store[]; onClose: () => void }) {
+function LineForm({
+  line,
+  stores,
+  onClose,
+}: {
+  line: ShoppingItem;
+  stores: Store[];
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const catalog = useCatalog();
   const product = catalog.data?.find((p) => p.id === line.productId);
@@ -78,10 +94,14 @@ function LineForm({ line, stores, onClose }: { line: ShoppingItem; stores: Store
         <p className="-mt-2 text-sm text-ink-600">
           Last time {money(line.lastPrice.price)}
           {line.lastPrice.storeName ? ` at ${line.lastPrice.storeName}` : ''}
-          {line.estimate !== null && amount ? ` · about ${money(line.estimate)} for ${formatAmount(amount, unit)}` : ''}
+          {line.estimate !== null && amount
+            ? ` · about ${money(line.estimate)} for ${formatAmount(amount, unit)}`
+            : ''}
         </p>
       ) : null}
-      {product?.variants.length || line.variant ? <VariantChips variants={product?.variants ?? []} value={variant} onChange={setVariant} /> : null}
+      {product?.variants.length || line.variant ? (
+        <VariantChips variants={product?.variants ?? []} value={variant} onChange={setVariant} />
+      ) : null}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
         <label className="flex flex-col gap-2">
           <span className="text-[0.8125rem] font-semibold text-ink-700">Needed by</span>
@@ -110,15 +130,34 @@ function LineForm({ line, stores, onClose }: { line: ShoppingItem; stores: Store
         </select>
       </label>
       <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3">
-        <TextField label="Note" placeholder="Brand, ripe, on offer…" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} />
-        <TextField label="Price (lei)" inputMode="decimal" placeholder="—" value={price} onChange={(event) => setPrice(event.target.value)} />
+        <TextField
+          label="Note"
+          placeholder="Brand, ripe, on offer…"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          maxLength={500}
+        />
+        <TextField
+          label="Price (lei)"
+          inputMode="decimal"
+          placeholder="—"
+          value={price}
+          onChange={(event) => setPrice(event.target.value)}
+        />
       </div>
-      {save.error && !fields.amount && !fields.unit ? <p className="text-sm text-danger-600">{errorMessage(save.error)}</p> : null}
+      {save.error && !fields.amount && !fields.unit ? (
+        <p className="text-sm text-danger-600">{errorMessage(save.error)}</p>
+      ) : null}
       <div className="flex gap-2.5">
         <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
           Save
         </Button>
-        <Button variant="tint" icon={DeleteIcon} onClick={() => remove.mutate()} loading={remove.isPending}>
+        <Button
+          variant="tint"
+          icon={DeleteIcon}
+          onClick={() => remove.mutate()}
+          loading={remove.isPending}
+        >
           Remove
         </Button>
       </div>

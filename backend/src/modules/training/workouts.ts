@@ -418,6 +418,13 @@ export function suggest(
   last: LastTime | undefined,
 ): Suggestion | null {
   if (!last?.sets.length) return null;
+  // Warm-ups, cool-downs and stretches are for the body, not for records.
+  if (
+    (item.block ?? 'main') !== 'main' ||
+    exercise.category === 'mobility' ||
+    exercise.category === 'stretch'
+  )
+    return null;
   // A wide-grip target is measured against wide-grip sets, when there were any.
   const same = item.variant ? last.sets.filter((s) => s.variant === item.variant) : [];
   const sets = same.length ? same : last.sets;
@@ -431,24 +438,27 @@ export function suggest(
         return {
           weight: heavier.kg,
           reps: item.reps,
-          text: `Strong last time (${worst}+ reps): try ${heavier.kg} kg`,
+          text: `Last time ${reps.join(', ')}${weight ? ` at ${weight} kg` : ''} · next: ${heavier.kg} kg`,
         };
       return {
         reps: worst + 1,
         ...(weight ? { weight } : {}),
-        text: `Last time ${worst} reps every set: aim for ${worst + 1}`,
+        text: `Last time ${reps.join(', ')} · next: ${worst + 1}`,
       };
     }
     return {
       reps: worst,
       ...(weight ? { weight } : {}),
-      text: `Last time ${reps.join(', ')}: match it, then beat it`,
+      text: `Last time ${reps.join(', ')}`,
     };
   }
   if (exercise.measure === 'time' && item.seconds) {
     const worst = Math.min(...sets.map((s) => s.seconds ?? 0));
     if (worst >= item.seconds)
-      return { seconds: worst + 5, text: `Held ${worst} s every set: try ${worst + 5} s` };
+      return {
+        seconds: worst + 5,
+        text: `Last time ${sets.map((x) => `${x.seconds ?? 0} s`).join(', ')} · next: ${worst + 5} s`,
+      };
     return null;
   }
   if (exercise.measure === 'distance') {

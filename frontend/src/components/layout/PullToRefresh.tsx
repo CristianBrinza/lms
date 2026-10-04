@@ -30,7 +30,10 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
       setPull(value);
     };
     const onStart = (event: TouchEvent) => {
-      const blocked = refreshing || window.scrollY > 0 || document.documentElement.hasAttribute('data-scroll-locked');
+      const blocked =
+        refreshing ||
+        window.scrollY > 0 ||
+        document.documentElement.hasAttribute('data-scroll-locked');
       startY.current = blocked ? null : (event.touches[0]?.clientY ?? null);
       armed.current = false;
     };
@@ -66,7 +69,10 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
       setRefreshing(true);
       const done = Promise.all([
         queryClient.refetchQueries({ type: 'active' }),
-        navigator.serviceWorker?.getRegistration().then((registration) => registration?.update()).catch(() => undefined),
+        navigator.serviceWorker
+          ?.getRegistration()
+          .then((registration) => registration?.update())
+          .catch(() => undefined),
         new Promise((resolve) => setTimeout(resolve, 650)),
       ]);
       void done.finally(() => {
@@ -107,7 +113,11 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
             progress >= 1 || refreshing ? 'text-ink-900' : 'text-ink-400',
           )}
         >
-          <RefreshIcon fontSize="inherit" className={cx(refreshing && 'animate-spin')} style={refreshing ? undefined : { rotate: `${progress * 300}deg` }} />
+          <RefreshIcon
+            fontSize="inherit"
+            className={cx(refreshing && 'animate-spin')}
+            style={refreshing ? undefined : { rotate: `${progress * 300}deg` }}
+          />
         </span>
       </div>
       <div

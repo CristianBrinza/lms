@@ -9,7 +9,9 @@ type State = 'online' | 'offline' | 'back';
  * screen stays, new changes wait), then turns mint for a moment when the connection returns.
  */
 export function OfflineBanner() {
-  const [state, setState] = useState<State>(() => (typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online'));
+  const [state, setState] = useState<State>(() =>
+    typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
+  );
 
   useEffect(() => {
     let timer = 0;

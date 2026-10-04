@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, Sheet, Switch, toast } from '@/components/ui';
-import { dayAndMonth, localDate, relativeDay } from '@/food/format';
+import { dayAndMonth, localDate, relativeDayInline } from '@/food/format';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -73,7 +73,7 @@ export function GenerateSheet({
       onClose();
       if (start) navigate(`/training/workouts/${workout.id}/play`);
       else
-        toast.success(`Planned for ${relativeDay(date).toLowerCase()}`, {
+        toast.success(`Planned for ${relativeDayInline(date)}`, {
           description: workout.title,
         });
     },
@@ -135,7 +135,7 @@ export function GenerateSheet({
           </ol>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="soft" loading={make.isPending} onClick={() => make.mutate()}>
-              Shuffle
+              Try another
             </Button>
             <Button
               variant="tint"
@@ -212,7 +212,7 @@ export function GenerateSheet({
               checked={quiet}
               onChange={setQuiet}
               label="Quiet"
-              hint="No jumping: neighbours downstairs, a sleeping baby"
+              hint="Leaves out jumping exercises"
               className="py-3"
             />
             <Switch
@@ -224,7 +224,7 @@ export function GenerateSheet({
             />
           </div>
           <Button size="lg" loading={make.isPending} onClick={() => make.mutate()}>
-            Make it
+            Create workout
           </Button>
         </div>
       )}

@@ -251,8 +251,8 @@ function Empty({ bare, onAdd }: { bare: number | null; onAdd: () => void }) {
       <h2 className="mt-4 text-h2 font-bold">What do you train with?</h2>
       <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
         {bare !== null
-          ? `Nothing needed for ${bare} exercises — add what you have for more.`
-          : 'Plenty needs nothing at all — add what you have for more.'}
+          ? `${bare} exercises need no equipment. Add what you have to unlock more.`
+          : 'Add what you have to unlock more exercises.'}
       </p>
       <Button icon={AddIcon} className="mt-6" onClick={onAdd}>
         Add equipment

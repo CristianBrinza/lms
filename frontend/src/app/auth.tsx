@@ -1,5 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { ApiError, hasSessionHint, onSessionExpired } from '@/services/api/client';
 import { authApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
@@ -47,7 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [queryClient],
   );
 
-  useEffect(() => onSessionExpired(() => queryClient.setQueryData(queryKeys.me, null)), [queryClient]);
+  useEffect(
+    () => onSessionExpired(() => queryClient.setQueryData(queryKeys.me, null)),
+    [queryClient],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -56,14 +67,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSignedOut(true);
       queryClient.setQueryData(queryKeys.me, null);
       // Every other cached private answer goes with the session.
-      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.me[0] || query.queryKey.length > 1 });
+      queryClient.removeQueries({
+        predicate: (query) => query.queryKey[0] !== queryKeys.me[0] || query.queryKey.length > 1,
+      });
     }
   }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(() => {
     const user = me.data ?? null;
-    const status: AuthContextValue['status'] = me.isPending ? 'loading' : me.isError ? 'error' : user ? 'authenticated' : 'anonymous';
-    return { user, status, isAdmin: user?.role === 'admin', signedOut, setUser, logout, retry: () => void me.refetch() };
+    const status: AuthContextValue['status'] = me.isPending
+      ? 'loading'
+      : me.isError
+        ? 'error'
+        : user
+          ? 'authenticated'
+          : 'anonymous';
+    return {
+      user,
+      status,
+      isAdmin: user?.role === 'admin',
+      signedOut,
+      setUser,
+      logout,
+      retry: () => void me.refetch(),
+    };
   }, [me, signedOut, setUser, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

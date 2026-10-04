@@ -47,7 +47,8 @@ interface InstallState {
 let snapshot: InstallState = { canPrompt: false, installed: false };
 function getSnapshot(): InstallState {
   const next = { canPrompt: deferred !== null, installed };
-  if (next.canPrompt !== snapshot.canPrompt || next.installed !== snapshot.installed) snapshot = next;
+  if (next.canPrompt !== snapshot.canPrompt || next.installed !== snapshot.installed)
+    snapshot = next;
   return snapshot;
 }
 

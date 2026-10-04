@@ -2,7 +2,8 @@ import { Toaster as Sonner } from 'sonner';
 import { CheckIcon, ErrorIcon, InfoIcon, WarningIcon } from './icons';
 import { Spinner } from './Spinner';
 
-const chip = 'flex size-9 animate-pop items-center justify-center rounded-full text-[1.15rem] text-ink-900';
+const chip =
+  'flex size-9 animate-pop items-center justify-center rounded-full text-[1.15rem] text-ink-900';
 
 /**
  * LMS toasts: white cards that rise from the bottom, above the menu, each led by a round icon
@@ -52,7 +53,8 @@ export function Toaster() {
           title: 'text-[0.9375rem] font-semibold leading-snug',
           description: 'mt-0.5 text-sm leading-snug text-ink-600',
           content: 'min-w-0 flex-1 py-0.5',
-          actionButton: 'press ml-auto shrink-0 rounded-pill bg-ink-900 px-4 py-2 text-sm font-semibold text-white',
+          actionButton:
+            'press ml-auto shrink-0 rounded-pill bg-ink-900 px-4 py-2 text-sm font-semibold text-white',
           cancelButton: 'shrink-0 rounded-pill px-3 py-2 text-sm font-semibold text-ink-600',
           icon: 'flex shrink-0 items-center justify-center self-start [&>*]:m-0',
         },

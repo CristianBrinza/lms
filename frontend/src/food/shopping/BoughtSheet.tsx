@@ -20,8 +20,15 @@ export function BoughtSheet({ line, onClose }: { line: ShoppingItem | null; onCl
   const catalog = useCatalog();
   const product = line ? catalog.data?.find((p) => p.id === line.productId) : undefined;
   return (
-    <Sheet open={Boolean(line)} onClose={onClose} title="What did you get?" description={line ? <Need line={line} product={product} /> : undefined}>
-      {line && product ? <BoughtForm key={line.id} line={line} product={product} onClose={onClose} /> : null}
+    <Sheet
+      open={Boolean(line)}
+      onClose={onClose}
+      title="What did you get?"
+      description={line ? <Need line={line} product={product} /> : undefined}
+    >
+      {line && product ? (
+        <BoughtForm key={line.id} line={line} product={product} onClose={onClose} />
+      ) : null}
     </Sheet>
   );
 }
@@ -29,7 +36,11 @@ export function BoughtSheet({ line, onClose }: { line: ShoppingItem | null; onCl
 function Need({ line, product }: { line: ShoppingItem; product?: Product }) {
   return (
     <span className="flex items-center gap-2.5">
-      <FoodIconTile name={line.icon} tone="bg-butter-100" className="size-10 rounded-xl [&>svg]:size-7" />
+      <FoodIconTile
+        name={line.icon}
+        tone="bg-butter-100"
+        className="size-10 rounded-xl [&>svg]:size-7"
+      />
       <span>
         {line.name}
         {line.variant ? ` · ${line.variant}` : ''}
@@ -41,7 +52,8 @@ function Need({ line, product }: { line: ShoppingItem; product?: Product }) {
 
 /** A first guess at what was taken: the packages that cover what is needed with the least left over. */
 function firstGuess(line: ShoppingItem, product: Product): { name: string; rows: PackageRow[] } {
-  if (line.bought?.length) return { name: line.package || packageUnits(product)[0]?.name || '', rows: line.bought };
+  if (line.bought?.length)
+    return { name: line.package || packageUnits(product)[0]?.name || '', rows: line.bought };
   const unit = packageUnits(product)[0];
   if (!unit) return { name: '', rows: [] };
   const sizes = unit.sizes?.length ? unit.sizes : [unit.size];
@@ -55,7 +67,15 @@ function firstGuess(line: ShoppingItem, product: Product): { name: string; rows:
   return { name: unit.name, rows: [best] };
 }
 
-function BoughtForm({ line, product, onClose }: { line: ShoppingItem; product: Product; onClose: () => void }) {
+function BoughtForm({
+  line,
+  product,
+  onClose,
+}: {
+  line: ShoppingItem;
+  product: Product;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const packages = packageUnits(product);
   const guess = firstGuess(line, product);
@@ -85,9 +105,21 @@ function BoughtForm({ line, product, onClose }: { line: ShoppingItem; product: P
 
   return (
     <div className="flex flex-col gap-5">
-      {packages.length ? <PackagesInput product={product} packages={packages} packageName={packageName} onPackageName={setPackageName} rows={rows} onChange={setRows} label="In the cart" /> : null}
+      {packages.length ? (
+        <PackagesInput
+          product={product}
+          packages={packages}
+          packageName={packageName}
+          onPackageName={setPackageName}
+          rows={rows}
+          onChange={setRows}
+          label="In the cart"
+        />
+      ) : null}
       {diff !== null ? (
-        <p className={`rounded-2xl px-4 py-3 text-sm font-semibold ${diff >= 0 ? 'bg-mint-100 text-mint-800' : 'bg-peach-100 text-peach-800'}`}>
+        <p
+          className={`rounded-2xl px-4 py-3 text-sm font-semibold ${diff >= 0 ? 'bg-mint-100 text-mint-800' : 'bg-peach-100 text-peach-800'}`}
+        >
           {diff === 0
             ? 'Exactly what was needed.'
             : diff > 0
@@ -95,8 +127,21 @@ function BoughtForm({ line, product, onClose }: { line: ShoppingItem; product: P
               : `${formatQty(-diff, product)} short: the rest stays on the list when you finish.`}
         </p>
       ) : null}
-      {product.variants.length || line.variant ? <VariantChips variants={product.variants} value={variant} onChange={setVariant} label="Kind you got" /> : null}
-      <TextField label={rows.length > 1 || (rows[0]?.count ?? 1) > 1 ? 'Paid for all (lei)' : 'Paid (lei)'} inputMode="decimal" placeholder="Optional" value={price} onChange={(event) => setPrice(event.target.value)} />
+      {product.variants.length || line.variant ? (
+        <VariantChips
+          variants={product.variants}
+          value={variant}
+          onChange={setVariant}
+          label="Kind you got"
+        />
+      ) : null}
+      <TextField
+        label={rows.length > 1 || (rows[0]?.count ?? 1) > 1 ? 'Paid for all (lei)' : 'Paid (lei)'}
+        inputMode="decimal"
+        placeholder="Optional"
+        value={price}
+        onChange={(event) => setPrice(event.target.value)}
+      />
       <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
         In the cart
       </Button>

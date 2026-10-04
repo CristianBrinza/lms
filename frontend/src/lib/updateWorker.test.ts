@@ -44,7 +44,12 @@ function worker(controlled: FakeWindow[]) {
       listeners[type] = listener;
     },
   };
-  new Function('self', 'console', 'MessageChannel', 'setTimeout', SOURCE)(self, { warn: vi.fn() }, FakeChannel, setTimeout);
+  new Function('self', 'console', 'MessageChannel', 'setTimeout', SOURCE)(
+    self,
+    { warn: vi.fn() },
+    FakeChannel,
+    setTimeout,
+  );
   const dispatch = async (type: string) => {
     const waits: Promise<unknown>[] = [];
     listeners[type]!({ waitUntil: (promise: Promise<unknown>) => waits.push(promise) });

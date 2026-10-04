@@ -4,12 +4,27 @@ import { TextField } from '@/components/ui';
 import { AddIcon, SearchIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { foodApi, foodKeys } from '../api';
-import { COMMON, fromPreset, fromProduct, sameName, useProductSearch, type PickedProduct } from '../catalog';
+import {
+  COMMON,
+  fromPreset,
+  fromProduct,
+  sameName,
+  useProductSearch,
+  type PickedProduct,
+} from '../catalog';
 import { CATEGORY_LABEL, LOCATION_LABEL } from '../format';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import type { Preset, Product } from '../types';
 
-export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { onPick: (pick: PickedProduct) => void; autoFocus?: boolean; label?: string }) {
+export function ProductPicker({
+  onPick,
+  autoFocus,
+  label = 'What is it?',
+}: {
+  onPick: (pick: PickedProduct) => void;
+  autoFocus?: boolean;
+  label?: string;
+}) {
   const [query, setQuery] = useState('');
   const { results, exact, products, presets } = useProductSearch(query);
   const typed = query.trim();
@@ -23,9 +38,13 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
     staleTime: 5 * 60_000,
   });
   const matched = guess.data?.match ? findPick(guess.data.match.item, products, presets) : null;
-  const match = matched && guess.data?.match ? { ...matched, variant: guess.data.match.variant } : null;
-  const fresh = (name: string) => newItem(name, deferred === typed ? (guess.data?.guess ?? null) : null);
-  const common = COMMON.map((name) => products.find((p) => sameName(p.name, name)) ?? presets.find((p) => p.name === name))
+  const match =
+    matched && guess.data?.match ? { ...matched, variant: guess.data.match.variant } : null;
+  const fresh = (name: string) =>
+    newItem(name, deferred === typed ? (guess.data?.guess ?? null) : null);
+  const common = COMMON.map(
+    (name) => products.find((p) => sameName(p.name, name)) ?? presets.find((p) => p.name === name),
+  )
     .filter((p): p is Product | Preset => Boolean(p))
     .map((p) => ('id' in p ? fromProduct(p) : fromPreset(p)));
 
@@ -59,14 +78,20 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
           ))}
           {match && !exact ? (
             <li>
-              <button type="button" onClick={() => onPick(match)} className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50">
+              <button
+                type="button"
+                onClick={() => onPick(match)}
+                className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50"
+              >
                 <FoodIconTile name={match.icon} tone="bg-butter-100" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[0.9375rem] font-semibold">
                     {match.name} · {match.variant}
                   </span>
                   <span className="block truncate text-sm text-ink-600">
-                    {match.variants.some((v) => sameName(v, match.variant!)) ? `A kind of ${match.name.toLowerCase()}` : `A new kind of ${match.name.toLowerCase()}`}
+                    {match.variants.some((v) => sameName(v, match.variant!))
+                      ? `A kind of ${match.name.toLowerCase()}`
+                      : `A new kind of ${match.name.toLowerCase()}`}
                   </span>
                 </span>
               </button>
@@ -74,12 +99,18 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
           ) : null}
           {!exact ? (
             <li>
-              <button type="button" onClick={() => onPick(fresh(typed))} className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50">
+              <button
+                type="button"
+                onClick={() => onPick(fresh(typed))}
+                className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50"
+              >
                 <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-lav-100 text-[1.4rem] text-lav-800">
                   <AddIcon fontSize="inherit" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[0.9375rem] font-semibold">Add “{typed}”</span>
+                  <span className="block truncate text-[0.9375rem] font-semibold">
+                    Add “{typed}”
+                  </span>
                   <span className="block text-sm text-ink-600">A new item for your kitchen</span>
                 </span>
               </button>
@@ -98,7 +129,9 @@ export function ProductPicker({ onPick, autoFocus, label = 'What is it?' }: { on
                   className="press flex w-full flex-col items-center gap-1 rounded-2xl bg-ink-50 px-1 pb-2 pt-2.5 transition-colors hover:bg-butter-100"
                 >
                   <FoodIcon name={pick.icon} className="size-9" />
-                  <span className="w-full truncate text-center text-xs font-semibold">{pick.name}</span>
+                  <span className="w-full truncate text-center text-xs font-semibold">
+                    {pick.name}
+                  </span>
                 </button>
               </li>
             ))}
@@ -138,12 +171,20 @@ function newItem(name: string, guess: Preset | null): PickedProduct {
 
 function PickRow({ pick, onPick }: { pick: PickedProduct; onPick: (pick: PickedProduct) => void }) {
   return (
-    <button type="button" onClick={() => onPick(pick)} className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50">
+    <button
+      type="button"
+      onClick={() => onPick(pick)}
+      className="press flex w-full items-center gap-3 rounded-2xl p-2 text-left transition-colors hover:bg-ink-50"
+    >
       <FoodIconTile name={pick.icon} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.9375rem] font-semibold">{pick.name}</span>
-        <span className={cx('block truncate text-sm', pick.productId ? 'text-ink-600' : 'text-ink-500')}>
-          {pick.productId ? 'In your kitchen’s list' : `${CATEGORY_LABEL[pick.category]} · ${LOCATION_LABEL[pick.location]}${pick.shelfLifeDays ? ` · keeps ~${pick.shelfLifeDays} d` : ''}`}
+        <span
+          className={cx('block truncate text-sm', pick.productId ? 'text-ink-600' : 'text-ink-500')}
+        >
+          {pick.productId
+            ? 'In your kitchen’s list'
+            : `${CATEGORY_LABEL[pick.category]} · ${LOCATION_LABEL[pick.location]}${pick.shelfLifeDays ? ` · keeps ~${pick.shelfLifeDays} d` : ''}`}
         </span>
       </span>
     </button>

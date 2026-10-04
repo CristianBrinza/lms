@@ -355,7 +355,7 @@ export function insights(
   if (rhr?.now && rhr.before && Math.abs(rhr.now - rhr.before) >= 3) {
     out.push({
       tone: rhr.now < rhr.before ? 'good' : 'watch',
-      text: `Resting heart rate ${rhr.now < rhr.before ? 'down' : 'up'} ${Math.round(Math.abs(rhr.now - rhr.before))} bpm on the week before${rhr.now > rhr.before ? ' — tiredness, a cold or stress can do that' : ''}`,
+      text: `Resting heart rate ${rhr.now < rhr.before ? 'down' : 'up'} ${Math.round(Math.abs(rhr.now - rhr.before))} bpm on the week before`,
     });
   }
   const weights = days.filter((d) => d.values.weight !== undefined);

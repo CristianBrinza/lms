@@ -61,7 +61,11 @@ export default function WelcomePage() {
           </p>
         </div>
 
-        <form onSubmit={submit} noValidate className="mt-7 flex flex-1 flex-col gap-4 lg:mt-0 lg:flex-none">
+        <form
+          onSubmit={submit}
+          noValidate
+          className="mt-7 flex flex-1 flex-col gap-4 lg:mt-0 lg:flex-none"
+        >
           <div className="flex flex-col gap-4 rounded-[1.75rem] bg-white p-5 shadow-[0_20px_40px_-28px_rgb(110_80_0/0.6)]">
             <input
               type="email"

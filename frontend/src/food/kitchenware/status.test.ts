@@ -29,7 +29,13 @@ describe('kitchenware status', () => {
       tool({ washing: 1, clean: 0, washingUntil: '2026-10-02T18:00:00.000Z' }),
       tool({ washing: 2, count: 2, clean: 0, washingUntil: '2026-10-02T19:30:00.000Z' }),
     ]);
-    expect(state).toMatchObject({ kinds: 4, dirty: 2, dirtyWashable: 2, washing: 3, cleanAt: '2026-10-02T19:30:00.000Z' });
+    expect(state).toMatchObject({
+      kinds: 4,
+      dirty: 2,
+      dirtyWashable: 2,
+      washing: 3,
+      cleanAt: '2026-10-02T19:30:00.000Z',
+    });
   });
 
   it('reads as one line', () => {
@@ -39,9 +45,14 @@ describe('kitchenware status', () => {
   });
 
   it('labels one thing with short chips', () => {
-    expect(toolChips(tool({ count: 3, clean: 2, dirty: 1 })).map((c) => c.label)).toEqual(['2 of 3 clean', '1 dirty']);
+    expect(toolChips(tool({ count: 3, clean: 2, dirty: 1 })).map((c) => c.label)).toEqual([
+      '2 of 3 clean',
+      '1 dirty',
+    ]);
     expect(toolChips(tool({ count: 3, clean: 3 })).map((c) => c.label)).toEqual(['All 3 clean']);
-    expect(toolChips(tool({ count: 1, clean: 0, washing: 1 })).map((c) => c.label)).toEqual(['Washing']);
+    expect(toolChips(tool({ count: 1, clean: 0, washing: 1 })).map((c) => c.label)).toEqual([
+      'Washing',
+    ]);
     expect(toolChips(tool({ count: 5, washable: false })).map((c) => c.label)).toEqual(['×5']);
   });
 

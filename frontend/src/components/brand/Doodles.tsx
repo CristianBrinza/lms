@@ -12,11 +12,29 @@ interface DoodleProps {
 /** Three loose strokes under a word, like a highlighter swiped twice. */
 export function Scribble({ className }: DoodleProps) {
   return (
-    <svg viewBox="0 0 240 28" fill="none" aria-hidden="true" className={cx('overflow-visible', className)} preserveAspectRatio="none">
+    <svg
+      viewBox="0 0 240 28"
+      fill="none"
+      aria-hidden="true"
+      className={cx('overflow-visible', className)}
+      preserveAspectRatio="none"
+    >
       <g stroke="currentColor" strokeLinecap="round" strokeWidth="5">
-        <path d="M4 15C52 6 122 4 236 9" className="doodle-draw" style={{ animationDelay: '0ms' }} />
-        <path d="M12 20C84 12 162 11 232 15" className="doodle-draw" style={{ animationDelay: '120ms' }} />
-        <path d="M34 24C104 18 172 18 220 21" className="doodle-draw" style={{ animationDelay: '240ms' }} />
+        <path
+          d="M4 15C52 6 122 4 236 9"
+          className="doodle-draw"
+          style={{ animationDelay: '0ms' }}
+        />
+        <path
+          d="M12 20C84 12 162 11 232 15"
+          className="doodle-draw"
+          style={{ animationDelay: '120ms' }}
+        />
+        <path
+          d="M34 24C104 18 172 18 220 21"
+          className="doodle-draw"
+          style={{ animationDelay: '240ms' }}
+        />
       </g>
     </svg>
   );

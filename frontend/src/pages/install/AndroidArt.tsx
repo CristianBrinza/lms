@@ -1,4 +1,12 @@
-import { ChevronRightIcon, DownloadIcon, LanguageIcon, LockIcon, MoreVertIcon, AddToHomeScreenIcon, type IconComponent } from '@/components/ui/icons';
+import {
+  ChevronRightIcon,
+  DownloadIcon,
+  LanguageIcon,
+  LockIcon,
+  MoreVertIcon,
+  AddToHomeScreenIcon,
+  type IconComponent,
+} from '@/components/ui/icons';
 import { LogoTile } from '@/components/brand/Logo';
 import { cx } from '@/lib/cx';
 import { mark } from './highlight';
@@ -9,7 +17,12 @@ import { Dimmed, HomeScene, MenuLine, PageLines } from './parts';
  * mark on what to tap. Loaded only when the Android steps are shown.
  */
 export default function AndroidArt({ step, alt }: { step: number; alt: string }) {
-  const scene = [<MenuScene key="menu" />, <SheetScene key="sheet" />, <DialogScene key="dialog" />, <HomeScene key="home" step={3} />][step];
+  const scene = [
+    <MenuScene key="menu" />,
+    <SheetScene key="sheet" />,
+    <DialogScene key="dialog" />,
+    <HomeScene key="home" step={3} />,
+  ][step];
   return (
     <div role="img" aria-label={alt} className="size-full text-[3.4cqw] leading-tight text-ink-900">
       <div aria-hidden="true" className="relative size-full overflow-hidden">
@@ -29,7 +42,13 @@ function MenuScene() {
           <LockIcon fontSize="inherit" className="text-[1em] text-ink-500" />
           <span className="h-[0.5em] w-[45%] rounded-pill bg-ink-300" />
         </div>
-        <span className={cx('grid size-[2.1em] shrink-0 place-items-center rounded-full text-[1.1em] text-ink-800', dots.className)} style={dots.style}>
+        <span
+          className={cx(
+            'grid size-[2.1em] shrink-0 place-items-center rounded-full text-[1.1em] text-ink-800',
+            dots.className,
+          )}
+          style={dots.style}
+        >
           <MoreVertIcon fontSize="inherit" />
         </span>
       </div>
@@ -37,7 +56,13 @@ function MenuScene() {
       <div className="absolute right-[3%] top-[22%] w-[64%] rounded-[0.9em] bg-white p-[0.35em] shadow-raised ring-1 ring-ink-100">
         <MenuLine width="58%" />
         <MenuLine width="44%" />
-        <div className={cx('my-[0.2em] flex items-center gap-[0.6em] rounded-[0.6em] bg-lav-50 px-[0.6em] py-[0.55em] font-semibold', item.className)} style={item.style}>
+        <div
+          className={cx(
+            'my-[0.2em] flex items-center gap-[0.6em] rounded-[0.6em] bg-lav-50 px-[0.6em] py-[0.55em] font-semibold',
+            item.className,
+          )}
+          style={item.style}
+        >
           <AddToHomeScreenIcon fontSize="inherit" className="shrink-0 text-[1.3em] text-lav-700" />
           <span>Install app</span>
         </div>
@@ -47,10 +72,26 @@ function MenuScene() {
   );
 }
 
-function Option({ icon: Icon, title, note, marked }: { icon: IconComponent; title: string; note?: string; marked?: boolean }) {
+function Option({
+  icon: Icon,
+  title,
+  note,
+  marked,
+}: {
+  icon: IconComponent;
+  title: string;
+  note?: string;
+  marked?: boolean;
+}) {
   const m = mark(1);
   return (
-    <div className={cx('flex items-center gap-[0.8em] rounded-[0.8em] px-[0.6em] py-[0.5em]', marked && m.className)} style={marked ? m.style : undefined}>
+    <div
+      className={cx(
+        'flex items-center gap-[0.8em] rounded-[0.8em] px-[0.6em] py-[0.5em]',
+        marked && m.className,
+      )}
+      style={marked ? m.style : undefined}
+    >
       <span className="grid size-[2.2em] shrink-0 place-items-center rounded-full bg-lav-100 text-[1.1em] text-lav-700">
         <Icon fontSize="inherit" />
       </span>
@@ -89,7 +130,10 @@ function DialogScene() {
         </div>
         <div className="mt-[1.3em] flex items-center justify-end gap-[0.6em] font-semibold">
           <span className="px-[0.6em] py-[0.5em] text-ink-600">Cancel</span>
-          <span className={cx('rounded-pill bg-ink-900 px-[1.1em] py-[0.5em] text-white', m.className)} style={m.style}>
+          <span
+            className={cx('rounded-pill bg-ink-900 px-[1.1em] py-[0.5em] text-white', m.className)}
+            style={m.style}
+          >
             Install
           </span>
         </div>

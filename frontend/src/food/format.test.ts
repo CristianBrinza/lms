@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, expiry, formatAmount, formatQty, localDate, money, toBase, unitsFor, weekStart } from './format';
+import {
+  addDays,
+  expiry,
+  formatAmount,
+  formatQty,
+  localDate,
+  money,
+  toBase,
+  unitsFor,
+  weekStart,
+} from './format';
 
 const steak = { unit: 'g' as const, pieceSize: null, pieceUnit: null };
 const tomato = { unit: 'pcs' as const, pieceSize: 120, pieceUnit: 'g' as const };
@@ -29,8 +39,14 @@ describe('food format', () => {
 
   it('says when food expires', () => {
     const today = '2026-10-02';
-    expect(expiry('2026-09-30', today)).toMatchObject({ tone: 'expired', label: 'Expired 2 days ago' });
-    expect(expiry('2026-10-01', today)).toMatchObject({ tone: 'expired', label: 'Expired yesterday' });
+    expect(expiry('2026-09-30', today)).toMatchObject({
+      tone: 'expired',
+      label: 'Expired 2 days ago',
+    });
+    expect(expiry('2026-10-01', today)).toMatchObject({
+      tone: 'expired',
+      label: 'Expired yesterday',
+    });
     expect(expiry('2026-10-02', today)).toMatchObject({ tone: 'today', label: 'Today' });
     expect(expiry('2026-10-03', today)).toMatchObject({ tone: 'soon', label: 'Tomorrow', days: 1 });
     expect(expiry('2026-10-05', today)).toMatchObject({ tone: 'soon', label: '3 days' });

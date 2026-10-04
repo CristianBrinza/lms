@@ -9,7 +9,13 @@ import { Dimmed, HomeScene, MenuLine, PageLines } from './parts';
  * and our mark on what to tap. Loaded only when the iPhone steps are shown.
  */
 export default function IosArt({ step, alt }: { step: number; alt: string }) {
-  const scene = [<BarScene key="bar" />, <MenuScene key="menu" />, <ShareScene key="share" />, <ConfirmScene key="confirm" />, <HomeScene key="home" step={4} />][step];
+  const scene = [
+    <BarScene key="bar" />,
+    <MenuScene key="menu" />,
+    <ShareScene key="share" />,
+    <ConfirmScene key="confirm" />,
+    <HomeScene key="home" step={4} />,
+  ][step];
   return (
     <div role="img" aria-label={alt} className="size-full text-[3.4cqw] leading-tight text-ink-900">
       <div aria-hidden="true" className="relative size-full overflow-hidden">
@@ -32,7 +38,10 @@ function BottomBar({ step, markMore }: { step: number; markMore?: boolean }) {
         lms
       </span>
       <span
-        className={cx('grid size-[2.6em] place-items-center rounded-full bg-white/90 text-[1.15em] shadow-card', markMore && m.className)}
+        className={cx(
+          'grid size-[2.6em] place-items-center rounded-full bg-white/90 text-[1.15em] shadow-card',
+          markMore && m.className,
+        )}
         style={markMore ? m.style : undefined}
       >
         <MoreHorizIcon fontSize="inherit" />
@@ -56,7 +65,13 @@ function MenuScene() {
     <div className="size-full bg-lav-100">
       <PageLines className="opacity-60" />
       <div className="absolute bottom-[22%] right-[4%] w-[58%] rounded-[1.1em] bg-white/95 p-[0.35em] shadow-raised">
-        <div className={cx('flex items-center justify-between rounded-[0.8em] px-[0.8em] py-[0.6em] font-semibold', m.className)} style={m.style}>
+        <div
+          className={cx(
+            'flex items-center justify-between rounded-[0.8em] px-[0.8em] py-[0.6em] font-semibold',
+            m.className,
+          )}
+          style={m.style}
+        >
           Share
           <IosShareIcon fontSize="inherit" className="text-[1.2em]" />
         </div>
@@ -81,7 +96,13 @@ function ShareScene() {
         </div>
         <div className="mt-[0.6em] overflow-hidden rounded-[1em] bg-white">
           <MenuLine width="44%" />
-          <div className={cx('flex items-center justify-between px-[0.8em] py-[0.65em] font-semibold', m.className)} style={m.style}>
+          <div
+            className={cx(
+              'flex items-center justify-between px-[0.8em] py-[0.65em] font-semibold',
+              m.className,
+            )}
+            style={m.style}
+          >
             Add to Home Screen
             <AddBoxIcon fontSize="inherit" className="text-[1.25em]" />
           </div>
@@ -99,7 +120,10 @@ function ConfirmScene() {
       <div className="flex items-center justify-between font-semibold">
         <span className="text-ink-500">Cancel</span>
         <span className="text-[0.95em]">Add to Home Screen</span>
-        <span className={cx('rounded-pill bg-lav-600 px-[0.9em] py-[0.3em] text-white', m.className)} style={m.style}>
+        <span
+          className={cx('rounded-pill bg-lav-600 px-[0.9em] py-[0.3em] text-white', m.className)}
+          style={m.style}
+        >
           Add
         </span>
       </div>

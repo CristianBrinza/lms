@@ -44,7 +44,8 @@ export function washState(tools: Tool[]): WashState {
     else if (tool.washable) byHand += tool.dirty;
     if (tool.low) low += 1;
     washing += tool.washing;
-    if (tool.washing > 0 && tool.washingUntil && (!cleanAt || tool.washingUntil > cleanAt)) cleanAt = tool.washingUntil;
+    if (tool.washing > 0 && tool.washingUntil && (!cleanAt || tool.washingUntil > cleanAt))
+      cleanAt = tool.washingUntil;
   }
   return { kinds: tools.length, dirty, dirtyWashable, byHand, low, washing, cleanAt };
 }
@@ -76,21 +77,41 @@ export function minutesLeft(iso: string, now: number): number {
 export function statusLine(state: WashState): string {
   if (!state.kinds) return 'Count your pots, pans and glasses';
   const parts: string[] = [];
-  if (state.dirty) parts.push(state.byHand && state.byHand === state.dirty ? `${state.dirty} to wash by hand` : `${state.dirty} dirty`);
+  if (state.dirty)
+    parts.push(
+      state.byHand && state.byHand === state.dirty
+        ? `${state.dirty} to wash by hand`
+        : `${state.dirty} dirty`,
+    );
   if (state.washing && state.cleanAt) parts.push(`dishwasher until ${clock(state.cleanAt)}`);
   return parts.length ? parts.join(' · ') : 'All clean';
 }
 
 /** One thing's state as short chips: "2 of 3 clean", "1 dirty", "1 washing". */
-export function toolChips(tool: Tool): Array<{ label: string; tone: 'mint' | 'peach' | 'cyan' | 'muted' }> {
-  if (tool.kind === 'disposable') return [{ label: tool.count ? `${tool.count} left${tool.low ? ' · running low' : ''}` : 'None left', tone: tool.low ? 'peach' : 'muted' }];
+export function toolChips(
+  tool: Tool,
+): Array<{ label: string; tone: 'mint' | 'peach' | 'cyan' | 'muted' }> {
+  if (tool.kind === 'disposable')
+    return [
+      {
+        label: tool.count ? `${tool.count} left${tool.low ? ' · running low' : ''}` : 'None left',
+        tone: tool.low ? 'peach' : 'muted',
+      },
+    ];
   if (!tool.washable) return [{ label: `×${tool.count}`, tone: 'muted' }];
   if (tool.count === 0) return [{ label: 'None', tone: 'muted' }];
   const chips: Array<{ label: string; tone: 'mint' | 'peach' | 'cyan' | 'muted' }> = [];
-  if (tool.clean === tool.count) chips.push({ label: tool.count === 1 ? 'Clean' : `All ${tool.count} clean`, tone: 'mint' });
-  else if (tool.clean > 0) chips.push({ label: `${tool.clean} of ${tool.count} clean`, tone: 'mint' });
-  if (tool.dirty) chips.push({ label: `${tool.count === 1 ? 'Dirty' : `${tool.dirty} dirty`}${tool.dishwasherSafe ? '' : ' · by hand'}`, tone: 'peach' });
-  if (tool.washing) chips.push({ label: tool.count === 1 ? 'Washing' : `${tool.washing} washing`, tone: 'cyan' });
+  if (tool.clean === tool.count)
+    chips.push({ label: tool.count === 1 ? 'Clean' : `All ${tool.count} clean`, tone: 'mint' });
+  else if (tool.clean > 0)
+    chips.push({ label: `${tool.clean} of ${tool.count} clean`, tone: 'mint' });
+  if (tool.dirty)
+    chips.push({
+      label: `${tool.count === 1 ? 'Dirty' : `${tool.dirty} dirty`}${tool.dishwasherSafe ? '' : ' · by hand'}`,
+      tone: 'peach',
+    });
+  if (tool.washing)
+    chips.push({ label: tool.count === 1 ? 'Washing' : `${tool.washing} washing`, tone: 'cyan' });
   return chips;
 }
 

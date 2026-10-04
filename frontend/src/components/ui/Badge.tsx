@@ -11,9 +11,23 @@ const TONES = {
   butter: 'bg-butter-100 text-butter-800',
 } as const;
 
-export function Badge({ tone = 'lav', children, className }: { tone?: keyof typeof TONES; children: ReactNode; className?: string }) {
+export function Badge({
+  tone = 'lav',
+  children,
+  className,
+}: {
+  tone?: keyof typeof TONES;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <span className={cx('inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-pill px-2.5 text-xs font-semibold', TONES[tone], className)}>
+    <span
+      className={cx(
+        'inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-pill px-2.5 text-xs font-semibold',
+        TONES[tone],
+        className,
+      )}
+    >
       {children}
     </span>
   );

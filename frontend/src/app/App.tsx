@@ -21,7 +21,10 @@ function AuthGate() {
             <WarningIcon fontSize="inherit" />
           </span>
           <h1 className="text-h1 font-extrabold">LMS can’t connect</h1>
-          <p className="mt-3 text-ink-700">Check your connection. If it works elsewhere, the server may be restarting; try again in a minute.</p>
+          <p className="mt-3 text-ink-700">
+            Check your connection. If it works elsewhere, the server may be restarting; try again in
+            a minute.
+          </p>
           <Button className="mt-8" icon={RefreshIcon} onClick={retry}>
             Try again
           </Button>

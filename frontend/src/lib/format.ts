@@ -1,7 +1,15 @@
 /** Dates and names, in the person's own locale (the app's copy is English). */
 
-const dayFormat = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+const dayFormat = new Intl.DateTimeFormat(undefined, {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+const shortDate = new Intl.DateTimeFormat(undefined, {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
 const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
@@ -36,7 +44,9 @@ export function fullName(person: { name: string; surname: string }): string {
 }
 
 export function initials(person: { name: string; surname: string }): string {
-  const letters = [person.name, person.surname].map((part) => part.trim().charAt(0)).filter(Boolean);
+  const letters = [person.name, person.surname]
+    .map((part) => part.trim().charAt(0))
+    .filter(Boolean);
   return (letters.join('') || '?').toUpperCase();
 }
 

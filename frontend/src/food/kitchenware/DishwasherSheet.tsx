@@ -10,7 +10,15 @@ import { Stepper } from './Stepper';
 const QUICK = [60, 120, 180, 240];
 
 /** How long the kitchen's dishwasher runs: "Start dishwasher" makes things clean after this. */
-export function DishwasherSheet({ open, minutes, onClose }: { open: boolean; minutes: number; onClose: () => void }) {
+export function DishwasherSheet({
+  open,
+  minutes,
+  onClose,
+}: {
+  open: boolean;
+  minutes: number;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const [value, setValue] = useState(minutes);
   const [wasOpen, setWasOpen] = useState(open);
@@ -42,7 +50,15 @@ export function DishwasherSheet({ open, minutes, onClose }: { open: boolean; min
       }
     >
       <div className="flex flex-col gap-3">
-        <Stepper label="A run takes" value={value} onChange={setValue} min={10} max={600} step={15} format={duration} />
+        <Stepper
+          label="A run takes"
+          value={value}
+          onChange={setValue}
+          min={10}
+          max={600}
+          step={15}
+          format={duration}
+        />
         <div className="grid grid-cols-4 gap-1.5">
           {QUICK.map((quick) => (
             <button
@@ -52,7 +68,9 @@ export function DishwasherSheet({ open, minutes, onClose }: { open: boolean; min
               onClick={() => setValue(quick)}
               className={cx(
                 'press h-11 rounded-pill text-sm font-semibold',
-                value === quick ? 'bg-butter-300 text-ink-900' : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
+                value === quick
+                  ? 'bg-butter-300 text-ink-900'
+                  : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
               )}
             >
               {duration(quick)}

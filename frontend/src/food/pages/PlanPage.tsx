@@ -10,7 +10,16 @@ import { useMediaQuery } from '@/lib/useMediaQuery';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
 import { MealStatus } from '../components/MealStatus';
-import { addDays, dayAndMonth, localDate, plural, relativeDay, SLOT_LABEL, weekdayShort, weekStart } from '../format';
+import {
+  addDays,
+  dayAndMonth,
+  localDate,
+  plural,
+  relativeDay,
+  SLOT_LABEL,
+  weekdayShort,
+  weekStart,
+} from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { AddMealSheet } from '../plan/AddMealSheet';
 import { MealPanel, MealSheet } from '../plan/MealSheet';
@@ -29,9 +38,15 @@ export default function PlanPage() {
   const day = params.get('day') ?? today;
   const start = weekStart(day);
   const end = addDays(start, 6);
-  const meals = useQuery({ queryKey: foodKeys.meals(start, end), queryFn: () => foodApi.meals(start, end) });
+  const meals = useQuery({
+    queryKey: foodKeys.meals(start, end),
+    queryFn: () => foodApi.meals(start, end),
+  });
   const kitchen = useQuery({ queryKey: foodKeys.kitchen, queryFn: foodApi.kitchen });
-  const [adding, setAdding] = useState<{ open: boolean; day: string }>({ open: Boolean(params.get('recipe')), day });
+  const [adding, setAdding] = useState<{ open: boolean; day: string }>({
+    open: Boolean(params.get('recipe')),
+    day,
+  });
 
   const set = (changes: Record<string, string | null>) =>
     setParams(
@@ -53,11 +68,16 @@ export default function PlanPage() {
   }, [meals.data]);
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   const openMeal = (meals.data ?? []).find((m) => m.id === params.get('meal')) ?? null;
-  const planned = (meals.data ?? []).filter((m) => m.status === 'planned' && m.date >= today).length;
+  const planned = (meals.data ?? []).filter(
+    (m) => m.status === 'planned' && m.date >= today,
+  ).length;
   // Split view between a tablet held upright and a wide screen, where the week fits.
   const split = useMediaQuery('(min-width: 44rem) and (max-width: 63.99rem)');
   const tomorrow = addDays(today, 1);
-  const tomorrowMeals = useQuery({ queryKey: foodKeys.meals(tomorrow, tomorrow), queryFn: () => foodApi.meals(tomorrow, tomorrow) });
+  const tomorrowMeals = useQuery({
+    queryKey: foodKeys.meals(tomorrow, tomorrow),
+    queryFn: () => foodApi.meals(tomorrow, tomorrow),
+  });
   const toPack = (tomorrowMeals.data ?? []).filter((m) => m.toGo && m.status === 'planned');
 
   return (
@@ -69,8 +89,19 @@ export default function PlanPage() {
         subtitle={`${dayAndMonth(start)} – ${dayAndMonth(end)} · ${plural(planned, 'meal')} to come`}
         actions={
           <>
-            <IconButton icon={AddShoppingCartIcon} label="What the plan needs" size="sm" onClick={() => set({ needs: '1' })} />
-            <IconButton icon={AddIcon} label="Add a meal" variant="ink" size="sm" onClick={() => setAdding({ open: true, day })} />
+            <IconButton
+              icon={AddShoppingCartIcon}
+              label="What the plan needs"
+              size="sm"
+              onClick={() => set({ needs: '1' })}
+            />
+            <IconButton
+              icon={AddIcon}
+              label="Add a meal"
+              variant="ink"
+              size="sm"
+              onClick={() => setAdding({ open: true, day })}
+            />
           </>
         }
       />
@@ -98,14 +129,24 @@ export default function PlanPage() {
                   onClick={() => set({ day: d })}
                   className={cx(
                     'press flex h-14 flex-col items-center justify-center rounded-2xl text-[0.6875rem] font-semibold transition-colors',
-                    active ? 'bg-ink-900 text-white' : d === today ? 'bg-butter-100 text-ink-900' : 'bg-white text-ink-700 shadow-xs hover:bg-ink-50',
+                    active
+                      ? 'bg-ink-900 text-white'
+                      : d === today
+                        ? 'bg-butter-100 text-ink-900'
+                        : 'bg-white text-ink-700 shadow-xs hover:bg-ink-50',
                   )}
                 >
                   <span>{weekdayShort(d)}</span>
                   <span className="text-base font-bold leading-tight">{Number(d.slice(8))}</span>
                   <span className="flex h-1.5 gap-0.5">
                     {Array.from({ length: Math.min(count, 3) }, (_, i) => (
-                      <span key={i} className={cx('size-1 rounded-full', active ? 'bg-butter-300' : 'bg-lav-500')} />
+                      <span
+                        key={i}
+                        className={cx(
+                          'size-1 rounded-full',
+                          active ? 'bg-butter-300' : 'bg-lav-500',
+                        )}
+                      />
                     ))}
                   </span>
                 </button>
@@ -122,7 +163,11 @@ export default function PlanPage() {
           </button>
         </div>
         {day !== today ? (
-          <button type="button" onClick={() => set({ day: today })} className="mt-1.5 text-sm font-semibold text-lav-700 hover:text-lav-800">
+          <button
+            type="button"
+            onClick={() => set({ day: today })}
+            className="mt-1.5 text-sm font-semibold text-lav-700 hover:text-lav-800"
+          >
             Back to today
           </button>
         ) : null}
@@ -135,25 +180,47 @@ export default function PlanPage() {
             <Skeleton className="h-16 rounded-2xl" />
           </div>
         ) : meals.error ? (
-          <p className="rounded-2xl bg-white p-4 text-sm text-danger-700 shadow-[var(--shadow-card)]">{errorMessage(meals.error)}</p>
+          <p className="rounded-2xl bg-white p-4 text-sm text-danger-700 shadow-[var(--shadow-card)]">
+            {errorMessage(meals.error)}
+          </p>
         ) : (
           <>
             {/* Phone: the chosen day. Tablet: the day beside the open meal. */}
             <div className="md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] md:items-start md:gap-4 lg:hidden">
               <section aria-label={relativeDay(day, today)}>
-                {day === today && toPack.length && !split ? <PackTonight meals={toPack} onOpen={(id) => set({ meal: id, day: tomorrow })} /> : null}
-                <DayMeals meals={byDay.get(day) ?? []} onOpen={(id) => set({ meal: id })} onAdd={() => setAdding({ open: true, day })} title={relativeDay(day, today)} selected={split ? openMeal?.id : null} />
+                {day === today && toPack.length && !split ? (
+                  <PackTonight meals={toPack} onOpen={(id) => set({ meal: id, day: tomorrow })} />
+                ) : null}
+                <DayMeals
+                  meals={byDay.get(day) ?? []}
+                  onOpen={(id) => set({ meal: id })}
+                  onAdd={() => setAdding({ open: true, day })}
+                  title={relativeDay(day, today)}
+                  selected={split ? openMeal?.id : null}
+                />
               </section>
               {split ? (
                 <aside className="sticky top-3 max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain rounded-[1.75rem] [scrollbar-width:thin]">
                   {openMeal ? (
-                    <MealPanel key={openMeal.id} meal={openMeal} kitchen={kitchen.data ?? []} onClose={() => set({ meal: null })} />
+                    <MealPanel
+                      key={openMeal.id}
+                      meal={openMeal}
+                      kitchen={kitchen.data ?? []}
+                      onClose={() => set({ meal: null })}
+                    />
                   ) : (
                     <div className="flex flex-col gap-3">
-                      {toPack.length ? <PackTonight meals={toPack} onOpen={(id) => set({ meal: id, day: tomorrow })} /> : null}
+                      {toPack.length ? (
+                        <PackTonight
+                          meals={toPack}
+                          onOpen={(id) => set({ meal: id, day: tomorrow })}
+                        />
+                      ) : null}
                       <div className="rounded-[1.75rem] bg-white p-5 text-center shadow-[var(--shadow-card)]">
                         <p className="text-[1.0625rem] font-bold">Tap a meal</p>
-                        <p className="mt-1 text-sm text-ink-600">Each part, what it takes from the kitchen, the kitchenware, and “Eaten”.</p>
+                        <p className="mt-1 text-sm text-ink-600">
+                          Each part, what it takes from the kitchen, the kitchenware, and “Eaten”.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -163,8 +230,21 @@ export default function PlanPage() {
             {/* Desktop: the week. */}
             <div className="hidden gap-3 lg:grid lg:grid-cols-7">
               {days.map((d) => (
-                <section key={d} aria-label={relativeDay(d, today)} className={cx('min-w-0 rounded-[1.25rem] p-2', d === today ? 'bg-butter-100' : 'bg-white/60')}>
-                  <DayMeals meals={byDay.get(d) ?? []} onOpen={(id) => set({ meal: id })} onAdd={() => setAdding({ open: true, day: d })} title={`${weekdayShort(d)} ${Number(d.slice(8))}`} compact />
+                <section
+                  key={d}
+                  aria-label={relativeDay(d, today)}
+                  className={cx(
+                    'min-w-0 rounded-[1.25rem] p-2',
+                    d === today ? 'bg-butter-100' : 'bg-white/60',
+                  )}
+                >
+                  <DayMeals
+                    meals={byDay.get(d) ?? []}
+                    onOpen={(id) => set({ meal: id })}
+                    onAdd={() => setAdding({ open: true, day: d })}
+                    title={`${weekdayShort(d)} ${Number(d.slice(8))}`}
+                    compact
+                  />
                 </section>
               ))}
             </div>
@@ -172,7 +252,11 @@ export default function PlanPage() {
         )}
       </div>
 
-      <MealSheet meal={split ? null : openMeal} kitchen={kitchen.data ?? []} onClose={() => set({ meal: null })} />
+      <MealSheet
+        meal={split ? null : openMeal}
+        kitchen={kitchen.data ?? []}
+        onClose={() => set({ meal: null })}
+      />
       <AddMealSheet
         open={adding.open}
         day={adding.day}
@@ -183,7 +267,11 @@ export default function PlanPage() {
           set({ recipe: null });
         }}
       />
-      <NeedsSheet open={params.get('needs') === '1'} today={today} onClose={() => set({ needs: null })} />
+      <NeedsSheet
+        open={params.get('needs') === '1'}
+        today={today}
+        onClose={() => set({ needs: null })}
+      />
     </Screen>
   );
 }
@@ -197,8 +285,16 @@ function PackTonight({ meals, onOpen }: { meals: Meal[]; onOpen: (id: string) =>
       <ul className="mt-2 flex flex-col gap-1.5">
         {meals.map((meal) => (
           <li key={meal.id}>
-            <button type="button" onClick={() => onOpen(meal.id)} className="press flex w-full items-center gap-2.5 rounded-2xl bg-white p-2 text-left hover:bg-ink-50">
-              <FoodIconTile name={meal.icon} tone="bg-butter-100" className="size-9 rounded-xl [&>svg]:size-6" />
+            <button
+              type="button"
+              onClick={() => onOpen(meal.id)}
+              className="press flex w-full items-center gap-2.5 rounded-2xl bg-white p-2 text-left hover:bg-ink-50"
+            >
+              <FoodIconTile
+                name={meal.icon}
+                tone="bg-butter-100"
+                className="size-9 rounded-xl [&>svg]:size-6"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[0.9375rem] font-semibold">{meal.title}</span>
                 <span className="block truncate text-xs text-ink-600">
@@ -231,7 +327,9 @@ function DayMeals({
 }) {
   return (
     <>
-      <h2 className={cx('mb-1.5 px-1 font-bold', compact ? 'text-sm' : 'text-[0.9375rem]')}>{title}</h2>
+      <h2 className={cx('mb-1.5 px-1 font-bold', compact ? 'text-sm' : 'text-[0.9375rem]')}>
+        {title}
+      </h2>
       {meals.length ? (
         <ul className={cx('flex flex-col', compact ? 'gap-1.5' : 'gap-2')}>
           {meals.map((meal) => (
@@ -248,19 +346,41 @@ function DayMeals({
                 )}
               >
                 {compact ? null : (
-                  <span className="tabular w-12 shrink-0 text-center text-sm font-bold text-ink-700">{meal.time ?? SLOT_LABEL[meal.slot].slice(0, 5)}</span>
+                  <span className="tabular w-12 shrink-0 text-center text-sm font-bold text-ink-700">
+                    {meal.time ?? SLOT_LABEL[meal.slot].slice(0, 5)}
+                  </span>
                 )}
-                <FoodIconTile name={meal.icon} tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'} className="size-10 rounded-xl [&>svg]:size-7" />
+                <FoodIconTile
+                  name={meal.icon}
+                  tone={meal.status === 'done' ? 'bg-mint-100' : 'bg-butter-100'}
+                  className="size-10 rounded-xl [&>svg]:size-7"
+                />
                 <span className="min-w-0 flex-1">
-                  <span className={cx('block truncate font-semibold', compact ? 'text-xs' : 'text-[0.9375rem]', meal.status === 'done' && 'line-through decoration-ink-400')}>{meal.title}</span>
+                  <span
+                    className={cx(
+                      'block truncate font-semibold',
+                      compact ? 'text-xs' : 'text-[0.9375rem]',
+                      meal.status === 'done' && 'line-through decoration-ink-400',
+                    )}
+                  >
+                    {meal.title}
+                  </span>
                   <span className="block truncate text-xs text-ink-600">
-                    {compact ? `${meal.time ?? SLOT_LABEL[meal.slot]} · ` : `${SLOT_LABEL[meal.slot]} · `}
+                    {compact
+                      ? `${meal.time ?? SLOT_LABEL[meal.slot]} · `
+                      : `${SLOT_LABEL[meal.slot]} · `}
                     {plural(meal.servings, 'serving')}
                     {meal.parts.length > 1 ? ` · ${plural(meal.parts.length, 'part')}` : ''}
                     {meal.toGo ? ' · to go' : ''}
                   </span>
                   {meal.status === 'planned' && meal.tools.some((t) => t.status === 'dirty') ? (
-                    <span className="block truncate text-xs font-semibold text-peach-800">Wash first: {meal.tools.filter((t) => t.status === 'dirty').map((t) => t.name.toLowerCase()).join(', ')}</span>
+                    <span className="block truncate text-xs font-semibold text-peach-800">
+                      Wash first:{' '}
+                      {meal.tools
+                        .filter((t) => t.status === 'dirty')
+                        .map((t) => t.name.toLowerCase())
+                        .join(', ')}
+                    </span>
                   ) : null}
                 </span>
                 {compact ? null : <MealStatus meal={meal} />}
@@ -269,7 +389,14 @@ function DayMeals({
           ))}
         </ul>
       ) : (
-        <p className={cx('rounded-[1.25rem] bg-white px-3 text-ink-500 shadow-[var(--shadow-card)]', compact ? 'py-3 text-xs' : 'py-4 text-sm')}>Nothing planned.</p>
+        <p
+          className={cx(
+            'rounded-[1.25rem] bg-white px-3 text-ink-500 shadow-[var(--shadow-card)]',
+            compact ? 'py-3 text-xs' : 'py-4 text-sm',
+          )}
+        >
+          Nothing planned.
+        </p>
       )}
       <Button variant="tint" size="sm" icon={AddIcon} className="mt-2" onClick={onAdd}>
         Add

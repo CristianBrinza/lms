@@ -13,7 +13,16 @@ interface ConfirmSheetProps {
 }
 
 /** "Are you sure?" for actions that can't be undone in one tap. */
-export function ConfirmSheet({ open, onClose, onConfirm, title, description, confirmLabel, tone = 'default', loading }: ConfirmSheetProps) {
+export function ConfirmSheet({
+  open,
+  onClose,
+  onConfirm,
+  title,
+  description,
+  confirmLabel,
+  tone = 'default',
+  loading,
+}: ConfirmSheetProps) {
   return (
     <Sheet
       open={open}
@@ -24,7 +33,12 @@ export function ConfirmSheet({ open, onClose, onConfirm, title, description, con
           <Button variant="outline" fullWidth onClick={onClose}>
             Cancel
           </Button>
-          <Button variant={tone === 'danger' ? 'danger' : 'primary'} fullWidth loading={loading} onClick={onConfirm}>
+          <Button
+            variant={tone === 'danger' ? 'danger' : 'primary'}
+            fullWidth
+            loading={loading}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </Button>
         </div>

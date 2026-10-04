@@ -359,7 +359,7 @@ function Connect({ synced }: { synced: string | null }) {
               , Method POST, Header <code>Authorization</code> = <code>Bearer</code> + the key,
               Request Body JSON: <code>date</code>, <code>steps</code>, <code>distanceKm</code>,{' '}
               <code>activeEnergy</code>, <code>restingHeartRate</code>, <code>weight</code>,{' '}
-              <code>sleepHours</code> — each set to its result.
+              <code>sleepHours</code>, each set to its result.
             </li>
             <li>
               Run it once by hand: allow Health when the iPhone asks. This page shows the day.

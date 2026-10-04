@@ -29,7 +29,7 @@ export const trainingKeys = {
   equipment: ['training', 'equipment'] as const,
   exercises: (userId: string) => ['training', 'exercises', userId] as const,
   exercise: (id: string, userId: string) => ['training', 'exercise', id, userId] as const,
-  routines: ['training', 'routines'] as const,
+  routines: (who: string) => ['training', 'routines', who] as const,
   workouts: (who: string, from: string, to: string) =>
     ['training', 'workouts', who, from, to] as const,
   workout: (id: string) => ['training', 'workout', id] as const,
@@ -57,6 +57,7 @@ export interface ExerciseInput {
   icon?: string;
   steps?: string[];
   note?: string;
+  variants?: string[];
 }
 
 export interface EquipmentInput {
@@ -67,6 +68,7 @@ export interface EquipmentInput {
   pairs?: boolean;
   count?: number;
   note?: string;
+  variants?: Array<{ name: string; kg?: number | null }>;
 }
 
 export const trainingApi = {
@@ -90,7 +92,7 @@ export const trainingApi = {
       .then((r) => r.exercises),
   exercise: (id: string, userId: string) =>
     api.get<ExerciseHistory>(`/training/exercises/${id}${query({ userId })}`),
-  createExercise: (body: ExerciseInput) =>
+  createExercise: (body: ExerciseInput & { userId?: string }) =>
     api.post<{ exercise: LibraryExercise }>('/training/exercises', body).then((r) => r.exercise),
   updateExercise: (id: string, body: Partial<ExerciseInput> & { archived?: boolean }) =>
     api
@@ -101,8 +103,15 @@ export const trainingApi = {
       .put<{ exercise: LibraryExercise }>(`/training/exercises/${id}/pin`, { pinned, userId })
       .then((r) => r.exercise),
 
-  routines: () => api.get<{ routines: Routine[] }>('/training/routines').then((r) => r.routines),
+  /** who: a person's id, or 'everyone'. */
+  routines: (who: string) =>
+    api
+      .get<{ routines: Routine[] }>(
+        `/training/routines${query(who === 'everyone' ? { everyone: 'true' } : { userId: who })}`,
+      )
+      .then((r) => r.routines),
   createRoutine: (body: {
+    userId?: string;
     name: string;
     note?: string;
     items: WorkoutItem[];

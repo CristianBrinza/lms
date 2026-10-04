@@ -151,7 +151,14 @@ export interface UseResult {
   productId: string;
   used: number;
   shortfall: number;
-  lots: Array<{ lotId: string; taken: number; left: number; opened: boolean; expiresOn: string | null; location: Location }>;
+  lots: Array<{
+    lotId: string;
+    taken: number;
+    left: number;
+    opened: boolean;
+    expiresOn: string | null;
+    location: Location;
+  }>;
   events: number[];
 }
 
@@ -337,7 +344,8 @@ export interface MealPartInput {
   ingredients?: IngredientInput[];
 }
 
-export type ToolKind = 'cookware' | 'bakeware' | 'utensil' | 'dishes' | 'bar' | 'appliance' | 'disposable' | 'other';
+export type ToolKind =
+  'cookware' | 'bakeware' | 'utensil' | 'dishes' | 'bar' | 'appliance' | 'disposable' | 'other';
 
 export interface Tool {
   id: string;
@@ -370,7 +378,13 @@ export interface ToolNeed {
   status: ToolStatus;
   readyAt: string | null;
   /** The tool and what can be used instead, each with its status; `using` is the one to use. */
-  options: Array<{ toolId: string; name: string; icon: string; status: ToolStatus; readyAt: string | null }>;
+  options: Array<{
+    toolId: string;
+    name: string;
+    icon: string;
+    status: ToolStatus;
+    readyAt: string | null;
+  }>;
   using: string;
 }
 
@@ -416,7 +430,15 @@ export interface FoodOverview {
   kitchen: { name: string; currency: string };
   stock: {
     products: number;
-    expiring: Array<{ lotId: string; productId: string; name: string; icon: string; quantity: number; unit: BaseUnit; expiresOn: string }>;
+    expiring: Array<{
+      lotId: string;
+      productId: string;
+      name: string;
+      icon: string;
+      quantity: number;
+      unit: BaseUnit;
+      expiresOn: string;
+    }>;
     expired: number;
     opened: Array<{
       lotId: string;
@@ -430,10 +452,23 @@ export interface FoodOverview {
       package: string;
       recipes: number;
     }>;
-    low: Array<{ productId: string; name: string; icon: string; total: number; minStock: number; unit: BaseUnit; level: Level | null }>;
+    low: Array<{
+      productId: string;
+      name: string;
+      icon: string;
+      total: number;
+      minStock: number;
+      unit: BaseUnit;
+      level: Level | null;
+    }>;
   };
   recipes: { total: number; ready: number; favorites: number };
-  shopping: { open: number; inCart: number; stores: Array<{ id: string; name: string; tone: StoreTone; open: number }>; anyStore: number };
+  shopping: {
+    open: number;
+    inCart: number;
+    stores: Array<{ id: string; name: string; tone: StoreTone; open: number }>;
+    anyStore: number;
+  };
   meals: { today: Meal[]; upcoming: Meal[]; plannedThisWeek: number };
 }
 
@@ -448,7 +483,13 @@ export interface IngredientInput {
   lotId?: string | null;
   partId?: string | null;
   variant?: string;
-  or?: Array<{ productId?: string; name: string; amount?: number | null; unit?: string | null; variant?: string }>;
+  or?: Array<{
+    productId?: string;
+    name: string;
+    amount?: number | null;
+    unit?: string | null;
+    variant?: string;
+  }>;
 }
 
 export interface RecipeInput {

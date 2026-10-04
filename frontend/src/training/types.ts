@@ -27,6 +27,25 @@ export interface Person {
   id: string;
   name: string;
   surname: string;
+  gender?: 'female' | 'male' | 'other' | null;
+  birthDate?: string | null;
+  age?: number | null;
+  heightCm?: number | null;
+  avatarUrl?: string | null;
+}
+
+/** A piece of equipment's own part: a band with its resistance, a grip of the bar. */
+export interface Piece {
+  name: string;
+  kg: number | null;
+}
+
+/** A way to do an exercise: its own variation, or a piece of the equipment it uses. */
+export interface ExerciseOption {
+  name: string;
+  kg: number | null;
+  from: 'exercise' | 'equipment';
+  equipment?: string;
 }
 
 export interface EquipmentPreset {
@@ -37,6 +56,7 @@ export interface EquipmentPreset {
   pairs?: boolean;
   weights?: number[];
   note?: string;
+  pieces?: Piece[];
 }
 
 export interface Equipment {
@@ -49,10 +69,13 @@ export interface Equipment {
   pairs: boolean;
   count: number;
   note: string;
+  variants: Piece[];
 }
 
 export interface Exercise {
   id: string;
+  /** Whose library it is in. */
+  userId: string;
   preset: string | null;
   name: string;
   category: ExerciseCategory;
@@ -73,6 +96,8 @@ export interface Exercise {
   icon: string;
   steps: string[];
   note: string;
+  /** Its own ways: grips, stances, positions. */
+  variants: string[];
   archived: boolean;
 }
 
@@ -80,6 +105,7 @@ export interface LibraryExercise extends Exercise {
   available: boolean;
   uses: string[] | null;
   weights: Array<{ kg: number; pair: boolean }>;
+  options: ExerciseOption[];
   pinned: boolean;
 }
 
@@ -92,6 +118,8 @@ export interface WorkoutItem {
   weight?: number | null;
   rest?: number;
   note?: string;
+  /** Grip, stance or band. */
+  variant?: string;
   block?: Block;
 }
 
@@ -103,6 +131,7 @@ export interface LastTime {
     seconds: number | null;
     distance: number | null;
     side: 'left' | 'right' | null;
+    variant: string;
   }>;
 }
 
@@ -141,6 +170,7 @@ export interface TrainingSet {
   timeKnown: boolean;
   effort: number | null;
   note: string;
+  variant: string;
 }
 
 export interface WorkoutSummary {
@@ -173,6 +203,7 @@ export interface Workout extends WorkoutSummary {
 
 export interface Routine {
   id: string;
+  userId: string;
   name: string;
   note: string;
   items: WorkoutItem[];
@@ -284,6 +315,9 @@ export interface SetInput {
   side?: 'left' | 'right' | null;
   effort?: number | null;
   note?: string;
+  variant?: string;
+  /** The app's id for the set: sent twice, logged once. */
+  clientId?: string;
   at?: string;
   day?: string;
   itemIndex?: number;

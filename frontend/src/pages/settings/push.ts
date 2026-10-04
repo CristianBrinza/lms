@@ -20,7 +20,11 @@ export type PushSupport = 'ok' | 'install-first' | 'unsupported';
 export function pushSupport(): PushSupport {
   const platform = currentPlatform();
   const apple = platform.os === 'ios' || platform.os === 'ipados';
-  const apis = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const apis =
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window &&
+    'Notification' in window;
   if (apple && !platform.standalone) return 'install-first';
   return apis ? 'ok' : 'unsupported';
 }
@@ -31,7 +35,10 @@ async function registration(timeoutMs = 4000): Promise<ServiceWorkerRegistration
   const existing = await navigator.serviceWorker.getRegistration();
   if (existing?.active) return existing;
   // Installing right now: wait for it, but not forever.
-  return Promise.race([navigator.serviceWorker.ready, new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs))]);
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
+  ]);
 }
 
 /** This device's subscription, if reminders are on here. */
@@ -47,15 +54,23 @@ export class PushError extends Error {}
 /** Asks for permission and subscribes this device. Throws PushError with a sentence to show. */
 export async function subscribeDevice(publicKey: string): Promise<PushSubscription> {
   const permission = await Notification.requestPermission();
-  if (permission === 'denied') throw new PushError('Notifications are blocked for LMS. Allow them in the browser’s or the phone’s settings.');
+  if (permission === 'denied')
+    throw new PushError(
+      'Notifications are blocked for LMS. Allow them in the browser’s or the phone’s settings.',
+    );
   if (permission !== 'granted') throw new PushError('Notifications weren’t allowed.');
   const reg = await registration();
-  if (!reg) throw new PushError('The installed app is needed for notifications. Open LMS from the Home Screen or the published site.');
+  if (!reg)
+    throw new PushError(
+      'The installed app is needed for notifications. Open LMS from the Home Screen or the published site.',
+    );
   const key = urlBase64ToUint8Array(publicKey);
   const existing = await reg.pushManager.getSubscription();
   if (existing) {
     // Made with another server key: replace it.
-    const same = existing.options.applicationServerKey && sameBytes(new Uint8Array(existing.options.applicationServerKey), key);
+    const same =
+      existing.options.applicationServerKey &&
+      sameBytes(new Uint8Array(existing.options.applicationServerKey), key);
     if (same) return existing;
     await existing.unsubscribe();
   }

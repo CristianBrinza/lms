@@ -1,4 +1,10 @@
-import { HomeIcon, PersonIcon, SettingsIcon, UtilitiesIcon, type IconComponent } from '@/components/ui/icons';
+import {
+  HomeIcon,
+  PersonIcon,
+  SettingsIcon,
+  UtilitiesIcon,
+  type IconComponent,
+} from '@/components/ui/icons';
 
 export interface NavItem {
   to: string;
@@ -22,4 +28,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
 ];
 
 export const isActivePath = (pathname: string, item: NavItem) =>
-  pathname === item.to || pathname.startsWith(`${item.to}/`) || Boolean(item.alsoActive?.test(pathname));
+  pathname === item.to ||
+  pathname.startsWith(`${item.to}/`) ||
+  Boolean(item.alsoActive?.test(pathname));

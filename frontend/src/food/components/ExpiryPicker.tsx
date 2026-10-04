@@ -28,21 +28,38 @@ export function ExpiryPicker({
 }) {
   const id = useId();
   const chip = (active: boolean) =>
-    cx('press inline-flex h-10 shrink-0 items-center gap-1.5 rounded-pill px-3.5 text-sm font-semibold transition-colors', active ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100');
+    cx(
+      'press inline-flex h-10 shrink-0 items-center gap-1.5 rounded-pill px-3.5 text-sm font-semibold transition-colors',
+      active ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+    );
   const matched = QUICK.find((q) => addDays(today, q.days) === value);
   return (
     <fieldset className="flex min-w-0 flex-col gap-2.5">
       <legend className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">{label}</legend>
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
-        <button type="button" aria-pressed={value === null} onClick={() => onChange(null)} className={chip(value === null)}>
+        <button
+          type="button"
+          aria-pressed={value === null}
+          onClick={() => onChange(null)}
+          className={chip(value === null)}
+        >
           No date
         </button>
         {QUICK.map((q) => (
-          <button key={q.days} type="button" aria-pressed={matched === q} onClick={() => onChange(addDays(today, q.days))} className={chip(matched === q)}>
+          <button
+            key={q.days}
+            type="button"
+            aria-pressed={matched === q}
+            onClick={() => onChange(addDays(today, q.days))}
+            className={chip(matched === q)}
+          >
             {q.label}
           </button>
         ))}
-        <label htmlFor={id} className={cx(chip(Boolean(value && !matched)), 'relative cursor-pointer')}>
+        <label
+          htmlFor={id}
+          className={cx(chip(Boolean(value && !matched)), 'relative cursor-pointer')}
+        >
           <CalendarIcon fontSize="inherit" className="text-base" />
           Pick
           <input
@@ -55,7 +72,9 @@ export function ExpiryPicker({
           />
         </label>
       </div>
-      <p className="text-sm font-medium text-ink-600">{value ? `Keeps until ${dayLong(value)}` : 'No best-before date'}</p>
+      <p className="text-sm font-medium text-ink-600">
+        {value ? `Keeps until ${dayLong(value)}` : 'No best-before date'}
+      </p>
     </fieldset>
   );
 }

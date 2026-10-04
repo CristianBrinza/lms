@@ -5,7 +5,10 @@ import { ChevronRightIcon } from '@/components/ui/icons';
 /** The learning app's row end: a small dark circle holding the chevron. */
 export function ChevronCircle() {
   return (
-    <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink-900 text-[1.25rem] text-white">
+    <span
+      aria-hidden="true"
+      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-ink-900 text-[1.25rem] text-white"
+    >
       <ChevronRightIcon fontSize="inherit" />
     </span>
   );
@@ -28,7 +31,15 @@ interface ThumbRowProps {
  * The learning app's lesson row: a raised rounded block with a round picture on the left, a title
  * that may run to two lines, and a chevron. The whole row is the link.
  */
-export function ThumbRow({ to, thumb, thumbClassName, title, detail, trailing, className }: ThumbRowProps) {
+export function ThumbRow({
+  to,
+  thumb,
+  thumbClassName,
+  title,
+  detail,
+  trailing,
+  className,
+}: ThumbRowProps) {
   return (
     <Link
       to={to}
@@ -38,10 +49,21 @@ export function ThumbRow({ to, thumb, thumbClassName, title, detail, trailing, c
         className,
       )}
     >
-      <span className={cx('flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full', thumbClassName)}>{thumb}</span>
+      <span
+        className={cx(
+          'flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full',
+          thumbClassName,
+        )}
+      >
+        {thumb}
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">{title}</span>
-        {detail ? <span className="mt-0.5 line-clamp-2 text-sm leading-snug text-ink-600">{detail}</span> : null}
+        <span className="line-clamp-2 text-[0.9375rem] font-semibold leading-snug text-ink-900">
+          {title}
+        </span>
+        {detail ? (
+          <span className="mt-0.5 line-clamp-2 text-sm leading-snug text-ink-600">{detail}</span>
+        ) : null}
       </span>
       {trailing ?? <ChevronCircle />}
     </Link>

@@ -8,7 +8,15 @@ export interface User {
   role: Role;
   mustChangePassword: boolean;
   createdAt: string;
+  gender: Gender | null;
+  /** YYYY-MM-DD */
+  birthDate: string | null;
+  heightCm: number | null;
+  /** The picture's address, or null. */
+  avatarUrl: string | null;
 }
+
+export type Gender = 'female' | 'male' | 'other';
 
 export interface AdminUser extends User {
   isActive: boolean;

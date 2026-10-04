@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
-const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** Counts from 0 to `value` once (a number arriving, not a jump); shown at once with reduced motion. */
 export function useCountUp(value: number, duration = 700): number {

@@ -5,7 +5,6 @@ import { PasswordSheet } from '@/components/common/PasswordSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import {
-  Avatar,
   Button,
   ListGroup,
   ListRowButton,
@@ -19,8 +18,11 @@ import {
   EmailIcon,
   LockIcon,
   LogoutIcon,
+  PersonIcon,
   SettingsIcon,
 } from '@/components/ui/icons';
+import { PhotoPicker, ProfileFieldsForm } from '@/components/common/ProfileFields';
+import { profileInput, profileValues } from '@/lib/profile';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { formatDate, fullName } from '@/lib/format';
 import { meApi } from '@/services/api/endpoints';
@@ -31,15 +33,15 @@ import { meApi } from '@/services/api/endpoints';
  */
 export default function ProfilePage() {
   const user = useUser();
-  const { logout } = useAuth();
-  const [open, setOpen] = useState<'details' | 'password' | null>(null);
+  const { logout, setUser } = useAuth();
+  const [open, setOpen] = useState<'details' | 'about' | 'password' | null>(null);
   const close = () => setOpen(null);
   return (
     <Screen tone="white">
       <PageHeader title="Profile" />
       <div className="gutter-x mx-auto mt-4 flex max-w-xl flex-col items-center lg:max-w-2xl lg:px-8 xl:mx-0 xl:mt-8 xl:grid xl:max-w-5xl xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
         <div className="flex w-full flex-col items-center xl:rounded-[2rem] xl:bg-white xl:p-7 xl:shadow-[var(--shadow-card)] xl:ring-1 xl:ring-inset xl:ring-ink-100/70">
-          <Avatar person={user} size="xl" className="size-24 text-2xl ring-4" />
+          <PhotoPicker person={user} onSave={(image) => meApi.setAvatar(image).then(setUser)} />
           <h2 className="mt-4 text-center text-h2 font-bold">{fullName(user)}</h2>
           <p className="mt-1 text-center text-sm text-ink-600">{user.email}</p>
 
@@ -68,6 +70,12 @@ export default function ProfilePage() {
             onClick={() => setOpen('details')}
           />
           <ListRowButton
+            icon={PersonIcon}
+            label="About you"
+            detail={aboutLine(user)}
+            onClick={() => setOpen('about')}
+          />
+          <ListRowButton
             icon={LockIcon}
             label="Password"
             detail="Change it any time"
@@ -90,6 +98,14 @@ export default function ProfilePage() {
 
       <Sheet open={open === 'details'} onClose={close} title="Your details">
         <NameForm onDone={close} />
+      </Sheet>
+      <Sheet
+        open={open === 'about'}
+        onClose={close}
+        title="About you"
+        description="Used for training plans and health numbers."
+      >
+        <AboutForm onDone={close} />
       </Sheet>
       <PasswordSheet open={open === 'password'} onClose={close} />
     </Screen>
@@ -155,5 +171,45 @@ function NameForm({ onDone }: { onDone: () => void }) {
         Save details
       </Button>
     </form>
+  );
+}
+
+const GENDER_WORD = { female: 'Female', male: 'Male', other: 'Other' } as const;
+
+function aboutLine(user: {
+  gender: keyof typeof GENDER_WORD | null;
+  birthDate: string | null;
+  heightCm: number | null;
+}): string {
+  const parts = [
+    user.gender ? GENDER_WORD[user.gender] : null,
+    user.birthDate ? `born ${formatDate(user.birthDate)}` : null,
+    user.heightCm ? `${user.heightCm} cm` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Gender, birth date, height';
+}
+
+function AboutForm({ onDone }: { onDone: () => void }) {
+  const user = useUser();
+  const { setUser } = useAuth();
+  const [value, setValue] = useState(() => profileValues(user));
+  const save = useMutation({
+    mutationFn: () => meApi.update(profileInput(value)),
+    onSuccess: (updated) => {
+      setUser(updated);
+      toast.success('Saved');
+      onDone();
+    },
+  });
+  return (
+    <div className="flex flex-col gap-4">
+      <ProfileFieldsForm value={value} onChange={setValue} />
+      {save.error ? (
+        <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
+      ) : null}
+      <Button size="md" fullWidth loading={save.isPending} onClick={() => save.mutate()}>
+        Save
+      </Button>
+    </div>
   );
 }

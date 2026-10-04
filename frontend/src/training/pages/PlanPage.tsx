@@ -12,7 +12,14 @@ import {
   PlayIcon,
   SparkleIcon,
 } from '@/components/ui/icons';
-import { addDays, dayLong, localDate, relativeDay, weekStart } from '@/food/format';
+import {
+  addDays,
+  dayLong,
+  localDate,
+  relativeDay,
+  relativeDayInline,
+  weekStart,
+} from '@/food/format';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -191,7 +198,7 @@ export default function PlanPage() {
                             w.status === 'done'
                               ? isSelected
                                 ? 'bg-mint-200'
-                                : 'bg-mint-700'
+                                : 'bg-mint-800'
                               : w.status === 'skipped'
                                 ? 'bg-ink-300'
                                 : w.status === 'active'
@@ -213,7 +220,7 @@ export default function PlanPage() {
               <span className="size-1.5 rounded-full bg-ink-900" /> planned
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-1.5 rounded-full bg-mint-700" /> done
+              <span className="size-1.5 rounded-full bg-mint-800" /> done
             </span>
             <span className="flex items-center gap-1.5">
               <span className="size-3 rounded bg-mint-100" /> trained that day
@@ -281,7 +288,7 @@ function DayPanel({
         </ul>
       ) : (
         <p className="mt-3 rounded-2xl bg-ink-50 px-4 py-5 text-center text-sm text-ink-600">
-          {past ? 'Nothing planned that day.' : 'A free day. Add a workout, or keep it for rest.'}
+          {past ? 'Nothing planned that day.' : 'No workouts planned.'}
         </p>
       )}
       {!everyone ? (
@@ -312,7 +319,7 @@ function WorkoutCard({ workout, showPerson }: { workout: WorkoutSummary; showPer
       className={cx(
         'flex items-center gap-3 rounded-2xl p-2.5',
         workout.status === 'done'
-          ? 'bg-mint-50'
+          ? 'bg-mint-100'
           : workout.status === 'skipped'
             ? 'bg-ink-50 opacity-70'
             : 'bg-butter-100',
@@ -361,7 +368,10 @@ function Routines({ day }: { day: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { personId } = usePerson();
-  const routines = useQuery({ queryKey: trainingKeys.routines, queryFn: trainingApi.routines });
+  const routines = useQuery({
+    queryKey: trainingKeys.routines(personId),
+    queryFn: () => trainingApi.routines(personId),
+  });
   const [removing, setRemoving] = useState<Routine | null>(null);
   const plan = useMutation({
     mutationFn: (routine: Routine) =>
@@ -369,7 +379,7 @@ function Routines({ day }: { day: string }) {
     onSuccess: (workout) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
-      toast.success(`${workout.title}: planned for ${relativeDay(day).toLowerCase()}`, {
+      toast.success(`${workout.title}: planned for ${relativeDayInline(day)}`, {
         action: { label: 'Open', onClick: () => navigate(`/training/workouts/${workout.id}`) },
       });
     },
@@ -379,7 +389,7 @@ function Routines({ day }: { day: string }) {
     mutationFn: (id: string) => trainingApi.removeRoutine(id),
     onSuccess: () => {
       setRemoving(null);
-      void queryClient.invalidateQueries({ queryKey: trainingKeys.routines });
+      void queryClient.invalidateQueries({ queryKey: ['training', 'routines'] });
       toast.success('Routine deleted');
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -401,7 +411,7 @@ function Routines({ day }: { day: string }) {
       <h2 id="routines" className="text-[1.0625rem] font-bold">
         Saved routines
       </h2>
-      <p className="text-sm text-ink-600">Tap to plan on {relativeDay(day).toLowerCase()}.</p>
+      <p className="text-sm text-ink-600">Tap to plan on {relativeDayInline(day)}.</p>
       <ul className="mt-2 flex flex-col gap-1">
         {routines.data.map((r) => (
           <li key={r.id} className="flex items-center gap-2">

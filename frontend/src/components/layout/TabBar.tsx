@@ -66,9 +66,20 @@ export function TabBar() {
                     active ? 'scale-100 bg-cyan-100' : 'scale-90 bg-transparent',
                   )}
                 >
-                  <Icon key={active ? 'on' : 'off'} fontSize="inherit" className={cx('text-[1.375rem]', active && 'animate-pop')} />
+                  <Icon
+                    key={active ? 'on' : 'off'}
+                    fontSize="inherit"
+                    className={cx('text-[1.375rem]', active && 'animate-pop')}
+                  />
                 </span>
-                <span className={cx('text-[0.75rem] leading-none', active ? 'font-bold' : 'font-medium')}>{item.label}</span>
+                <span
+                  className={cx(
+                    'text-[0.75rem] leading-none',
+                    active ? 'font-bold' : 'font-medium',
+                  )}
+                >
+                  {item.label}
+                </span>
               </Link>
             </li>
           );

@@ -54,6 +54,7 @@ import {
 } from '../format';
 import { ExerciseIcon } from '../icons/TrainingIcon';
 import type { RecordKind, SetInput, TrainingSet, Workout } from '../types';
+import { WayChips } from '../components/WayChips';
 import {
   countdown,
   endsAt,
@@ -134,8 +135,20 @@ interface Best {
 interface Values {
   reps: number;
   weight: number | null;
+  /** Grip, stance or band: picked once, it stays for that exercise's next sets. */
+  variant: string | null;
   /** Kilometres as typed. */
   km: string;
+}
+
+/**
+ * Out of the player, back where it was opened from (the workout, the plan, Training's home): a
+ * step back in history, so Back from there never lands in the player again. Opened from a link
+ * with nothing behind it, the workout replaces the player instead.
+ */
+function leavePlayer(navigate: ReturnType<typeof useNavigate>, id: string) {
+  if ((window.history.state as { idx?: number } | null)?.idx) navigate(-1);
+  else navigate(`/training/workouts/${id}`, { replace: true });
 }
 
 const READY_SECONDS = 5;
@@ -163,6 +176,7 @@ function defaults(step: WorkStep): Values {
   return {
     reps: item.suggest?.reps ?? targetReps(step),
     weight: item.exercise.weighted ? (item.suggest?.weight ?? item.weight ?? null) : null,
+    variant: item.variant ?? null,
     km: String(Math.round((item.suggest?.distance ?? targetMetres(step)) / 10) / 100),
   };
 }
@@ -407,7 +421,7 @@ export default function PlayerPage() {
     queryKey: trainingKeys.workout(id),
     queryFn: () => trainingApi.workout(id),
   });
-  const close = () => navigate(`/training/workouts/${id}`);
+  const close = () => leavePlayer(navigate, id);
 
   if (workout.isPending) return <Loading />;
   if (workout.error || !workout.data) {
@@ -474,6 +488,7 @@ function Player({ workout }: { workout: Workout }) {
   const [now, setNow] = useState(() => Date.now());
   const lastLeft = useRef<number | null>(null);
   const [edits, setEdits] = useState<Record<string, Partial<Values>>>({});
+  const [ways, setWays] = useState<Record<number, string | null>>({});
   const [listOpen, setListOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [finishing, setFinishing] = useState<{ seconds: number } | null>(null);
@@ -491,14 +506,20 @@ function Player({ workout }: { workout: Workout }) {
   const at = progress(steps, run.index, done);
 
   const valuesFor = useCallback(
-    (s: WorkStep): Values => ({ ...defaults(s), ...edits[stepKey(s)] }),
-    [edits],
+    (s: WorkStep): Values => {
+      const base = { ...defaults(s), ...edits[stepKey(s)] };
+      return s.itemIndex in ways ? { ...base, variant: ways[s.itemIndex] ?? null } : base;
+    },
+    [edits, ways],
   );
-  const edit = (s: WorkStep, patch: Partial<Values>) =>
+  const edit = (s: WorkStep, patch: Partial<Values>) => {
+    if ('variant' in patch)
+      setWays((current) => ({ ...current, [s.itemIndex]: patch.variant ?? null }));
     setEdits((current) => ({
       ...current,
       [stepKey(s)]: { ...current[stepKey(s)], ...patch },
     }));
+  };
 
   // ---- saving sets: one at a time, in order, never twice
   const inflight = useRef<Promise<void> | null>(null);
@@ -577,9 +598,13 @@ function Player({ workout }: { workout: Workout }) {
   ) => {
     const key = stepKey(s);
     if (doneNow().has(key)) return;
+    const way = valuesFor(s).variant;
     const body: SetInput = {
       exerciseId: s.item.exerciseId,
       ...values,
+      ...(way ? { variant: way } : {}),
+      // The set's own id: a retry after a lost answer is recognised, never logged twice.
+      clientId: crypto.randomUUID(),
       side: s.side,
       itemIndex: s.itemIndex,
       round: s.round,
@@ -690,7 +715,7 @@ function Player({ workout }: { workout: Workout }) {
       const first = steps[current.index];
       say(`Get ready.${isWork(first) ? ` First: ${first.item.exercise.name}.` : ''}`);
     } else if (current.phase === 'play') stepStart(speechFor(steps, current.index));
-    else if (current.phase === 'end') say('That’s the whole workout. Well done.');
+    else if (current.phase === 'end') say('Workout finished.');
   });
   const announcedOnce = useRef(false);
   useEffect(() => {
@@ -841,7 +866,7 @@ function Player({ workout }: { workout: Workout }) {
     const current = runRef.current;
     if (current.phase !== 'start' && !current.paused) commit(pauseRun(current, Date.now()));
     hush();
-    navigate(`/training/workouts/${id}`);
+    leavePlayer(navigate, id);
   };
 
   // ---- what's on screen
@@ -978,7 +1003,7 @@ function Player({ workout }: { workout: Workout }) {
             className="press mx-auto mt-2 flex h-8 items-center gap-1.5 rounded-pill bg-white/10 px-3 text-xs font-semibold text-white/80"
           >
             <SyncIcon fontSize="inherit" className="text-sm" />
-            {plural(pending.length, 'set')} not saved yet — retrying
+            {plural(pending.length, 'set')} not saved yet, retrying
           </button>
         ) : null}
       </header>
@@ -986,7 +1011,13 @@ function Player({ workout }: { workout: Workout }) {
       <div className="gutter-x relative mt-2 flex min-h-0 flex-1 gap-5 md:px-6">
         <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           {main}
-          {run.paused && run.phase === 'play' ? <PausedCover onResume={togglePause} /> : null}
+          {run.paused && run.phase === 'play' ? (
+            <PausedCover
+              onResume={togglePause}
+              onLeave={() => setLeaving(true)}
+              elapsed={clock(secondsRun(run.active, now))}
+            />
+          ) : null}
         </main>
         <aside className="hidden min-h-0 w-[19rem] shrink-0 flex-col gap-3 pb-3 md:flex lg:w-[23rem]">
           {isWork(upNext) && run.phase !== 'end' ? (
@@ -1068,7 +1099,7 @@ function Player({ workout }: { workout: Workout }) {
         description={
           pending.length
             ? `${plural(pending.length, 'set')} not saved yet: stay until ${pending.length === 1 ? 'it is' : 'they are'}, or come back to it.`
-            : 'Your sets are saved. Come back to carry on where you were.'
+            : 'Your sets are saved. Open the workout again to continue from this step.'
         }
         footer={
           <div className="flex flex-col gap-2.5 md:flex-row-reverse">
@@ -1076,7 +1107,7 @@ function Player({ workout }: { workout: Workout }) {
               Leave
             </Button>
             <Button variant="tint" fullWidth onClick={() => setLeaving(false)}>
-              Keep going
+              Stay
             </Button>
           </div>
         }
@@ -1090,7 +1121,7 @@ function Player({ workout }: { workout: Workout }) {
         error={
           finish.error
             ? finish.error instanceof Error && finish.error.message === 'PENDING'
-              ? 'A set isn’t saved yet. Check the connection and try again.'
+              ? 'A set isn’t saved yet: no connection. Try again when you’re back online.'
               : errorMessage(finish.error)
             : null
         }
@@ -1297,14 +1328,29 @@ function Ring({
 const RING = 'w-[min(66vw,36dvh,18rem)] md:w-[min(40vw,46dvh,22rem)]';
 const HOLD_RING = 'w-[min(60vw,32dvh,16rem)] md:w-[min(36vw,42dvh,20rem)]';
 
-function PausedCover({ onResume }: { onResume: () => void }) {
+function PausedCover({
+  onResume,
+  onLeave,
+  elapsed,
+}: {
+  onResume: () => void;
+  onLeave: () => void;
+  elapsed: string;
+}) {
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 rounded-[2rem] bg-ink-900/90 text-center motion-safe:animate-fade-in">
       <p className="text-h1 font-bold">Paused</p>
-      <p className="text-white/60">The clock is stopped. Take your time.</p>
+      <p className="tabular text-white/60">Workout time {elapsed}</p>
       <DarkButton tone="butter" icon={PlayIcon} onClick={onResume}>
         Resume
       </DarkButton>
+      <button
+        type="button"
+        onClick={onLeave}
+        className="press h-11 rounded-full px-5 text-[0.9375rem] font-semibold text-white/80 hover:bg-white/10"
+      >
+        Leave workout
+      </button>
     </div>
   );
 }
@@ -1353,7 +1399,7 @@ function StartView({
           />
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.12em] text-butter-300">
-              {resuming ? 'Carry on with' : 'First up'}
+              {resuming ? 'Continue with' : 'First up'}
             </p>
             <h2 className="mt-1.5 text-h1 font-bold">{first.item.exercise.name}</h2>
             <p className="mt-1 text-white/65">
@@ -1364,7 +1410,7 @@ function StartView({
       ) : null}
       <p className="text-sm text-white/55">{facts.join(' · ')}</p>
       <DarkButton tone="butter" icon={PlayIcon} onClick={onStart} className="w-full max-w-sm">
-        {resuming ? 'Carry on' : 'Start'}
+        {resuming ? 'Continue' : 'Start'}
       </DarkButton>
     </div>
   );
@@ -1422,11 +1468,11 @@ function EndView({
       <span className="grid size-20 place-items-center rounded-full bg-mint-200 text-[2.5rem] text-mint-800">
         <CheckIcon fontSize="inherit" />
       </span>
-      <h2 className="text-h1 font-bold">{hasSets ? 'That’s everything' : 'Nothing logged yet'}</h2>
+      <h2 className="text-h1 font-bold">{hasSets ? 'All sets done' : 'Nothing logged yet'}</h2>
       <p className="max-w-xs text-white/65">
         {hasSets
-          ? 'Say how it felt and save the workout.'
-          : 'Every set was skipped. Go back to do some, or leave the workout for another day.'}
+          ? 'Rate how hard it was, then save.'
+          : 'No sets logged. Go back and log at least one set, or leave and plan it for another day.'}
       </p>
       {hasSets ? (
         <DarkButton
@@ -1679,6 +1725,22 @@ function WorkView({
             onToggle={onToggleTimer}
           />
         )}
+
+        {item.exercise.options.length && !logged ? (
+          <div className="w-full max-w-md">
+            <WayChips
+              tone="dark"
+              options={item.exercise.options}
+              value={values.variant}
+              onChange={(variant, option) =>
+                onEdit({
+                  variant: variant ?? null,
+                  ...(option && option.kg !== null ? { weight: option.kg } : {}),
+                })
+              }
+            />
+          </div>
+        ) : null}
 
         {weighted && !logged && measure !== 'distance' ? (
           <WeightChips
@@ -2069,7 +2131,7 @@ function Summary({ workout }: { workout: Workout }) {
           <span className="grid size-20 place-items-center rounded-full bg-mint-200 text-[2.5rem] text-mint-800">
             <CheckIcon fontSize="inherit" />
           </span>
-          <h1 className="text-h1 font-bold">Well done</h1>
+          <h1 className="text-h1 font-bold">Workout saved</h1>
           <p className="text-white/65">
             {workout.title}
             {feeling ? ` · felt ${feeling.label.toLowerCase()}` : ''}
@@ -2130,7 +2192,7 @@ function Summary({ workout }: { workout: Workout }) {
         <DarkButton
           tone="butter"
           icon={CheckIcon}
-          onClick={() => navigate('/training')}
+          onClick={() => navigate('/training', { replace: true })}
           className="w-full max-w-md"
         >
           Done

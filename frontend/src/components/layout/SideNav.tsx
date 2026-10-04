@@ -44,7 +44,9 @@ export function SideNav() {
                   className={cx(
                     'press group flex flex-col items-center gap-1 rounded-2xl py-2 text-[0.75rem] font-semibold',
                     'lg:h-12 lg:flex-row lg:gap-3 lg:px-4 lg:py-0 lg:text-[0.9375rem]',
-                    active ? 'text-ink-900 lg:bg-cyan-100' : 'text-ink-500 hover:text-ink-900 lg:text-ink-600 lg:hover:bg-ink-50',
+                    active
+                      ? 'text-ink-900 lg:bg-cyan-100'
+                      : 'text-ink-500 hover:text-ink-900 lg:text-ink-600 lg:hover:bg-ink-50',
                   )}
                 >
                   {/* On the rail the pill hugs the icon, as in the bottom menu; the full menu fills the row instead. */}
@@ -56,7 +58,9 @@ export function SideNav() {
                   >
                     <Icon fontSize="inherit" className="text-[1.4rem]" />
                   </span>
-                  <span className={cx('leading-none lg:leading-normal', active && 'font-bold')}>{item.label}</span>
+                  <span className={cx('leading-none lg:leading-normal', active && 'font-bold')}>
+                    {item.label}
+                  </span>
                 </Link>
               </li>
             );

@@ -26,7 +26,15 @@ interface PageHeaderProps {
 }
 
 /** A screen's top: round back button and actions, then a big tight title (both references). */
-export function PageHeader({ title, subtitle, back, actions, centered, compact, className }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  subtitle,
+  back,
+  actions,
+  centered,
+  compact,
+  className,
+}: PageHeaderProps) {
   const navigate = useNavigate();
   const goBack = () => {
     if (back && window.history.state?.idx > 0) navigate(-1);
@@ -34,11 +42,29 @@ export function PageHeader({ title, subtitle, back, actions, centered, compact, 
   };
   if (compact) {
     return (
-      <header className={cx('gutter-x flex min-h-12 items-center gap-2.5 pt-[calc(var(--safe-top)+0.625rem)] md:px-5 md:pt-4 lg:px-8 lg:pt-6', className)}>
-        {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" size="sm" onClick={goBack} className="shrink-0" /> : null}
+      <header
+        className={cx(
+          'gutter-x flex min-h-12 items-center gap-2.5 pt-[calc(var(--safe-top)+0.625rem)] md:px-5 md:pt-4 lg:px-8 lg:pt-6',
+          className,
+        )}
+      >
+        {back ? (
+          <IconButton
+            icon={ArrowBackIcon}
+            label="Back"
+            variant="outline"
+            size="sm"
+            onClick={goBack}
+            className="shrink-0"
+          />
+        ) : null}
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-[-0.025em] lg:text-[1.75rem]">{title}</h1>
-          {subtitle ? <p className="truncate text-[0.8125rem] font-medium text-ink-600">{subtitle}</p> : null}
+          <h1 className="truncate text-[1.375rem] font-bold leading-tight tracking-[-0.025em] lg:text-[1.75rem]">
+            {title}
+          </h1>
+          {subtitle ? (
+            <p className="truncate text-[0.8125rem] font-medium text-ink-600">{subtitle}</p>
+          ) : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
@@ -46,24 +72,46 @@ export function PageHeader({ title, subtitle, back, actions, centered, compact, 
   }
   if (centered) {
     return (
-      <header className={cx('gutter-x grid grid-cols-[minmax(3rem,auto)_minmax(0,1fr)_minmax(3rem,auto)] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] md:px-6 md:pt-5 lg:px-8 lg:pt-7', className)}>
-        {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} /> : <span />}
+      <header
+        className={cx(
+          'gutter-x grid grid-cols-[minmax(3rem,auto)_minmax(0,1fr)_minmax(3rem,auto)] items-center gap-2 pt-[calc(var(--safe-top)+1rem)] md:px-6 md:pt-5 lg:px-8 lg:pt-7',
+          className,
+        )}
+      >
+        {back ? (
+          <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} />
+        ) : (
+          <span />
+        )}
         <h1 className="truncate text-center text-[1.0625rem] font-semibold">{title}</h1>
         <div className="flex justify-end">{actions}</div>
       </header>
     );
   }
   return (
-    <header className={cx('gutter-x pt-[calc(var(--safe-top)+1rem)] md:px-6 md:pt-5 lg:px-8 lg:pt-7', className)}>
+    <header
+      className={cx(
+        'gutter-x pt-[calc(var(--safe-top)+1rem)] md:px-6 md:pt-5 lg:px-8 lg:pt-7',
+        className,
+      )}
+    >
       {back || actions ? (
         <div className="flex min-h-12 items-center justify-between gap-3">
-          {back ? <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} /> : <span />}
+          {back ? (
+            <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} />
+          ) : (
+            <span />
+          )}
           {actions ? <div className="flex items-center gap-2.5">{actions}</div> : null}
         </div>
       ) : null}
       <div className={cx(back || actions ? 'mt-5' : 'mt-3')}>
         <h1 className="text-h1 font-bold lg:text-[2.5rem]">{title}</h1>
-        {subtitle ? <p className="mt-1.5 max-w-xl text-[0.9375rem] font-medium text-ink-600 [overflow-wrap:anywhere]">{subtitle}</p> : null}
+        {subtitle ? (
+          <p className="mt-1.5 max-w-xl text-[0.9375rem] font-medium text-ink-600 [overflow-wrap:anywhere]">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
     </header>
   );

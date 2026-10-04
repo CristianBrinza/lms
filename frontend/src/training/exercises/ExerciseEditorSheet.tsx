@@ -1,3 +1,5 @@
+import { TagsInput } from '../components/TagsInput';
+import { usePerson } from '../person';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Button, IconButton, Sheet, Switch, TextField, toast } from '@/components/ui';
@@ -24,6 +26,22 @@ const MAX_STEPS = 10;
 const MAX_MAIN = 6;
 const MAX_HELPERS = 8;
 
+/** Common ways, per kind, to tap in rather than type. */
+const WAY_SUGGESTIONS: Record<ExerciseCategory, string[]> = {
+  strength: [
+    'Wide grip',
+    'Close grip',
+    'Single arm',
+    'Single leg',
+    'Slow down, 3 s',
+    'Pause at the bottom',
+  ],
+  core: ['Knees bent', 'Legs straight', 'Arms straight', 'With a twist'],
+  cardio: ['Easy', 'Intervals', 'Fast'],
+  mobility: ['Seated', 'Standing', 'Lying'],
+  stretch: ['Seated', 'Standing', 'Lying'],
+};
+
 interface Draft {
   name: string;
   category: ExerciseCategory;
@@ -42,6 +60,7 @@ interface Draft {
   icon: string;
   steps: string[];
   note: string;
+  variants: string[];
 }
 
 const blank = (): Draft => ({
@@ -62,6 +81,7 @@ const blank = (): Draft => ({
   icon: '',
   steps: [''],
   note: '',
+  variants: [],
 });
 
 const fromExercise = (e: Exercise): Draft => ({
@@ -82,6 +102,7 @@ const fromExercise = (e: Exercise): Draft => ({
   icon: e.icon,
   steps: e.steps.length ? e.steps : [''],
   note: e.note,
+  variants: e.variants,
 });
 
 /**
@@ -102,6 +123,7 @@ export function ExerciseEditorSheet({
   onSaved?: (exercise: Exercise) => void;
 }) {
   const queryClient = useQueryClient();
+  const { personId } = usePerson();
   const equipment = useQuery({
     queryKey: trainingKeys.equipment,
     queryFn: trainingApi.equipment,
@@ -141,6 +163,7 @@ export function ExerciseEditorSheet({
           rest: draft.rest,
           steps,
           note: draft.note.trim(),
+          variants: draft.variants,
         });
       const body: ExerciseInput = {
         name: draft.name.trim(),
@@ -158,10 +181,11 @@ export function ExerciseEditorSheet({
         ...(draft.icon ? { icon: draft.icon } : {}),
         steps,
         note: draft.note.trim(),
+        variants: draft.variants,
       };
       return exercise
         ? trainingApi.updateExercise(exercise.id, body)
-        : trainingApi.createExercise(body);
+        : trainingApi.createExercise({ ...body, userId: personId });
     },
     onSuccess: (saved) => {
       haptic('success');
@@ -351,8 +375,8 @@ export function ExerciseEditorSheet({
                   label="Noise"
                   value={draft.impact}
                   options={[
-                    ['low', 'Quiet'],
-                    ['high', 'Jumps — loud'],
+                    ['low', 'Low impact'],
+                    ['high', 'High impact (jumps)'],
                   ]}
                   onChange={(v) => set('impact', v)}
                 />
@@ -382,7 +406,7 @@ export function ExerciseEditorSheet({
               <Field label="Equipment needed">
                 <div className="flex flex-col gap-2">
                   {!draft.equipment.length ? (
-                    <p className="text-sm text-ink-600">Nothing — it can be done anywhere.</p>
+                    <p className="text-sm text-ink-600">No equipment needed.</p>
                   ) : null}
                   {draft.equipment.map((alt, index) => (
                     <div key={index}>
@@ -562,6 +586,20 @@ export function ExerciseEditorSheet({
               Add a step
             </Button>
           ) : null}
+        </Field>
+
+        <Field label="Ways to do it">
+          <TagsInput
+            label="Ways to do it"
+            value={draft.variants}
+            onChange={(variants) => set('variants', variants)}
+            placeholder="Wide grip, single leg, arms straight…"
+            suggestions={WAY_SUGGESTIONS[draft.category]}
+          />
+          <p className="mt-1.5 text-xs text-ink-500">
+            Picked when planning or doing it, and kept with each set. Bands and the bar’s grips come
+            from the equipment.
+          </p>
         </Field>
 
         <TextField

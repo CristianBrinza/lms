@@ -11,7 +11,12 @@ import { MatchMark, PasswordStrength } from './PasswordStrength';
 /** Change your password, from Profile or Settings. Other devices sign out; this one stays. */
 export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
-    <Sheet open={open} onClose={onClose} title="Change password" description="Your other devices will be signed out. This one stays signed in.">
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Change password"
+      description="Your other devices will be signed out. This one stays signed in."
+    >
       {open ? <PasswordForm onDone={onClose} /> : null}
     </Sheet>
   );
@@ -48,8 +53,20 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
     save.mutate();
   };
   return (
-    <form key={shake} onSubmit={submit} noValidate className={`flex flex-col gap-4 ${shake ? 'animate-shake' : ''}`}>
-      <input type="email" name="username" autoComplete="username" value={user.email} readOnly hidden />
+    <form
+      key={shake}
+      onSubmit={submit}
+      noValidate
+      className={`flex flex-col gap-4 ${shake ? 'animate-shake' : ''}`}
+    >
+      <input
+        type="email"
+        name="username"
+        autoComplete="username"
+        value={user.email}
+        readOnly
+        hidden
+      />
       <PasswordField
         label="Current password"
         icon={LockIcon}
@@ -60,15 +77,38 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
         autoFocus
       />
       <div className="flex flex-col gap-2">
-        <PasswordField label="New password" icon={LockIcon} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} error={fields.newPassword} hint="At least 10 characters. A short sentence works well." />
+        <PasswordField
+          label="New password"
+          icon={LockIcon}
+          autoComplete="new-password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          error={fields.newPassword}
+          hint="At least 10 characters. A short sentence works well."
+        />
         <PasswordStrength password={next} />
       </div>
       <div className="flex flex-col gap-2">
-        <PasswordField label="Repeat new password" icon={LockIcon} autoComplete="new-password" value={repeat} onChange={(e) => setRepeat(e.target.value)} />
+        <PasswordField
+          label="Repeat new password"
+          icon={LockIcon}
+          autoComplete="new-password"
+          value={repeat}
+          onChange={(e) => setRepeat(e.target.value)}
+        />
         <MatchMark password={next} repeat={repeat} />
       </div>
-      {save.error && !fields.currentPassword && !fields.newPassword ? <p className="animate-rise text-sm font-medium text-danger-600">{errorMessage(save.error)}</p> : null}
-      <Button type="submit" fullWidth loading={save.isPending} disabled={!current || next.length < 10 || next !== repeat}>
+      {save.error && !fields.currentPassword && !fields.newPassword ? (
+        <p className="animate-rise text-sm font-medium text-danger-600">
+          {errorMessage(save.error)}
+        </p>
+      ) : null}
+      <Button
+        type="submit"
+        fullWidth
+        loading={save.isPending}
+        disabled={!current || next.length < 10 || next !== repeat}
+      >
         Change password
       </Button>
     </form>

@@ -1,5 +1,12 @@
 import { LogoTile } from '@/components/brand/Logo';
-import { ArrowBackIcon, ArrowForwardIcon, InstallDesktopIcon, LockIcon, MoreVertIcon, RefreshIcon } from '@/components/ui/icons';
+import {
+  ArrowBackIcon,
+  ArrowForwardIcon,
+  InstallDesktopIcon,
+  LockIcon,
+  MoreVertIcon,
+  RefreshIcon,
+} from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { HIGHLIGHT, highlightDelay } from './highlight';
 
@@ -21,7 +28,13 @@ export default function DesktopArt({ alt }: { alt: string }) {
           <div className="flex h-[1.9em] flex-1 items-center gap-[0.45em] rounded-pill bg-ink-100 pl-[0.7em] pr-[0.2em]">
             <LockIcon fontSize="inherit" className="text-[0.85em] text-ink-500" />
             <span className="h-[0.45em] w-[42%] rounded-pill bg-ink-300" />
-            <span className={cx('ml-auto grid size-[1.55em] place-items-center rounded-full bg-white text-ink-800', HIGHLIGHT)} style={highlightDelay(0)}>
+            <span
+              className={cx(
+                'ml-auto grid size-[1.55em] place-items-center rounded-full bg-white text-ink-800',
+                HIGHLIGHT,
+              )}
+              style={highlightDelay(0)}
+            >
               <InstallDesktopIcon fontSize="inherit" className="text-[0.9em]" />
             </span>
           </div>

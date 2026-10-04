@@ -10,6 +10,7 @@ import { Stepper } from '@/food/kitchenware/Stepper';
 import { trainingApi, trainingKeys } from '../api';
 import { distance as formatDistance, duration, kg, RECORD_LABEL, setLabel } from '../format';
 import { ExerciseIcon } from '../icons/TrainingIcon';
+import { WayChips } from './WayChips';
 import { usePerson } from '../person';
 import type { LibraryExercise, SetInput } from '../types';
 
@@ -188,6 +189,7 @@ function Amount({
   const [km, setKm] = useState(String((exercise.distance ?? 3000) / 1000));
   const [minutes, setMinutes] = useState('');
   const [weight, setWeight] = useState<number | null>(null);
+  const [variant, setVariant] = useState<string | undefined>(undefined);
   const [when, setWhen] = useState<When>('now');
   const [time, setTime] = useState(() =>
     new Date(Date.now() - 30 * 60_000).toTimeString().slice(0, 5),
@@ -198,7 +200,8 @@ function Amount({
     const base: SetInput = {
       userId: personId,
       exerciseId: exercise.id,
-      weight: exercise.weighted ? weight : null,
+      weight: exercise.weighted || variant ? weight : null,
+      ...(variant ? { variant } : {}),
     };
     if (exercise.measure === 'reps') Object.assign(base, { reps });
     else if (exercise.measure === 'time') Object.assign(base, { seconds });
@@ -331,6 +334,20 @@ function Amount({
           </label>
         </div>
       )}
+
+      {exercise.options.length ? (
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-semibold text-ink-700">How</legend>
+          <WayChips
+            options={exercise.options}
+            value={variant}
+            onChange={(name, option) => {
+              setVariant(name);
+              if (option && option.kg !== null) setWeight(option.kg);
+            }}
+          />
+        </fieldset>
+      ) : null}
 
       {exercise.weighted && exercise.weights.length ? (
         <fieldset>

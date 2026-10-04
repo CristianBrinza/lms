@@ -55,8 +55,15 @@ export function AddEquipmentSheet({
       );
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
       const preset = presets.find((p) => p.kind === item.kind);
-      if (preset?.weighted) {
-        toast.success(`${item.name} added`, { description: 'Which weights are there?' });
+      if (preset?.weighted || preset?.pieces?.length) {
+        // Straight on to what makes it this one: its weights, its bands, its grips.
+        toast.success(`${item.name} added`, {
+          description: preset.weighted
+            ? 'Which weights are there?'
+            : item.kind === 'bands'
+              ? 'Which bands, how strong?'
+              : 'Which grips does it have?',
+        });
         onClose();
         onOpen(item.id);
       } else if (item.kind === 'other') {

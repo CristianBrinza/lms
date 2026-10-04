@@ -43,7 +43,10 @@ export function Checkbox({ label, hint, className, id, onChange, ...rest }: Chec
         aria-hidden="true"
         className="flex size-7 shrink-0 items-center justify-center rounded-full text-[1.1rem] text-transparent shadow-[inset_0_0_0_2px_var(--color-ink-300)] transition-[background-color,box-shadow,color] duration-200 peer-checked:bg-butter-300 peer-checked:text-ink-900 peer-checked:shadow-none"
       >
-        <CheckIcon fontSize="inherit" className="scale-50 transition-[scale] duration-300 ease-(--ease-lift) group-has-[:checked]:scale-100" />
+        <CheckIcon
+          fontSize="inherit"
+          className="scale-50 transition-[scale] duration-300 ease-(--ease-lift) group-has-[:checked]:scale-100"
+        />
       </span>
     </label>
   );
