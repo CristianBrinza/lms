@@ -154,6 +154,23 @@ Food and training meet here, for each person:
   the day's burn is measured from intake and weight change.
 - The Shortcut can also write the day's eaten kcal into Apple Health (Dietary Energy).
 
+## Android: LMS Health
+
+`android/` is a small Kotlin app that reads Health Connect (web apps can't) and posts days and
+workouts to `POST /api/training/health` with a key, the same shape the iPhone Shortcut sends;
+it also writes the day's eaten kcal back to Health Connect. It is served from the site as
+`/lms-health.apk` (the Training → Health page links it). Rebuild after changing it:
+
+```sh
+cd android
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 ANDROID_HOME=/opt/homebrew/share/android-commandlinetools \
+  ./gradlew :app:testDebugUnitTest :app:assembleRelease
+cp app/build/outputs/apk/release/app-release.apk ../frontend/public/lms-health.apk
+```
+
+It is signed with this Mac's debug key; a build from another machine installs only after
+uninstalling the old one.
+
 ## Claude
 
 Nothing in LMS calls an AI. Instead, Claude (or any assistant) works on the kitchen and training

@@ -279,6 +279,38 @@ function Connect({ synced }: { synced: string | null }) {
       'press h-9 rounded-full px-3.5 text-sm font-semibold',
       active ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
     );
+  const keyStep = (
+    <>
+      {key ? (
+        <span className="mt-1 flex items-center gap-2 rounded-xl bg-butter-100 p-2">
+          <code className="min-w-0 flex-1 truncate text-xs">{key}</code>
+          <Button
+            size="sm"
+            variant="soft"
+            icon={ContentCopyIcon}
+            onClick={() => void copy(key, 'Key')}
+          >
+            Copy
+          </Button>
+        </span>
+      ) : (
+        <Button
+          size="sm"
+          variant="tint"
+          className="mt-1"
+          loading={make.isPending}
+          onClick={() => make.mutate()}
+        >
+          Make a key
+        </Button>
+      )}
+      {key ? (
+        <span className="mt-1 block text-xs text-ink-600">
+          Shown once. It can be revoked in Settings → Claude access.
+        </span>
+      ) : null}
+    </>
+  );
   return (
     <section
       aria-labelledby="connect"
@@ -305,37 +337,7 @@ function Connect({ synced }: { synced: string | null }) {
             every evening it reads today’s numbers and sends them here.
           </p>
           <ol className="flex list-decimal flex-col gap-2 pl-5">
-            <li>
-              A key for the phone:{' '}
-              {key ? (
-                <span className="mt-1 flex items-center gap-2 rounded-xl bg-butter-100 p-2">
-                  <code className="min-w-0 flex-1 truncate text-xs">{key}</code>
-                  <Button
-                    size="sm"
-                    variant="soft"
-                    icon={ContentCopyIcon}
-                    onClick={() => void copy(key, 'Key')}
-                  >
-                    Copy
-                  </Button>
-                </span>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="tint"
-                  className="mt-1"
-                  loading={make.isPending}
-                  onClick={() => make.mutate()}
-                >
-                  Make a key
-                </Button>
-              )}
-              {key ? (
-                <span className="mt-1 block text-xs text-ink-600">
-                  Shown once. It can be revoked in Settings → Claude access.
-                </span>
-              ) : null}
-            </li>
+            <li>A key for the phone: {keyStep}</li>
             <li>
               Shortcuts → Automation → New → <b>Time of Day</b> 23:30, Daily, <b>Run Immediately</b>{' '}
               → New Blank Automation.
@@ -377,11 +379,27 @@ function Connect({ synced }: { synced: string | null }) {
       ) : (
         <div className="mt-3 flex flex-col gap-2 text-sm text-ink-800">
           <p className="text-ink-600">
-            On Android, Health Connect opens only to installed apps. The LMS companion app (an APK,
-            no Play Store) asks for Health Connect access once and sends steps, sleep, heart rate,
-            weight and workouts here every few hours. It uses the same address and a key from here.
+            Health Connect opens only to installed apps, so a small LMS Health app does it: steps,
+            sleep, heart rate, weight and workouts come here every 3 hours, and what you ate here
+            goes back to Health Connect.
           </p>
-          <p className="rounded-xl bg-lav-100 p-3">Being built. Meanwhile, type values in below.</p>
+          <ol className="flex list-decimal flex-col gap-2 pl-5">
+            <li>
+              <a className="font-semibold text-lav-800 underline" href="/lms-health.apk" download>
+                Download LMS Health
+              </a>{' '}
+              (3 MB) on the phone and open it. Android asks to allow installing from the browser
+              once.
+            </li>
+            <li>A key for the phone: {keyStep}</li>
+            <li>
+              In the app: paste the key, <b>Connect Health Connect</b> and allow what to share
+              (including <b>access in the background</b>), then <b>Sync now</b>.
+            </li>
+            <li>
+              Turn on <b>Sync every 3 hours</b>. This page shows the days as they come in.
+            </li>
+          </ol>
         </div>
       )}
     </section>
