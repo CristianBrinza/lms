@@ -62,6 +62,7 @@ import {
   listShopping,
   listTrips,
   removeShoppingItem,
+  undoTrip,
   updateShoppingItem,
 } from '../food/shopping';
 import {
@@ -161,7 +162,13 @@ const lines = (items: Recipe['ingredients']) =>
     ...(i.optional ? { optional: true } : {}),
     ...(i.inStock !== null ? { inStock: i.inStock, baseUnit: i.baseUnit, enough: i.enough } : {}),
     ...(i.reservedFor ? { reservedFor: `${i.reservedFor.title} (${i.reservedFor.date})` } : {}),
-    ...(i.warnings.length ? { warnings: i.warnings.map((w) => `${w.kind === 'allergy' ? 'ALLERGY' : 'avoids'}: ${w.person}`) } : {}),
+    ...(i.warnings.length
+      ? {
+          warnings: i.warnings.map(
+            (w) => `${w.kind === 'allergy' ? 'ALLERGY' : 'avoids'}: ${w.person}`,
+          ),
+        }
+      : {}),
   }));
 
 const recipeBrief = (r: Recipe) => ({
@@ -175,7 +182,13 @@ const recipeBrief = (r: Recipe) => ({
   have: `${r.availability.have}/${r.availability.total}`,
   missing: r.availability.missing.map((m) => m.name),
   usesSoonExpiring: r.availability.useSoon,
-  ...(r.availability.warnings.length ? { warnings: r.availability.warnings.map((w) => `${w.person} ${w.kind === 'allergy' ? 'is ALLERGIC to' : 'avoids'} ${w.item}`) } : {}),
+  ...(r.availability.warnings.length
+    ? {
+        warnings: r.availability.warnings.map(
+          (w) => `${w.person} ${w.kind === 'allergy' ? 'is ALLERGIC to' : 'avoids'} ${w.item}`,
+        ),
+      }
+    : {}),
   timesCooked: r.timesCooked,
   lastCooked: r.lastCooked,
 });
@@ -243,18 +256,29 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'kitchen_people',
     title: 'Who eats here',
-    description: 'The people sharing this kitchen and their allergies and foods they avoid. Check before suggesting or planning recipes.',
+    description:
+      'The people sharing this kitchen and their allergies and foods they avoid. Check before suggesting or planning recipes.',
     access: 'read',
     input: z.object({}),
     run: async ({ ctx }) => ({
-      people: (await kitchenPeople(ctx)).map((p) => ({ id: p.id, name: `${p.name} ${p.surname}`.trim() })),
-      restrictions: (await listRestrictions(ctx)).map((r) => ({ id: r.id, person: r.person, kind: r.kind, food: r.productName ?? `any ${r.category}`, note: r.note || undefined })),
+      people: (await kitchenPeople(ctx)).map((p) => ({
+        id: p.id,
+        name: `${p.name} ${p.surname}`.trim(),
+      })),
+      restrictions: (await listRestrictions(ctx)).map((r) => ({
+        id: r.id,
+        person: r.person,
+        kind: r.kind,
+        food: r.productName ?? `any ${r.category}`,
+        note: r.note || undefined,
+      })),
     }),
   }),
   tool({
     name: 'set_restriction',
     title: 'Record an allergy or dislike',
-    description: 'Someone in the kitchen is allergic to (allergy) or doesn’t eat (avoid) an item by name, or a whole category (fish, dairy, meat…).',
+    description:
+      'Someone in the kitchen is allergic to (allergy) or doesn’t eat (avoid) an item by name, or a whole category (fish, dairy, meat…).',
     access: 'write',
     input: RestrictionInput,
     run: async ({ ctx }, args) => addRestriction(ctx, args),
@@ -389,7 +413,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'list_kitchenware',
     title: 'Kitchenware',
-    description: 'Pots, pans, bowls, glasses and other things the kitchen counts: how many, how many are clean, dirty or in the dishwasher (and until when).',
+    description:
+      'Pots, pans, bowls, glasses and other things the kitchen counts: how many, how many are clean, dirty or in the dishwasher (and until when).',
     access: 'read',
     input: z.object({}),
     run: async ({ ctx }) => ({ tools: await listTools(ctx) }),
@@ -400,13 +425,20 @@ export const TOOLS: Tool[] = [
     description:
       'Adds kitchenware by name (or changes it with toolId): how many, kind, where it is kept. used: n marks that many dirty; remove: true takes it off.',
     access: 'write',
-    input: ToolInput.extend({ toolId: idField.optional(), used: z.number().int().min(1).max(50).optional(), remove: z.boolean().optional() }),
+    input: ToolInput.extend({
+      toolId: idField.optional(),
+      used: z.number().int().min(1).max(50).optional(),
+      remove: z.boolean().optional(),
+    }),
     run: async ({ ctx }, { toolId, used, remove, ...input }) => {
       if (toolId && remove) {
         await archiveTool(ctx, toolId);
         return { removed: toolId };
       }
-      let saved = toolId || input.name ? await saveTool(ctx, { ...input, ...(toolId ? { id: toolId } : {}) }) : null;
+      let saved =
+        toolId || input.name
+          ? await saveTool(ctx, { ...input, ...(toolId ? { id: toolId } : {}) })
+          : null;
       if (used && saved) saved = await markDirty(ctx, saved.id, used);
       if (!saved) throw new AppError(400, 'VALIDATION', 'Say which: toolId or name');
       return { tool: saved };
@@ -415,7 +447,8 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'wash_kitchenware',
     title: 'Wash the dishes',
-    description: 'how: hand (clean now) or machine (clean when the dishwasher is done). toolIds omitted: everything dirty.',
+    description:
+      'how: hand (clean now) or machine (clean when the dishwasher is done). toolIds omitted: everything dirty.',
     access: 'write',
     input: WashInput,
     run: async ({ ctx }, input) => ({ tools: await wash(ctx, input) }),
@@ -568,8 +601,13 @@ export const TOOLS: Tool[] = [
     description:
       'For a planned meal’s line with alternatives (or), picks which one it takes: choice 0 the main item, 1… an alternative, null back to the first there is. The plan and the shopping needs follow.',
     access: 'write',
-    input: z.object({ mealId: idField, lineId: idField, choice: z.number().int().min(0).max(4).nullable() }),
-    run: async ({ ctx }, { mealId, lineId, choice }) => meal(await setLineChoice(ctx, mealId, lineId, choice)),
+    input: z.object({
+      mealId: idField,
+      lineId: idField,
+      choice: z.number().int().min(0).max(4).nullable(),
+    }),
+    run: async ({ ctx }, { mealId, lineId, choice }) =>
+      meal(await setLineChoice(ctx, mealId, lineId, choice)),
   }),
   tool({
     name: 'add_meal_part',
@@ -583,9 +621,14 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'update_meal_part',
     title: 'Change part of a meal',
-    description: 'Renames a part, changes its kind, or rescales it (its lines follow). Use remove: true to take it off the meal.',
+    description:
+      'Renames a part, changes its kind, or rescales it (its lines follow). Use remove: true to take it off the meal.',
     access: 'write',
-    input: MealPartPatchFields.partial().extend({ mealId: idField, partId: idField, remove: z.boolean().optional() }),
+    input: MealPartPatchFields.partial().extend({
+      mealId: idField,
+      partId: idField,
+      remove: z.boolean().optional(),
+    }),
     run: async ({ ctx }, { mealId, partId, remove, ...patch }) => {
       if (remove) return meal(await removeMealPart(ctx, mealId, partId));
       if (!Object.keys(patch).length) throw new AppError(400, 'VALIDATION', 'Nothing to change');
@@ -723,6 +766,15 @@ export const TOOLS: Tool[] = [
     access: 'read',
     input: z.object({}),
     run: async ({ ctx }) => listTrips(ctx, 20),
+  }),
+  tool({
+    name: 'undo_trip',
+    title: 'Undo a shop',
+    description:
+      'A shop finished by mistake: its items leave the kitchen and its lines go back into the cart. Refused once anything from it was used or opened.',
+    access: 'write',
+    input: z.object({ tripId: z.string().uuid() }),
+    run: async ({ ctx }, args) => undoTrip(ctx, args.tripId),
   }),
   // People (admin keys only): through the admin API, as the same key.
   tool({

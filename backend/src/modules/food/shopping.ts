@@ -4,7 +4,13 @@ import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import type { Category, FoodIcon } from './presets';
 import { findProduct, rememberVariant, resolveNamed, type Product } from './products';
-import type { CheckoutInput, Packages, ShoppingItemInput, ShoppingItemPatch, TripItemPatch } from './schemas';
+import type {
+  CheckoutInput,
+  Packages,
+  ShoppingItemInput,
+  ShoppingItemPatch,
+  TripItemPatch,
+} from './schemas';
 import { addStock, baseQuantity, updateLot } from './stock';
 import { amountIn, canConvert, round, type CustomUnit, type Unit } from './units';
 
@@ -99,18 +105,28 @@ interface PriceRow {
 }
 
 /** The base quantity a line stands for, or null when it has no amount or the unit doesn't fit. */
-function lineBase(row: Pick<ItemRow, 'amount' | 'unit' | 'p_unit' | 'piece_size' | 'piece_unit' | 'p_units'>): number | null {
+function lineBase(
+  row: Pick<ItemRow, 'amount' | 'unit' | 'p_unit' | 'piece_size' | 'piece_unit' | 'p_units'>,
+): number | null {
   if (row.amount === null || !row.p_unit) return null;
-  const product = { unit: row.p_unit, pieceSize: row.piece_size, pieceUnit: row.piece_unit, units: row.p_units ?? [] };
+  const product = {
+    unit: row.p_unit,
+    pieceSize: row.piece_size,
+    pieceUnit: row.piece_unit,
+    units: row.p_units ?? [],
+  };
   const unit = row.unit ?? row.p_unit;
   return canConvert(unit, product) ? baseQuantity(row.amount, unit, product as Product) : null;
 }
 
-const boughtTotal = (bought: BoughtPackage[] | null) => (bought ? round(bought.reduce((sum, pack) => sum + pack.count * pack.size, 0)) : null);
+const boughtTotal = (bought: BoughtPackage[] | null) =>
+  bought ? round(bought.reduce((sum, pack) => sum + pack.count * pack.size, 0)) : null;
 
 function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
   const mine = prices.filter((p) => p.product_id === row.product_id);
-  const last = mine.find((p) => p.store_id === row.store_id) ?? mine.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())[0];
+  const last =
+    mine.find((p) => p.store_id === row.store_id) ??
+    mine.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())[0];
   const need = lineBase(row);
   const got = boughtTotal(row.bought);
   const base = got ?? need;
@@ -130,8 +146,13 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     source: row.source,
     checked: row.checked_at !== null,
     price: row.price,
-    lastPrice: last ? { price: last.price, storeName: last.store_name, boughtAt: last.added_at.toISOString() } : null,
-    estimate: last && base !== null && last.initial_quantity > 0 ? Math.round((last.price / last.initial_quantity) * base * 100) / 100 : null,
+    lastPrice: last
+      ? { price: last.price, storeName: last.store_name, boughtAt: last.added_at.toISOString() }
+      : null,
+    estimate:
+      last && base !== null && last.initial_quantity > 0
+        ? Math.round((last.price / last.initial_quantity) * base * 100) / 100
+        : null,
     need,
     bought: row.bought,
     package: row.package,
@@ -154,21 +175,27 @@ async function lastPrices(ctx: FoodCtx, productIds: string[]): Promise<PriceRow[
 }
 
 async function withPrices(ctx: FoodCtx, rows: ItemRow[]): Promise<ShoppingItem[]> {
-  const prices = await lastPrices(ctx, [...new Set(rows.map((r) => r.product_id).filter((id): id is string => Boolean(id)))]);
+  const prices = await lastPrices(ctx, [
+    ...new Set(rows.map((r) => r.product_id).filter((id): id is string => Boolean(id))),
+  ]);
   return rows.map((row) => toItem(row, prices));
 }
 
 /** Every open line, on every list (the app groups them by store). */
 export async function listShopping(ctx: FoodCtx): Promise<ShoppingItem[]> {
-  const { rows } = await ctx.db.query<ItemRow>(`${ITEM_SELECT} WHERE i.household_id = $1 AND i.trip_id IS NULL ORDER BY i.checked_at NULLS FIRST, i.need_by NULLS LAST, i.priority DESC, i.created_at`, [
-    ctx.actor.householdId,
-  ]);
+  const { rows } = await ctx.db.query<ItemRow>(
+    `${ITEM_SELECT} WHERE i.household_id = $1 AND i.trip_id IS NULL ORDER BY i.checked_at NULLS FIRST, i.need_by NULLS LAST, i.priority DESC, i.created_at`,
+    [ctx.actor.householdId],
+  );
   return withPrices(ctx, rows);
 }
 
 async function findItem(ctx: FoodCtx, id: string, lock = false): Promise<ItemRow> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'That line is not on your lists');
-  const { rows } = await ctx.db.query<ItemRow>(`${ITEM_SELECT} WHERE i.id = $1 AND i.household_id = $2${lock ? ' FOR UPDATE OF i' : ''}`, [id, ctx.actor.householdId]);
+  const { rows } = await ctx.db.query<ItemRow>(
+    `${ITEM_SELECT} WHERE i.id = $1 AND i.household_id = $2${lock ? ' FOR UPDATE OF i' : ''}`,
+    [id, ctx.actor.householdId],
+  );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'That line is not on your lists');
   return rows[0];
 }
@@ -179,26 +206,39 @@ async function getItem(ctx: FoodCtx, id: string): Promise<ShoppingItem> {
 
 async function checkStore(ctx: FoodCtx, storeId: string | null | undefined): Promise<void> {
   if (!storeId) return;
-  const { rowCount } = await ctx.db.query('SELECT 1 FROM stores WHERE id = $1 AND household_id = $2', [storeId, ctx.actor.householdId]);
-  if (!rowCount) throw new AppError(400, 'VALIDATION', 'That store is not in your kitchen', { fields: { storeId: 'Unknown store' } });
+  const { rowCount } = await ctx.db.query(
+    'SELECT 1 FROM stores WHERE id = $1 AND household_id = $2',
+    [storeId, ctx.actor.householdId],
+  );
+  if (!rowCount)
+    throw new AppError(400, 'VALIDATION', 'That store is not in your kitchen', {
+      fields: { storeId: 'Unknown store' },
+    });
 }
 
 /**
  * Adds lines. A name finds (or creates) the product; the line goes to the given store, else the
  * product's usual one. The same product already waiting on that list is topped up, not repeated.
  */
-export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[], source: ShoppingSource = 'manual'): Promise<ShoppingItem[]> {
+export async function addShoppingItems(
+  ctx: FoodCtx,
+  inputs: ShoppingItemInput[],
+  source: ShoppingSource = 'manual',
+): Promise<ShoppingItem[]> {
   const ids = await ctx.tx(async (tx) => {
     const out: string[] = [];
     for (const input of inputs) {
-      const named = input.productId ? null : await resolveNamed(tx, input.name!, input.unit ?? undefined, { level: 'out' });
+      const named = input.productId
+        ? null
+        : await resolveNamed(tx, input.name!, input.unit ?? undefined, { level: 'out' });
       const product = named ? named.product : await findProduct(tx, input.productId!);
       const variant = input.variant || named?.variant || '';
       await rememberVariant(tx, product, variant);
       const storeId = input.storeId === undefined ? product.storeId : input.storeId;
       await checkStore(tx, storeId);
       const unit = input.amount ? (input.unit ?? product.unit) : null;
-      if (unit && input.amount && product.trackMode === 'exact') baseQuantity(input.amount, unit, product);
+      if (unit && input.amount && product.trackMode === 'exact')
+        baseQuantity(input.amount, unit, product);
 
       const { rows: same } = await tx.db.query<ItemRow>(
         `${ITEM_SELECT} WHERE i.household_id = $1 AND i.product_id = $2 AND i.store_id IS NOT DISTINCT FROM $3 AND i.trip_id IS NULL AND i.checked_at IS NULL FOR UPDATE OF i`,
@@ -211,9 +251,15 @@ export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[]
         if (unit && input.amount && before !== null) {
           const total = before + baseQuantity(input.amount, unit, product);
           const shown = (existing.unit ?? product.unit) as Unit;
-          await tx.db.query('UPDATE shopping_items SET amount = $2, updated_at = $3 WHERE id = $1', [existing.id, amountIn(total, shown, product), tx.now]);
+          await tx.db.query(
+            'UPDATE shopping_items SET amount = $2, updated_at = $3 WHERE id = $1',
+            [existing.id, amountIn(total, shown, product), tx.now],
+          );
         } else if (unit && input.amount && existing.amount === null) {
-          await tx.db.query('UPDATE shopping_items SET amount = $2, unit = $3, updated_at = $4 WHERE id = $1', [existing.id, input.amount, unit, tx.now]);
+          await tx.db.query(
+            'UPDATE shopping_items SET amount = $2, unit = $3, updated_at = $4 WHERE id = $1',
+            [existing.id, input.amount, unit, tx.now],
+          );
         }
         out.push(existing.id);
         continue;
@@ -247,16 +293,27 @@ export async function addShoppingItems(ctx: FoodCtx, inputs: ShoppingItemInput[]
   return ids.map((id) => items.find((item) => item.id === id)!);
 }
 
-export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: ShoppingItemPatch): Promise<ShoppingItem> {
+export async function updateShoppingItem(
+  ctx: FoodCtx,
+  id: string,
+  patch: ShoppingItemPatch,
+): Promise<ShoppingItem> {
   await ctx.tx(async (tx) => {
     const item = await findItem(tx, id, true);
-    if (item.trip_id) throw new AppError(409, 'BOUGHT', 'That line was already checked out; edit it in the trip');
+    if (item.trip_id)
+      throw new AppError(409, 'BOUGHT', 'That line was already checked out; edit it in the trip');
     await checkStore(tx, patch.storeId);
     const amount = patch.amount === undefined ? item.amount : patch.amount;
     const unit = patch.unit === undefined ? item.unit : patch.unit;
     const product = item.product_id ? await findProduct(tx, item.product_id) : null;
-    if (amount !== null && product?.trackMode === 'exact') baseQuantity(amount, unit ?? product.unit, product, 'amount');
-    const bought = patch.bought === undefined ? undefined : patch.bought && product ? boughtIn(patch.bought, product) : null;
+    if (amount !== null && product?.trackMode === 'exact')
+      baseQuantity(amount, unit ?? product.unit, product, 'amount');
+    const bought =
+      patch.bought === undefined
+        ? undefined
+        : patch.bought && product
+          ? boughtIn(patch.bought, product)
+          : null;
     await tx.db.query(
       `UPDATE shopping_items SET
          checked_at = CASE WHEN $2::boolean IS NULL THEN checked_at WHEN $2 THEN coalesce(checked_at, $9) ELSE NULL END,
@@ -297,7 +354,12 @@ export async function updateShoppingItem(ctx: FoodCtx, id: string, patch: Shoppi
 
 /** Packages as given ("2 × 0.3 kg") in the item's base unit ("2 × 300 g"). */
 function boughtIn(packages: Packages, product: Product): BoughtPackage[] {
-  return packages.map((pack) => ({ count: pack.count, size: pack.sizeUnit ? baseQuantity(pack.size, pack.sizeUnit, product, 'bought') : round(pack.size) }));
+  return packages.map((pack) => ({
+    count: pack.count,
+    size: pack.sizeUnit
+      ? baseQuantity(pack.size, pack.sizeUnit, product, 'bought')
+      : round(pack.size),
+  }));
 }
 
 export async function removeShoppingItem(ctx: FoodCtx, id: string): Promise<void> {
@@ -338,7 +400,10 @@ const toTrip = (row: TripRow): Trip => ({
  * (with its price, store and expiry) unless told otherwise; a line without an amount counts as one
  * piece when the item has a piece size, else it is recorded but not stocked.
  */
-export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ trip: Trip; stocked: number; notStocked: string[]; leftOver: string[] }> {
+export async function checkout(
+  ctx: FoodCtx,
+  input: CheckoutInput,
+): Promise<{ trip: Trip; stocked: number; notStocked: string[]; leftOver: string[] }> {
   return ctx.tx(async (tx) => {
     await checkStore(tx, input.storeId);
     const { rows: cart } = await tx.db.query<ItemRow>(
@@ -348,19 +413,28 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
     if (!cart.length) throw new AppError(409, 'EMPTY_CART', 'Tick what you bought first');
     const lines = new Map(input.lines.map((line) => [line.id, line]));
     for (const id of lines.keys()) {
-      if (!cart.some((row) => row.id === id)) throw new AppError(400, 'VALIDATION', 'A line is not in this cart', { fields: { lines: 'Unknown line' } });
+      if (!cart.some((row) => row.id === id))
+        throw new AppError(400, 'VALIDATION', 'A line is not in this cart', {
+          fields: { lines: 'Unknown line' },
+        });
     }
-    const { rows: store } = await tx.db.query<{ name: string }>('SELECT name FROM stores WHERE id = $1', [input.storeId]);
+    const { rows: store } = await tx.db.query<{ name: string }>(
+      'SELECT name FROM stores WHERE id = $1',
+      [input.storeId],
+    );
     const tripId = randomUUID();
-    await tx.db.query('INSERT INTO shopping_trips (id, household_id, store_id, store_name, item_count, finished_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
-      tripId,
-      tx.actor.householdId,
-      input.storeId,
-      store[0]?.name ?? '',
-      cart.length,
-      tx.now,
-      tx.actor.userId,
-    ]);
+    await tx.db.query(
+      'INSERT INTO shopping_trips (id, household_id, store_id, store_name, item_count, finished_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [
+        tripId,
+        tx.actor.householdId,
+        input.storeId,
+        store[0]?.name ?? '',
+        cart.length,
+        tx.now,
+        tx.actor.userId,
+      ],
+    );
 
     let stocked = 0;
     const notStocked: string[] = [];
@@ -373,7 +447,12 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
       const variant = line?.variant ?? row.variant;
       const packageName = line?.package ?? row.package;
       const product = row.product_id ? await findProduct(tx, row.product_id) : null;
-      const bought = line?.bought === undefined ? row.bought : line.bought && product ? boughtIn(line.bought, product) : null;
+      const bought =
+        line?.bought === undefined
+          ? row.bought
+          : line.bought && product
+            ? boughtIn(line.bought, product)
+            : null;
       let lotId: string | null = null;
       if (product && line?.addToKitchen !== false) {
         const where = {
@@ -387,7 +466,11 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
         };
         if (bought && product.trackMode === 'exact') {
           // What was really bought: "2 cans of 300 g" for "at least 500 g".
-          const { lot } = await addStock(tx, { ...where, package: packageName || undefined, packages: bought });
+          const { lot } = await addStock(tx, {
+            ...where,
+            package: packageName || undefined,
+            packages: bought,
+          });
           lotId = lot?.id ?? null;
           stocked += 1;
           const got = boughtTotal(bought) ?? 0;
@@ -398,7 +481,14 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
             await tx.db.query(
               `INSERT INTO shopping_items (id, household_id, store_id, product_id, name, amount, unit, note, source, created_by, created_at, updated_at, variant, priority, need_by)
                SELECT $2, household_id, store_id, product_id, name, $3, $4, note, source, $5, $6, $6, variant, priority, need_by FROM shopping_items WHERE id = $1`,
-              [row.id, randomUUID(), amountIn(round(need - got), shown, product), shown, tx.actor.userId, tx.now],
+              [
+                row.id,
+                randomUUID(),
+                amountIn(round(need - got), shown, product),
+                shown,
+                tx.actor.userId,
+                tx.now,
+              ],
             );
             leftOver.push(row.name);
           }
@@ -406,8 +496,12 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
           unit = product.unit;
         } else {
           // Level items are simply full again; others need an amount (one piece when they come in pieces).
-          const quantity = product.trackMode === 'level' ? 1 : (amount ?? (product.unit === 'pcs' || product.pieceSize ? 1 : null));
-          const quantityUnit = product.trackMode === 'level' ? product.unit : amount ? (unit ?? product.unit) : 'pcs';
+          const quantity =
+            product.trackMode === 'level'
+              ? 1
+              : (amount ?? (product.unit === 'pcs' || product.pieceSize ? 1 : null));
+          const quantityUnit =
+            product.trackMode === 'level' ? product.unit : amount ? (unit ?? product.unit) : 'pcs';
           if (quantity !== null) {
             const { lot } = await addStock(tx, { ...where, quantity, unit: quantityUnit });
             lotId = lot?.id ?? null;
@@ -417,7 +511,18 @@ export async function checkout(ctx: FoodCtx, input: CheckoutInput): Promise<{ tr
       } else notStocked.push(row.name);
       await tx.db.query(
         'UPDATE shopping_items SET trip_id = $2, price = $3, amount = $4, unit = $5, lot_id = $6, updated_at = $7, variant = $8, package = $9, bought = $10 WHERE id = $1',
-        [row.id, tripId, price, amount, amount === null ? null : unit, lotId, tx.now, variant, packageName, bought ? JSON.stringify(bought) : null],
+        [
+          row.id,
+          tripId,
+          price,
+          amount,
+          amount === null ? null : unit,
+          lotId,
+          tx.now,
+          variant,
+          packageName,
+          bought ? JSON.stringify(bought) : null,
+        ],
       );
     }
     const trip = await refreshTripTotal(tx, tripId);
@@ -444,7 +549,10 @@ export async function listTrips(ctx: FoodCtx, limit = 30): Promise<Trip[]> {
   return rows.map(toTrip);
 }
 
-export async function getTrip(ctx: FoodCtx, id: string): Promise<{ trip: Trip; items: ShoppingItem[] }> {
+export async function getTrip(
+  ctx: FoodCtx,
+  id: string,
+): Promise<{ trip: Trip; items: ShoppingItem[] }> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Trip not found');
   const { rows } = await ctx.db.query<TripRow>(
     `SELECT t.id, t.store_id, coalesce(s.name, t.store_name) AS store_name, t.total, t.item_count, t.finished_at
@@ -452,39 +560,105 @@ export async function getTrip(ctx: FoodCtx, id: string): Promise<{ trip: Trip; i
     [id, ctx.actor.householdId],
   );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'Trip not found');
-  const { rows: items } = await ctx.db.query<ItemRow>(`${ITEM_SELECT} WHERE i.trip_id = $1 ORDER BY i.checked_at, i.created_at`, [id]);
+  const { rows: items } = await ctx.db.query<ItemRow>(
+    `${ITEM_SELECT} WHERE i.trip_id = $1 ORDER BY i.checked_at, i.created_at`,
+    [id],
+  );
   return { trip: toTrip(rows[0]), items: items.map((row) => toItem(row, [])) };
 }
 
+/**
+ * Undoes a shop finished by mistake: what it put in the kitchen comes out again, and its lines go
+ * back into the cart, ticked, with what was bought. Refused once any of it has been used or opened
+ * (fix those lines instead). Level items stay as they are: there is no earlier level to go back to.
+ */
+export async function undoTrip(ctx: FoodCtx, id: string): Promise<{ returned: number }> {
+  if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Trip not found');
+  return ctx.tx(async (tx) => {
+    const { rows: trip } = await tx.db.query(
+      'SELECT id FROM shopping_trips WHERE id = $1 AND household_id = $2 FOR UPDATE',
+      [id, tx.actor.householdId],
+    );
+    if (!trip[0]) throw new AppError(404, 'NOT_FOUND', 'Trip not found');
+    const { rows: lots } = await tx.db.query<{ id: string; name: string; touched: boolean }>(
+      `SELECT l.id, p.name, (l.quantity < l.initial_quantity OR l.opened_at IS NOT NULL OR l.finished_at IS NOT NULL) AS touched
+         FROM stock_lots l JOIN products p ON p.id = l.product_id WHERE l.trip_id = $1 FOR UPDATE OF l`,
+      [id],
+    );
+    const used = [...new Set(lots.filter((lot) => lot.touched).map((lot) => lot.name))];
+    if (used.length)
+      throw new AppError(
+        409,
+        'ALREADY_USED',
+        `Already used or opened: ${used.join(', ')}. Correct those lines instead.`,
+      );
+    const lotIds = lots.map((lot) => lot.id);
+    await tx.db.query(
+      `DELETE FROM stock_events WHERE lot_id = ANY($1::uuid[]) AND kind = 'added'`,
+      [lotIds],
+    );
+    await tx.db.query('UPDATE shopping_items SET lot_id = NULL WHERE lot_id = ANY($1::uuid[])', [
+      lotIds,
+    ]);
+    await tx.db.query('DELETE FROM stock_lots WHERE id = ANY($1::uuid[])', [lotIds]);
+    const { rowCount } = await tx.db.query(
+      'UPDATE shopping_items SET trip_id = NULL, updated_at = $2 WHERE trip_id = $1',
+      [id, tx.now],
+    );
+    await tx.db.query('DELETE FROM shopping_trips WHERE id = $1', [id]);
+    return { returned: rowCount ?? 0 };
+  });
+}
+
 /** Corrects a bought line later; the price and amount follow into the kitchen lot it became. */
-export async function updateTripItem(ctx: FoodCtx, tripId: string, itemId: string, patch: TripItemPatch): Promise<{ trip: Trip; items: ShoppingItem[] }> {
+export async function updateTripItem(
+  ctx: FoodCtx,
+  tripId: string,
+  itemId: string,
+  patch: TripItemPatch,
+): Promise<{ trip: Trip; items: ShoppingItem[] }> {
   await ctx.tx(async (tx) => {
     const item = await findItem(tx, itemId, true);
-    if (item.trip_id !== tripId) throw new AppError(404, 'NOT_FOUND', 'That line is not in this trip');
+    if (item.trip_id !== tripId)
+      throw new AppError(404, 'NOT_FOUND', 'That line is not in this trip');
     const amount = patch.amount ?? item.amount;
     const unit = patch.unit ?? item.unit;
-    await tx.db.query('UPDATE shopping_items SET price = CASE WHEN $2::boolean THEN $3 ELSE price END, amount = $4, unit = $5, updated_at = $6 WHERE id = $1', [
-      itemId,
-      patch.price !== undefined,
-      patch.price ?? null,
-      amount,
-      amount === null ? null : unit,
-      tx.now,
-    ]);
+    await tx.db.query(
+      'UPDATE shopping_items SET price = CASE WHEN $2::boolean THEN $3 ELSE price END, amount = $4, unit = $5, updated_at = $6 WHERE id = $1',
+      [
+        itemId,
+        patch.price !== undefined,
+        patch.price ?? null,
+        amount,
+        amount === null ? null : unit,
+        tx.now,
+      ],
+    );
     if (item.lot_id) {
-      const { rows } = await tx.db.query<{ quantity: number; initial_quantity: number; finished_at: Date | null }>(
-        'SELECT quantity, initial_quantity, finished_at FROM stock_lots WHERE id = $1',
-        [item.lot_id],
-      );
+      const { rows } = await tx.db.query<{
+        quantity: number;
+        initial_quantity: number;
+        finished_at: Date | null;
+      }>('SELECT quantity, initial_quantity, finished_at FROM stock_lots WHERE id = $1', [
+        item.lot_id,
+      ]);
       const lot = rows[0];
-      if (patch.price !== undefined) await tx.db.query('UPDATE stock_lots SET price = $2 WHERE id = $1', [item.lot_id, patch.price]);
+      if (patch.price !== undefined)
+        await tx.db.query('UPDATE stock_lots SET price = $2 WHERE id = $1', [
+          item.lot_id,
+          patch.price,
+        ]);
       if (lot && patch.amount !== undefined && item.product_id) {
         // A correction of how much was bought moves what is left by the same difference.
         const product = await findProduct(tx, item.product_id);
         const bought = baseQuantity(amount!, unit ?? product.unit, product, 'amount');
         const left = Math.max(0, round(lot.quantity + bought - lot.initial_quantity));
-        await tx.db.query('UPDATE stock_lots SET initial_quantity = $2 WHERE id = $1', [item.lot_id, bought]);
-        if (!lot.finished_at || left > 0) await updateLot(tx, item.lot_id, { quantity: left, unit: product.unit });
+        await tx.db.query('UPDATE stock_lots SET initial_quantity = $2 WHERE id = $1', [
+          item.lot_id,
+          bought,
+        ]);
+        if (!lot.finished_at || left > 0)
+          await updateLot(tx, item.lot_id, { quantity: left, unit: product.unit });
       }
     }
     await refreshTripTotal(tx, tripId);
