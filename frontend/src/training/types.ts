@@ -199,6 +199,9 @@ export interface WorkoutSummary {
 export interface Workout extends WorkoutSummary {
   items: WorkoutItemView[];
   sets: TrainingSet[];
+  /** kcal it costs: the sets done (Compendium METs × weight × time), or the plan's estimate. */
+  kcal: number;
+  kcalSource: 'done' | 'planned';
 }
 
 export interface Routine {
@@ -358,5 +361,47 @@ export interface HealthSummary {
   week: Partial<Record<HealthKind, { now: number | null; before: number | null }>>;
   latest: Partial<Record<HealthKind, { value: number; day: string }>>;
   lastSync: Partial<Record<'apple' | 'google' | 'manual', string>>;
+  insights: Array<{ tone: 'good' | 'watch' | 'info'; text: string }>;
+}
+
+export interface EnergyNutrients {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+export interface EnergyDay {
+  day: string;
+  eaten: EnergyNutrients | null;
+  meals: number;
+  unknown: number;
+  burned: {
+    resting: number;
+    active: number;
+    training: number;
+    total: number;
+    source: 'phone' | 'estimate';
+  };
+  balance: number | null;
+}
+
+export interface EnergySummary {
+  person: {
+    weight: number | null;
+    weightDay: string | null;
+    heightCm: number | null;
+    age: number | null;
+    gender: 'female' | 'male' | 'other' | null;
+    goal: 'lose' | 'keep' | 'gain' | null;
+    goalWeight: number | null;
+    goalRate: number | null;
+    activity: string;
+    assumedWeight: boolean;
+    bmr: number | null;
+  };
+  days: EnergyDay[];
+  burn: { estimated: number; measured: number | null };
+  target: { kcal: number; protein: number; fat: number; carbs: number; why: string };
   insights: Array<{ tone: 'good' | 'watch' | 'info'; text: string }>;
 }

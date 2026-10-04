@@ -12,6 +12,7 @@ import type {
   Meal,
   MealPartInput,
   NeedLine,
+  NutritionEntry,
   OutKind,
   Opened,
   PackageInput,
@@ -130,8 +131,10 @@ export const foodApi = {
     ),
   createProduct: (body: Partial<Product> & { name: string }) =>
     api.post<{ product: Product }>('/food/products', body).then((r) => r.product),
-  updateProduct: (id: string, body: Partial<Product>) =>
-    api.patch<{ product: Product }>(`/food/products/${id}`, body).then((r) => r.product),
+  updateProduct: (
+    id: string,
+    body: Partial<Omit<Product, 'nutrition'>> & { nutrition?: NutritionEntry | null },
+  ) => api.patch<{ product: Product }>(`/food/products/${id}`, body).then((r) => r.product),
   archiveProduct: (id: string) => api.delete<void>(`/food/products/${id}`),
 
   addStock: (body: AddStockBody) =>
@@ -253,6 +256,8 @@ export const foodApi = {
     body: Partial<Omit<MealBody, 'ingredients'>> & {
       status?: 'planned' | 'skipped';
       toGo?: boolean;
+      eaters?: string[];
+      outKcal?: number | null;
     },
   ) => api.patch<{ meal: Meal }>(`/food/meals/${id}`, body).then((r) => r.meal),
   setMealIngredients: (id: string, ingredients: IngredientInput[]) =>
@@ -275,8 +280,30 @@ export const foodApi = {
   ) => api.patch<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}`, body).then((r) => r.meal),
   removePart: (mealId: string, partId: string) =>
     api.delete<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}`).then((r) => r.meal),
-  eatOut: (id: string, body: { kind: OutKind; place?: string; cost?: number | null }) =>
-    api.post<{ meal: Meal }>(`/food/meals/${id}/out`, body).then((r) => r.meal),
+  eatOut: (
+    id: string,
+    body: { kind: OutKind; place?: string; cost?: number | null; kcal?: number | null },
+  ) => api.post<{ meal: Meal }>(`/food/meals/${id}/out`, body).then((r) => r.meal),
+  /** Eaten outside the plan (a banana, a shake): a meal already eaten, for whoever ate it. */
+  ate: (body: {
+    items: Array<{
+      productId?: string;
+      name: string;
+      amount?: number;
+      unit?: string;
+      variant?: string;
+    }>;
+    title?: string;
+    recipeId?: string;
+    date?: string;
+    time?: string;
+    eaters?: string[];
+    fromKitchen?: boolean;
+  }) =>
+    api.post<{ meal: Meal; shortfalls: Array<{ name: string; missing: number; unit: string }> }>(
+      '/food/ate',
+      body,
+    ),
   reopenMeal: (id: string) =>
     api.post<{ meal: Meal }>(`/food/meals/${id}/reopen`).then((r) => r.meal),
   uncook: (id: string) => api.post<void>(`/food/meals/${id}/uncook`),

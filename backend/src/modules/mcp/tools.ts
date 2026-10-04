@@ -17,6 +17,7 @@ import {
   updateMeal,
   updateMealPart,
   type Meal,
+  ateNow,
 } from '../food/meals';
 import { archiveTool, listTools, markDirty, saveTool, wash } from '../food/kitchenware';
 import { overview } from '../food/overview';
@@ -33,6 +34,7 @@ import {
 import {
   AddShoppingInput,
   AddStockInput,
+  AteInput,
   CheckoutInput,
   CompleteMealInput,
   CookInput,
@@ -81,6 +83,9 @@ import { createStore, listStores } from '../food/stores';
 import { EQUIPMENT_PRESETS } from '../training/catalog';
 import { generateWorkout } from '../training/generate';
 import { healthSummary } from '../training/health';
+import { energySummary } from '../training/energy';
+import { NutritionInput } from '../food/nutrition';
+import { ProfileFields, saveProfileFields } from '../profile';
 import {
   addEquipment,
   createExercise,
@@ -99,7 +104,14 @@ import {
   WorkoutInput,
 } from '../training/schemas';
 import { stats, trainingOverview } from '../training/stats';
-import { createRoutine, createWorkout, listWorkouts, logSet, personId } from '../training/workouts';
+import {
+  createRoutine,
+  createWorkout,
+  listWorkouts,
+  logSet,
+  personId,
+  trainingPeople,
+} from '../training/workouts';
 import { localDate } from '../food/stock';
 import type { TokenScope } from '../tokens';
 
@@ -1055,6 +1067,51 @@ export const TOOLS: Tool[] = [
     input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
     run: async ({ ctx }, args) =>
       healthSummary(ctx, await personId(ctx, args.userId), args.from, args.to),
+  }),
+  // Nutrition and energy: food in, training and the day out.
+  tool({
+    name: 'set_nutrition',
+    title: 'Set an item’s nutrition',
+    description:
+      'The nutrition of a kitchen item (productId from list_stock / find_items): per "100g", "100ml" or "piece", kcal, protein, fat, carbs (sugar, fiber, salt optional), and kinds that differ ({"Zero": {...}}). Use real label or database values (search the web when unsure). null goes back to the catalog’s typical values.',
+    access: 'write',
+    input: z.object({ productId: idField, nutrition: NutritionInput }),
+    run: async ({ ctx }, args) => {
+      const product = await updateProduct(ctx, args.productId, { nutrition: args.nutrition });
+      return { name: product.name, nutrition: product.nutrition };
+    },
+  }),
+  tool({
+    name: 'log_food',
+    title: 'Log what someone ate',
+    description:
+      'Something eaten outside the plan (a banana, a protein shake, cake at work): items with amounts (or a recipeId, one serving each), who ate it (eaters, default you), when. Taken from the kitchen unless fromKitchen: false. Counts in the day’s energy.',
+    access: 'write',
+    input: AteInput,
+    run: async ({ ctx }, args) => ateNow(ctx, args),
+  }),
+  tool({
+    name: 'energy_summary',
+    title: 'Energy in and out',
+    description:
+      'For one person (userId) and dates: per day eaten (kcal, protein, fat, carbs from meals they ate), burned (resting + active from the phone or formulas, + training logged here), the balance; the daily target from their goal; insights. Use it to suggest meals and training that fit.',
+    access: 'read',
+    input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
+    run: async ({ ctx }, args) =>
+      energySummary(ctx, await personId(ctx, args.userId), args.from, args.to),
+  }),
+  tool({
+    name: 'set_goal',
+    title: 'Set someone’s goal',
+    description:
+      'A person’s goal (lose, keep or gain weight; goalWeight kg; goalRate kg a week, 0.25–0.75 is sensible), activity without training (sedentary … very), and profile facts the formulas need (gender, birthDate, heightCm).',
+    access: 'write',
+    input: z.object({ userId: idField.optional() }).and(ProfileFields),
+    run: async ({ ctx }, { userId, ...fields }) => {
+      const id = await personId(ctx, userId);
+      await saveProfileFields(ctx.db, id, fields, ctx.now);
+      return (await trainingPeople(ctx)).find((p) => p.id === id);
+    },
   }),
 ];
 

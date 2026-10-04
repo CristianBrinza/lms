@@ -398,7 +398,7 @@ function StatusCard({
           </p>
           <p className="mt-0.5 text-[1.375rem] font-bold leading-tight tracking-[-0.02em]">
             {done
-              ? `${workout.durationSeconds ? duration(workout.durationSeconds) : ''}${workout.durationSeconds ? ' · ' : ''}${workout.setsDone} sets`
+              ? `${workout.durationSeconds ? duration(workout.durationSeconds) : ''}${workout.durationSeconds ? ' · ' : ''}${workout.setsDone} sets · ${workout.kcal} kcal`
               : workout.status === 'active'
                 ? `${workout.setsDone} of ${sets} sets`
                 : `${draft.items.length} exercises · ${sets} sets`}
@@ -413,7 +413,7 @@ function StatusCard({
                 ]
                   .filter(Boolean)
                   .join(' · ')
-              : `About ${duration(workout.estimatedSeconds)} · ${dayLong(workout.date)}`}
+              : `About ${duration(workout.estimatedSeconds)} · ~${workout.kcal} kcal · ${dayLong(workout.date)}`}
           </p>
           {workout.note ? (
             <p className={cx('mt-1 text-sm italic', done ? 'text-ink-700' : 'text-white/80')}>

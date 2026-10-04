@@ -431,6 +431,12 @@ function Sections({ equipment }: { equipment: number }) {
       icon: <EquipmentIcon name="dumbbells" className="size-9" />,
     },
     {
+      to: '/training/health',
+      title: 'Health and energy',
+      detail: 'Eaten, burned, steps, sleep, weight',
+      icon: <FireIcon fontSize="inherit" className="text-[1.6rem]" />,
+    },
+    {
       to: '/training/progress',
       title: 'Progress',
       detail: 'Bests, streaks, muscles',

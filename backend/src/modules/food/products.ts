@@ -1,3 +1,4 @@
+import { nutritionOf, type NutritionEntry } from './nutrition';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
@@ -46,6 +47,10 @@ export interface Product extends Measured {
   variants: string[];
   /** A picture per kind, where the catalog has one (keys in lower case): Zero → a black can. */
   variantIcons: Record<string, string>;
+  /** The household's own nutrition values (null: the catalog's typical ones count). */
+  ownNutrition: NutritionEntry | null;
+  /** The values that count, and whose they are. */
+  nutrition: { entry: NutritionEntry; source: 'own' | 'catalog' } | null;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -80,10 +85,11 @@ export interface ProductRow {
   archived_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  nutrition: NutritionEntry | null;
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at, nutrition';
 
 export const productColumns = (alias: string) =>
   PRODUCT_COLUMNS.split(', ')
@@ -112,6 +118,8 @@ export function toProduct(row: ProductRow): Product {
     units: row.units ?? [],
     variants: row.variants ?? [],
     variantIcons: variantIconsFor(row.name),
+    ownNutrition: row.nutrition ?? null,
+    nutrition: nutritionOf({ name: row.name, ownNutrition: row.nutrition ?? null }),
     minStock: row.min_stock,
     storeId: row.store_id,
     note: row.note,
@@ -119,6 +127,16 @@ export function toProduct(row: ProductRow): Product {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+}
+
+/** Several of the household's items at once (missing ids are left out). */
+export async function productsByIds(ctx: FoodCtx, ids: string[]): Promise<Product[]> {
+  if (!ids.length) return [];
+  const { rows } = await ctx.db.query<ProductRow>(
+    `SELECT ${PRODUCT_COLUMNS} FROM products WHERE household_id = $1 AND id = ANY($2::uuid[])`,
+    [ctx.actor.householdId, ids],
+  );
+  return rows.map(toProduct);
 }
 
 export async function findProduct(
@@ -559,13 +577,24 @@ export async function updateProduct(
     min_stock: patch.minStock,
     store_id: patch.storeId,
     note: patch.note,
+    // null clears the household's own values: the catalog's count again.
+    nutrition:
+      patch.nutrition === undefined
+        ? undefined
+        : patch.nutrition === null
+          ? 'null'
+          : JSON.stringify(patch.nutrition),
   };
   const sets: string[] = [];
   const values: unknown[] = [id];
   for (const [column, value] of Object.entries(columns)) {
     if (value === undefined) continue;
     values.push(value);
-    sets.push(`${column} = $${values.length}`);
+    sets.push(
+      column === 'nutrition'
+        ? `nutrition = $${values.length}::jsonb`
+        : `${column} = $${values.length}`,
+    );
   }
   values.push(ctx.now);
   sets.push(`updated_at = $${values.length}`);

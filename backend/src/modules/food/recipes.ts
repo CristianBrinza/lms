@@ -1,3 +1,4 @@
+import { dishSummary, lineAsCooked, sumLines, type DishSummary } from './nutrition';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
@@ -54,6 +55,8 @@ export interface Recipe {
   tools: ToolNeed[];
   timesCooked: number;
   lastCooked: string | null;
+  /** Energy and nutrients for the servings shown, and per serving. */
+  nutrition: DishSummary;
 }
 
 interface RecipeRow {
@@ -87,6 +90,7 @@ function toRecipe(
   lines: ReturnType<typeof describeLines>,
   shownServings: number,
   tools: ToolNeed[],
+  nutrition: DishSummary,
 ): Recipe {
   return {
     id: row.id,
@@ -110,6 +114,7 @@ function toRecipe(
     tools,
     timesCooked: row.times_cooked,
     lastCooked: row.last_cooked,
+    nutrition,
   };
 }
 
@@ -150,6 +155,10 @@ async function build(
         tools,
         (needs.get(row.id) ?? []).map((need) => ({ ...need, servings: shown })),
         ctx.now,
+      ),
+      dishSummary(
+        sumLines(lines.lines.map(lineAsCooked), (id) => snapshot.get(id)?.product),
+        shown,
       ),
     );
   });

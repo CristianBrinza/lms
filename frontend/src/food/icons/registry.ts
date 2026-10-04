@@ -49,6 +49,12 @@ export const ICON_NAMES = Object.keys(ICON_ART).sort();
  * the same way). Kitchenware-only drawings are not in here: the food API would refuse them.
  */
 export const FOOD_ICON_KEYS = [
+  'protein-powder',
+  'protein-bar',
+  'mass-gainer',
+  'creatine',
+  'protein-pudding',
+  'skyr',
   // produce
   'tomato',
   'cucumber',

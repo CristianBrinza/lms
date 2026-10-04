@@ -7,6 +7,7 @@ import { foodCtx, requireKitchen } from '../food/kitchen';
 import { dateField, idField } from '../food/schemas';
 import { localDate } from '../food/stock';
 import { CATEGORIES, EQUIPMENT_PRESETS, MEASURES, MUSCLES } from './catalog';
+import { energySummary } from './energy';
 import { generateWorkout } from './generate';
 import { HealthImport, healthSummary, HealthQuery, importHealth } from './health';
 import {
@@ -242,6 +243,32 @@ export function trainingRoutes(deps: AppDeps) {
         query.to,
         query.today ?? localDate(deps.now()),
       ),
+    });
+  });
+
+  // Energy in and out per day: eaten (meals), burned (phone or formulas), the goal's target.
+  app.get('/energy', async (c) => {
+    const query = readQuery(c, RangeQuery.extend({ today: dateField.optional() }));
+    const userId = await personId(ctx(c), query.userId);
+    return c.json({
+      energy: await energySummary(ctx(c), userId, query.from, query.to, query.today),
+    });
+  });
+  // Today's numbers, flat, for the phone's Shortcut to write into Apple Health.
+  app.get('/energy/today', async (c) => {
+    const query = readQuery(c, PersonQuery.extend({ today: dateField.optional() }));
+    const userId = await personId(ctx(c), query.userId);
+    const today = query.today ?? localDate(deps.now());
+    const e = await energySummary(ctx(c), userId, today, today, today);
+    const day = e.days[0];
+    return c.json({
+      date: today,
+      eatenKcal: day?.eaten?.kcal ?? 0,
+      protein: day?.eaten?.protein ?? 0,
+      fat: day?.eaten?.fat ?? 0,
+      carbs: day?.eaten?.carbs ?? 0,
+      burnedKcal: day?.burned.total ?? 0,
+      targetKcal: e.target.kcal,
     });
   });
 

@@ -1,3 +1,4 @@
+import { dishSummary, lineAsCooked, sumLines, type DishSummary } from './nutrition';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
@@ -41,6 +42,7 @@ import type {
   MealPartPatch,
   MealPatch,
   OUT_KINDS,
+  AteInput,
 } from './schemas';
 import { addStock, localDate, removeLot, restoreStock, useStock } from './stock';
 import { round, type BaseUnit } from './units';
@@ -85,7 +87,17 @@ export interface Meal {
   createdVia: 'app' | 'ai';
   leftoversLotId: string | null;
   /** Eaten out (or planned to be): where, and what it cost. Nothing is taken from the kitchen. */
-  eatenOut: { kind: (typeof OUT_KINDS)[number]; place: string; cost: number | null } | null;
+  eatenOut: {
+    kind: (typeof OUT_KINDS)[number];
+    place: string;
+    cost: number | null;
+    kcal: number | null;
+  } | null;
+  /** Who ate it (empty: everyone when there's a serving each, else whoever marked it eaten). */
+  eaters: string[];
+  doneBy: string | null;
+  /** Energy and nutrients of the whole meal and of one serving. */
+  nutrition: DishSummary;
   /** What the meal is made of; its lines carry the part they belong to (partId). */
   parts: MealPart[];
   /** Kitchenware its parts need, and whether it will be clean by the meal's time. */
@@ -113,10 +125,14 @@ interface MealRow {
   out_kind: (typeof OUT_KINDS)[number] | null;
   out_place: string;
   out_cost: number | null;
+  out_kcal: number | null;
+  eaters: string[];
+  done_by: string | null;
 }
 
 const MEAL_SELECT = `SELECT m.id, m.date, to_char(m.time, 'HH24:MI') AS time, m.slot, m.recipe_id, r.icon AS recipe_icon, m.title, m.servings, m.status, m.note,
-       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id, m.dirtied, m.out_kind, m.out_place, m.out_cost
+       m.to_go, m.done_at, m.created_via, m.leftovers_lot_id, m.dirtied, m.out_kind, m.out_place, m.out_cost,
+       m.out_kcal, m.eaters, m.done_by
   FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id`;
 
 /** A day's meals in eating order: by time, a slot without a time standing at its usual hour. */
@@ -243,8 +259,14 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       createdVia: row.created_via,
       leftoversLotId: row.leftovers_lot_id,
       eatenOut: row.out_kind
-        ? { kind: row.out_kind, place: row.out_place, cost: row.out_cost }
+        ? { kind: row.out_kind, place: row.out_place, cost: row.out_cost, kcal: row.out_kcal }
         : null,
+      eaters: row.eaters,
+      doneBy: row.done_by,
+      nutrition: dishSummary(
+        sumLines(lines.map(lineAsCooked), (id) => stock.get(id)?.product),
+        row.servings,
+      ),
       parts: parts.get(row.id) ?? [],
       tools:
         row.status === 'planned'
@@ -254,6 +276,69 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       availability,
     };
   });
+}
+
+/**
+ * Something eaten outside the plan, logged as it happens: a meal already eaten, for whoever ate
+ * it (one serving each), taken from the kitchen unless it came from elsewhere. It counts in the
+ * day's energy like any meal; reopening it puts the food back.
+ */
+export async function ateNow(
+  ctx: FoodCtx,
+  input: AteInput,
+): Promise<{ meal: Meal; shortfalls: Shortfall[] }> {
+  const eaters = input.eaters?.length
+    ? await householdMembers(ctx, input.eaters)
+    : [ctx.actor.userId];
+  const now = ctx.now;
+  const time =
+    input.time ??
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const first = input.items[0]!;
+  const planned = await planMeal(ctx, {
+    date: input.date ?? localDate(now),
+    time,
+    title:
+      input.title ??
+      (input.items.length === 1 ? first.name : `${first.name} +${input.items.length - 1}`),
+    servings: eaters.length,
+    ...(input.recipeId
+      ? { recipeId: input.recipeId }
+      : {
+          ingredients: input.items.map((item) => ({
+            name: item.name,
+            ...(item.productId ? { productId: item.productId } : {}),
+            ...(item.amount !== undefined ? { amount: item.amount * eaters.length } : {}),
+            ...(item.unit ? { unit: item.unit } : {}),
+            ...(item.variant ? { variant: item.variant } : {}),
+          })),
+        }),
+  });
+  await ctx.db.query('UPDATE meals SET eaters = $2 WHERE id = $1', [planned.id, eaters]);
+  if (input.fromKitchen === false) {
+    await ctx.db.query(
+      `UPDATE meals SET status = 'done', done_at = $2, done_by = $3, updated_at = $2 WHERE id = $1`,
+      [planned.id, now, ctx.actor.userId],
+    );
+    return { meal: await getMeal(ctx, planned.id), shortfalls: [] };
+  }
+  const done = await completeMeal(ctx, planned.id, {});
+  return { meal: done.meal, shortfalls: done.shortfalls };
+}
+
+/** People the meal is for: each must be in the household (400 otherwise). */
+async function householdMembers(ctx: FoodCtx, ids: string[]): Promise<string[]> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return [];
+  const { rows } = await ctx.db.query<{ id: string }>(
+    'SELECT id FROM users WHERE household_id = $1 AND id = ANY($2::uuid[])',
+    [ctx.actor.householdId, unique],
+  );
+  if (rows.length !== unique.length)
+    throw new AppError(400, 'VALIDATION', 'That person isn’t in this kitchen', {
+      fields: { eaters: 'Unknown person' },
+    });
+  return unique;
 }
 
 export async function listMeals(ctx: FoodCtx, from: string, to: string): Promise<Meal[]> {
@@ -443,8 +528,16 @@ export async function eatOut(ctx: FoodCtx, id: string, input: EatOutInput): Prom
     if (meal.status === 'done' && !meal.out_kind)
       throw new AppError(409, 'DONE', 'This meal was eaten at home; reopen it first');
     await tx.db.query(
-      `UPDATE meals SET status = 'done', done_at = coalesce(done_at, $2), out_kind = $3, out_place = $4, out_cost = $5, updated_at = $2 WHERE id = $1`,
-      [id, tx.now, input.kind, input.place ?? '', input.cost ?? null],
+      `UPDATE meals SET status = 'done', done_at = coalesce(done_at, $2), out_kind = $3, out_place = $4, out_cost = $5, updated_at = $2, done_by = coalesce(done_by, $6), out_kcal = $7 WHERE id = $1`,
+      [
+        id,
+        tx.now,
+        input.kind,
+        input.place ?? '',
+        input.cost ?? null,
+        tx.actor.userId,
+        input.kcal ?? null,
+      ],
     );
   });
   return getMeal(ctx, id);
@@ -559,7 +652,8 @@ export async function updateMeal(ctx: FoodCtx, id: string, patch: MealPatch): Pr
     await tx.db.query(
       `UPDATE meals SET date = coalesce($2, date), time = CASE WHEN $3::boolean THEN $4::time ELSE time END, slot = coalesce($5, slot),
               recipe_id = CASE WHEN $6::boolean AND $7::uuid IS NULL THEN NULL ELSE recipe_id END, title = coalesce($8, title), servings = $9,
-              note = coalesce($10, note), status = coalesce($11, status), updated_at = $12, to_go = coalesce($13, to_go)
+              note = coalesce($10, note), status = coalesce($11, status), updated_at = $12, to_go = coalesce($13, to_go),
+              eaters = coalesce($14::uuid[], eaters), out_kcal = CASE WHEN $15::boolean THEN $16::integer ELSE out_kcal END
         WHERE id = $1`,
       [
         id,
@@ -575,6 +669,9 @@ export async function updateMeal(ctx: FoodCtx, id: string, patch: MealPatch): Pr
         patch.status ?? null,
         tx.now,
         patch.toGo ?? null,
+        patch.eaters ? await householdMembers(tx, patch.eaters) : null,
+        patch.outKcal !== undefined,
+        patch.outKcal ?? null,
       ],
     );
     if (patch.recipeId) await syncMainRecipe(tx, id);
@@ -637,8 +734,8 @@ export async function completeMeal(
     if (meal.status === 'done') throw new AppError(409, 'DONE', 'This meal is already done');
     if (meal.out_kind) {
       await tx.db.query(
-        `UPDATE meals SET status = 'done', done_at = $2, updated_at = $2 WHERE id = $1`,
-        [id, tx.now],
+        `UPDATE meals SET status = 'done', done_at = $2, updated_at = $2, done_by = coalesce(done_by, $3) WHERE id = $1`,
+        [id, tx.now, tx.actor.userId],
       );
       return;
     }
@@ -767,8 +864,14 @@ export async function completeMeal(
     const needs = (await mealNeeds(tx, await partsOf(tx, [id]))).get(id) ?? [];
     const dirtied = needs.length ? await dirtyAfterCooking(tx, needs) : [];
     await tx.db.query(
-      `UPDATE meals SET status = 'done', done_at = $2, leftovers_lot_id = $3, updated_at = $2, dirtied = $4 WHERE id = $1`,
-      [id, tx.now, leftoversLotId, dirtied.length ? JSON.stringify(dirtied) : null],
+      `UPDATE meals SET status = 'done', done_at = $2, leftovers_lot_id = $3, updated_at = $2, dirtied = $4, done_by = coalesce(done_by, $5) WHERE id = $1`,
+      [
+        id,
+        tx.now,
+        leftoversLotId,
+        dirtied.length ? JSON.stringify(dirtied) : null,
+        tx.actor.userId,
+      ],
     );
   });
   return { meal: await getMeal(ctx, id), shortfalls, opened };
@@ -782,7 +885,7 @@ export async function reopenMeal(ctx: FoodCtx, id: string): Promise<Meal> {
     if (meal.out_kind) {
       // Eaten out took nothing from the kitchen: it is simply planned again (cooked at home, after all).
       await tx.db.query(
-        `UPDATE meals SET status = 'planned', done_at = NULL, out_kind = NULL, out_place = '', out_cost = NULL, updated_at = $2 WHERE id = $1`,
+        `UPDATE meals SET status = 'planned', done_at = NULL, out_kind = NULL, out_place = '', out_cost = NULL, out_kcal = NULL, done_by = NULL, updated_at = $2 WHERE id = $1`,
         [id, tx.now],
       );
       return;

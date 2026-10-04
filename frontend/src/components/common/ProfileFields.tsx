@@ -3,12 +3,25 @@ import { Avatar, Button, TextField, toast } from '@/components/ui';
 import { DeleteIcon, EditIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { shrinkPhoto } from '@/lib/photo';
-import type { ProfileValues } from '@/lib/profile';
-import type { Gender } from '@/types/api';
+import type { Goal, ProfileValues } from '@/lib/profile';
+import type { Activity, Gender } from '@/types/api';
 
 const GENDER_LABEL: Record<Gender, string> = { female: 'Female', male: 'Male', other: 'Other' };
+const GOALS: Array<[Goal, string]> = [
+  ['lose', 'Lose weight'],
+  ['keep', 'Keep my weight'],
+  ['gain', 'Gain weight'],
+];
+const RATES = [0.25, 0.5, 0.75];
+const ACTIVITY: Array<[Activity, string]> = [
+  ['sedentary', 'Mostly sitting'],
+  ['light', 'On my feet a bit'],
+  ['moderate', 'On my feet a lot'],
+  ['active', 'Physical work'],
+  ['very', 'Hard physical work'],
+];
 
-/** Gender, birth date and height: for Training's plans and Health's numbers, and for who is who. */
+/** Gender, birth date, height, the goal and a usual day: for training plans and the energy numbers. */
 export function ProfileFieldsForm({
   value,
   onChange,
@@ -58,6 +71,81 @@ export function ProfileFieldsForm({
           onChange={(e) => onChange({ ...value, height: e.target.value.replace(/[^\d.,]/g, '') })}
         />
       </div>
+      <fieldset>
+        <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Goal</legend>
+        <div role="radiogroup" className="flex flex-wrap gap-1.5">
+          {GOALS.map(([g, label]) => (
+            <button
+              key={g}
+              type="button"
+              role="radio"
+              aria-checked={value.goal === g}
+              className={chip(value.goal === g)}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  goal: value.goal === g ? null : g,
+                  goalRate: value.goalRate ?? (g === 'gain' ? 0.25 : 0.5),
+                })
+              }
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+      {value.goal && value.goal !== 'keep' ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Goal weight, kg"
+            inputMode="decimal"
+            placeholder="70"
+            value={value.goalWeight}
+            onChange={(e) =>
+              onChange({ ...value, goalWeight: e.target.value.replace(/[^\d.,]/g, '') })
+            }
+          />
+          <fieldset>
+            <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Pace</legend>
+            <div role="radiogroup" className="flex flex-wrap gap-1.5">
+              {RATES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  role="radio"
+                  aria-checked={value.goalRate === r}
+                  className={chip(value.goalRate === r)}
+                  onClick={() => onChange({ ...value, goalRate: r })}
+                >
+                  {r} kg a week
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+      ) : null}
+      <fieldset>
+        <legend className="mb-1 text-[0.8125rem] font-semibold text-ink-700">
+          A usual day, without training
+        </legend>
+        <p className="mb-1.5 text-xs text-ink-500">
+          Used when the phone doesn’t send active energy.
+        </p>
+        <div role="radiogroup" className="flex flex-wrap gap-1.5">
+          {ACTIVITY.map(([a, label]) => (
+            <button
+              key={a}
+              type="button"
+              role="radio"
+              aria-checked={(value.activity ?? 'light') === a}
+              className={chip((value.activity ?? 'light') === a)}
+              onClick={() => onChange({ ...value, activity: a })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </fieldset>
     </div>
   );
 }

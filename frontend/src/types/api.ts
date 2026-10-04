@@ -12,11 +12,16 @@ export interface User {
   /** YYYY-MM-DD */
   birthDate: string | null;
   heightCm: number | null;
+  goal: 'lose' | 'keep' | 'gain' | null;
+  goalWeight: number | null;
+  goalRate: number | null;
+  activity: Activity | null;
   /** The picture's address, or null. */
   avatarUrl: string | null;
 }
 
 export type Gender = 'female' | 'male' | 'other';
+export type Activity = 'sedentary' | 'light' | 'moderate' | 'active' | 'very';
 
 export interface AdminUser extends User {
   isActive: boolean;

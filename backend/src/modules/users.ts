@@ -24,6 +24,10 @@ export interface User {
   /** YYYY-MM-DD */
   birthDate: string | null;
   heightCm: number | null;
+  goal: 'lose' | 'keep' | 'gain' | null;
+  goalWeight: number | null;
+  goalRate: number | null;
+  activity: 'sedentary' | 'light' | 'moderate' | 'active' | 'very' | null;
   /** When the picture was last set; null without one. */
   avatarAt: Date | null;
 }
@@ -50,10 +54,14 @@ interface UserRow {
   birth_date: string | null;
   height_cm: number | null;
   avatar_at: Date | null;
+  goal: User['goal'];
+  goal_weight: string | null;
+  goal_rate: string | null;
+  activity: User['activity'];
 }
 
 export const USER_COLUMNS =
-  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at, gender, birth_date::text AS birth_date, height_cm, avatar_at';
+  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at, gender, birth_date::text AS birth_date, height_cm, avatar_at, goal, goal_weight, goal_rate, activity';
 
 export function toUser(row: UserRow): User {
   return {
@@ -75,6 +83,10 @@ export function toUser(row: UserRow): User {
     birthDate: row.birth_date,
     heightCm: row.height_cm,
     avatarAt: row.avatar_at,
+    goal: row.goal,
+    goalWeight: row.goal_weight === null ? null : Number(row.goal_weight),
+    goalRate: row.goal_rate === null ? null : Number(row.goal_rate),
+    activity: row.activity,
   };
 }
 
@@ -145,6 +157,10 @@ export interface PublicUser {
   gender: Gender | null;
   birthDate: string | null;
   heightCm: number | null;
+  goal: User['goal'];
+  goalWeight: number | null;
+  goalRate: number | null;
+  activity: User['activity'];
   /** The picture's address (it changes with the picture), or null. */
   avatarUrl: string | null;
 }
@@ -165,6 +181,10 @@ export function toPublicUser(user: User): PublicUser {
     gender: user.gender,
     birthDate: user.birthDate,
     heightCm: user.heightCm,
+    goal: user.goal,
+    goalWeight: user.goalWeight,
+    goalRate: user.goalRate,
+    activity: user.activity,
     avatarUrl: avatarUrl(user.id, user.avatarAt),
   };
 }

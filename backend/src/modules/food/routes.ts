@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { foodCtx, requireKitchen } from './kitchen';
 import {
   addMealPart,
+  ateNow,
   completeMeal,
   cookRecipe,
   deleteMeal,
@@ -59,6 +60,7 @@ import {
 } from './products';
 import {
   AddShoppingInput,
+  AteInput,
   AddStockInput,
   CheckoutInput,
   CompleteMealInput,
@@ -277,6 +279,9 @@ export function foodRoutes(deps: AppDeps) {
   app.post('/recipes/:id/cook', async (c) =>
     c.json(await cookRecipe(ctx(c), c.req.param('id'), await readJson(c, CookInput)), 201),
   );
+
+  // Eaten outside the plan: a banana, a shake. A meal already eaten, for whoever ate it.
+  app.post('/ate', async (c) => c.json(await ateNow(ctx(c), await readJson(c, AteInput)), 201));
 
   app.get('/meals', async (c) => {
     const { from, to } = readQuery(c, RangeQuery);

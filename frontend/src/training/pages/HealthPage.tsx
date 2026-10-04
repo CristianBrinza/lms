@@ -11,6 +11,7 @@ import { errorMessage } from '@/lib/errors';
 import { currentPlatform } from '@/lib/platform';
 import { trainingApi, trainingKeys } from '../api';
 import { BarChart, LineChart } from '../components/charts';
+import { EnergyPanel } from '../components/EnergyPanel';
 import { PersonSwitcher } from '../components/PersonSwitcher';
 import { usePerson } from '../person';
 import type { HealthKind, HealthSummary } from '../types';
@@ -58,14 +59,15 @@ export default function HealthPage() {
       <PageHeader
         compact
         back="/training"
-        title="Health"
+        title="Health and energy"
         subtitle={
-          isMe ? 'From your phone, next to your training' : `${person?.name ?? ''}’s health`
+          isMe ? 'Eaten, burned, and the phone’s numbers' : `${person?.name ?? ''}’s health`
         }
       />
       <PersonSwitcher className="gutter-x mt-3 md:px-5 lg:px-8" />
       <div className="gutter-x mt-3 grid gap-4 md:px-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:px-8">
         <div className="flex min-w-0 flex-col gap-4">
+          <EnergyPanel personId={personId} today={today} />
           <div className="flex gap-1.5" role="group" aria-label="Range">
             {RANGES.map((r) => (
               <button
@@ -341,8 +343,8 @@ function Connect({ synced }: { synced: string | null }) {
             <li>
               Add <b>Find Health Samples</b> (Steps, start date is today) →{' '}
               <b>Calculate Statistics</b> (Sum). Repeat for Walking + Running Distance (Sum, km),
-              Active Energy (Sum), Resting Heart Rate (Average), Weight (sort latest, limit 1),
-              Sleep (hours, Sum).
+              Active Energy (Sum), Resting Energy (Sum), Resting Heart Rate (Average), Weight (sort
+              latest, limit 1), Sleep (hours, Sum).
             </li>
             <li>
               <b>Format Date</b>: Current Date, custom format <code>yyyy-MM-dd</code>.
@@ -358,8 +360,14 @@ function Connect({ synced }: { synced: string | null }) {
               </button>
               , Method POST, Header <code>Authorization</code> = <code>Bearer</code> + the key,
               Request Body JSON: <code>date</code>, <code>steps</code>, <code>distanceKm</code>,{' '}
-              <code>activeEnergy</code>, <code>restingHeartRate</code>, <code>weight</code>,{' '}
-              <code>sleepHours</code>, each set to its result.
+              <code>activeEnergy</code>, <code>restingEnergy</code>, <code>restingHeartRate</code>,{' '}
+              <code>weight</code>, <code>sleepHours</code>, each set to its result.
+            </li>
+            <li>
+              To see what you ate in Apple Health too: <b>Get Contents of URL</b>{' '}
+              <code>{url.replace('/health', '/energy/today')}</code> (GET, same header), then{' '}
+              <b>Get Dictionary Value</b> <code>eatenKcal</code>, then <b>Log Health Sample</b>:
+              Dietary Energy, that value, today.
             </li>
             <li>
               Run it once by hand: allow Health when the iPhone asks. This page shows the day.

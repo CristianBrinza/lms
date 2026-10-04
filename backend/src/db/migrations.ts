@@ -710,6 +710,29 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE training_sets ADD COLUMN variant text NOT NULL DEFAULT '';
     `,
   },
+  {
+    version: 21,
+    name: 'nutrition and energy',
+    sql: `
+      -- The household's own nutrition for an item (per 100 g / 100 ml / piece, kinds apart);
+      -- without it, the catalog's typical values count.
+      ALTER TABLE products ADD COLUMN nutrition jsonb;
+
+      -- Who ate a meal (empty: everyone when there's a serving each, else whoever marked it eaten),
+      -- who marked it, and for eating out the kcal per person.
+      ALTER TABLE meals ADD COLUMN eaters uuid[] NOT NULL DEFAULT '{}';
+      ALTER TABLE meals ADD COLUMN done_by uuid REFERENCES users (id) ON DELETE SET NULL;
+      ALTER TABLE meals ADD COLUMN out_kcal integer CHECK (out_kcal BETWEEN 0 AND 10000);
+      UPDATE meals SET done_by = created_by WHERE status = 'done';
+
+      -- What someone is aiming for: lose, keep or gain weight, at what pace, and how active a
+      -- day is without the phone's numbers.
+      ALTER TABLE users ADD COLUMN goal text CHECK (goal IN ('lose', 'keep', 'gain'));
+      ALTER TABLE users ADD COLUMN goal_weight numeric(5, 1) CHECK (goal_weight BETWEEN 20 AND 400);
+      ALTER TABLE users ADD COLUMN goal_rate numeric(3, 2) CHECK (goal_rate BETWEEN 0 AND 1.5);
+      ALTER TABLE users ADD COLUMN activity text CHECK (activity IN ('sedentary', 'light', 'moderate', 'active', 'very'));
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

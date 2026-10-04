@@ -25,6 +25,18 @@ export const ProfileFields = z.object({
   gender: z.enum(GENDERS).nullable().optional(),
   birthDate: birthDate.nullable().optional(),
   heightCm: z.number().int().min(40, 'Height in cm').max(250, 'Height in cm').nullable().optional(),
+  goal: z
+    .enum(['lose', 'keep', 'gain'])
+    .nullable()
+    .optional()
+    .describe('Lose, keep or gain weight'),
+  goalWeight: z.number().min(20).max(400).nullable().optional().describe('kg'),
+  goalRate: z.number().min(0).max(1.5).nullable().optional().describe('kg a week'),
+  activity: z
+    .enum(['sedentary', 'light', 'moderate', 'active', 'very'])
+    .nullable()
+    .optional()
+    .describe('How active a day is without the training, when the phone doesn’t say'),
 });
 export type ProfileFields = z.infer<typeof ProfileFields>;
 
@@ -37,7 +49,15 @@ export async function saveProfileFields(
 ): Promise<void> {
   const sets: string[] = [];
   const values: unknown[] = [userId];
-  const column = { gender: 'gender', birthDate: 'birth_date', heightCm: 'height_cm' } as const;
+  const column = {
+    gender: 'gender',
+    birthDate: 'birth_date',
+    heightCm: 'height_cm',
+    goal: 'goal',
+    goalWeight: 'goal_weight',
+    goalRate: 'goal_rate',
+    activity: 'activity',
+  } as const;
   for (const key of Object.keys(column) as Array<keyof typeof column>) {
     if (fields[key] === undefined) continue;
     values.push(fields[key]);

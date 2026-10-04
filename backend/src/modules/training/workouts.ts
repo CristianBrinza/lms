@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import type { FoodCtx as Ctx } from '../food/kitchen';
 import { kitchenPeople } from '../food/restrictions';
+import { setKcal, workoutKcal } from './energy';
 import { localDate } from '../food/stock';
 import { isUuid } from '../users';
 import {
@@ -646,6 +647,10 @@ export interface WorkoutSummary {
 export interface Workout extends WorkoutSummary {
   items: WorkoutItemView[];
   sets: TrainingSet[];
+  /** Energy it costs (gross, Compendium METs × weight × time): what the sets done cost, or before
+   * any is done, what the plan should. */
+  kcal: number;
+  kcalSource: 'done' | 'planned';
 }
 
 interface WorkoutRow {
@@ -760,6 +765,39 @@ async function exercisesOf(ctx: Ctx, rows: WorkoutRow[]): Promise<Map<string, Ex
   });
 }
 
+/** What a planned workout should cost: every set at its target, plus the rests between. */
+async function plannedKcal(
+  ctx: Ctx,
+  userId: string,
+  items: WorkoutItemView[],
+  rounds: number,
+  roundRest: number,
+): Promise<number> {
+  const { rows } = await ctx.db.query<{ value: string }>(
+    `SELECT value FROM health_days WHERE user_id = $1 AND kind = 'weight' ORDER BY day DESC LIMIT 1`,
+    [userId],
+  );
+  const kg = rows[0] ? Number(rows[0].value) : 70;
+  let kcal = 0;
+  for (const item of items) {
+    const times = item.sets * (item.exercise.unilateral ? 2 : 1) * (isMain(item) ? rounds : 1);
+    const set = {
+      preset: item.exercise.preset,
+      category: item.exercise.category,
+      measure: item.exercise.measure,
+      unilateral: item.exercise.unilateral,
+      reps: item.reps ?? null,
+      seconds: item.seconds ?? null,
+      distance: item.distance ?? null,
+      effort: null,
+      side: null,
+    };
+    kcal += times * setKcal(set, kg) + (times * item.rest * 1.3 * kg) / 3600;
+  }
+  kcal += (Math.max(0, rounds - 1) * roundRest * 1.3 * kg) / 3600;
+  return Math.round(kcal);
+}
+
 export async function listWorkouts(
   ctx: Ctx,
   options: { userId?: string | null; from: string; to: string },
@@ -810,7 +848,17 @@ export async function getWorkout(ctx: Ctx, id: string): Promise<Workout> {
         suggest: suggest(item, exercise, last.get(item.exerciseId)),
       };
     });
-  return { ...summarize(row, exercises, equipment), items, sets: sets.rows.map(toSet) };
+  const done = sets.rows.map(toSet);
+  const kcal = done.length
+    ? await workoutKcal(ctx, id, row.user_id, row.status === 'done' ? row.duration_seconds : null)
+    : await plannedKcal(ctx, row.user_id, items, row.rounds, row.round_rest);
+  return {
+    ...summarize(row, exercises, equipment),
+    items,
+    sets: done,
+    kcal,
+    kcalSource: done.length ? 'done' : 'planned',
+  };
 }
 
 /** Each item's target filled from its exercise where the plan left it open. */

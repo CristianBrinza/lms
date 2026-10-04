@@ -124,6 +124,26 @@ every Training screen).
   time and a next target (one more rep; a heavier weight you own), day and week streaks, a
   calendar of days trained, sets per muscle, minutes per week.
 
+## Nutrition and energy
+
+Food and training meet here, for each person:
+
+- **Nutrition on every item**: kcal, protein, fat, carbs (sugar, fibre, salt) per 100 g, 100 ml
+  or piece. Typical values for the whole catalog come from USDA FoodData Central and EU labels;
+  a household can enter its own (from the label, or by asking Claude to look them up), and kinds
+  differ where they should (Cola Zero, milk by fat %). Recipes and meals show values per serving.
+- **Eaten**: the meals each person ate (one serving each; "who eats" on a meal), and things eaten
+  outside the plan ("I ate…": a banana, a protein shake). Protein powder, bars, gainer, creatine
+  and skyr are in the catalog.
+- **Burned**: resting and active energy from the phone (Apple Health via the Shortcut), else
+  the Mifflin–St Jeor equation and a usual-day activity level; training logged here by METs from
+  the 2024 Adult Compendium of Physical Activities × body weight × time (running and walking by
+  the ACSM equations). Each workout shows its kcal, planned or done.
+- **Target**: from the profile's goal (lose, keep or gain weight, kg a week; 7700 kcal per kg),
+  never below what rest needs; protein 1.2–1.6 g per kg. After two weeks of meals and weigh-ins
+  the day's burn is measured from intake and weight change.
+- The Shortcut can also write the day's eaten kcal into Apple Health (Dietary Energy).
+
 ## Claude
 
 Nothing in LMS calls an AI. Instead, Claude (or any assistant) works on the kitchen and training

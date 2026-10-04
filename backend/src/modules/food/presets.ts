@@ -32,6 +32,13 @@ export const CATEGORIES = [
 export type Category = (typeof CATEGORIES)[number];
 
 export const FOOD_ICONS = [
+  // sports nutrition
+  'protein-powder',
+  'protein-bar',
+  'mass-gainer',
+  'creatine',
+  'protein-pudding',
+  'skyr',
   // kinds: each has its own picture
   'bread-brown',
   'bread-rye',
@@ -1147,6 +1154,30 @@ const RAW_PRESETS: readonly Preset[] = [
   ]),
   P('Lecho', 'jar-spread', 'pantry', 'g', 'pantry', 730, 450, ['lecio', 'лечо']),
   P('Ajvar', 'jar-spread', 'pantry', 'g', 'pantry', 730, 350, ['айвар']),
+  // Sports nutrition: shakes, bars, supplements.
+  P('Protein powder', 'protein-powder', 'pantry', 'g', 'pantry', 540, undefined, [
+    'protein',
+    'whey',
+    'whey protein',
+    'proteina',
+    'протеин',
+    'сывороточный протеин',
+  ]),
+  P('Protein bar', 'protein-bar', 'snacks', 'pcs', 'pantry', 270, 60, [
+    'baton proteic',
+    'протеиновый батончик',
+  ]),
+  P('Mass gainer', 'mass-gainer', 'pantry', 'g', 'pantry', 540, undefined, ['gainer', 'гейнер']),
+  P('Creatine', 'creatine', 'pantry', 'g', 'pantry', 730, undefined, [
+    'creatina',
+    'creatine monohydrate',
+    'креатин',
+  ]),
+  P('Protein pudding', 'protein-pudding', 'dairy', 'pcs', 'fridge', 30, 200, [
+    'budinca proteica',
+    'протеиновый пудинг',
+  ]),
+  P('Skyr', 'skyr', 'dairy', 'g', 'fridge', 21, undefined, ['скир']),
   P('Peanut butter', 'jar', 'pantry', 'g', 'pantry', 180, undefined, [
     'unt de arahide',
     'арахисовая паста',
@@ -1756,6 +1787,35 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
     ],
     variants: ['Classic', 'Free'],
   },
+  'Protein powder': {
+    units: [
+      { name: 'scoop', size: 30 },
+      { name: 'tub', size: 1000, sizes: [454, 908, 1000, 2000, 2270] },
+    ],
+    variants: [
+      'Whey, vanilla',
+      'Whey, chocolate',
+      'Whey, unflavoured',
+      'Whey isolate',
+      'Casein',
+      'Vegan (pea)',
+      'Egg white',
+    ],
+  },
+  'Protein bar': { variants: ['Chocolate', 'Peanut', 'Cookies & cream', 'Low sugar'] },
+  'Mass gainer': {
+    units: [
+      { name: 'scoop', size: 100 },
+      { name: 'bag', size: 3000, sizes: [1000, 3000, 5000] },
+    ],
+  },
+  Creatine: {
+    units: [
+      { name: 'scoop', size: 5 },
+      { name: 'tub', size: 300, sizes: [250, 300, 500, 1000] },
+    ],
+  },
+  Skyr: { units: [{ name: 'cup', size: 150, sizes: [140, 150, 400, 450] }] },
 };
 
 /** Drawings of things that, once opened, belong in the fridge. */

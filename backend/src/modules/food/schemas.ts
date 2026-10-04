@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { NutritionInput } from './nutrition';
 import { TOOL_ICONS, TOOL_KINDS } from './kitchenware';
 import { CATEGORIES, FOOD_ICONS, LEVELS, LOCATIONS, TRACK_MODES } from './presets';
 import { BASE_UNITS, UNITS } from './units';
@@ -140,6 +141,7 @@ export const ProductInput = z.object({
     .describe('Below this (in the base unit) it is “running low”'),
   storeId: idField.nullable().optional().describe('The store it is usually bought at'),
   note: noteField.optional(),
+  nutrition: NutritionInput.optional(),
 });
 export type ProductInput = z.infer<typeof ProductInput>;
 
@@ -600,6 +602,14 @@ export const EatOutInput = z.object({
     .optional()
     .describe('Where, or what ("Andy’s Pizza", "Ana’s birthday")'),
   cost: priceField.nullable().optional().describe('What it cost, in lei'),
+  kcal: z
+    .number()
+    .int()
+    .min(0)
+    .max(10000)
+    .nullable()
+    .optional()
+    .describe('About how many kcal one person ate'),
 });
 export type EatOutInput = z.infer<typeof EatOutInput>;
 
@@ -652,6 +662,17 @@ export const MealPatchFields = z.object({
   note: noteField,
   status: z.enum(['planned', 'skipped']),
   toGo: z.boolean(),
+  eaters: z
+    .array(idField)
+    .max(20)
+    .describe('Who eats (or ate) it: their kcal count it, one serving each'),
+  outKcal: z
+    .number()
+    .int()
+    .min(0)
+    .max(10000)
+    .nullable()
+    .describe('Eaten out: about how many kcal one person ate'),
 });
 export const MealPatch = MealPatchFields.partial().refine(
   (body) => Object.keys(body).length > 0,
@@ -660,6 +681,29 @@ export const MealPatch = MealPatchFields.partial().refine(
 export type MealPatch = z.infer<typeof MealPatch>;
 
 export const MealIngredientsInput = z.object({ ingredients: z.array(MealIngredientInput).max(60) });
+
+/** Something eaten now, outside the plan: a banana, a protein shake, a piece of cake. */
+export const AteInput = z.object({
+  items: z
+    .array(
+      z.object({
+        productId: idField.optional(),
+        name: nameField,
+        amount: quantityField.optional(),
+        unit: unitField.optional(),
+        variant: z.string().trim().max(40).optional(),
+      }),
+    )
+    .min(1)
+    .max(20),
+  title: z.string().trim().min(1).max(120).optional(),
+  recipeId: idField.optional().describe('Or a recipe, one serving each (a protein shake)'),
+  date: dateField.optional(),
+  time: timeField.optional(),
+  eaters: z.array(idField).max(20).optional().describe('Who ate it; default the caller'),
+  fromKitchen: z.boolean().optional().describe('Default true: it is taken from the kitchen'),
+});
+export type AteInput = z.infer<typeof AteInput>;
 
 export const CompleteMealInput = z.object({
   leftovers: z

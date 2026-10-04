@@ -2142,6 +2142,7 @@ function Summary({ workout }: { workout: Workout }) {
           <Stat dark label="Time" value={clock(workout.durationSeconds ?? 0)} />
           <Stat dark label="Sets" value={String(sets.length)} />
           <Stat dark label="Reps" value={String(reps)} />
+          <Stat dark label="Energy" value={`${workout.kcal} kcal`} />
           {metres ? <Stat dark label="Distance" value={distance(metres)} /> : null}
         </div>
 

@@ -4,6 +4,7 @@ import type {
   EquipmentPreset,
   ExerciseHistory,
   Focus,
+  EnergySummary,
   Generated,
   HealthSummary,
   LibraryExercise,
@@ -37,6 +38,8 @@ export const trainingKeys = {
     ['training', 'stats', userId, from, to] as const,
   health: (userId: string, from: string, to: string) =>
     ['training', 'health', userId, from, to] as const,
+  energy: (userId: string, from: string, to: string) =>
+    ['training', 'energy', userId, from, to] as const,
 };
 
 export interface ExerciseInput {
@@ -188,6 +191,10 @@ export const trainingApi = {
     api
       .get<{ health: HealthSummary }>(`/training/health${query({ userId, from, to })}`)
       .then((r) => r.health),
+  energy: (userId: string, from: string, to: string, today: string) =>
+    api
+      .get<{ energy: EnergySummary }>(`/training/energy${query({ userId, from, to, today })}`)
+      .then((r) => r.energy),
   addHealth: (body: {
     userId?: string;
     source: 'manual';

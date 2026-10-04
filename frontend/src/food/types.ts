@@ -73,6 +73,8 @@ export interface Product {
   variants: string[];
   /** A picture per kind (keys in lower case), where the catalog has one. */
   variantIcons?: Record<string, string>;
+  /** The values that count (own or the catalog's typical ones), or null when unknown. */
+  nutrition?: { entry: NutritionEntry; source: 'own' | 'catalog' } | null;
   minStock: number | null;
   storeId: string | null;
   note: string;
@@ -280,6 +282,34 @@ export interface Availability {
   warnings: Array<Warning & { item: string }>;
 }
 
+/** Energy and nutrients (g; kcal for energy). */
+export interface Nutrients {
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  sugar?: number;
+  fiber?: number;
+  salt?: number;
+}
+
+export interface NutritionEntry {
+  /** What the numbers are for. */
+  per: '100g' | '100ml' | 'piece';
+  base: Nutrients;
+  /** Kinds that differ (Zero, 2.5%…), by kind name. */
+  kinds?: Record<string, Nutrients>;
+}
+
+/** A dish's nutrition: whole and per serving; lines with an amount but unknown values are named. */
+export interface DishNutrition {
+  total: Nutrients;
+  perServing: Nutrients;
+  known: number;
+  counted: number;
+  unknown: string[];
+}
+
 export interface Recipe {
   id: string;
   title: string;
@@ -302,6 +332,7 @@ export interface Recipe {
   tools: ToolNeed[];
   timesCooked: number;
   lastCooked: string | null;
+  nutrition: DishNutrition;
 }
 
 export interface Meal {
@@ -320,7 +351,11 @@ export interface Meal {
   createdVia: Via;
   leftoversLotId: string | null;
   /** Eaten out (or planned to be): nothing is taken from the kitchen. */
-  eatenOut: { kind: OutKind; place: string; cost: number | null } | null;
+  eatenOut: { kind: OutKind; place: string; cost: number | null; kcal: number | null } | null;
+  /** Who ate it (empty: everyone when there's a serving each, else whoever marked it eaten). */
+  eaters: string[];
+  doneBy: string | null;
+  nutrition: DishNutrition;
   parts: MealPart[];
   tools: ToolNeed[];
   ingredients: IngredientLine[];
@@ -515,6 +550,7 @@ export interface KitchenPerson {
   id: string;
   name: string;
   surname: string;
+  avatarUrl?: string | null;
 }
 
 export interface Restriction {
