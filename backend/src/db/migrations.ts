@@ -745,6 +745,29 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE products ADD CONSTRAINT products_opened_location_check CHECK (opened_location IN ('fridge', 'freezer', 'pantry', 'garden', 'bathroom', 'storage', 'other'));
     `,
   },
+  {
+    version: 23,
+    name: 'OAuth sign-in for assistants (Claude, Codex, ChatGPT) on the MCP server',
+    sql: `
+      CREATE TABLE oauth_clients (
+        id text PRIMARY KEY,
+        name text NOT NULL,
+        redirect_uris text[] NOT NULL,
+        created_at timestamptz NOT NULL
+      );
+      CREATE TABLE oauth_codes (
+        code_hash text PRIMARY KEY,
+        client_id text NOT NULL REFERENCES oauth_clients(id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        redirect_uri text NOT NULL,
+        code_challenge text NOT NULL,
+        scope text NOT NULL,
+        expires_at timestamptz NOT NULL,
+        used_at timestamptz
+      );
+      ALTER TABLE api_tokens ADD COLUMN oauth_client_id text REFERENCES oauth_clients(id) ON DELETE SET NULL;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */
@@ -788,4 +811,13 @@ export async function cleanup(db: Database, now: Date): Promise<void> {
   await db.query(`DELETE FROM audit_log WHERE created_at < $1::timestamptz - interval '365 days'`, [
     now,
   ]);
+  // Sign-in codes live ten minutes; an assistant registered but never connected, a day.
+  await db.query(`DELETE FROM oauth_codes WHERE expires_at < $1::timestamptz - interval '1 day'`, [
+    now,
+  ]);
+  await db.query(
+    `DELETE FROM oauth_clients c WHERE created_at < $1::timestamptz - interval '1 day'
+       AND NOT EXISTS (SELECT 1 FROM api_tokens t WHERE t.oauth_client_id = c.id)`,
+    [now],
+  );
 }

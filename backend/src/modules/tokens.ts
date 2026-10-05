@@ -58,7 +58,7 @@ export function looksLikeToken(value: string): boolean {
 export async function createToken(
   deps: AppDeps,
   user: User,
-  input: { name: string; scope: TokenScope },
+  input: { name: string; scope: TokenScope; oauthClientId?: string },
 ): Promise<{ token: string; key: PublicToken }> {
   if (input.scope === 'admin' && user.role !== 'admin')
     throw new AppError(403, 'FORBIDDEN', 'Only admins can give an assistant admin access');
@@ -70,8 +70,8 @@ export async function createToken(
     throw new AppError(409, 'TOO_MANY_KEYS', 'Remove an old key first');
   const token = `${TOKEN_PREFIX}${randomToken(32)}`;
   const { rows } = await deps.db.query<TokenRow>(
-    `INSERT INTO api_tokens (id, user_id, name, token_hash, prefix, scope, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO api_tokens (id, user_id, name, token_hash, prefix, scope, created_at, oauth_client_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id, name, prefix, scope, created_at, last_used_at`,
     [
       randomUUID(),
@@ -81,6 +81,7 @@ export async function createToken(
       token.slice(0, TOKEN_PREFIX.length + 6),
       input.scope,
       deps.now(),
+      input.oauthClientId ?? null,
     ],
   );
   return { token, key: toPublicToken(rows[0]!) };

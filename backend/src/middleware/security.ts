@@ -5,6 +5,7 @@ import type { AppDeps, AppEnv } from '../context';
 import { AppError } from '../lib/errors';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const OAUTH_OPEN = new Set(['/api/oauth/token', '/api/oauth/register']);
 
 /** Request id + resolved client IP, available to every handler. */
 export function requestContext(deps: AppDeps) {
@@ -47,6 +48,9 @@ export function originGuard(deps: AppDeps) {
     allowed.has(origin) ||
     (deps.config.env === 'development' && isLanDevOrigin(origin, deps.config.appUrl));
   return createMiddleware<AppEnv>(async (c, next) => {
+    // OAuth's token and registration endpoints: called by assistants' own code from anywhere,
+    // form-encoded, never with cookies (so no CSRF to stop).
+    if (OAUTH_OPEN.has(c.req.path)) return next();
     if (UNSAFE_METHODS.has(c.req.method)) {
       const site = c.req.header('sec-fetch-site');
       if (site && site !== 'same-origin' && site !== 'none')

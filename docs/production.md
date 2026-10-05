@@ -113,9 +113,18 @@ pushes to `main` too.
 
 - **Data** (food, recipes, the plan, lists, training): through the app with an access key, from
   any machine — the skill `.claude/skills/lms-production`.
-  - **A key**: in the app, Settings → Claude access → new key, scope "Kitchen".
-  - **MCP (best)**: `claude mcp add --transport http --scope user lms https://lms.shades.md/api/mcp --header "Authorization: Bearer <key>"`
-    — once per machine; the key stays in Claude's own settings, outside the repo.
+  - **MCP with sign-in (best, any device)**: point the assistant at `https://lms.shades.md/api/mcp`.
+    It finds LMS's sign-in by itself (OAuth 2.1 with PKCE, `backend/src/modules/oauth.ts`): a
+    browser opens LMS, you sign in and pick what it may do (read only / kitchen / everything),
+    and it gets its own access key, listed and revocable in Settings → Claude access.
+    - Claude Code: `claude mcp add --transport http --scope user lms https://lms.shades.md/api/mcp`,
+      then `/mcp` → lms → Authenticate.
+    - Codex: `codex mcp add lms --url https://lms.shades.md/api/mcp`, then `codex mcp login lms`.
+    - claude.ai / the Claude app / ChatGPT: Settings → Connectors → add a custom connector with
+      that address → Connect.
+  - **Or a key by hand**: in the app, Settings → Claude access → new key, scope "Kitchen", then
+    `claude mcp add --transport http --scope user lms https://lms.shades.md/api/mcp --header "Authorization: Bearer <key>"`
+    (or the connector URL `https://lms.shades.md/api/mcp/k/<key>` for clients without headers).
   - **Or the CLI**: `node scripts/lms.mjs login` (the key is asked for, hidden, and kept in
     `~/.config/lms/production.env`, readable by you only). Then `node scripts/lms.mjs whoami`,
     `node scripts/lms.mjs GET /api/food/overview`, …

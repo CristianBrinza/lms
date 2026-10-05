@@ -178,7 +178,9 @@ with an **access key** (Settings → Claude access):
 
 - **REST:** `Authorization: Bearer lms_…` on `/api/food/...` and `/api/training/...`. The app and
   the assistant share the same rules.
-- **MCP:** `/api/mcp` (key in the `Authorization` header), or `/api/mcp/k/<key>` for clients
+- **MCP:** `/api/mcp`. Assistants that support it sign in by themselves (OAuth 2.1 + PKCE:
+  Claude Code, Codex, claude.ai, ChatGPT): LMS asks the person what to allow and hands the
+  assistant its own key. Or a key in the `Authorization` header, or `/api/mcp/k/<key>` for clients
   that can't send headers. About 50 tools: the kitchen, adding and using stock, pouring, shopping
   and checkout (and undoing a shop), recipes, the plan and its parts, kitchenware, kitchen people,
   and training (equipment, exercises, planning or making up workouts, logging sets, statistics). The server's

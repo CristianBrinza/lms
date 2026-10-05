@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { mcpChallenge } from '../oauth';
 import type { AppDeps, AppEnv } from '../../context';
 import { AppError } from '../../lib/errors';
 import { enforceRateLimits } from '../../lib/rate-limit';
@@ -140,13 +141,13 @@ export function mcpRoutes(deps: AppDeps, getApp: () => Hono<AppEnv>) {
       throw new AppError(
         401,
         'KEY_REQUIRED',
-        'An LMS access key is needed (Settings → AI assistant)',
-        { headers: { 'WWW-Authenticate': 'Bearer realm="lms"' } },
+        'Sign in to LMS, or use an access key (Settings → Claude access)',
+        { headers: { 'WWW-Authenticate': mcpChallenge(deps) } },
       );
     const auth = await authenticateToken(deps, raw);
     if (!auth)
       throw new AppError(401, 'KEY_INVALID', 'This access key is not valid', {
-        headers: { 'WWW-Authenticate': 'Bearer realm="lms", error="invalid_token"' },
+        headers: { 'WWW-Authenticate': mcpChallenge(deps, 'invalid_token') },
       });
     await enforceRateLimits(deps, [{ key: `mcp:${auth.tokenId}`, limit: 600, windowSec: 10 * 60 }]);
 

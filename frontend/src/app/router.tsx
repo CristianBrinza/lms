@@ -83,6 +83,7 @@ const routes: RouteObject[] = [
         element: <RequireAuth />,
         children: [
           { path: 'welcome', lazy: page(() => import('@/pages/auth/WelcomePage')) },
+          { path: 'oauth/authorize', lazy: page(() => import('@/pages/auth/OAuthConsentPage')) },
           {
             path: 'training/workouts/:id/play',
             lazy: page(() => import('@/training/player/PlayerPage')),

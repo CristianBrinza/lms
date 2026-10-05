@@ -199,11 +199,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5190,
       strictPort: true,
-      proxy: { '/api': { target: apiTarget, changeOrigin: false } },
+      proxy: { '/api': { target: apiTarget, changeOrigin: false }, '/.well-known/oauth': { target: apiTarget, changeOrigin: false } },
     },
     preview: {
       port: 4190,
-      proxy: { '/api': { target: apiTarget, changeOrigin: false } },
+      proxy: { '/api': { target: apiTarget, changeOrigin: false }, '/.well-known/oauth': { target: apiTarget, changeOrigin: false } },
     },
     build: {
       sourcemap: 'hidden',

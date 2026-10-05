@@ -16,6 +16,7 @@ import { avatarRoutes } from './modules/profile';
 import { healthRoutes } from './modules/health';
 import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
+import { oauthMetadataRoutes, oauthRoutes } from './modules/oauth';
 import { reminderRoutes } from './modules/reminders/routes';
 import { webApp, webVersion } from './web';
 
@@ -25,7 +26,9 @@ export function createApp(deps: AppDeps) {
   app.use('*', requestContext(deps));
   app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps), jsonBodyLimit);
 
+  app.route('/', oauthMetadataRoutes(deps));
   app.route('/api', healthRoutes(deps));
+  app.route('/api/oauth', oauthRoutes(deps));
   app.route('/api/auth', authRoutes(deps));
   app.route('/api/me', reminderRoutes(deps));
   app.route('/api/me', meRoutes(deps));

@@ -44,7 +44,7 @@ export function setupTestApp(
     clock = null;
     await migrate(db);
     await db.query(
-      'TRUNCATE users, sessions, rate_limits, audit_log, households RESTART IDENTITY CASCADE',
+      'TRUNCATE users, sessions, rate_limits, audit_log, households, oauth_clients RESTART IDENTITY CASCADE',
     );
   });
   afterAll(() => db.close());

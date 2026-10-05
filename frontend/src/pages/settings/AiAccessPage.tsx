@@ -328,22 +328,37 @@ function HowTo({ className }: { className?: string }) {
         MCP
       </div>
       <p className="mt-0.5 text-sm text-ink-600">
-        For the claude.ai or desktop app, add a custom connector with the URL from your new key:
+        Sign in, no key to copy: add this address as a custom connector (claude.ai, the Claude app,
+        ChatGPT) or in Claude Code or Codex. LMS opens to ask what it may do, and the connection
+        shows up in the list above.
+      </p>
+      <CopyBlock className="mt-1.5" label="MCP address" value={`${base}/api/mcp`} what="Address" />
+      <CopyBlock
+        className="mt-2.5"
+        label="Claude Code (then /mcp → lms → Authenticate)"
+        value={`claude mcp add --transport http --scope user lms ${base}/api/mcp`}
+        what="Command"
+      />
+      <CopyBlock
+        className="mt-2.5"
+        label="Codex (then codex mcp login lms)"
+        value={`codex mcp add lms --url ${base}/api/mcp`}
+        what="Command"
+      />
+      <p className="mt-2.5 text-sm text-ink-600">
+        Or with a key you made here, for clients without sign-in:
       </p>
       <CopyBlock
         className="mt-1.5"
-        label="Connector URL"
+        label="Connector URL with the key"
         value={`${base}/api/mcp/k/<key>`}
         what="Connector URL"
       />
-      <p className="mt-2.5 text-sm text-ink-600">
-        Clients that send headers, like Claude Code, use the plain endpoint:
-      </p>
       <CopyBlock
-        className="mt-1.5"
-        label="Claude Code"
-        value={`claude mcp add --transport http lms ${base}/api/mcp --header "Authorization: Bearer <key>"`}
-        what="Command"
+        className="mt-2.5"
+        label="Header"
+        value={`Authorization: Bearer <key>`}
+        what="Header"
       />
 
       <div className="mt-3.5 flex items-center gap-2 text-[0.9375rem] font-bold">
