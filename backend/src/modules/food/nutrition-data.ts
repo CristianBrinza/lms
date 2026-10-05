@@ -1291,13 +1291,13 @@ export const NUTRITION: Record<string, NutritionEntry> = {
   // Sodas: Moldovan/Romanian labels; Sprite and Mirinda are part-sweetened (~5 g sugar).
   'Coca-Cola': {
     per: '100ml',
-    base: { kcal: 42, protein: 0, fat: 0, carbs: 10.6, sugar: 10.6 }, // classic; cherry, lime, vanilla alike
-    kinds: { Zero: ZERO },
+    base: { kcal: 42, protein: 0, fat: 0, carbs: 10.6, sugar: 10.6 }, // original; vanilla, coffee alike
+    kinds: { Zero: ZERO, 'Zero Lime': ZERO, 'Vanilla Zero': ZERO },
   },
   Pepsi: {
     per: '100ml',
     base: { kcal: 42, protein: 0, fat: 0, carbs: 10.6, sugar: 10.6 },
-    kinds: { Zero: ZERO },
+    kinds: { Zero: ZERO, Max: ZERO },
   },
   Sprite: {
     per: '100ml',
@@ -1307,7 +1307,7 @@ export const NUTRITION: Record<string, NutritionEntry> = {
   Fanta: {
     per: '100ml',
     base: { kcal: 43, protein: 0, fat: 0, carbs: 10.5, sugar: 10.5 },
-    kinds: { Zero: ZERO },
+    kinds: { Zero: ZERO, 'Raspberry Zero': ZERO },
   },
   Mirinda: { per: '100ml', base: { kcal: 21, protein: 0, fat: 0, carbs: 5.0, sugar: 5.0 } },
   'Dr Pepper': {
@@ -1320,6 +1320,20 @@ export const NUTRITION: Record<string, NutritionEntry> = {
     base: { kcal: 22, protein: 0, fat: 0, carbs: 5.4, sugar: 5.4 },
     kinds: { Free: ZERO },
   },
+  // Mountain Dew and Schweppes full sugar; the iced teas are part-sweetened (labels ~4-5 g sugar).
+  'Mountain Dew': {
+    per: '100ml',
+    base: { kcal: 48, protein: 0, fat: 0, carbs: 12.0, sugar: 12.0 },
+  },
+  Schweppes: { per: '100ml', base: { kcal: 36, protein: 0, fat: 0, carbs: 8.9, sugar: 8.9 } },
+  Fuzetea: { per: '100ml', base: { kcal: 19, protein: 0, fat: 0, carbs: 4.6, sugar: 4.5 } },
+  'Lipton Ice Tea': {
+    per: '100ml',
+    base: { kcal: 19, protein: 0, fat: 0, carbs: 4.6, sugar: 4.6 },
+  },
+  Nestea: { per: '100ml', base: { kcal: 20, protein: 0, fat: 0, carbs: 4.9, sugar: 4.9 } },
+  Topic: { per: '100ml', base: { kcal: 40, protein: 0, fat: 0, carbs: 10.0, sugar: 10.0 } },
+  Baban: { per: '100ml', base: { kcal: 40, protein: 0, fat: 0, carbs: 10.0, sugar: 10.0 } },
   Soda: { per: '100ml', base: { kcal: 35, protein: 0, fat: 0, carbs: 8.7, sugar: 8.7 } },
   Lemonade: { per: '100ml', base: { kcal: 40, protein: 0, fat: 0, carbs: 10.0, sugar: 10.0 } },
   'Iced tea': { per: '100ml', base: { kcal: 19, protein: 0, fat: 0, carbs: 4.6, sugar: 4.6 } },

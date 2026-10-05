@@ -64,7 +64,7 @@ describe('food: drinks, jars and types', () => {
     const sprite = (await b.get('/api/food/products')).body.products.find(
       (p: any) => p.name === 'Sprite',
     );
-    expect(sprite.variants).toEqual(['Classic', 'Zero', 'Cucumber']);
+    expect(sprite.variants).toEqual(['Zero', 'Cucumber']);
   });
 
   it('counts a jar of pickles and a cake by what is inside', async () => {
@@ -349,11 +349,37 @@ describe('food: kinds with their own pictures', () => {
     const sprite = (await b.get('/api/food/kitchen')).body.products.find(
       (p: any) => p.name === 'Sprite',
     );
-    expect(sprite).toMatchObject({ icon: 'sprite', variants: ['Classic', 'Zero'] });
-    expect(sprite.variantIcons).toMatchObject({ zero: 'sprite' });
+    expect(sprite).toMatchObject({ icon: 'sprite', variants: ['Zero'] });
+    expect(sprite.variantIcons).toMatchObject({ zero: 'sprite-zero' });
     const milk = (await b.post('/api/food/stock', { name: 'Milk', quantity: 1000, unit: 'ml' }))
       .body.product;
     expect(milk.variants).toContain('2.5%');
     expect(milk.variantIcons['2.5%']).toBe('milk-semi');
+  });
+});
+
+describe('food: the Moldovan shelf of sodas and iced teas', () => {
+  it('knows the kinds as the shops print them, each with its own can', async () => {
+    await t.createUser({ email: 'ana@example.com', name: 'Ana' });
+    const b = t.browser();
+    await b.login('ana@example.com');
+    const lines = (
+      await b.post('/api/food/shopping/items', {
+        items: [
+          { name: 'fanta zero' },
+          { name: 'Schweppes', variant: 'Mojito' },
+          { name: 'pepsi max' },
+          { name: 'Fuzetea', variant: 'Peach Rose' },
+          { name: 'Mountain Dew' },
+        ],
+      })
+    ).body.items;
+    expect(lines.map((l: any) => [l.name, l.variant, l.icon, l.kindInName])).toEqual([
+      ['Fanta', 'Zero', 'fanta-zero', true],
+      ['Schweppes', 'Mojito', 'schweppes-mojito', true],
+      ['Pepsi', 'Max', 'pepsi-zero', true],
+      ['Fuzetea', 'Peach Rose', 'fuzetea', true],
+      ['Mountain Dew', '', 'mountain-dew', true],
+    ]);
   });
 });

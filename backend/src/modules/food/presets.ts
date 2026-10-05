@@ -151,6 +151,36 @@ export const FOOD_ICONS = [
   'fanta',
   'fanta-lemon',
   'fanta-exotic',
+  'cola-zero-lime',
+  'cola-vanilla-zero',
+  'cola-coffee',
+  'fanta-zero',
+  'fanta-mandarin',
+  'fanta-mango',
+  'fanta-raspberry-zero',
+  'sprite-zero',
+  'pepsi-twist',
+  'pepsi-raspberry',
+  'dr-pepper-cherry',
+  'dr-pepper-zero',
+  'mountain-dew',
+  'schweppes',
+  'schweppes-bitter-lemon',
+  'schweppes-pomegranate',
+  'schweppes-mojito',
+  'schweppes-blueberry-mojito',
+  'schweppes-grapefruit',
+  'fuzetea',
+  'fuzetea-forest-fruits',
+  'fuzetea-mango',
+  'fuzetea-lime-mint',
+  'lipton-ice-tea',
+  'lipton-peach',
+  'lipton-green',
+  'nestea',
+  'nestea-mango',
+  'nestea-forest-fruits',
+  'nestea-green-apple',
   'mirinda',
   'dr-pepper',
   'seven-up',
@@ -421,6 +451,13 @@ const OPENED: Record<string, number> = {
   Sprite: 3,
   Fanta: 3,
   'Iced tea': 3,
+  'Mountain Dew': 3,
+  Schweppes: 3,
+  Fuzetea: 3,
+  'Lipton Ice Tea': 3,
+  Nestea: 3,
+  Topic: 3,
+  Baban: 3,
   'Mineral water': 3,
   'Sparkling water': 3,
   Kvass: 2,
@@ -802,6 +839,31 @@ const RAW_PRESETS: readonly Preset[] = [
   P('Fanta', 'fanta', 'drinks', 'ml', 'pantry', 180, [500, 'ml'], ['фанта']),
   P('Mirinda', 'mirinda', 'drinks', 'ml', 'pantry', 180, [500, 'ml'], ['миринда']),
   P(
+    'Mountain Dew',
+    'mountain-dew',
+    'drinks',
+    'ml',
+    'pantry',
+    180,
+    [500, 'ml'],
+    ['mountain dew', 'mtn dew', 'маунтин дью'],
+  ),
+  P('Schweppes', 'schweppes', 'drinks', 'ml', 'pantry', 365, [330, 'ml'], ['швепс']),
+  P('Fuzetea', 'fuzetea', 'drinks', 'ml', 'pantry', 270, [500, 'ml'], ['fuze tea', 'фьюзти']),
+  P(
+    'Lipton Ice Tea',
+    'lipton-ice-tea',
+    'drinks',
+    'ml',
+    'pantry',
+    270,
+    [500, 'ml'],
+    ['lipton', 'липтон'],
+  ),
+  P('Nestea', 'nestea', 'drinks', 'ml', 'pantry', 270, [500, 'ml'], ['нести']),
+  P('Topic', 'lemonade', 'drinks', 'ml', 'pantry', 180, [1500, 'ml'], ['топик']),
+  P('Baban', 'soda', 'drinks', 'ml', 'pantry', 180, [3000, 'ml'], ['бабан']),
+  P(
     'Dr Pepper',
     'dr-pepper',
     'drinks',
@@ -849,7 +911,7 @@ const RAW_PRESETS: readonly Preset[] = [
     'pantry',
     270,
     [500, 'ml'],
-    ['ice tea', 'ceai rece', 'холодный чай', 'lipton', 'fuzetea'],
+    ['ice tea', 'ceai rece', 'холодный чай'],
   ),
   P(
     'Energy drink',
@@ -927,7 +989,7 @@ const RAW_PRESETS: readonly Preset[] = [
     'pantry',
     365,
     [330, 'ml'],
-    ['tonic', 'apă tonică', 'тоник', 'schweppes'],
+    ['tonic', 'apă tonică', 'тоник'],
   ),
   P('Syrup', 'syrup', 'drinks', 'ml', 'pantry', 730, undefined, ['sirop', 'сироп']),
   P('Fruit purée', 'puree', 'pantry', 'g', 'fridge', 5, undefined, [
@@ -1740,28 +1802,28 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Classic', 'Zero', 'Cherry', 'Lime', 'Vanilla'],
+    variants: ['Original', 'Zero', 'Zero Lime', 'Vanilla', 'Vanilla Zero', 'Coffee'],
   },
   Pepsi: {
     units: [
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Classic', 'Zero', 'Lime'],
+    variants: ['Max', 'Twist', 'Raspberry'],
   },
   Sprite: {
     units: [
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Classic', 'Zero'],
+    variants: ['Zero'],
   },
   Fanta: {
     units: [
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Orange', 'Lemon', 'Exotic', 'Pineapple', 'Zero'],
+    variants: ['Orange', 'Zero', 'Mandarin', 'Lemon', 'Tropical', 'Raspberry Zero', 'Mango'],
   },
   Soda: {
     units: [
@@ -2001,21 +2063,70 @@ const EXTRA: Record<string, Pick<Preset, 'units' | 'variants'>> = {
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Orange', 'Lemon', 'Apple'],
   },
   'Dr Pepper': {
     units: [
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Classic', 'Zero', 'Cherry'],
+    variants: ['Cherry', 'Zero'],
   },
   '7UP': {
     units: [
       { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
       { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
     ],
-    variants: ['Classic', 'Free'],
+    variants: ['Free'],
+  },
+  'Mountain Dew': {
+    units: [
+      { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
+      { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
+    ],
+  },
+  Schweppes: {
+    units: [
+      { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
+      { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
+    ],
+    variants: [
+      'Indian Tonic',
+      'Premium Tonic',
+      'Bitter Lemon',
+      'Pomegranate',
+      'Mojito',
+      'Blueberry Mojito',
+      'Grapefruit',
+    ],
+  },
+  Fuzetea: {
+    units: [
+      { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
+      { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
+    ],
+    variants: ['Peach Rose', 'Forest Fruits', 'Mango Chamomile', 'Lime Mint'],
+  },
+  'Lipton Ice Tea': {
+    units: [
+      { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
+      { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
+    ],
+    variants: ['Peach', 'Green', 'Lemon'],
+  },
+  Nestea: {
+    units: [
+      { name: 'can', size: 330, sizes: [250, 330, 450, 500] },
+      { name: 'bottle', size: 1500, sizes: [250, 330, 500, 1000, 1250, 1500, 2000, 2500] },
+    ],
+    variants: ['Peach', 'Mango Pineapple', 'Forest Fruits', 'Green Apple'],
+  },
+  Topic: {
+    units: [{ name: 'bottle', size: 1500, sizes: [1500, 3000] }],
+    variants: ['Lemonade', 'Tutti Frutti', 'Pineapple', 'Cream Soda'],
+  },
+  Baban: {
+    units: [{ name: 'bottle', size: 3000, sizes: [3000] }],
+    variants: ['Limontimo', 'Cola', 'Orangino', 'Duchesse'],
   },
   'Protein powder': {
     units: [
@@ -2481,20 +2592,50 @@ export const VARIANT_ICONS: Record<string, Record<string, string>> = {
     dorna: 'water-dorna',
   },
   'Coca-Cola': {
-    classic: 'cola',
+    original: 'cola',
     zero: 'cola-zero',
-    cherry: 'cola-cherry',
-    lime: 'cola-lime',
+    'zero lime': 'cola-zero-lime',
+    'vanilla zero': 'cola-vanilla-zero',
+    coffee: 'cola-coffee',
     vanilla: 'cola-vanilla',
   },
-  Pepsi: { classic: 'pepsi', zero: 'pepsi-zero', lime: 'pepsi' },
-  Sprite: { classic: 'sprite', zero: 'sprite' },
+  Pepsi: {
+    max: 'pepsi-zero',
+    twist: 'pepsi-twist',
+    raspberry: 'pepsi-raspberry',
+  },
+  Sprite: { zero: 'sprite-zero' },
+  'Dr Pepper': { cherry: 'dr-pepper-cherry', zero: 'dr-pepper-zero' },
+  Schweppes: {
+    'indian tonic': 'schweppes',
+    'premium tonic': 'schweppes',
+    'bitter lemon': 'schweppes-bitter-lemon',
+    pomegranate: 'schweppes-pomegranate',
+    mojito: 'schweppes-mojito',
+    'blueberry mojito': 'schweppes-blueberry-mojito',
+    grapefruit: 'schweppes-grapefruit',
+  },
+  Fuzetea: {
+    'peach rose': 'fuzetea',
+    'forest fruits': 'fuzetea-forest-fruits',
+    'mango chamomile': 'fuzetea-mango',
+    'lime mint': 'fuzetea-lime-mint',
+  },
+  'Lipton Ice Tea': { peach: 'lipton-peach', green: 'lipton-green', lemon: 'lipton-ice-tea' },
+  Nestea: {
+    peach: 'nestea',
+    'mango pineapple': 'nestea-mango',
+    'forest fruits': 'nestea-forest-fruits',
+    'green apple': 'nestea-green-apple',
+  },
   Fanta: {
     orange: 'fanta',
     lemon: 'fanta-lemon',
-    exotic: 'fanta-exotic',
-    pineapple: 'fanta-exotic',
-    zero: 'fanta',
+    tropical: 'fanta-exotic',
+    zero: 'fanta-zero',
+    mandarin: 'fanta-mandarin',
+    mango: 'fanta-mango',
+    'raspberry zero': 'fanta-raspberry-zero',
   },
   Syrup: {
     vanilla: 'syrup-vanilla',
@@ -2525,6 +2666,13 @@ export const KIND_IN_NAME = new Set([
   'Mirinda',
   '7UP',
   'Dr Pepper',
+  'Mountain Dew',
+  'Schweppes',
+  'Fuzetea',
+  'Lipton Ice Tea',
+  'Nestea',
+  'Topic',
+  'Baban',
 ]);
 
 export function kindIcon<T extends string>(
@@ -2542,4 +2690,4 @@ export function variantIconsFor(name: string): Record<string, string> {
   return VARIANT_ICONS[name] ?? {};
 }
 
-export const CATALOG_VERSION = 3;
+export const CATALOG_VERSION = 4;
