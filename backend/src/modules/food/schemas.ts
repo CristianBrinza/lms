@@ -329,6 +329,12 @@ export const ShoppingItemPatch = z
   .refine((body) => Object.keys(body).length > 0, 'Nothing to change');
 export type ShoppingItemPatch = z.infer<typeof ShoppingItemPatch>;
 
+export const MoveShoppingInput = z.object({
+  ids: z.array(idField).min(1, 'Say which lines').max(500),
+  storeId: idField.nullable().describe('The store they go to; null for “any store”'),
+});
+export type MoveShoppingInput = z.infer<typeof MoveShoppingInput>;
+
 export const CheckoutInput = z.object({
   storeId: idField.nullable().describe('The store being finished; null for the “any store” list'),
   lines: z

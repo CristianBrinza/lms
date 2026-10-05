@@ -10,6 +10,7 @@ import {
   CheckIcon,
   ReceiptIcon,
   StorefrontIcon,
+  SwapIcon,
 } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
@@ -36,6 +37,7 @@ import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { BoughtSheet } from '../shopping/BoughtSheet';
 import { CheckoutSheet } from '../shopping/CheckoutSheet';
 import { LineSheet } from '../shopping/LineSheet';
+import { MoveSheet } from '../shopping/MoveSheet';
 import { parseLine } from '../shopping/parseLine';
 import { StoresSheet } from '../shopping/StoresSheet';
 import { STORE_TONE } from '../shopping/tones';
@@ -85,6 +87,8 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
   const [tripsOpen, setTripsOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [bought, setBought] = useState<ShoppingItem | null>(null);
+  // The store whose list is being moved (null: "any store"); undefined when not moving.
+  const [moving, setMoving] = useState<string | null | undefined>(undefined);
   const wide = useWide();
   const today = localDate();
   const urgent = (line: ShoppingItem) =>
@@ -208,6 +212,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                         title={s.name}
                         dot={STORE_TONE[s.tone].dot}
                         lines={later.filter((l) => l.storeId === s.id)}
+                        onMove={() => setMoving(s.id)}
                         onEdit={setEditing}
                         onBought={setBought}
                         today={today}
@@ -216,22 +221,37 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                     <Lines
                       title="Any store"
                       lines={later.filter((l) => !l.storeId)}
+                      onMove={stores.length ? () => setMoving(null) : undefined}
                       onEdit={setEditing}
                       onBought={setBought}
                       today={today}
                     />
                   </>
                 ) : (
-                  CATEGORY_ORDER.map((category) => (
-                    <Lines
-                      key={category}
-                      title={CATEGORY_LABEL[category]}
-                      lines={later.filter((l) => l.category === category)}
-                      onEdit={setEditing}
-                      onBought={setBought}
-                      today={today}
-                    />
-                  ))
+                  <>
+                    {open.length > 0 && stores.length > 0 ? (
+                      <div className="-mt-1 mb-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setMoving(store?.id ?? null)}
+                          className="press inline-flex h-9 items-center gap-1.5 rounded-pill px-3 text-sm font-semibold text-lav-800 transition-colors hover:bg-lav-50"
+                        >
+                          <SwapIcon fontSize="inherit" className="text-[1.15rem]" />
+                          Move this list
+                        </button>
+                      </div>
+                    ) : null}
+                    {CATEGORY_ORDER.map((category) => (
+                      <Lines
+                        key={category}
+                        title={CATEGORY_LABEL[category]}
+                        lines={later.filter((l) => l.category === category)}
+                        onEdit={setEditing}
+                        onBought={setBought}
+                        today={today}
+                      />
+                    ))}
+                  </>
                 )}
                 {!open.length && cart.length ? (
                   <p className="mb-6 rounded-3xl bg-mint-100 p-4 text-center text-[0.9375rem] font-semibold text-mint-800">
@@ -290,6 +310,12 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
       ) : null}
 
       <LineSheet line={editing} stores={stores} onClose={() => setEditing(null)} />
+      <MoveSheet
+        from={moving}
+        lines={items.filter((l) => !l.checked && (l.storeId ?? null) === moving)}
+        stores={stores}
+        onClose={() => setMoving(undefined)}
+      />
       <BoughtSheet line={bought} onClose={() => setBought(null)} />
       <StoresSheet
         open={storesOpen}
@@ -549,9 +575,12 @@ function Lines({
   tone,
   showStore,
   stores,
+  onMove,
 }: {
   title: string;
   lines: ShoppingItem[];
+  /** Move these lines to another store (a store's own section). */
+  onMove?: () => void;
   onEdit: (line: ShoppingItem) => void;
   onBought: (line: ShoppingItem) => void;
   today: string;
@@ -574,6 +603,17 @@ function Lines({
         ) : null}
         {title}
         <span className="tabular text-sm font-semibold text-ink-500">{lines.length}</span>
+        {onMove ? (
+          <button
+            type="button"
+            onClick={onMove}
+            aria-label={`Move ${title}’s list to another store`}
+            className="press -my-1 ml-auto inline-flex h-8 items-center gap-1 rounded-pill px-2.5 text-[0.8125rem] font-semibold text-lav-800 transition-colors hover:bg-lav-50"
+          >
+            <SwapIcon fontSize="inherit" className="text-[1.05rem]" />
+            Move
+          </button>
+        ) : null}
       </h2>
       <ul
         className={cx(

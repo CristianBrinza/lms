@@ -261,3 +261,48 @@ describe('food: undoing a shop', () => {
     expect(await total('Eggs')).toBe(8);
   });
 });
+
+describe('food: moving lines between stores', () => {
+  it('moves the lines still on a list, and only this kitchen’s', async () => {
+    const { b } = await shopper();
+    const metro = (await b.post('/api/food/stores', { name: 'Metro' })).body.store;
+    const linella = (await b.post('/api/food/stores', { name: 'Linella' })).body.store;
+    const items = (
+      await b.post('/api/food/shopping/items', {
+        items: [
+          { name: 'Milk', storeId: metro.id },
+          { name: 'Eggs', storeId: metro.id },
+          { name: 'Bread', storeId: metro.id },
+        ],
+      })
+    ).body.items;
+    const [milk, eggs, bread] = items;
+    // Bread is bought (checked out at Metro): it stays with its trip.
+    await b.patch(`/api/food/shopping/items/${bread.id}`, { checked: true });
+    await b.post('/api/food/shopping/checkout', { storeId: metro.id });
+
+    const moved = await b.post('/api/food/shopping/move', {
+      ids: [milk.id, eggs.id, bread.id],
+      storeId: linella.id,
+    });
+    expect(moved.body).toEqual({ moved: 2 });
+    const lines = (await b.get('/api/food/shopping')).body.items;
+    expect(lines.map((l: any) => [l.name, l.storeId]).sort()).toEqual([
+      ['Eggs', linella.id],
+      ['Milk', linella.id],
+    ]);
+    expect(
+      (await b.post('/api/food/shopping/move', { ids: [milk.id], storeId: null })).body,
+    ).toEqual({ moved: 1 });
+
+    // Another kitchen can neither move these lines nor send them to its own store.
+    const other = await shopper('bob@example.com', 'Bob');
+    const theirs = (await other.b.post('/api/food/stores', { name: 'Nr1' })).body.store;
+    expect(
+      (await other.b.post('/api/food/shopping/move', { ids: [eggs.id], storeId: null })).body,
+    ).toEqual({ moved: 0 });
+    expect(
+      (await b.post('/api/food/shopping/move', { ids: [eggs.id], storeId: theirs.id })).status,
+    ).toBe(400);
+  });
+});

@@ -216,6 +216,8 @@ export const foodApi = {
     },
   ) => api.patch<{ item: ShoppingItem }>(`/food/shopping/items/${id}`, body).then((r) => r.item),
   removeLine: (id: string) => api.delete<void>(`/food/shopping/items/${id}`),
+  moveLines: (ids: string[], storeId: string | null) =>
+    api.post<{ moved: number }>('/food/shopping/move', { ids, storeId }),
   checkout: (body: { storeId: string | null; lines: CheckoutLine[] }) =>
     api.post<{ trip: Trip; stocked: number; notStocked: string[]; leftOver: string[] }>(
       '/food/shopping/checkout',

@@ -9,6 +9,7 @@ import type {
   CheckoutInput,
   Packages,
   ShoppingItemInput,
+  MoveShoppingInput,
   ShoppingItemPatch,
   TripItemPatch,
 } from './schemas';
@@ -364,6 +365,26 @@ export async function updateShoppingItem(
     );
   });
   return getItem(ctx, id);
+}
+
+/**
+ * Lines to another store (Metro didn't have them: the rest of the list to Linella). Only lines
+ * still on a list move: ones already checked out stay with their trip.
+ */
+export async function moveShoppingItems(
+  ctx: FoodCtx,
+  input: MoveShoppingInput,
+): Promise<{ moved: number }> {
+  return ctx.tx(async (tx) => {
+    await checkStore(tx, input.storeId);
+    const { rowCount } = await tx.db.query(
+      `UPDATE shopping_items SET store_id = $3, updated_at = $4
+        WHERE household_id = $1 AND id = ANY($2::uuid[]) AND trip_id IS NULL
+          AND store_id IS DISTINCT FROM $3`,
+      [tx.actor.householdId, input.ids, input.storeId, tx.now],
+    );
+    return { moved: rowCount ?? 0 };
+  });
 }
 
 /** Packages as given ("2 × 0.3 kg") in the item's base unit ("2 × 300 g"). */

@@ -86,6 +86,7 @@ import {
   RecipePatch,
   RestrictionInput,
   UndoInput,
+  MoveShoppingInput,
   ShoppingItemPatch,
   StoreInput,
   StorePatch,
@@ -98,6 +99,7 @@ import {
   getTrip,
   listShopping,
   listTrips,
+  moveShoppingItems,
   removeShoppingItem,
   undoTrip,
   updateShoppingItem,
@@ -250,6 +252,9 @@ export function foodRoutes(deps: AppDeps) {
     await removeShoppingItem(ctx(c), c.req.param('id'));
     return c.body(null, 204);
   });
+  app.post('/shopping/move', async (c) =>
+    c.json(await moveShoppingItems(ctx(c), await readJson(c, MoveShoppingInput))),
+  );
   app.post('/shopping/checkout', async (c) =>
     c.json(await checkout(ctx(c), await readJson(c, CheckoutInput)), 201),
   );

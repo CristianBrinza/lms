@@ -54,6 +54,7 @@ import {
   ProductInput,
   RecipeInput,
   RestrictionInput,
+  MoveShoppingInput,
   ShoppingItemPatch,
   StoreInput,
   UseStockInput,
@@ -63,6 +64,7 @@ import {
   checkout,
   listShopping,
   listTrips,
+  moveShoppingItems,
   removeShoppingItem,
   undoTrip,
   updateShoppingItem,
@@ -770,6 +772,15 @@ export const TOOLS: Tool[] = [
     access: 'write',
     input: ShoppingItemPatch.and(z.object({ lineId: idField })),
     run: async ({ ctx }, { lineId, ...patch }) => updateShoppingItem(ctx, lineId, patch),
+  }),
+  tool({
+    name: 'move_shopping_lines',
+    title: 'Move shopping lines to another store',
+    description:
+      'Move several lines at once to another store’s list (storeId), or to “any store” (null): e.g. what Metro didn’t have, to Linella. Lines already checked out stay with their trip.',
+    access: 'write',
+    input: MoveShoppingInput,
+    run: async ({ ctx }, args) => moveShoppingItems(ctx, args),
   }),
   tool({
     name: 'remove_shopping_line',

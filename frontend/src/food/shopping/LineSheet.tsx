@@ -7,6 +7,7 @@ import { foodApi, foodKeys } from '../api';
 import { useCatalog } from '../catalog';
 import { QuantityInput } from '../components/QuantityInput';
 import { VariantChips } from '../components/VariantChips';
+import { StoreChips } from './MoveSheet';
 import { formatAmount, money, parseAmount, unitsFor } from '../format';
 import type { ShoppingItem, Store } from '../types';
 
@@ -42,7 +43,7 @@ function LineForm({
   const measured = product ?? { unit: 'pcs' as const, pieceSize: null, pieceUnit: null };
   const [amount, setAmount] = useState<number | null>(line.amount);
   const [unit, setUnit] = useState<string>(line.unit ?? measured.unit);
-  const [storeId, setStoreId] = useState(line.storeId ?? 'any');
+  const [storeId, setStoreId] = useState<string | null>(line.storeId);
   const [note, setNote] = useState(line.note);
   const [price, setPrice] = useState(line.price === null ? '' : String(line.price));
   const [variant, setVariant] = useState(line.variant);
@@ -54,7 +55,7 @@ function LineForm({
       foodApi.updateLine(line.id, {
         amount,
         unit: amount ? unit : null,
-        storeId: storeId === 'any' ? null : storeId,
+        storeId,
         note: note.trim(),
         price: parseAmount(price),
         variant,
@@ -99,6 +100,7 @@ function LineForm({
             : ''}
         </p>
       ) : null}
+      <StoreChips stores={stores} value={storeId} onChange={setStoreId} />
       {product?.variants.length || line.variant ? (
         <VariantChips
           variants={product?.variants ?? []}
@@ -119,21 +121,6 @@ function LineForm({
         </label>
         <Switch checked={priority} onChange={setPriority} label="Important" />
       </div>
-      <label className="flex flex-col gap-2">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">Store</span>
-        <select
-          value={storeId}
-          onChange={(event) => setStoreId(event.target.value)}
-          className="h-14 rounded-[1.125rem] bg-ink-50 px-4 text-base outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
-        >
-          <option value="any">Any store</option>
-          {stores.map((store) => (
-            <option key={store.id} value={store.id}>
-              {store.name}
-            </option>
-          ))}
-        </select>
-      </label>
       <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3">
         <TextField
           label="Note"
