@@ -2,7 +2,7 @@ import {
   HomeIcon,
   PersonIcon,
   SettingsIcon,
-  UtilitiesIcon,
+  InsightsIcon,
   type IconComponent,
 } from '@/components/ui/icons';
 
@@ -21,8 +21,13 @@ export interface NavItem {
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   // Life areas open from Home, so Home stays lit inside them.
-  { to: '/home', label: 'Home', icon: HomeIcon, alsoActive: /^\/food(\/|$)/ },
-  { to: '/utilities', label: 'Utilities', icon: UtilitiesIcon },
+  {
+    to: '/home',
+    label: 'Home',
+    icon: HomeIcon,
+    alsoActive: /^\/(food|training|house|travel|shopping)(\/|$)/,
+  },
+  { to: '/statistics', label: 'Statistics', icon: InsightsIcon },
   { to: '/settings', label: 'Settings', icon: SettingsIcon, alsoActive: /^\/admin(\/|$)/ },
   { to: '/profile', label: 'Profile', icon: PersonIcon },
 ];
