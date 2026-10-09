@@ -115,6 +115,29 @@ import {
   trainingPeople,
 } from '../training/workouts';
 import { localDate } from '../food/stock';
+import {
+  BagInput,
+  CheckInput,
+  GearInput,
+  ItemInput,
+  TripInput,
+  TripPatch,
+} from '../travel/schemas';
+import {
+  addBag,
+  addCheck,
+  addGear,
+  listGear,
+  addItem,
+  createTrip,
+  getTrip,
+  listBags,
+  listItems,
+  listTrips as listTravelTrips,
+  shopForTrip,
+  updateCheck,
+  updateTrip,
+} from '../travel/travel';
 import type { TokenScope } from '../tokens';
 
 /**
@@ -1123,6 +1146,122 @@ export const TOOLS: Tool[] = [
       await saveProfileFields(ctx.db, id, fields, ctx.now);
       return (await trainingPeople(ctx)).find((p) => p.id === id);
     },
+  }),
+  // ---------------------------------------------------------------- travel
+  tool({
+    name: 'travel_overview',
+    title: 'Trips, bags and the packing list',
+    description:
+      'The household’s trips (upcoming first, with how much is packed), its bags (cm, litres) and its packing list: each item with its group, quantity rule (one, person, day, person_day) and the rules for when it belongs on a trip (scope, overnight, transport, kinds, minDays).',
+    access: 'read',
+    input: z.object({}),
+    run: async ({ ctx }) => ({
+      trips: await listTravelTrips(ctx, localDate(ctx.now)),
+      bags: await listBags(ctx),
+      gear: await listGear(ctx),
+      packingList: await listItems(ctx),
+    }),
+  }),
+  tool({
+    name: 'trip_checklist',
+    title: 'A trip and its checklist',
+    description: 'One trip with its checklist (what to take, how many, what is ticked).',
+    access: 'read',
+    input: z.object({ tripId: idField }),
+    run: async ({ ctx }, args) => getTrip(ctx, args.tripId),
+  }),
+  tool({
+    name: 'plan_trip',
+    title: 'Plan a trip',
+    description:
+      'A new trip: name, destination, scope (national/international), kind (vacation, family, day, event, work, other), transport (car, bus, train, plane, other), start and end dates, the times (leave home departTime, arrive there arriveDate/arriveTime, head back backDate/backTime, home again returnTime), who goes (household user ids; default the key’s owner) plus guests, bags. Its checklist is made from the packing list rules; overrides switch packing-list items on or off for this trip.',
+    access: 'write',
+    input: TripInput,
+    run: async ({ ctx }, args) => createTrip(ctx, args),
+  }),
+  tool({
+    name: 'update_trip',
+    title: 'Change a trip',
+    description:
+      'Change any of a trip’s details; its checklist follows (ticks stay). overrides replaces the trip’s on/off switches for packing-list items.',
+    access: 'write',
+    input: TripPatch.and(z.object({ tripId: idField })),
+    run: async ({ ctx }, { tripId, ...patch }) => updateTrip(ctx, tripId, patch),
+  }),
+  tool({
+    name: 'tick_trip_items',
+    title: 'Tick or untick checklist items',
+    description: 'Mark items on a trip’s checklist as packed (checked: true) or not.',
+    access: 'write',
+    input: z.object({
+      tripId: idField,
+      checkIds: z.array(idField).min(1).max(100),
+      checked: z.boolean(),
+    }),
+    run: async ({ ctx }, args) => {
+      for (const id of args.checkIds)
+        await updateCheck(ctx, args.tripId, id, { checked: args.checked });
+      return getTrip(ctx, args.tripId);
+    },
+  }),
+  tool({
+    name: 'shop_for_trip',
+    title: 'Put a trip’s things to buy on the shopping list',
+    description:
+      'Everything on the trip’s checklist marked toBuy (and not yet listed) goes onto the shopping list, needed the day before leaving. Mark items with update_trip_item (toBuy) first.',
+    access: 'write',
+    input: z.object({ tripId: idField }),
+    run: async ({ ctx }, args) => shopForTrip(ctx, args.tripId),
+  }),
+  tool({
+    name: 'update_trip_item',
+    title: 'Change a checklist item',
+    description: 'On one trip’s checklist: ticked (checked), to buy (toBuy), how many (quantity).',
+    access: 'write',
+    input: z.object({
+      tripId: idField,
+      checkId: idField,
+      checked: z.boolean().optional(),
+      toBuy: z.boolean().optional(),
+      quantity: z.number().int().min(1).max(999).optional(),
+    }),
+    run: async ({ ctx }, { tripId, checkId, ...patch }) => updateCheck(ctx, tripId, checkId, patch),
+  }),
+  tool({
+    name: 'add_trip_item',
+    title: 'Add to one trip’s checklist',
+    description:
+      'Something to take on this trip only (the household’s packing list stays as it is).',
+    access: 'write',
+    input: CheckInput.and(z.object({ tripId: idField })),
+    run: async ({ ctx }, { tripId, ...input }) => addCheck(ctx, tripId, input),
+  }),
+  tool({
+    name: 'add_packing_item',
+    title: 'Add to the packing list',
+    description:
+      'A new item on the household’s packing list, with its group, quantity rule and when it belongs on a trip; upcoming trips get it if it fits them.',
+    access: 'write',
+    input: ItemInput,
+    run: async ({ ctx }, args) => addItem(ctx, args),
+  }),
+  tool({
+    name: 'add_gear',
+    title: 'Add travel gear',
+    description:
+      'Gear the household travels with, beyond bags: power banks, chargers, cables, adapters, headphones; with connectors (MagSafe, USB-C, USB-A, Lightning…) and how many it has. Trips pick gear with plan_trip/update_trip (gear: [{gearId, count}]).',
+    access: 'write',
+    input: GearInput,
+    run: async ({ ctx }, args) => addGear(ctx, args),
+  }),
+  tool({
+    name: 'add_bag',
+    title: 'Add a bag',
+    description:
+      'A bag the household owns: name, kind (backpack, handbag, carry-on, suitcase, duffel, other), size in cm.',
+    access: 'write',
+    input: BagInput,
+    run: async ({ ctx }, args) => addBag(ctx, args),
   }),
 ];
 

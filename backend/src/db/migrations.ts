@@ -768,6 +768,127 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE api_tokens ADD COLUMN oauth_client_id text REFERENCES oauth_clients(id) ON DELETE SET NULL;
     `,
   },
+  {
+    version: 24,
+    name: 'travel: bags, trips and their packing lists',
+    sql: `
+      CREATE TABLE travel_bags (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        kind text NOT NULL CHECK (kind IN ('backpack', 'handbag', 'carry-on', 'suitcase', 'duffel', 'other')),
+        length_cm numeric(5, 1),
+        width_cm numeric(5, 1),
+        height_cm numeric(5, 1),
+        note text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL
+      );
+      CREATE INDEX travel_bags_household_idx ON travel_bags (household_id);
+
+      CREATE TABLE travel_items (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        preset text,
+        name text NOT NULL,
+        grp text NOT NULL,
+        quantity text NOT NULL DEFAULT 'one' CHECK (quantity IN ('one', 'person', 'day', 'person_day')),
+        rules jsonb NOT NULL DEFAULT '{}',
+        sort integer NOT NULL DEFAULT 0,
+        archived_at timestamptz,
+        created_at timestamptz NOT NULL
+      );
+      CREATE UNIQUE INDEX travel_items_preset_idx ON travel_items (household_id, preset) WHERE preset IS NOT NULL;
+
+      CREATE TABLE trips (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        destination text NOT NULL DEFAULT '',
+        scope text NOT NULL CHECK (scope IN ('national', 'international')),
+        kind text NOT NULL CHECK (kind IN ('vacation', 'family', 'day', 'event', 'work', 'other')),
+        transport text NOT NULL CHECK (transport IN ('car', 'bus', 'train', 'plane', 'other')),
+        start_date date NOT NULL,
+        end_date date NOT NULL CHECK (end_date >= start_date),
+        depart_time time,
+        return_time time,
+        people uuid[] NOT NULL DEFAULT '{}',
+        guests integer NOT NULL DEFAULT 0 CHECK (guests BETWEEN 0 AND 50),
+        bag_ids uuid[] NOT NULL DEFAULT '{}',
+        overrides jsonb NOT NULL DEFAULT '{}',
+        note text NOT NULL DEFAULT '',
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX trips_household_idx ON trips (household_id, start_date);
+
+      CREATE TABLE trip_checks (
+        id uuid PRIMARY KEY,
+        trip_id uuid NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        item_id uuid REFERENCES travel_items(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        grp text NOT NULL,
+        quantity integer NOT NULL DEFAULT 1 CHECK (quantity BETWEEN 1 AND 999),
+        checked_at timestamptz,
+        checked_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL
+      );
+      CREATE UNIQUE INDEX trip_checks_item_idx ON trip_checks (trip_id, item_id) WHERE item_id IS NOT NULL;
+
+      ALTER TABLE households ADD COLUMN travel_catalog_version integer NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 25,
+    name: 'travel: deadlines (done by so many hours before leaving)',
+    sql: `
+      ALTER TABLE travel_items ADD COLUMN due_hours integer CHECK (due_hours BETWEEN 0 AND 2160);
+      ALTER TABLE trip_checks ADD COLUMN due_hours integer CHECK (due_hours BETWEEN 0 AND 2160);
+    `,
+  },
+  {
+    version: 26,
+    name: 'travel: things to buy before a trip',
+    sql: `
+      ALTER TABLE trip_checks ADD COLUMN to_buy boolean NOT NULL DEFAULT false;
+      ALTER TABLE trip_checks ADD COLUMN listed_at timestamptz;
+    `,
+  },
+  {
+    version: 27,
+    name: 'travel: arriving there and heading back',
+    sql: `
+      ALTER TABLE trips ADD COLUMN arrive_date date;
+      ALTER TABLE trips ADD COLUMN arrive_time time;
+      ALTER TABLE trips ADD COLUMN back_date date;
+      ALTER TABLE trips ADD COLUMN back_time time;
+    `,
+  },
+  {
+    version: 28,
+    name: 'travel: money for a trip (cash and cards, by currency)',
+    sql: `
+      ALTER TABLE trips ADD COLUMN money jsonb NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    version: 29,
+    name: 'travel: gear (power banks, chargers, cables) and what a trip takes',
+    sql: `
+      CREATE TABLE travel_gear (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        kind text NOT NULL CHECK (kind IN ('power-bank', 'charger', 'cable', 'adapter', 'headphones', 'other')),
+        connectors text[] NOT NULL DEFAULT '{}',
+        count integer NOT NULL DEFAULT 1 CHECK (count BETWEEN 0 AND 99),
+        note text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL
+      );
+      CREATE INDEX travel_gear_household_idx ON travel_gear (household_id);
+      ALTER TABLE trips ADD COLUMN gear jsonb NOT NULL DEFAULT '[]';
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

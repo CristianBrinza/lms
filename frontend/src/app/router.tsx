@@ -66,6 +66,18 @@ const houseRoutes: RouteObject = {
   ],
 };
 
+const travelRoutes: RouteObject = {
+  path: 'travel',
+  children: [
+    { index: true, lazy: page(() => import('@/travel/pages/TravelHomePage')) },
+    { path: 'new', lazy: page(() => import('@/travel/pages/TripEditPage')) },
+    { path: 'bags', lazy: page(() => import('@/travel/pages/BagsPage')) },
+    { path: 'list', lazy: page(() => import('@/travel/pages/PackingListPage')) },
+    { path: ':id', lazy: page(() => import('@/travel/pages/TripPage')) },
+    { path: ':id/edit', lazy: page(() => import('@/travel/pages/TripEditPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -103,6 +115,7 @@ const routes: RouteObject[] = [
               foodRoutes,
               trainingRoutes,
               houseRoutes,
+              travelRoutes,
               { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,
             ],

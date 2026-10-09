@@ -143,8 +143,10 @@ export function tokenMayAccess(scope: TokenScope, method: string, path: string):
   if (path === '/api/me') return read;
   if (path === '/api/food' || path.startsWith('/api/food/'))
     return scope === 'food:read' ? read : true;
-  // Training goes with the kitchen key: everyday family data, never accounts.
+  // Training and travel go with the kitchen key: everyday family data, never accounts.
   if (path === '/api/training' || path.startsWith('/api/training/'))
+    return scope === 'food:read' ? read : true;
+  if (path === '/api/travel' || path.startsWith('/api/travel/'))
     return scope === 'food:read' ? read : true;
   if (path.startsWith('/api/admin/')) return scope === 'admin';
   return false;
