@@ -142,6 +142,9 @@ edits a person made on the PC itself.
 3. **The PC's allowed_signers**: `deploy/server/setup.sh` asks for the keys (one line each,
    `email ssh-ed25519 AAAA…`). By hand: `echo "you@example.com namespaces=\"git\" $(cat key.pub)" >> ~/.config/lms/allowed_signers`.
    Both the Mac's and the PC's keys go in. The updater reads it on every round.
+   **On an install from before signed deploys:** merging this keeps the app running, but the updater
+   pulls nothing more (it logs "no allowed_signers") until `deploy/server/setup.sh` has written
+   `LMS_ALLOWED_SIGNERS`. Run it on the PC right after the merge.
 4. **Protect `main`**: Settings → Rules → Rulesets → New branch ruleset → target `main` →
    "Require signed commits" and "Require status checks to pass" (Checks), and block force pushes.
    Merge pull requests from the command line (`git merge --ff-only` or a signed merge, then

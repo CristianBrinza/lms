@@ -68,6 +68,12 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Optional tuning; empty means the app's own default (backend/src/config.ts).
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-}
+      ACCESS_TOKEN_TTL_MIN: ${ACCESS_TOKEN_TTL_MIN:-}
+      REMEMBER_DAYS: ${REMEMBER_DAYS:-}
+      SESSION_HOURS: ${SESSION_HOURS:-}
+      DATABASE_SSL: ${DATABASE_SSL:-}
       # The visitor's address comes from Cloudflare's cf-connecting-ip, believed only when the
       # request comes from the tunnel's container (backend/src/lib/client-ip.ts).
       TRUST_PROXY: tunnel
@@ -137,7 +143,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # The keys whose signed commits it deploys: on the machine, outside the repo, so a commit
       # can't add its own key (setup.sh creates it).
-      - ${LMS_ALLOWED_SIGNERS:?set LMS_ALLOWED_SIGNERS in deploy/.env (deploy/server/setup.sh)}:/run/lms/allowed_signers:ro
+      # Until setup.sh writes LMS_ALLOWED_SIGNERS, an empty file stands in: Compose still starts
+      # (an install from before signed deploys keeps running) and the updater refuses every pull.
+      - ${LMS_ALLOWED_SIGNERS:-/dev/null}:/run/lms/allowed_signers:ro
     working_dir: ${LMS_HOST_DIR}/deploy
     networks: [updates]
     cap_drop: [ALL]
