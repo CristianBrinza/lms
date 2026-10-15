@@ -6,6 +6,13 @@
 # Nothing listens on the internet: cloudflared dials out to Cloudflare, and the tunnel's public
 # hostname (lms.shades.md) reaches the app inside this network.
 #
+# Two networks, so the tunnel reaches the app and nothing else:
+#   edge   cloudflared and the app (the app's way out too: web push)
+#   data   the app, PostgreSQL and the backups; internal, no way out
+# The updater has a network of its own (it fetches from GitHub and drives Docker through the
+# socket, never over the network). A public hostname added in the Cloudflare dashboard can point
+# at api:8790 only: postgres and the updater don't exist for cloudflared.
+#
 # The app is built here, from this checkout (the root Dockerfile), never pulled:
 #   - a change made on this machine goes live with  deploy/server/live.sh
 #   - a change pushed from elsewhere: the updater pulls it within a minute (when this checkout has
@@ -30,6 +37,7 @@ services:
       POSTGRES_DB: lms
     volumes:
       - db-data:/var/lib/postgresql/data
+    networks: [data]
     healthcheck:
       test: ['CMD', 'pg_isready', '-U', 'lms', '-d', 'lms']
       interval: 10s
@@ -54,7 +62,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # For checks from this machine only; the tunnel uses the inner network.
+    networks: [edge, data]
+    # For checks from this machine only; the tunnel uses the edge network.
     ports:
       - '127.0.0.1:8790:8790'
 
@@ -66,6 +75,7 @@ services:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
     depends_on:
       - api
+    networks: [edge]
 
   # Every minute: new commits on the branch → build, back up, switch, check, roll back.
   # deploy/server/live.sh asks it to do the same for this checkout as it is, right now.
@@ -89,6 +99,7 @@ services:
       - ${LMS_HOST_DIR}:${LMS_HOST_DIR}
       - /var/run/docker.sock:/var/run/docker.sock
     working_dir: ${LMS_HOST_DIR}/deploy
+    networks: [updates]
 
   # Nightly pg_dump into deploy/backups (kept KEEP_DAYS days); the updater adds one before each update.
   backup:
@@ -109,6 +120,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [data]
+
+networks:
+  edge: {}
+  data:
+    internal: true
+  updates: {}
 
 volumes:
   db-data:
