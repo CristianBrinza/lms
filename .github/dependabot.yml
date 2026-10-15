@@ -1,0 +1,27 @@
+version: 2
+# Once a month, the pinned images (version and digest) arrive as one pull request per ecosystem:
+# the Dockerfiles (the app, the updater) and deploy/docker-compose.yml (PostgreSQL, cloudflared).
+updates:
+  - package-ecosystem: docker
+    directories: [/, /deploy/updater]
+    schedule:
+      interval: monthly
+    groups:
+      images:
+        patterns: ['*']
+    ignore:
+      # Production runs Node 22; a new major is a decision, not a monthly bump.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: monthly
+    groups:
+      images:
+        patterns: ['*']
+    ignore:
+      # A new PostgreSQL major can't open the old data directory: that upgrade is done by hand
+      # (dump, new volume, restore).
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
