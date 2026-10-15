@@ -38,6 +38,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     networks: [data]
+    security_opt: ['no-new-privileges:true']
     healthcheck:
       test: ['CMD', 'pg_isready', '-U', 'lms', '-d', 'lms']
       interval: 10s
@@ -66,16 +67,33 @@ services:
     # For checks from this machine only; the tunnel uses the edge network.
     ports:
       - '127.0.0.1:8790:8790'
+    # It writes nothing to disk (the data is in PostgreSQL): a read-only root, as the image's
+    # non-root user, no capabilities, and limits so a flood or a bug can't starve the PC.
+    read_only: true
+    tmpfs: ['/tmp:size=64m']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
 
   tunnel:
     image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
+    # Its metrics stay inside its own container (by default they listen on every interface).
+    command: tunnel --no-autoupdate --metrics 127.0.0.1:20241 run
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in deploy/.env}
     depends_on:
       - api
     networks: [edge]
+    read_only: true
+    tmpfs: ['/tmp:size=16m']
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 256m
+    cpus: 1
+    pids_limit: 128
 
   # Every minute: new commits on the branch → build, back up, switch, check, roll back.
   # deploy/server/live.sh asks it to do the same for this checkout as it is, right now.
@@ -100,6 +118,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     working_dir: ${LMS_HOST_DIR}/deploy
     networks: [updates]
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
 
   # Nightly pg_dump into deploy/backups (kept KEEP_DAYS days); the updater adds one before each update.
   backup:
@@ -121,6 +141,7 @@ services:
       postgres:
         condition: service_healthy
     networks: [data]
+    security_opt: ['no-new-privileges:true']
 
 networks:
   edge: {}
