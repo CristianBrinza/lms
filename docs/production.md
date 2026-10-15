@@ -93,9 +93,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs the checks on every push. It de
   release rolls back an unhealthy version, but a wrong-but-healthy change goes out. Look at the
   result in the app after each one.
 
-**The repository is public today.** Fine for the code (no secrets in it), but it shows the whole
-app to anyone. Make it private (GitHub → Settings → General → Danger Zone → Change visibility); the
-PC then needs a GitHub token to pull (`gh auth login` in WSL).
+**The repository is public, on purpose.** The code holds no secrets and no personal data (all
+commits were scanned); secrets live only in `deploy/.env` on the PC, and GitHub's secret scanning
+and GitGuardian check every push. Never commit a key, token, password or real person's data.
 
 ## One-time setup
 
@@ -171,8 +171,8 @@ use, and no deploy keys or apps with write access you don't know.
    (`netplwiz`) so a Windows Update restart brings everything back unattended. Only together with
    BitLocker and a screen that locks itself (step 7).
 3. **The repo, inside WSL** (Ubuntu terminal): `sudo apt install -y git`, then
-   `git clone https://github.com/CristianBrinza/lms.git ~/lms` (a private repo: `gh auth login`
-   first), and `git config --global user.name/user.email` for commits made there. Inside WSL, not
+   `git clone https://github.com/CristianBrinza/lms.git ~/lms` (public, so no token is needed to
+   pull), and `git config --global user.name/user.email` for commits made there. Inside WSL, not
    on `C:`: faster, and no Windows line endings.
 4. **Node (for the checks and for working there)**: `curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs && sudo npm i -g yarn`,
    then `cd ~/lms && yarn setup`. Without it, `live.sh` skips the checks.
