@@ -3,10 +3,12 @@
 # End-to-end test of production, on this machine's Docker:
 #
 #   a bare git repo plays GitHub, a fresh clone plays the production PC running the real
-#   deploy/docker-compose.yml (updater, backups; no tunnel) — under its own project name and
+#   deploy/docker-compose.yml (updater, backups; a stand-in for the tunnel) — under its own project name and
 #   ports, so a dev database next to it is never touched.
 #
 #   1. first start: the PC builds the app from its checkout; web app + API answer
+#   1b. the tunnel (a stand-in on its networks) reaches the app, and not PostgreSQL; the app
+#       answers only its own host
 #   2. a commit pushed → the updater pulls it, backs up, rebuilds, switches
 #   3. a broken commit → unhealthy → back on the previous version, and not retried
 #   4. a fix pushed → live; the bad mark is gone
@@ -118,8 +120,18 @@ step "1. First start: built here"
 version_ends "$(short "$PROD")" && ok "the API runs $(api_version)" || die "version $(api_version)"
 curl -s "$URL/" | grep -q '<title>LMS</title>' && ok "the web app is served by the same container" || die "no web app at /"
 page_says v1 && ok "its files too" || die "e2e.txt: $(curl -s "$URL/e2e.txt")"
-(cd "$PROD/deploy" && docker compose ps --services --status running) | sort | tr '\n' ' ' | grep -q 'api backup postgres updater' && ok "postgres, app, updater, backup running (no tunnel in the test)" || die "services: $(cd "$PROD/deploy" && docker compose ps --services --status running | tr '\n' ' ')"
+(cd "$PROD/deploy" && docker compose ps --services --status running) | sort | tr '\n' ' ' | grep -q 'api backup postgres tunnel updater' && ok "postgres, app, tunnel (a stand-in), updater, backup running" || die "services: $(cd "$PROD/deploy" && docker compose ps --services --status running | tr '\n' ' ')"
 [ "$(stat -c %u "$PROD/deploy/state/live" 2>/dev/null || stat -f %u "$PROD/deploy/state/live")" = "$(id -u)" ] && ok "the updater's files are the checkout owner's" || die "state/live isn't owned by $(id -u)"
+
+step "1b. What the tunnel can reach"
+in_tunnel() { (cd "$PROD/deploy" && docker compose exec -T tunnel "$@") >/dev/null 2>&1; }
+pg_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' "$(cd "$PROD/deploy" && docker compose ps -q postgres)" | awk '{print $1}')"
+in_tunnel wget -q -O /dev/null --header 'Host: lms.e2e.test' http://api:8790/health && ok "the tunnel reaches the app (api:8790)" || die "the tunnel can't reach the app"
+! in_tunnel nc -w 3 postgres 5432 && ok "the tunnel can't resolve postgres" || die "the tunnel reaches postgres:5432"
+! in_tunnel nc -w 3 "$pg_ip" 5432 && ok "nor reach it by address ($pg_ip:5432)" || die "the tunnel reaches $pg_ip:5432"
+(cd "$PROD/deploy" && docker compose exec -T api node -e "require('net').connect(5432,'postgres').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))") && ok "the app still reaches PostgreSQL" || die "the app can't reach postgres"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' "$URL/health")" = 421 ] && ok "another Host gets 421" || die "a foreign Host was answered"
+in_tunnel touch /written && die "the tunnel's filesystem is writable" || ok "the tunnel's filesystem is read-only"
 
 step "2. A commit pushed"
 echo v2 >"$DEV/frontend/public/e2e.txt"

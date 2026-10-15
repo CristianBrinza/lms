@@ -1,8 +1,11 @@
-# The end-to-end test's changes to the production stack (deploy/test/e2e.sh): no tunnel, the API on
-# another local port, quicker checks. Everything else is the real deploy/docker-compose.yml.
+# The end-to-end test's changes to the production stack (deploy/test/e2e.sh): the API on another
+# local port, and a stand-in for cloudflared (there is no real tunnel in the test) with the real
+# service's networks and limits, so the test can check what the tunnel can and can't reach.
+# Everything else is the real deploy/docker-compose.yml.
 services:
   api:
     ports: !override
       - '127.0.0.1:18790:8790'
   tunnel:
-    profiles: ['off']
+    image: busybox:1.37
+    command: ['sleep', '86400']
