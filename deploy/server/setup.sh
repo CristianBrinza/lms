@@ -6,6 +6,8 @@
 #   - checks Docker, Compose and git
 #   - writes deploy/.env: generates the database password, the JWT secret and the push (VAPID)
 #     keys, and asks for the rest (the app's address, the tunnel token, the first admin)
+#   - creates the allowed_signers file outside the repo: the keys whose signed commits the
+#     updater deploys
 #   - builds the app from this checkout and starts everything; from then on the updater keeps it
 #     up to date, and deploy/server/live.sh puts changes made here live
 #
@@ -74,6 +76,27 @@ if [ -z "$(get VAPID_PUBLIC_KEY)" ]; then
   set_value VAPID_SUBJECT "mailto:$(get ADMIN_EMAIL)"
 fi
 echo "deploy/.env is ready (readable by you only)."
+
+say "Signed deploys: the keys allowed to put commits from GitHub live"
+set_value LMS_ALLOWED_SIGNERS "$HOME/.config/lms/allowed_signers"
+signers="$(get LMS_ALLOWED_SIGNERS)"
+mkdir -p "$(dirname "$signers")"
+touch "$signers"
+chmod 644 "$signers" # public keys: readable, but only you can change them
+if ! grep -q 'ssh-' "$signers"; then
+  echo "The updater deploys only commits signed by these SSH keys (docs/production.md, \"Signed deploys\")."
+  echo "Paste one per line as  email ssh-ed25519 AAAA…  (the Mac's and this PC's public signing keys)."
+  echo "An empty line finishes."
+  while read -r -p "> " email key && [ -n "$email" ]; do
+    case "$key" in
+      ssh-* | sk-ssh-* | ecdsa-*) echo "$email namespaces=\"git\" $key" >>"$signers" ;;
+      *) echo "  not a public key (email, then ssh-ed25519 AAAA…); skipped" ;;
+    esac
+  done
+fi
+echo "$(grep -c 'ssh-' "$signers" || true) key(s) in $signers"
+grep -q 'ssh-' "$signers" || echo "No keys yet: the updater pulls nothing from GitHub until you add one (live.sh still works)."
+[ "$(get LMS_ALLOW_UNSIGNED)" = 1 ] && echo "LMS_ALLOW_UNSIGNED=1: unsigned commits are deployed too. Set it back to 0 once signing works."
 
 say "Building and starting (the first build takes a few minutes)"
 mkdir -p "$DEPLOY/state" "$DEPLOY/backups" # yours, before Docker would make them root's

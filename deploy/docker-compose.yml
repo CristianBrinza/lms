@@ -99,7 +99,11 @@ services:
   # Every minute: new commits on the branch → build, back up, switch, check, roll back.
   # deploy/server/live.sh asks it to do the same for this checkout as it is, right now.
   updater:
-    build: ./updater
+    build:
+      context: ./updater
+      args:
+        LMS_UID: ${LMS_UID:-1000}
+        LMS_GID: ${LMS_GID:-1000}
     restart: unless-stopped
     # As the checkout's owner (people edit it too: files it pulls must stay theirs), with the
     # Docker socket's group. setup.sh writes the ids into deploy/.env.
@@ -112,11 +116,16 @@ services:
       LMS_HOST_DIR: ${LMS_HOST_DIR:?set LMS_HOST_DIR in deploy/.env (this repo's path on the machine)}
       LMS_BRANCH: ${LMS_BRANCH:-main}
       CHECK_EVERY: ${CHECK_EVERY:-60}
+      # Off by default: only while commit signing is being set up (docs/production.md).
+      LMS_ALLOW_UNSIGNED: ${LMS_ALLOW_UNSIGNED:-0}
       TZ: ${TZ:-Europe/Chisinau}
     volumes:
       # The repo at the same path as on the machine, so `docker compose` resolves the same mounts.
       - ${LMS_HOST_DIR}:${LMS_HOST_DIR}
       - /var/run/docker.sock:/var/run/docker.sock
+      # The keys whose signed commits it deploys: on the machine, outside the repo, so a commit
+      # can't add its own key (setup.sh creates it).
+      - ${LMS_ALLOWED_SIGNERS:?set LMS_ALLOWED_SIGNERS in deploy/.env (deploy/server/setup.sh)}:/run/lms/allowed_signers:ro
     working_dir: ${LMS_HOST_DIR}/deploy
     networks: [updates]
     cap_drop: [ALL]

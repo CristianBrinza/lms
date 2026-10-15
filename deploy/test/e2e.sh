@@ -10,6 +10,8 @@
 #   2. a commit pushed → the updater pulls it, backs up, rebuilds, switches
 #   3. a broken commit → unhealthy → back on the previous version, and not retried
 #   4. a fix pushed → live; the bad mark is gone
+#   4b. an unsigned commit → refused, not pulled; a signed one on top of it too; once it's gone
+#       from the branch, the signed one goes live
 #   5. an edit made on the PC → the updater doesn't pull over it; live.sh puts it live
 #   6. a backup now, and a restore of it
 #
@@ -41,12 +43,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The "Mac" signs its commits with an SSH key the "PC" allows (signed deploys).
+KEY="$WORK/signing-key"
+SIGN=(-c user.name=e2e -c user.email=e2e@test -c gpg.format=ssh -c user.signingkey="$KEY" -c commit.gpgsign=true)
 commit_and_push() {
-  # commit_and_push <message>: the "Mac" pushes to "GitHub"
+  # commit_and_push <message> [unsigned]: the "Mac" pushes to "GitHub"
   git -C "$DEV" add -A
-  git -C "$DEV" -c user.name=e2e -c user.email=e2e@test commit -qm "$1"
-  git -C "$DEV" push -q origin "HEAD:$BRANCH"
+  if [ "${2:-}" = unsigned ]; then
+    git -C "$DEV" -c user.name=e2e -c user.email=e2e@test -c commit.gpgsign=false commit -qm "$1"
+  else
+    git -C "$DEV" "${SIGN[@]}" commit -qm "$1"
+  fi
+  git -C "$DEV" push -q -f origin "HEAD:$BRANCH"
 }
+updater_log_has() { (cd "$PROD/deploy" && docker compose logs updater) 2>/dev/null | grep -q "$1"; }
 short() { git -C "$1" rev-parse --short=7 HEAD; }
 api_version() { curl -s --max-time 5 "$URL/health" | jq -r '.api.version // ""' 2>/dev/null || echo ""; }
 version_ends() { case "$(api_version)" in *"$1") return 0 ;; *) return 1 ;; esac; }
@@ -76,6 +86,8 @@ git -C "$PROD" remote set-url origin "$ORIGIN"
 git -C "$DEV" remote set-url origin "$ORIGIN"
 git -C "$PROD" fetch -q origin && git -C "$PROD" branch -q -u origin/"$(git -C "$PROD" rev-parse --abbrev-ref HEAD)" 2>/dev/null || true
 BRANCH="$(git -C "$PROD" rev-parse --abbrev-ref HEAD)"
+ssh-keygen -q -t ed25519 -N '' -C e2e -f "$KEY"
+echo "e2e@test namespaces=\"git\" $(cat "$KEY.pub")" >"$WORK/allowed_signers"
 cat >"$PROD/deploy/.env" <<ENV
 COMPOSE_PROJECT_NAME=$PROJECT
 COMPOSE_FILE=docker-compose.yml:test/docker-compose.e2e.yml
@@ -84,6 +96,7 @@ LMS_UID=$(id -u)
 LMS_GID=$(id -g)
 DOCKER_GID=0
 LMS_BRANCH=$BRANCH
+LMS_ALLOWED_SIGNERS=$WORK/allowed_signers
 CHECK_EVERY=3
 HEALTH_TIMEOUT=90
 TZ=Europe/Chisinau
@@ -127,12 +140,29 @@ sleep 10
 [ "$(api_version)" = "$good" ] && status_is rolled-back && ok "not retried a few rounds later" || die "status $(jq -r .result "$PROD/deploy/state/status.json")"
 
 step "4. The fix"
-git -C "$DEV" -c user.name=e2e -c user.email=e2e@test revert --no-edit HEAD >/dev/null
+git -C "$DEV" "${SIGN[@]}" revert --no-edit HEAD >/dev/null
 echo v4 >"$DEV/frontend/public/e2e.txt"
 commit_and_push "e2e: v4"
 wait_for 300 "v4 live" page_says v4
 wait_for 120 "the release finished" status_is ok
 [ ! -e "$PROD/deploy/state/bad" ] && ok "live, and the bad mark is gone" || die "status $(jq -r .result "$PROD/deploy/state/status.json")"
+
+step "4b. Unsigned commits"
+before="$(git -C "$PROD" rev-parse HEAD)"
+echo unsigned >"$DEV/frontend/public/e2e.txt"
+commit_and_push "e2e: unsigned" unsigned
+wait_for 60 "the refusal" status_is refused
+updater_log_has "REFUSED origin/$BRANCH" && ok "refused and logged: $(cd "$PROD/deploy" && docker compose logs --no-log-prefix updater | grep REFUSED | tail -n1 | cut -c1-120)" || die "no refusal in the updater's log"
+echo signed-on-top >"$DEV/frontend/public/e2e.txt"
+commit_and_push "e2e: signed, on top of the unsigned one"
+sleep 10
+[ "$(git -C "$PROD" rev-parse HEAD)" = "$before" ] && page_says v4 && status_is refused && ok "not pulled, even under a signed commit" || die "it pulled an unsigned commit"
+git -C "$DEV" reset -q --hard HEAD~2
+echo v4b >"$DEV/frontend/public/e2e.txt"
+commit_and_push "e2e: signed again (the unsigned commit is gone from the branch)"
+wait_for 300 "v4b live" page_says v4b
+wait_for 120 "the release finished" status_is ok
+ok "signed again: pulled and live"
 
 step "5. An edit made on the PC"
 echo local >"$PROD/frontend/public/e2e.txt"
@@ -140,7 +170,7 @@ echo "# pushed meanwhile" >>"$DEV/README.md"
 commit_and_push "e2e: pushed while the PC has local changes"
 before="$(git -C "$PROD" rev-parse HEAD)"
 sleep 10
-[ "$(git -C "$PROD" rev-parse HEAD)" = "$before" ] && page_says v4 && ok "the updater leaves local changes alone (no pull, no release)" || die "it pulled or released over local changes"
+[ "$(git -C "$PROD" rev-parse HEAD)" = "$before" ] && page_says v4b && ok "the updater leaves local changes alone (no pull, no release)" || die "it pulled or released over local changes"
 (cd "$PROD" && deploy/server/live.sh --no-checks >/dev/null) || die "live.sh failed"
 page_says local && version_ends -local && ok "live.sh put the edit live: $(api_version)" || die "e2e.txt $(curl -s "$URL/e2e.txt"), version $(api_version)"
 [ -n "$(git -C "$PROD" status --porcelain)" ] && ok "the edit is still there to commit" || die "the edit is gone"

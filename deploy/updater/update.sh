@@ -3,7 +3,8 @@
 # The LMS updater: builds the app from this checkout and puts it live, safely.
 #
 #   lms-update              the loop (the container's command). Every CHECK_EVERY seconds:
-#                           a checkout without local changes fast-forwards to origin/$LMS_BRANCH;
+#                           a checkout without local changes fast-forwards to origin/$LMS_BRANCH
+#                           (only when every new commit is signed, below);
 #                           a commit that isn't live yet is released.
 #   lms-update --release    release this checkout now, local changes included (deploy/server/live.sh)
 #   lms-update --once       one round of the loop (tests)
@@ -11,6 +12,13 @@
 # A release: build the image (web app + API) → back the database up → switch → wait for the
 # health check → healthy: done; unhealthy: the previous image goes back, and the loop leaves that
 # commit alone until a newer one comes.
+#
+# Signed deploys: commits from GitHub are pulled only when every one of them is signed by a key in
+# the allowed_signers file kept on this machine, outside the repo (LMS_ALLOWED_SIGNERS in
+# deploy/.env, mounted read-only), so a stolen GitHub account or token can't run code here. One
+# that isn't is logged and skipped; nothing is pulled until origin/$LMS_BRANCH is signed again.
+# LMS_ALLOW_UNSIGNED=1 turns the check off (only while setting signing up). --release (live.sh)
+# puts this checkout live as it is: a person made those edits here.
 #
 # It never touches deploy/.env or the database's volume. Its state (what runs, the last result)
 # is in deploy/state/; its log is `docker compose logs updater`.
@@ -25,6 +33,7 @@ REPO_DIR="$(cd "$DEPLOY_DIR/.." && pwd)"
 STATE_DIR="$DEPLOY_DIR/state"
 BACKUP_DIR="$DEPLOY_DIR/backups"
 LIVE=lms-app:live
+SIGNERS=/run/lms/allowed_signers # LMS_ALLOWED_SIGNERS on the machine, mounted read-only
 mkdir -p "$STATE_DIR" "$BACKUP_DIR"
 
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
@@ -82,6 +91,37 @@ backup() {
   rm -f "$file"
   log "backup FAILED: not switching without one"
   return 1
+}
+
+# Says something about origin's commit $1 once, not every round: logs $2, and the status
+# becomes $3 when given.
+once() {
+  [ "$(cat "$STATE_DIR/said-origin" 2>/dev/null)" = "$1" ] && return 0
+  echo "$1" >"$STATE_DIR/said-origin"
+  log "$2"
+  [ -n "${3:-}" ] && write_status "$3" "$2"
+  return 0
+}
+
+# May the commits from here to origin's $1 be pulled? Every one of them signed by an allowed key.
+signed() {
+  local target="$1" short commit
+  short="$(git -C "$REPO_DIR" rev-parse --short "$target")"
+  if [ "${LMS_ALLOW_UNSIGNED:-0}" = 1 ]; then
+    once "$target" "signatures: NOT checked for origin/$BRANCH $short (LMS_ALLOW_UNSIGNED=1)"
+    return 0
+  fi
+  if [ ! -s "$SIGNERS" ]; then
+    once "$target" "signatures: REFUSED origin/$BRANCH $short: no allowed_signers (LMS_ALLOWED_SIGNERS in deploy/.env); nothing is pulled" refused
+    return 1
+  fi
+  for commit in $(git -C "$REPO_DIR" rev-list "HEAD..$target"); do
+    if ! git -C "$REPO_DIR" -c gpg.ssh.allowedSignersFile="$SIGNERS" verify-commit "$commit" >/dev/null 2>&1; then
+      # The subject and author are anyone's text: printable characters only.
+      once "$target" "signatures: REFUSED origin/$BRANCH $short: commit $(git -C "$REPO_DIR" log -1 --format='%h by %an <%ae>: %s' "$commit" | tr -cd '[:print:]' | cut -c1-160) isn't signed by a key in allowed_signers; nothing is pulled" refused
+      return 1
+    fi
+  done
 }
 
 # The services this updater runs: the active ones, but not itself (recreating its own container
@@ -157,8 +197,10 @@ round() {
   rm -f "$STATE_DIR/said-dirty"
 
   if git -C "$REPO_DIR" fetch --quiet origin "$BRANCH" 2>/dev/null; then
-    if [ "$(head_commit)" != "$(git -C "$REPO_DIR" rev-parse "origin/$BRANCH")" ]; then
-      if git -C "$REPO_DIR" merge --ff-only --quiet "origin/$BRANCH" 2>/dev/null; then
+    local target
+    target="$(git -C "$REPO_DIR" rev-parse "origin/$BRANCH")"
+    if [ "$(head_commit)" != "$target" ] && signed "$target"; then
+      if git -C "$REPO_DIR" merge --ff-only --quiet "$target" 2>/dev/null; then
         log "git: $(git -C "$REPO_DIR" log -1 --format='%h %s')"
       elif ! git -C "$REPO_DIR" merge-base --is-ancestor "origin/$BRANCH" HEAD; then
         log "git: this checkout and origin/$BRANCH have both moved on; pull and push here to join them"
