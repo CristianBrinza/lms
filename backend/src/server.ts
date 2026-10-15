@@ -1,11 +1,11 @@
 import { serve } from '@hono/node-server';
 import { getConnInfo } from '@hono/node-server/conninfo';
-import type { Context } from 'hono';
 import { createApp } from './app';
 import { BUILD } from './build-info';
 import { ConfigError, loadConfig, type AppConfig } from './config';
 import { createDatabase, describeDatabase } from './db';
 import { cleanup } from './db/migrations';
+import { clientIpResolver, proxyTrust } from './lib/client-ip';
 import { loadDotEnv } from './lib/dotenv';
 import { runReminders } from './modules/reminders/service';
 import { createDeps, prepare } from './runtime';
@@ -14,23 +14,6 @@ import { createDeps, prepare } from './runtime';
  * Node.js entry: local development (`yarn dev`) and production (Docker behind a Cloudflare
  * Tunnel, deploy/docker-compose.yml). Bundled to one file by `yarn build` (dist/server.cjs).
  */
-
-function clientIpResolver(config: AppConfig) {
-  return (c: Context): string => {
-    // Behind the Cloudflare Tunnel (production): only cloudflared reaches this port, and
-    // Cloudflare sets the visitor's address in cf-connecting-ip.
-    if (config.trustProxy) {
-      const forwarded =
-        c.req.header('cf-connecting-ip') ?? c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-      if (forwarded) return forwarded;
-    }
-    try {
-      return getConnInfo(c).remote.address ?? '0.0.0.0';
-    } catch {
-      return '0.0.0.0';
-    }
-  };
-}
 
 async function main() {
   loadDotEnv(process.env.ENV_FILE ?? '.env');
@@ -47,7 +30,12 @@ async function main() {
     throw error;
   }
   const db = createDatabase(config);
-  const deps = createDeps(config, db, { clientIp: clientIpResolver(config) });
+  // Behind the Cloudflare Tunnel, the visitor's address from cf-connecting-ip, but only when
+  // the request comes from the tunnel's container (TRUST_PROXY) or from loopback.
+  const trust = config.trustProxy.length ? proxyTrust(config.trustProxy) : null;
+  void trust?.refresh();
+  const clientIp = clientIpResolver(trust, (c) => getConnInfo(c).remote.address);
+  const deps = createDeps(config, db, { clientIp });
 
   // Listen first: while the database is unreachable the API still answers (health says 503)
   // instead of crashing and being restarted in a loop.

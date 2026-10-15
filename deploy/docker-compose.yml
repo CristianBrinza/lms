@@ -56,8 +56,9 @@ services:
       HOST: 0.0.0.0
       PORT: '8790'
       DATABASE_URL: postgres://lms:${POSTGRES_PASSWORD}@postgres:5432/lms
-      # Only cloudflared reaches it: the visitor's address comes from Cloudflare's header.
-      TRUST_PROXY: 'true'
+      # The visitor's address comes from Cloudflare's cf-connecting-ip, believed only when the
+      # request comes from the tunnel's container (backend/src/lib/client-ip.ts).
+      TRUST_PROXY: tunnel
       # The kitchen's local time: today, best-before dates, meal times and reminders.
       TZ: ${TZ:-Europe/Chisinau}
     depends_on:

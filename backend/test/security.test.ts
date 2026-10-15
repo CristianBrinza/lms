@@ -14,6 +14,18 @@ describe('health', () => {
 });
 
 describe('request checks', () => {
+  it('answers only its own host and this machine', async () => {
+    const own = new URL(APP_URL).host;
+    for (const host of [own, 'localhost', '127.0.0.1:8790', '[::1]:8790']) {
+      const res = await t.app.request('/api/health', { headers: { host } });
+      expect(res.status, host).toBe(200);
+    }
+    for (const host of ['evil.example', 'lms.shades.md.evil.example', `${own}.evil.example`, '']) {
+      const res = await t.app.request('/api/health', { headers: { host } });
+      expect(res.status, host).toBe(421);
+    }
+  });
+
   it('rejects cross-site and foreign-origin writes', async () => {
     const b = t.browser();
     const crossSite = await b.post(

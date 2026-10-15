@@ -3,6 +3,7 @@ import type { AppDeps, AppEnv } from './context';
 import { AppError } from './lib/errors';
 import {
   apiSecurityHeaders,
+  hostGuard,
   jsonBodyLimit,
   noStore,
   originGuard,
@@ -24,7 +25,7 @@ import { webApp, webVersion } from './web';
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
 
-  app.use('*', requestContext(deps));
+  app.use('*', requestContext(deps), hostGuard(deps));
   app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps), jsonBodyLimit);
 
   app.route('/', oauthMetadataRoutes(deps));

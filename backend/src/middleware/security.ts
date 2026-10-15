@@ -18,6 +18,31 @@ export function requestContext(deps: AppDeps) {
   });
 }
 
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Answers only requests addressed to the app's own host (APP_URL), or to this machine for checks
+ * (localhost, any port). A web page whose DNS is rebound to this machine, or a hostname routed to
+ * the tunnel by mistake, gets nothing. Development lets everything in (the phone on the LAN).
+ */
+export function hostGuard(deps: AppDeps) {
+  const own = new URL(deps.config.appUrl).host;
+  return createMiddleware<AppEnv>(async (c, next) => {
+    if (deps.config.env !== 'development') {
+      const host = (c.req.header('host') ?? new URL(c.req.url).host).toLowerCase();
+      let hostname = '';
+      try {
+        hostname = new URL(`http://${host}`).hostname;
+      } catch {
+        // not a host at all: refused below
+      }
+      if (host !== own && !LOCAL_HOSTNAMES.has(hostname))
+        throw new AppError(421, 'MISDIRECTED_REQUEST', 'Unknown host');
+    }
+    await next();
+  });
+}
+
 /** Strict headers for JSON API responses: no caching, no framing, no sniffing. */
 export function apiSecurityHeaders(deps: AppDeps) {
   return secureHeaders({

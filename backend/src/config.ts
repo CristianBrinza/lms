@@ -41,8 +41,22 @@ const EnvSchema = z.object({
   ACCESS_TOKEN_TTL_MIN: int(15, 1, 120),
   REMEMBER_DAYS: int(365, 1, 400),
   SESSION_HOURS: int(12, 1, 168),
-  /** Behind the Cloudflare Tunnel: the client's address comes from Cloudflare's header. */
-  TRUST_PROXY: bool(false),
+  /**
+   * Behind the Cloudflare Tunnel: the proxies (host names or addresses, comma-separated; in
+   * production `tunnel`) whose cf-connecting-ip header gives the visitor's address. Empty: none.
+   */
+  TRUST_PROXY: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((name) => name.trim())
+        .filter((name) => name && !/^(0|false|no|off)$/i.test(name)),
+    )
+    .refine((names) => !names.some((name) => /^(1|true|yes|on)$/i.test(name)), {
+      message: 'TRUST_PROXY names the proxy whose header is believed (e.g. tunnel), not true',
+    }),
   /** The built web app (frontend/dist) to serve next to the API; unset in development. */
   WEB_DIR: optionalString,
   RATE_LIMITS: bool(true),
@@ -77,7 +91,8 @@ export interface AppConfig {
   session: { rememberDays: number; sessionHours: number };
   /** The built web app this server also serves (production), or null. */
   webDir: string | null;
-  trustProxy: boolean;
+  /** The proxies whose cf-connecting-ip is believed (lib/client-ip.ts); empty: none. */
+  trustProxy: string[];
   rateLimits: boolean;
   passwordHashCost: 'standard' | 'fast';
   bootstrapAdmin: { email: string; password: string; name: string; surname: string } | null;
