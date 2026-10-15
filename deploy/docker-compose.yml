@@ -50,12 +50,24 @@ services:
     image: lms-app:live
     pull_policy: never
     restart: unless-stopped
-    env_file: .env
+    # Only its own settings, by name: deploy/.env also holds the tunnel token, which the app
+    # must never see.
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: '8790'
       DATABASE_URL: postgres://lms:${POSTGRES_PASSWORD}@postgres:5432/lms
+      APP_URL: ${APP_URL:?set APP_URL in deploy/.env}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env}
+      JWT_PREVIOUS_SECRET: ${JWT_PREVIOUS_SECRET:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      ADMIN_SURNAME: ${ADMIN_SURNAME:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       # The visitor's address comes from Cloudflare's cf-connecting-ip, believed only when the
       # request comes from the tunnel's container (backend/src/lib/client-ip.ts).
       TRUST_PROXY: tunnel

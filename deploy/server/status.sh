@@ -29,3 +29,6 @@ echo
 echo "── Code: $(git log -1 --format='%h %s (%cr)')"
 changes="$(git status --porcelain | wc -l | tr -d ' ')"
 [ "$changes" != 0 ] && echo "   $changes local change(s): live.sh puts them live; the updater doesn't pull meanwhile"
+mode="$(stat -c %a .env 2>/dev/null || stat -f %Lp .env 2>/dev/null)"
+[ -n "$mode" ] && [ "$mode" != 600 ] && echo "   deploy/.env is mode $mode: chmod 600 deploy/.env (it holds the tunnel token and the database password)"
+true

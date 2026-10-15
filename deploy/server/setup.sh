@@ -14,6 +14,7 @@
 # Safe to run again: an existing deploy/.env is kept (only missing values are added).
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
+umask 077 # deploy/.env and anything else written here: yours only
 cd "$(dirname "$0")/.."
 DEPLOY="$(pwd)"
 ENV="$DEPLOY/.env"
@@ -35,16 +36,25 @@ touch "$ENV"
 chmod 600 "$ENV"
 get() { grep -E "^$1=" "$ENV" | tail -n1 | cut -d= -f2- || true; }
 set_value() {
-  # Adds KEY=value when KEY is missing or empty; never overwrites a value already there.
+  # Adds KEY=value when KEY is missing or empty; never overwrites a value already there. No sed:
+  # a secret stays out of the process list, and | or & in it stay as they are.
   local key="$1" value="$2"
   if grep -qE "^$key=.+" "$ENV"; then return 0; fi
-  if grep -qE "^$key=" "$ENV"; then sed -i "s|^$key=.*|$key=$value|" "$ENV"; else echo "$key=$value" >>"$ENV"; fi
+  { grep -vE "^$key=" "$ENV" || true; printf '%s=%s\n' "$key" "$value"; } >"$ENV.new"
+  mv "$ENV.new" "$ENV"
+  chmod 600 "$ENV"
 }
 ask() {
-  # ask KEY "question" [default] — only when KEY has no value yet.
+  # ask KEY "question" [default] [hidden] — only when KEY has no value yet; hidden: not shown
+  # while typed or pasted (secrets).
   local key="$1" question="$2" default="${3:-}" answer
   if [ -n "$(get "$key")" ]; then return 0; fi
-  read -r -p "$question${default:+ [$default]}: " answer
+  if [ "${4:-}" = hidden ]; then
+    read -r -s -p "$question: " answer
+    echo
+  else
+    read -r -p "$question${default:+ [$default]}: " answer
+  fi
   set_value "$key" "${answer:-$default}"
 }
 secret() { openssl rand -base64 48 | tr -d '\n/+=' | cut -c1-48; }
@@ -59,7 +69,7 @@ set_value TZ Europe/Chisinau
 set_value POSTGRES_PASSWORD "$(secret)"
 set_value JWT_SECRET "$(secret)"
 ask APP_URL "The app's public address" "https://lms.shades.md"
-ask TUNNEL_TOKEN "Cloudflare Tunnel token (Zero Trust → Networks → Tunnels → your tunnel)"
+ask TUNNEL_TOKEN "Cloudflare Tunnel token (Zero Trust → Networks → Tunnels → your tunnel; hidden)" "" hidden
 ask ADMIN_EMAIL "First admin's email"
 ask ADMIN_NAME "First admin's name"
 ask ADMIN_SURNAME "First admin's surname"
