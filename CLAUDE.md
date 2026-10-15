@@ -26,7 +26,10 @@ There are two machines with a Claude on them. Both may change code; only one is 
 - Use the `lms-server` skill for status, logs, backups and restores.
 
 **On development, never deploy to the PC by hand.** Push to `main`; the PC's updater pulls it
-within a minute (if the PC has no local changes) and releases it. To check the server, ask the
+within a minute (if the PC has no local changes) and releases it. Only **signed** commits: the
+updater refuses a push with any commit not signed by a key in the PC's `allowed_signers`
+(docs/production.md, "Signed deploys"). Keep `commit.gpgsign` on, and merge on the command line,
+not with GitHub's merge button. To check the server, ask the
 production session, or `node scripts/lms.mjs health` / `yarn deploy:verify` from anywhere.
 
 ## Talking between the two
