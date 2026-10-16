@@ -1,4 +1,10 @@
-import { PhotoPicker, ProfileFieldsForm } from '@/components/common/ProfileFields';
+import {
+  PaydayForm,
+  PhotoPicker,
+  ProfileFieldsForm,
+  useProfileT,
+  useWeightField,
+} from '@/components/common/ProfileFields';
 import { profileInput, profileValues } from '@/lib/profile';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
@@ -217,6 +223,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
           {/* Keyed by the saved version: a save (or a change elsewhere) starts the form from the new values. */}
           <DetailsForm key={person.updatedAt} person={person} isMe={isMe} onSaved={refresh} />
           <AboutCard key={`about-${person.updatedAt}`} person={person} onSaved={refresh} />
+          <PaydayCard key={`paydays-${person.updatedAt}`} person={person} onSaved={refresh} />
         </div>
       </div>
 
@@ -384,11 +391,15 @@ function DetailsForm({
   );
 }
 
-/** Picture, gender, birth date, height: the admin can set them for anyone (a child without a phone). */
+/**
+ * Picture, gender, birth date, height, current and goal weight: the admin can set them for anyone
+ * (a child without a phone).
+ */
 function AboutCard({ person, onSaved }: { person: AdminUser; onSaved: (user: AdminUser) => void }) {
   const [value, setValue] = useState(() => profileValues(person));
+  const weight = useWeightField(person);
   const save = useMutation({
-    mutationFn: () => adminApi.update(person.id, profileInput(value)),
+    mutationFn: () => adminApi.update(person.id, { ...profileInput(value), ...weight.input() }),
     onSuccess: (user) => {
       onSaved(user);
       toast.success('Saved');
@@ -410,11 +421,51 @@ function AboutCard({ person, onSaved }: { person: AdminUser; onSaved: (user: Adm
           onSave={(image) => adminApi.setAvatar(person.id, image).then(onSaved)}
         />
         <div className="flex flex-col gap-4">
-          <ProfileFieldsForm value={value} onChange={setValue} />
-          <Button size="md" loading={save.isPending} onClick={() => save.mutate()}>
+          <ProfileFieldsForm
+            value={value}
+            onChange={setValue}
+            weight={weight.field}
+            errors={fieldErrors(save.error)}
+          />
+          <Button
+            size="md"
+            loading={save.isPending}
+            onClick={() => {
+              if (weight.check()) save.mutate();
+            }}
+          >
             Save
           </Button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** The salary and advance days behind Home's countdown: the admin can set anyone's. */
+function PaydayCard({
+  person,
+  onSaved,
+}: {
+  person: AdminUser;
+  onSaved: (user: AdminUser) => void;
+}) {
+  const t = useProfileT();
+  return (
+    <section
+      aria-labelledby="paydays"
+      className="mt-5 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
+    >
+      <h2 id="paydays" className="text-h3 font-bold">
+        {t.paydays}
+      </h2>
+      <p className="mt-1 text-sm text-ink-600">{t.paydaysLine}</p>
+      <div className="mt-4">
+        <PaydayForm
+          person={person}
+          save={(input) => adminApi.update(person.id, input)}
+          onSaved={onSaved}
+        />
       </div>
     </section>
   );

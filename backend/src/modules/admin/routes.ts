@@ -17,6 +17,7 @@ import {
 import { requireAuth, requireRole } from '../../middleware/auth';
 import { revokeAllSessions } from '../auth/sessions';
 import { AvatarBody, ProfileFields, saveProfileFields, setAvatar } from '../profile';
+import { saveTypedWeight } from '../training/health';
 import {
   countActiveAdmins,
   findUserById,
@@ -78,12 +79,18 @@ type AdminRow = Parameters<typeof toUser>[0] & {
   last_seen_at: Date | null;
   household_name: string | null;
   household_members: number;
+  weight_kg: string | null;
+  weight_day: string | null;
 };
 
 function toAdminUser(row: AdminRow): AdminUser {
   const user = toUser(row);
+  const weight =
+    row.weight_kg === null || row.weight_day === null
+      ? null
+      : { kg: Number(row.weight_kg), day: row.weight_day };
   return {
-    ...toPublicUser(user),
+    ...toPublicUser(user, weight),
     isActive: user.isActive,
     kitchen: user.householdId
       ? {
@@ -106,8 +113,15 @@ const ADMIN_SELECT = `
     (SELECT count(*)::int FROM sessions s WHERE s.user_id = u.id AND s.revoked_at IS NULL AND s.expires_at > $1) AS active_sessions,
     (SELECT max(s.last_used_at) FROM sessions s WHERE s.user_id = u.id) AS last_seen_at,
     h.name AS household_name,
-    (SELECT count(*)::int FROM users x WHERE x.household_id = u.household_id) AS household_members
-  FROM users u LEFT JOIN households h ON h.id = u.household_id`;
+    (SELECT count(*)::int FROM users x WHERE x.household_id = u.household_id) AS household_members,
+    w.value AS weight_kg, w.day::text AS weight_day
+  FROM users u LEFT JOIN households h ON h.id = u.household_id
+  -- The latest weight, read as latestWeight reads it (the phone's over a typed one on one day).
+  LEFT JOIN LATERAL (
+    SELECT hd.value, hd.day FROM health_days hd
+     WHERE hd.user_id = u.id AND hd.kind = 'weight'
+     ORDER BY hd.day DESC, hd.source LIMIT 1
+  ) w ON true`;
 
 const isUniqueViolation = (error: unknown) => (error as { code?: string }).code === '23505';
 const EMAIL_TAKEN = () =>
@@ -235,6 +249,8 @@ export function adminRoutes(deps: AppDeps) {
       if (isUniqueViolation(error)) throw EMAIL_TAKEN();
       throw error;
     }
+    // Their weight goes to Health as today's typed-in reading, after the rest is saved.
+    if (typeof body.weightKg === 'number') await saveTypedWeight(deps, target, body.weightKg);
 
     const ip = maskIp(c.get('ip'));
     if (body.role && body.role !== target.role) {

@@ -15,13 +15,20 @@ import {
 } from '@/components/ui';
 import {
   BadgeIcon,
+  CalendarIcon,
   EmailIcon,
   LockIcon,
   LogoutIcon,
   PersonIcon,
   SettingsIcon,
 } from '@/components/ui/icons';
-import { PhotoPicker, ProfileFieldsForm } from '@/components/common/ProfileFields';
+import {
+  PaydayForm,
+  PhotoPicker,
+  ProfileFieldsForm,
+  useProfileT,
+  useWeightField,
+} from '@/components/common/ProfileFields';
 import { profileInput, profileValues } from '@/lib/profile';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { formatDate, fullName } from '@/lib/format';
@@ -34,7 +41,8 @@ import { meApi } from '@/services/api/endpoints';
 export default function ProfilePage() {
   const user = useUser();
   const { logout, setUser } = useAuth();
-  const [open, setOpen] = useState<'details' | 'about' | 'password' | null>(null);
+  const t = useProfileT();
+  const [open, setOpen] = useState<'details' | 'about' | 'paydays' | 'password' | null>(null);
   const close = () => setOpen(null);
   return (
     <Screen tone="white">
@@ -76,6 +84,12 @@ export default function ProfilePage() {
             onClick={() => setOpen('about')}
           />
           <ListRowButton
+            icon={CalendarIcon}
+            label={t.paydays}
+            detail={t.paydaysSummary(user.salaryDay, user.advanceDay)}
+            onClick={() => setOpen('paydays')}
+          />
+          <ListRowButton
             icon={LockIcon}
             label="Password"
             detail="Change it any time"
@@ -106,6 +120,22 @@ export default function ProfilePage() {
         description="Used for training plans and health numbers."
       >
         <AboutForm onDone={close} />
+      </Sheet>
+      <Sheet
+        open={open === 'paydays'}
+        onClose={close}
+        title={t.paydays}
+        description={t.paydaysLine}
+      >
+        <PaydayForm
+          person={user}
+          save={meApi.update}
+          onSaved={(updated) => {
+            setUser(updated);
+            close();
+          }}
+          wide
+        />
       </Sheet>
       <PasswordSheet open={open === 'password'} onClose={close} />
     </Screen>
@@ -193,21 +223,30 @@ function AboutForm({ onDone }: { onDone: () => void }) {
   const user = useUser();
   const { setUser } = useAuth();
   const [value, setValue] = useState(() => profileValues(user));
+  const weight = useWeightField(user);
   const save = useMutation({
-    mutationFn: () => meApi.update(profileInput(value)),
+    mutationFn: () => meApi.update({ ...profileInput(value), ...weight.input() }),
     onSuccess: (updated) => {
       setUser(updated);
       toast.success('Saved');
       onDone();
     },
   });
+  const fields = fieldErrors(save.error);
   return (
     <div className="flex flex-col gap-4">
-      <ProfileFieldsForm value={value} onChange={setValue} />
-      {save.error ? (
+      <ProfileFieldsForm value={value} onChange={setValue} weight={weight.field} errors={fields} />
+      {save.error && !fields.weightKg && !fields.goalWeight ? (
         <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
       ) : null}
-      <Button size="md" fullWidth loading={save.isPending} onClick={() => save.mutate()}>
+      <Button
+        size="md"
+        fullWidth
+        loading={save.isPending}
+        onClick={() => {
+          if (weight.check()) save.mutate();
+        }}
+      >
         Save
       </Button>
     </div>

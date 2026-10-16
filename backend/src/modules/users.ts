@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Role } from '../config';
 import type { AppDeps } from '../context';
 import type { Queryable } from '../db';
+import type { Locale } from '../lib/i18n';
 
 /** A person with an account. Only the admin creates them; there is no public sign-up. */
 export interface User {
@@ -30,6 +31,12 @@ export interface User {
   activity: 'sedentary' | 'light' | 'moderate' | 'active' | 'very' | null;
   /** When the picture was last set; null without one. */
   avatarAt: Date | null;
+  /** The app's language for this person; null until chosen. */
+  locale: Locale | null;
+  /** The day of the month the salary comes (1–31); null if not said. */
+  salaryDay: number | null;
+  /** The day of the month the advance (avans), the salary's earlier part, comes; null if none. */
+  advanceDay: number | null;
 }
 
 export const GENDERS = ['female', 'male', 'other'] as const;
@@ -58,10 +65,13 @@ interface UserRow {
   goal_weight: string | null;
   goal_rate: string | null;
   activity: User['activity'];
+  locale: Locale | null;
+  salary_day: number | null;
+  advance_day: number | null;
 }
 
 export const USER_COLUMNS =
-  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at, gender, birth_date::text AS birth_date, height_cm, avatar_at, goal, goal_weight, goal_rate, activity';
+  'id, email, name, surname, role, password_hash, is_active, must_change_password, token_version, last_login_at, created_by, household_id, created_at, updated_at, gender, birth_date::text AS birth_date, height_cm, avatar_at, goal, goal_weight, goal_rate, activity, locale, salary_day, advance_day';
 
 export function toUser(row: UserRow): User {
   return {
@@ -87,6 +97,9 @@ export function toUser(row: UserRow): User {
     goalWeight: row.goal_weight === null ? null : Number(row.goal_weight),
     goalRate: row.goal_rate === null ? null : Number(row.goal_rate),
     activity: row.activity,
+    locale: row.locale,
+    salaryDay: row.salary_day,
+    advanceDay: row.advance_day,
   };
 }
 
@@ -163,13 +176,39 @@ export interface PublicUser {
   activity: User['activity'];
   /** The picture's address (it changes with the picture), or null. */
   avatarUrl: string | null;
+  locale: Locale | null;
+  salaryDay: number | null;
+  advanceDay: number | null;
+  /** The latest weight from any source (the phone or typed in), kg; null without one. */
+  weightKg: number | null;
+  /** The day of that weight, YYYY-MM-DD. */
+  weightDay: string | null;
+}
+
+/** A person's latest weight and its day. */
+export interface LatestWeight {
+  kg: number;
+  day: string;
+}
+
+/**
+ * The latest weight lives in Health (health_days), not on the user, so it is read apart. On a day
+ * with more than one reading the phone's wins over a typed one, as in Training's energy numbers.
+ */
+export async function latestWeight(db: Queryable, userId: string): Promise<LatestWeight | null> {
+  const { rows } = await db.query<{ value: string; day: string }>(
+    `SELECT value, day::text AS day FROM health_days WHERE user_id = $1 AND kind = 'weight' ORDER BY day DESC, source LIMIT 1`,
+    [userId],
+  );
+  return rows[0] ? { kg: Number(rows[0].value), day: rows[0].day } : null;
 }
 
 /** A person's picture, for an <img>: the address changes when the picture does, so it caches forever. */
 export const avatarUrl = (id: string, at: Date | null) =>
   at ? `/api/users/${id}/avatar?v=${at.getTime()}` : null;
 
-export function toPublicUser(user: User): PublicUser {
+/** `weight` is the person's latestWeight: it isn't on the user row, so the caller reads it. */
+export function toPublicUser(user: User, weight: LatestWeight | null): PublicUser {
   return {
     id: user.id,
     email: user.email,
@@ -186,7 +225,17 @@ export function toPublicUser(user: User): PublicUser {
     goalRate: user.goalRate,
     activity: user.activity,
     avatarUrl: avatarUrl(user.id, user.avatarAt),
+    locale: user.locale,
+    salaryDay: user.salaryDay,
+    advanceDay: user.advanceDay,
+    weightKg: weight?.kg ?? null,
+    weightDay: weight?.day ?? null,
   };
+}
+
+/** The person as the app sees them, with their latest weight. */
+export async function publicUserWithWeight(db: Queryable, user: User): Promise<PublicUser> {
+  return toPublicUser(user, await latestWeight(db, user.id));
 }
 
 /** Creates the first admin from ADMIN_EMAIL / ADMIN_PASSWORD when the database has none. */

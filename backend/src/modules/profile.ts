@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AppDeps, AppEnv } from '../context';
 import type { Queryable } from '../db';
 import { AppError } from '../lib/errors';
+import { LOCALES } from '../lib/i18n';
 import { requireAuth } from '../middleware/auth';
 import { findUserById, GENDERS, isUuid } from './users';
 
@@ -10,7 +11,8 @@ import { findUserById, GENDERS, isUuid } from './users';
  * The profile beyond a name: a picture, gender, birth date and height — for the family to see who
  * is who, and for Training and Health to fit plans and numbers to the person. Each person sets
  * their own; the admin can set anyone's. The picture is small (the app shrinks it before sending)
- * and is shown only to the person, their household and admins.
+ * and is shown only to the person, their household and admins. Paydays (the days of the month the
+ * salary and the advance come) are set here too, and today's weight, which is kept in Health.
  */
 
 const birthDate = z
@@ -20,6 +22,13 @@ const birthDate = z
     const time = Date.parse(`${value}T00:00:00Z`);
     return !Number.isNaN(time) && value >= '1900-01-01' && time <= Date.now();
   }, 'Not a real birth date');
+
+/** A day of the month. Only the day is kept, never an amount. */
+const monthDay = z
+  .number()
+  .int('Pick a day from 1 to 31')
+  .min(1, 'Pick a day from 1 to 31')
+  .max(31, 'Pick a day from 1 to 31');
 
 export const ProfileFields = z.object({
   gender: z.enum(GENDERS).nullable().optional(),
@@ -37,6 +46,21 @@ export const ProfileFields = z.object({
     .nullable()
     .optional()
     .describe('How active a day is without the training, when the phone doesn’t say'),
+  locale: z.enum(LOCALES).nullable().optional().describe('The app’s language: en, ro or ru'),
+  salaryDay: monthDay.nullable().optional().describe('The day of the month the salary comes, 1–31'),
+  advanceDay: monthDay
+    .nullable()
+    .optional()
+    .describe('The day of the month the advance (avans), the salary’s earlier part, comes, 1–31'),
+  // Not a column: saved as today's typed-in weight in Health (saveTypedWeight), so Training and
+  // Health count with it too. null leaves the weights already there.
+  weightKg: z
+    .number()
+    .min(20, 'Weight in kg')
+    .max(400, 'Weight in kg')
+    .nullable()
+    .optional()
+    .describe('Today’s weight, kg'),
 });
 export type ProfileFields = z.infer<typeof ProfileFields>;
 
@@ -57,6 +81,9 @@ export async function saveProfileFields(
     goalWeight: 'goal_weight',
     goalRate: 'goal_rate',
     activity: 'activity',
+    locale: 'locale',
+    salaryDay: 'salary_day',
+    advanceDay: 'advance_day',
   } as const;
   for (const key of Object.keys(column) as Array<keyof typeof column>) {
     if (fields[key] === undefined) continue;

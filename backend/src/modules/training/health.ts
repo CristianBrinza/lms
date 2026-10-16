@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import type { AppDeps } from '../../context';
 import { AppError } from '../../lib/errors';
-import type { FoodCtx as Ctx } from '../food/kitchen';
+import { ensureKitchen, foodCtx, type FoodCtx as Ctx } from '../food/kitchen';
+import type { User } from '../users';
 import { dateField, idField } from '../food/schemas';
 import { localDate } from '../food/stock';
 import { syncCatalog } from './library';
@@ -256,6 +258,26 @@ export async function importHealth(
     }
     return { days: touched.size, values, workouts };
   });
+}
+
+/**
+ * A weight typed into the profile (by the person or the admin): today's typed-in reading, the same
+ * row Health's own weight field writes. Health data sits in a household, so someone without one
+ * gets their kitchen here, as on their first visit to Food.
+ */
+export async function saveTypedWeight(
+  deps: AppDeps,
+  user: Pick<User, 'id' | 'name' | 'householdId'>,
+  kg: number,
+): Promise<void> {
+  const kitchen = await ensureKitchen(deps, user);
+  const ctx = foodCtx(deps, {
+    householdId: kitchen.id,
+    userId: user.id,
+    via: 'app',
+    currency: kitchen.currency,
+  });
+  await importHealth(ctx, { source: 'manual', weight: kg });
 }
 
 export interface HealthDay {

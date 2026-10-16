@@ -18,6 +18,16 @@ export interface User {
   activity: Activity | null;
   /** The picture's address, or null. */
   avatarUrl: string | null;
+  /** The app's language for this person; null until first chosen (the device's is used). */
+  locale: 'en' | 'ro' | 'ru' | null;
+  /** The day of the month the salary comes (1–31; a shorter month counts its last day), or null. */
+  salaryDay: number | null;
+  /** The day of the month the advance comes (1–31), or null when there is none. */
+  advanceDay: number | null;
+  /** The latest weight in kg, from any source: typed in, Apple Health, Health Connect. */
+  weightKg: number | null;
+  /** YYYY-MM-DD: when that weight was measured. */
+  weightDay: string | null;
 }
 
 export type Gender = 'female' | 'male' | 'other';

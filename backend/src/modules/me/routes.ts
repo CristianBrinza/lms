@@ -11,7 +11,8 @@ import { setAccessCookie } from '../auth/cookies';
 import { issueAccessToken, listActiveSessions, revokeAllSessions } from '../auth/sessions';
 import { createToken, listTokens, revokeToken, TOKEN_SCOPES } from '../tokens';
 import { AvatarBody, ProfileFields, saveProfileFields, setAvatar } from '../profile';
-import { findUserById, isUuid, toPublicUser } from '../users';
+import { saveTypedWeight } from '../training/health';
+import { avatarUrl, findUserById, isUuid, publicUserWithWeight } from '../users';
 
 const ProfileBody = z
   .object({ name: nameField('Name').optional(), surname: surnameField.optional() })
@@ -37,7 +38,7 @@ export function meRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps));
 
-  app.get('/', (c) => c.json({ user: toPublicUser(c.get('user')) }));
+  app.get('/', async (c) => c.json({ user: await publicUserWithWeight(deps.db, c.get('user')) }));
 
   app.patch('/', async (c) => {
     const body = await readJson(c, ProfileBody);
@@ -49,8 +50,48 @@ export function meRoutes(deps: AppDeps) {
       deps.now(),
     ]);
     await saveProfileFields(deps.db, user.id, body, deps.now());
+    if (typeof body.weightKg === 'number') await saveTypedWeight(deps, user, body.weightKg);
     const updated = await findUserById(deps.db, user.id);
-    return c.json({ user: toPublicUser(updated!) });
+    return c.json({ user: await publicUserWithWeight(deps.db, updated!) });
+  });
+
+  /**
+   * Paydays: the day of the month each person's salary and advance come, for everyone who said.
+   * Only days, no amounts, so every member may see the whole family's. The caller comes first.
+   */
+  app.get('/paydays', async (c) => {
+    const viewer = c.get('user');
+    const { rows } = await deps.db.query<{
+      id: string;
+      name: string;
+      surname: string;
+      household_id: string | null;
+      avatar_at: Date | null;
+      salary_day: number | null;
+      advance_day: number | null;
+    }>(
+      `SELECT id, name, surname, household_id, avatar_at, salary_day, advance_day FROM users
+        WHERE is_active AND (salary_day IS NOT NULL OR advance_day IS NOT NULL)
+        ORDER BY (id = $1) DESC, lower(name), lower(surname)`,
+      [viewer.id],
+    );
+    return c.json({
+      people: rows.map((row) => {
+        // The picture is only served to the person, their household and admins: no broken link.
+        const sees =
+          row.id === viewer.id ||
+          viewer.role === 'admin' ||
+          (viewer.householdId !== null && viewer.householdId === row.household_id);
+        return {
+          id: row.id,
+          name: row.name,
+          surname: row.surname,
+          avatarUrl: sees ? avatarUrl(row.id, row.avatar_at) : null,
+          salaryDay: row.salary_day,
+          advanceDay: row.advance_day,
+        };
+      }),
+    });
   });
 
   /** The profile picture: a small data URL the app made from a photo; DELETE takes it off. */
@@ -58,12 +99,14 @@ export function meRoutes(deps: AppDeps) {
     const body = await readJson(c, AvatarBody);
     const user = c.get('user');
     await setAvatar(deps.db, user.id, body.image, deps.now());
-    return c.json({ user: toPublicUser((await findUserById(deps.db, user.id))!) });
+    const updated = (await findUserById(deps.db, user.id))!;
+    return c.json({ user: await publicUserWithWeight(deps.db, updated) });
   });
   app.delete('/avatar', async (c) => {
     const user = c.get('user');
     await setAvatar(deps.db, user.id, null, deps.now());
-    return c.json({ user: toPublicUser((await findUserById(deps.db, user.id))!) });
+    const updated = (await findUserById(deps.db, user.id))!;
+    return c.json({ user: await publicUserWithWeight(deps.db, updated) });
   });
 
   app.post('/password', async (c) => {
@@ -108,7 +151,7 @@ export function meRoutes(deps: AppDeps) {
       targetId: user.id,
       ip: maskIp(ip),
     });
-    return c.json({ user: toPublicUser(updated) });
+    return c.json({ user: await publicUserWithWeight(deps.db, updated) });
   });
 
   app.get('/sessions', async (c) => {

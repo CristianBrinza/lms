@@ -889,6 +889,36 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE trips ADD COLUMN gear jsonb NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    version: 30,
+    name: 'languages: each person’s language, and translations of what people write',
+    sql: `
+      ALTER TABLE users ADD COLUMN locale text CHECK (locale IN ('en', 'ro', 'ru'));
+      ALTER TABLE products ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE stores ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE recipes ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE tools ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE meals ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE reminders ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE training_equipment ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE training_exercises ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE training_routines ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE travel_items ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE travel_bags ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE travel_gear ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+      ALTER TABLE trips ADD COLUMN translations jsonb NOT NULL DEFAULT '{}';
+    `,
+  },
+  {
+    version: 31,
+    name: 'paydays: the day of the month each person’s salary and advance come',
+    sql: `
+      -- Only the days, never amounts: the family plans around when money arrives. The advance
+      -- (avans) is the part of the salary paid earlier in the month.
+      ALTER TABLE users ADD COLUMN salary_day smallint CHECK (salary_day BETWEEN 1 AND 31);
+      ALTER TABLE users ADD COLUMN advance_day smallint CHECK (advance_day BETWEEN 1 AND 31);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

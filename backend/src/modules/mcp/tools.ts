@@ -84,7 +84,7 @@ import { addRestriction, kitchenPeople, listRestrictions } from '../food/restric
 import { createStore, listStores } from '../food/stores';
 import { EQUIPMENT_PRESETS } from '../training/catalog';
 import { generateWorkout } from '../training/generate';
-import { healthSummary } from '../training/health';
+import { healthSummary, importHealth } from '../training/health';
 import { energySummary } from '../training/energy';
 import { NutritionInput } from '../food/nutrition';
 import { ProfileFields, saveProfileFields } from '../profile';
@@ -1138,12 +1138,15 @@ export const TOOLS: Tool[] = [
     name: 'set_goal',
     title: 'Set someone’s goal',
     description:
-      'A person’s goal (lose, keep or gain weight; goalWeight kg; goalRate kg a week, 0.25–0.75 is sensible), activity without training (sedentary … very), and profile facts the formulas need (gender, birthDate, heightCm).',
+      'A person’s goal (lose, keep or gain weight; goalWeight kg; goalRate kg a week, 0.25–0.75 is sensible), activity without training (sedentary … very), and profile facts the formulas need (gender, birthDate, heightCm). Also weightKg (today’s weight, kg; kept as today’s typed-in reading in Health) and paydays: salaryDay and advanceDay, the day of the month (1–31) the salary and the advance (avans) come.',
     access: 'write',
     input: z.object({ userId: idField.optional() }).and(ProfileFields),
     run: async ({ ctx }, { userId, ...fields }) => {
       const id = await personId(ctx, userId);
       await saveProfileFields(ctx.db, id, fields, ctx.now);
+      // Health's own import, for this person in this household: the same row as one typed in.
+      if (typeof fields.weightKg === 'number')
+        await importHealth(ctx, { source: 'manual', userId: id, weight: fields.weightKg });
       return (await trainingPeople(ctx)).find((p) => p.id === id);
     },
   }),

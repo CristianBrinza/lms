@@ -1,10 +1,30 @@
-import type { ActivityEntry, AdminUser, DeviceSession, Gender, Role, User } from '@/types/api';
+import type { Locale } from '@/i18n';
+import type {
+  Activity,
+  ActivityEntry,
+  AdminUser,
+  DeviceSession,
+  Gender,
+  Role,
+  User,
+} from '@/types/api';
 
 /** The profile beyond a name (null clears a field). */
 export interface ProfileInput {
   gender?: Gender | null;
   birthDate?: string | null;
   heightCm?: number | null;
+  goal?: User['goal'];
+  goalWeight?: number | null;
+  goalRate?: number | null;
+  activity?: Activity | null;
+  locale?: Locale | null;
+  /** Day of the month, 1–31; null clears. */
+  salaryDay?: number | null;
+  /** Day of the month, 1–31; null clears. */
+  advanceDay?: number | null;
+  /** 20–400 kg, recorded as today's weight; null does nothing (weights are history). */
+  weightKg?: number | null;
 }
 import { api, query } from './client';
 

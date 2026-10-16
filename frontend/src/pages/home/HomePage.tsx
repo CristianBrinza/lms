@@ -9,6 +9,7 @@ import { AdminIcon, DevicesIcon, PersonIcon } from '@/components/ui/icons';
 import { formatDay, partOfDay } from '@/lib/format';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
+import { Paydays } from './Paydays';
 
 /**
  * Home, the three references in one screen: the task app's lavender field and two-tone headline,
@@ -44,6 +45,7 @@ export default function HomePage() {
             <br />
             What’s next?
           </h1>
+          <Paydays />
           <section aria-labelledby="areas-title" className="mt-7">
             <h2 id="areas-title" className="sr-only">
               Your areas

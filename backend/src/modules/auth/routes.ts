@@ -7,7 +7,7 @@ import { AppError } from '../../lib/errors';
 import { enforceRateLimits } from '../../lib/rate-limit';
 import { maskIp } from '../../lib/text';
 import { readJson } from '../../lib/validation';
-import { findUserByEmail, toPublicUser } from '../users';
+import { findUserByEmail, publicUserWithWeight } from '../users';
 import { clearSessionCookies, readRefreshToken, setSessionCookies } from './cookies';
 import { createSession, revokeSessionByToken, rotateSession } from './sessions';
 
@@ -74,7 +74,7 @@ export function authRoutes(deps: AppDeps) {
       ip: maskIp(ip),
       meta: { remember: body.remember },
     });
-    return c.json({ user: toPublicUser(user) });
+    return c.json({ user: await publicUserWithWeight(deps.db, user) });
   });
 
   app.post('/refresh', async (c) => {
@@ -93,7 +93,7 @@ export function authRoutes(deps: AppDeps) {
       throw new AppError(401, 'SESSION_EXPIRED', 'Your session has ended. Sign in again.');
     }
     setSessionCookies(c, deps.config, result.tokens);
-    return c.json({ user: toPublicUser(result.user) });
+    return c.json({ user: await publicUserWithWeight(deps.db, result.user) });
   });
 
   app.post('/logout', async (c) => {
