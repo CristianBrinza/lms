@@ -3,6 +3,7 @@ import { RouterProvider } from 'react-router/dom';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { Button, Toaster } from '@/components/ui';
 import { RefreshIcon, WarningIcon } from '@/components/ui/icons';
+import { I18nRoot } from '@/i18n/I18nRoot';
 import { hideSplash } from '@/lib/splash';
 import { queryClient } from '@/services/queries';
 import { AuthProvider, useAuth } from './auth';
@@ -39,9 +40,11 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AuthGate />
-        <OfflineBanner />
-        <Toaster />
+        <I18nRoot>
+          <AuthGate />
+          <OfflineBanner />
+          <Toaster />
+        </I18nRoot>
       </AuthProvider>
     </QueryClientProvider>
   );

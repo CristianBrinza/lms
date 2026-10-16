@@ -1,19 +1,37 @@
-/** Dates and names, in the person's own locale (the app's copy is English). */
+import { getLocale, intlLocale, type Locale } from '@/i18n';
 
-const dayFormat = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-});
-const shortDate = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
-const time = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' });
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+/** Dates and names, in the app's language (English, Romanian or Russian). */
 
-export const formatDay = (date: Date) => dayFormat.format(date);
+/** One formatter per language and options, made on first use. */
+function cached<T>(make: (tag: string) => T): () => T {
+  const made = new Map<Locale, T>();
+  return () => {
+    const locale = getLocale();
+    let value = made.get(locale);
+    if (!value) {
+      value = make(intlLocale(locale));
+      made.set(locale, value);
+    }
+    return value;
+  };
+}
+
+const dayFormat = cached(
+  (tag) => new Intl.DateTimeFormat(tag, { weekday: 'long', day: 'numeric', month: 'long' }),
+);
+const shortDateFormat = cached(
+  (tag) => new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short', year: 'numeric' }),
+);
+const timeFormat = cached(
+  (tag) => new Intl.DateTimeFormat(tag, { hour: '2-digit', minute: '2-digit' }),
+);
+const relativeFormat = cached((tag) => new Intl.RelativeTimeFormat(tag, { numeric: 'auto' }));
+const shortDate = { format: (date: Date) => shortDateFormat().format(date) };
+const relative = {
+  format: (value: number, unit: Intl.RelativeTimeFormatUnit) => relativeFormat().format(value, unit),
+};
+
+export const formatDay = (date: Date) => dayFormat().format(date);
 export const formatDate = (iso: string) => shortDate.format(new Date(iso));
 
 /** "just now", "5 minutes ago", "yesterday", then a date. */
@@ -29,7 +47,7 @@ export function formatAgo(iso: string | null, now: Date = new Date()): string {
   return shortDate.format(then);
 }
 
-export const formatTime = (iso: string) => time.format(new Date(iso));
+export const formatTime = (iso: string) => timeFormat().format(new Date(iso));
 
 /** Morning, afternoon or evening, by the device clock. */
 export function partOfDay(date: Date = new Date()): 'morning' | 'afternoon' | 'evening' {
