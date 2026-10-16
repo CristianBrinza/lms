@@ -26,7 +26,8 @@ const useT = messages({
     kind: { salary: 'Salary', advance: 'Advance' } as Record<PaydayKind, string>,
     payday: 'Payday',
     today: 'Today',
-    then: 'then',
+    inDays: (days: number) =>
+      days <= 1 ? (days ? 'tomorrow' : 'today') : plural(days, { one: '# day', other: '# days' }),
     days: (count: number) => plural(count, { one: 'day', other: 'days' }),
     hours: 'h',
     minutes: 'min',
@@ -43,7 +44,12 @@ const useT = messages({
     kind: { salary: 'Salariu', advance: 'Avans' },
     payday: 'Azi',
     today: 'Azi',
-    then: 'apoi',
+    inDays: (days: number) =>
+      days <= 1
+        ? days
+          ? 'mâine'
+          : 'azi'
+        : plural(days, { one: '# zi', few: '# zile', other: '# de zile' }),
     days: (count: number) => plural(count, { one: 'zi', few: 'zile', other: 'de zile' }),
     hours: 'h',
     minutes: 'min',
@@ -60,7 +66,12 @@ const useT = messages({
     kind: { salary: 'Зарплата', advance: 'Аванс' },
     payday: 'Сегодня',
     today: 'Сегодня',
-    then: 'затем',
+    inDays: (days: number) =>
+      days <= 1
+        ? days
+          ? 'завтра'
+          : 'сегодня'
+        : plural(days, { one: '# день', few: '# дня', many: '# дней', other: '# дня' }),
     days: (count: number) =>
       plural(count, { one: 'день', few: 'дня', many: 'дней', other: 'дня' }),
     hours: 'ч',
@@ -224,7 +235,7 @@ function PaydayRow({
     .join('. ');
 
   const classes = cx(
-    'flex h-16 items-center gap-2.5 rounded-[1.25rem] py-2.5 pl-2.5 pr-3 text-ink-900 shadow-[var(--shadow-card)] @min-[15rem]:gap-3',
+    'flex h-16 items-center gap-1.5 rounded-[1.25rem] py-2.5 pl-2 pr-2 text-ink-900 shadow-[var(--shadow-card)] @min-[15rem]:gap-3 @min-[15rem]:pl-2.5 @min-[15rem]:pr-3',
     'animate-deal',
     today ? 'bg-mint-200' : 'bg-white',
     mine &&
@@ -235,7 +246,7 @@ function PaydayRow({
   const body = (
     <>
       <Ring progress={grown ? progress : 0} delay={dealDelay(index) + 200} today={today}>
-        <Avatar person={person} size="sm" className="ring-0" />
+        <Avatar person={person} size="sm" className="scale-[0.89] @min-[15rem]:scale-100" />
       </Ring>
 
       <span aria-hidden="true" className="min-w-0 flex-1">
@@ -249,21 +260,29 @@ function PaydayRow({
           )}
         >
           <span className="text-ink-900 @min-[15rem]:text-inherit">{t.kind[first.kind]}</span>
-          <span className="hidden @min-[15rem]:inline">
+          {/* With a second payday beside it, the countdowns say enough: the date makes room. */}
+          <span className={cx('hidden', !other && '@min-[15rem]:inline', other && '@min-[26rem]:inline')}>
             {' · '}
             {today ? t.today : dates().short.format(first.date)}
           </span>
-          {other ? (
-            <span className="hidden @min-[24rem]:inline">
-              {` · ${t.then} ${t.kind[other.kind].toLowerCase()} ${dates().day.format(other.date)}`}
-            </span>
-          ) : null}
         </span>
         {/* Narrow rows: the countdown sits under the kind instead of at the right. */}
         <span className="mt-0.5 block @min-[15rem]:hidden">
           <Count payday={first} now={now} t={t} />
         </span>
       </span>
+
+      {/* The payday after the next one, faint: salary and advance take turns here. */}
+      {other ? (
+        <Later
+          payday={other}
+          now={now}
+          grown={grown}
+          delay={dealDelay(index) + 320}
+          today={today}
+          t={t}
+        />
+      ) : null}
 
       <span aria-hidden="true" className="hidden shrink-0 text-right @min-[15rem]:block">
         <Count payday={first} now={now} t={t} />
@@ -274,7 +293,8 @@ function PaydayRow({
           aria-hidden="true"
           fontSize="inherit"
           className={cx(
-            '-ml-1 hidden shrink-0 text-[1.25rem] transition-transform duration-200 group-hover/tile:translate-x-0.5 @min-[15rem]:block',
+            '-ml-1 hidden shrink-0 text-[1.25rem] transition-transform duration-200 group-hover/tile:translate-x-0.5',
+            other ? '@min-[26rem]:block' : '@min-[15rem]:block',
             muted,
           )}
         />
@@ -313,7 +333,10 @@ function Ring({
   const radius = (size - stroke) / 2;
   const length = 2 * Math.PI * radius;
   return (
-    <span aria-hidden="true" className="relative grid size-11 shrink-0 place-items-center">
+    <span
+      aria-hidden="true"
+      className="relative grid size-10 shrink-0 place-items-center @min-[15rem]:size-11"
+    >
       <svg viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
         <circle
           cx={size / 2}
@@ -344,6 +367,55 @@ function Ring({
   );
 }
 
+/**
+ * The other payday, small and faint beside the main one: its kind, the days to it, and under the
+ * days a straight bar as wide as them, filling over its own cycle in the ring's colour.
+ */
+function Later({
+  payday,
+  now,
+  grown,
+  delay,
+  today,
+  t,
+}: {
+  payday: Payday;
+  now: Date;
+  grown: boolean;
+  delay: number;
+  today: boolean;
+  t: T;
+}) {
+  const progress = cycleProgress(payday, now);
+  return (
+    <span
+      aria-hidden="true"
+      className="flex min-w-0 shrink-0 flex-col items-start text-[0.625rem] font-semibold leading-[1.2] @min-[15rem]:text-[0.6875rem]"
+    >
+      <span className="max-w-full truncate text-ink-900/50">{t.kind[payday.kind]}</span>
+      <span className="inline-flex max-w-full flex-col">
+        <span className="truncate whitespace-nowrap text-ink-900/50 tabular-nums">
+          {t.inDays(calendarDaysUntil(payday.date, now))}
+        </span>
+        <span
+          className={cx(
+            'mt-1 block h-[3px] w-full overflow-hidden rounded-pill',
+            today ? 'bg-white/70' : 'bg-lav-100',
+          )}
+        >
+          <span
+            className={cx(
+              'block h-full rounded-pill transition-[width] duration-[900ms] ease-(--ease-out) motion-reduce:transition-none',
+              today ? 'bg-mint-800' : 'bg-lav-600',
+            )}
+            style={{ width: `${(grown ? progress : 0) * 100}%`, transitionDelay: `${delay}ms` }}
+          />
+        </span>
+      </span>
+    </span>
+  );
+}
+
 /** "14 days", "27 h 05 min", "4 min 09 s" or "Today": numbers large, units small. */
 function Count({ payday, now, t }: { payday: Payday; now: Date; t: T }) {
   const left = countdown(payday.date, now);
@@ -368,7 +440,7 @@ function Count({ payday, now, t }: { payday: Payday; now: Date; t: T }) {
     <span className="inline-flex items-baseline gap-1 whitespace-nowrap font-bold leading-none tabular-nums">
       {parts.map(([value, unit]) => (
         <span key={unit}>
-          <span className="text-[1.125rem] tracking-[-0.03em] @min-[15rem]:text-[1.375rem]">
+          <span className="text-[1.0625rem] tracking-[-0.03em] @min-[15rem]:text-[1.375rem]">
             {value}
           </span>
           <span className="ml-0.5 text-xs font-semibold">{unit}</span>
