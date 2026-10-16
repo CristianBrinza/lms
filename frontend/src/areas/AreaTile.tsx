@@ -128,8 +128,20 @@ function AreaRow({ area, index }: { area: Area & { to: string }; index: number }
   );
 }
 
-/** Every area: two to a row on phones, three on tablets, as many as fit on desktop (at least 12rem, a lone pair stretching to fill the row). Built for 10+. */
-export function AreaGrid({ areas, className }: { areas: readonly Area[]; className?: string }) {
+/**
+ * Every area: two to a row on phones, three on tablets, as many as fit on desktop (at least 12rem,
+ * a lone pair stretching to fill the row). Built for 10+. `children` are full-width rows that lead
+ * the grid (Home's paydays), each its own `<li className="col-span-full">`.
+ */
+export function AreaGrid({
+  areas,
+  className,
+  children,
+}: {
+  areas: readonly Area[];
+  className?: string;
+  children?: ReactNode;
+}) {
   return (
     <ul
       className={cx(
@@ -138,6 +150,7 @@ export function AreaGrid({ areas, className }: { areas: readonly Area[]; classNa
       )}
       aria-label="Your areas"
     >
+      {children}
       {areas.map((area, index) => (
         <li key={area.id} className={area.wide ? 'col-span-full' : undefined}>
           <AreaTile area={area} index={index} />

@@ -45,12 +45,13 @@ export default function HomePage() {
             <br />
             What’s next?
           </h1>
-          <Paydays />
           <section aria-labelledby="areas-title" className="mt-7">
             <h2 id="areas-title" className="sr-only">
               Your areas
             </h2>
-            <AreaGrid areas={AREAS} />
+            <AreaGrid areas={AREAS}>
+              <Paydays />
+            </AreaGrid>
           </section>
         </div>
       </div>
