@@ -53,9 +53,9 @@ export type WishPatch = Partial<Omit<WishInput, 'top'>> & {
 export const wishlistKeys = { all: ['wishlist'] as const };
 
 export const wishlistApi = {
-  list: () => api.get<WishlistResponse>('/api/wishlist'),
-  add: (input: WishInput) => api.post<{ item: Wish }>('/api/wishlist', input),
-  update: (id: string, patch: WishPatch) => api.patch<{ item: Wish }>(`/api/wishlist/${id}`, patch),
-  remove: (id: string) => api.delete<void>(`/api/wishlist/${id}`),
-  reorder: (ids: string[]) => api.put<WishlistResponse>('/api/wishlist/order', { ids }),
+  list: () => api.get<WishlistResponse>('/wishlist'),
+  add: (input: WishInput) => api.post<{ item: Wish }>('/wishlist', input),
+  update: (id: string, patch: WishPatch) => api.patch<{ item: Wish }>(`/wishlist/${id}`, patch),
+  remove: (id: string) => api.delete<void>(`/wishlist/${id}`),
+  reorder: (ids: string[]) => api.put<WishlistResponse>('/wishlist/order', { ids }),
 };

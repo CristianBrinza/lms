@@ -143,15 +143,17 @@ export default function WishlistPage() {
                 className="h-11 w-full bg-transparent text-[0.9375rem] font-medium outline-none placeholder:text-ink-400"
               />
             </label>
-            <Button
-              type="button"
-              size="sm"
-              variant="tint"
-              onClick={() => setCreating(draft.trim())}
-              className="hidden sm:inline-flex"
-            >
-              {t.newTitle}
-            </Button>
+            {/* Phones: the row stays roomy; details are a tap on the item after adding. */}
+            <span className="hidden sm:contents">
+              <Button
+                type="button"
+                size="sm"
+                variant="tint"
+                onClick={() => setCreating(draft.trim())}
+              >
+                {t.newTitle}
+              </Button>
+            </span>
             <Button
               type="submit"
               size="sm"
