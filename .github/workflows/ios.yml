@@ -1,0 +1,90 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LMS for iPhone: builds ios/ into an unsigned LMS.ipa on a macOS runner (free: the repo is
+# public), and puts it on the release `ios-latest`, always at the same address:
+#   https://github.com/CristianBrinza/lms/releases/download/ios-latest/LMS.ipa
+# AltServer on the always-on PC installs it with the person's own Apple ID and signs it again
+# every 7 days. Nothing here touches the server: Docker builds only frontend/ and backend/.
+# ─────────────────────────────────────────────────────────────────────────────
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Unsigned .ipa
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Project
+        run: |
+          xcodebuild -version
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Archive (no signing)
+        run: |
+          xcodebuild archive -quiet \
+            -project LMS.xcodeproj \
+            -scheme LMS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/LMS.xcarchive" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+          test -d "$RUNNER_TEMP/LMS.xcarchive/Products/Applications/LMS.app"
+
+      # An unsigned build carries no entitlements, and AltServer takes the app's entitlements from
+      # its signature. An ad-hoc signature keeps HealthKit's in the app for AltServer to see.
+      - name: Package LMS.ipa
+        run: |
+          APP="$RUNNER_TEMP/LMS.xcarchive/Products/Applications/LMS.app"
+          codesign --force --sign - --entitlements Config/LMS.entitlements --timestamp=none "$APP"
+          codesign -d --entitlements - "$APP"
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/LMS.ipa" Payload)
+          ls -l "$GITHUB_WORKSPACE/LMS.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LMS-ipa-${{ github.run_number }}
+          path: LMS.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Release ios-latest
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          NOTES="LMS for iPhone, build ${{ github.run_number }} from ${GITHUB_SHA::7}. Unsigned: install it with AltServer (Sideload .ipa)."
+          if gh release view ios-latest >/dev/null 2>&1; then
+            # Keep the tag on the commit this build came from.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/ios-latest" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+            gh release edit ios-latest --title "LMS for iPhone" --notes "$NOTES" --prerelease --latest=false
+          else
+            gh release create ios-latest --target "$GITHUB_SHA" --title "LMS for iPhone" --notes "$NOTES" --prerelease --latest=false
+          fi
+          gh release upload ios-latest "$GITHUB_WORKSPACE/LMS.ipa" --clobber

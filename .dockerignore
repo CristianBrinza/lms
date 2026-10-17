@@ -10,6 +10,8 @@
 **/*.tsbuildinfo
 .git
 android
+ios
+.github
 deploy
 docs
 graphify-out
