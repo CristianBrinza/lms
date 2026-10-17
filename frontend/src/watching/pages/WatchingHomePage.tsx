@@ -232,7 +232,7 @@ function UpcomingRow({ item }: { item: UpcomingItem }) {
     <Link
       to={ep ? `/watching/${item.title.id}/season/${ep.season}` : `/watching/${item.title.id}`}
       viewTransition
-      className="press flex items-center gap-3 rounded-[1.25rem] bg-white p-2.5 pr-4 shadow-[var(--shadow-xs)] hover:bg-pink-50"
+      className="press flex items-center gap-3 rounded-[1.25rem] bg-white p-2.5 pr-4 shadow-[var(--shadow-xs)] hover:bg-pink-100"
     >
       <Poster
         path={item.title.posterPath}

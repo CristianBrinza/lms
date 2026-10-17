@@ -60,7 +60,7 @@ function ListCard({ list }: { list: WatchList }) {
     <Link
       to={`/watching/lists/${list.id}`}
       viewTransition
-      className="press flex items-center gap-4 rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-card)] hover:bg-pink-50"
+      className="press flex items-center gap-4 rounded-[1.5rem] bg-white p-3.5 shadow-[var(--shadow-card)] hover:bg-pink-100"
     >
       <span className="relative h-[5.25rem] w-[5.5rem] shrink-0" aria-hidden="true">
         {posters.length ? (

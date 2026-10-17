@@ -571,7 +571,7 @@ function SeasonsStrip({
                 'press flex w-[6.5rem] flex-col gap-1.5 rounded-[1rem] p-1.5 text-left transition-colors',
                 on
                   ? 'bg-ink-900 text-white'
-                  : 'bg-white text-ink-900 shadow-[var(--shadow-xs)] hover:bg-pink-50',
+                  : 'bg-white text-ink-900 shadow-[var(--shadow-xs)] hover:bg-pink-100',
               )}
             >
               <span className="text-[0.8125rem] font-bold">{t.season.title(s.n)}</span>

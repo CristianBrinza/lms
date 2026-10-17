@@ -70,7 +70,7 @@ export default function CalendarPage() {
                           : `/watching/${item.title.id}`
                       }
                       viewTransition
-                      className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-pink-50"
+                      className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-pink-100"
                     >
                       <Poster
                         path={item.title.posterPath}
