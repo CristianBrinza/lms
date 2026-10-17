@@ -1,4 +1,5 @@
 import { AddIcon, CloseIcon } from '@/components/ui/icons';
+import { useTravelT } from './i18n';
 import type { Money } from './types';
 
 const CURRENCIES = ['MDL', 'EUR', 'RON', 'USD', 'UAH', 'GBP'];
@@ -17,6 +18,7 @@ export function MoneyEditor({
   value: Money[];
   onChange: (next: Money[]) => void;
 }) {
+  const t = useTravelT().money;
   const set = (id: string, patch: Partial<Money>) =>
     onChange(value.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   const add = (kind: Money['kind']) =>
@@ -25,7 +27,7 @@ export function MoneyEditor({
       {
         id: crypto.randomUUID(),
         kind,
-        label: kind === 'cash' ? 'Cash' : 'Card',
+        label: kind === 'cash' ? t.cash : t.card,
         currency: kind === 'cash' ? 'MDL' : 'EUR',
         amount: null,
         ready: false,
@@ -36,18 +38,18 @@ export function MoneyEditor({
       {value.map((m) => (
         <div key={m.id} className="flex items-center gap-1.5">
           <input
-            aria-label={m.kind === 'cash' ? 'Cash: name' : 'Card: name'}
+            aria-label={m.kind === 'cash' ? t.cashName : t.cardName}
             value={m.label}
             maxLength={60}
             onChange={(e) => set(m.id, { label: e.target.value })}
-            placeholder={m.kind === 'cash' ? 'Cash' : 'Euro card'}
+            placeholder={m.kind === 'cash' ? t.cash : t.cardPlaceholder}
             className={`${well} flex-[1.6]`}
           />
           <input
-            aria-label={`${m.label || 'Money'}: how much`}
+            aria-label={t.amountOf(m.label || t.fallback)}
             inputMode="decimal"
             value={m.amount ?? ''}
-            placeholder="How much"
+            placeholder={t.howMuch}
             onChange={(e) => {
               const n = Number(e.target.value.replace(',', '.'));
               set(m.id, {
@@ -57,7 +59,7 @@ export function MoneyEditor({
             className={`${well} tabular flex-1 text-right`}
           />
           <select
-            aria-label={`${m.label || 'Money'}: currency`}
+            aria-label={t.currencyOf(m.label || t.fallback)}
             value={m.currency}
             onChange={(e) => set(m.id, { currency: e.target.value })}
             className={`${well} w-[4.75rem] shrink-0 px-2 font-semibold`}
@@ -72,7 +74,7 @@ export function MoneyEditor({
           </select>
           <button
             type="button"
-            aria-label={`Remove ${m.label || 'this'}`}
+            aria-label={t.remove(m.label)}
             onClick={() => onChange(value.filter((x) => x.id !== m.id))}
             className="press grid size-10 shrink-0 place-items-center rounded-full text-[1.2rem] text-ink-500 hover:bg-ink-50 hover:text-ink-900"
           >
@@ -81,8 +83,8 @@ export function MoneyEditor({
         </div>
       ))}
       <div className="flex gap-1.5">
-        <AddButton onClick={() => add('cash')}>Cash</AddButton>
-        <AddButton onClick={() => add('card')}>Card</AddButton>
+        <AddButton onClick={() => add('cash')}>{t.cash}</AddButton>
+        <AddButton onClick={() => add('card')}>{t.card}</AddButton>
       </div>
     </div>
   );

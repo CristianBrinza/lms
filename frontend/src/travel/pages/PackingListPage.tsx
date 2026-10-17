@@ -1,21 +1,25 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, Chips, IconButton, Sheet, Skeleton, TextField, toast } from '@/components/ui';
 import { AddIcon, ChevronRightIcon, DeleteIcon } from '@/components/ui/icons';
-import { plural } from '@/food/format';
+import { intlLocale, tr, type Translations } from '@/i18n';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { travelApi, travelKeys } from '../api';
 import {
-  DUE_OPTIONS,
+  dueOptions,
   dueText,
-  KIND_LABEL,
-  QUANTITY_LABEL,
+  groupLabel,
+  kindLabel,
+  quantityLabel,
   rulesLabel,
-  SCOPE_LABEL,
-  TRANSPORT_LABEL,
+  scopeLabel,
+  translationsPatch,
+  transportLabel,
 } from '../format';
+import { useTravelT } from '../i18n';
 import { ToggleChip } from '../parts';
 import { useTravel } from '../useTravel';
 import type { ItemInput, Kind, PackingItem, Quantity, Rules, Transport } from '../types';
@@ -24,12 +28,15 @@ const KINDS: Kind[] = ['vacation', 'family', 'day', 'event', 'work', 'other'];
 const TRANSPORTS: Transport[] = ['car', 'bus', 'train', 'plane', 'other'];
 const QUANTITIES: Quantity[] = ['one', 'person', 'day', 'person_day'];
 
+const lower = (text: string) => text.toLocaleLowerCase(intlLocale());
+
 /**
  * The household's packing list: everything a trip might need, each with when it comes along
  * (abroad, nights away, by car, for a holiday…) and how many. Trips build their checklists from
  * it; a change here reaches every trip that hasn't happened yet.
  */
 export default function PackingListPage() {
+  const t = useTravelT();
   const home = useTravel();
   const items = home.data?.items ?? [];
   const groups = home.data?.options.groups ?? [];
@@ -39,12 +46,12 @@ export default function PackingListPage() {
       <PageHeader
         compact
         back="/travel"
-        title="Packing list"
-        subtitle={home.data ? `${plural(items.length, 'thing')} for every trip` : ' '}
+        title={t.common.packingList}
+        subtitle={home.data ? t.list.subtitle(t.count.things(items.length)) : ' '}
         actions={
           <IconButton
             icon={AddIcon}
-            label="Add to the list"
+            label={t.list.add}
             variant="ink"
             size="sm"
             onClick={() => setEditing('new')}
@@ -61,8 +68,8 @@ export default function PackingListPage() {
             const rows = items.filter((i) => i.group === group);
             if (!rows.length) return null;
             return (
-              <section key={group} className="mb-3.5" aria-label={group}>
-                <h2 className="mb-1.5 px-1 text-[0.9375rem] font-bold">{group}</h2>
+              <section key={group} className="mb-3.5" aria-label={groupLabel(group)}>
+                <h2 className="mb-1.5 px-1 text-[0.9375rem] font-bold">{groupLabel(group)}</h2>
                 <ul className="divide-y divide-ink-100 overflow-hidden rounded-[1.25rem] bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
                   {rows.map((item) => (
                     <li key={item.id}>
@@ -73,16 +80,14 @@ export default function PackingListPage() {
                       >
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[0.9375rem] font-semibold">
-                            {item.name}
+                            {tr(item, 'name')}
                           </span>
                           <span className="block truncate text-sm text-ink-600">
                             {rulesLabel(item.rules)}
                             {item.quantity !== 'one'
-                              ? ` · ${QUANTITY_LABEL[item.quantity].toLowerCase()}`
+                              ? ` · ${lower(quantityLabel(item.quantity))}`
                               : ''}
-                            {item.dueHours !== null
-                              ? ` · ${dueText(item.dueHours).toLowerCase()}`
-                              : ''}
+                            {item.dueHours !== null ? ` · ${lower(dueText(item.dueHours))}` : ''}
                           </span>
                         </span>
                         <ChevronRightIcon
@@ -101,7 +106,7 @@ export default function PackingListPage() {
       <Sheet
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title={editing === 'new' ? 'Add to the list' : (editing?.name ?? '')}
+        title={editing === 'new' ? t.list.add : editing ? tr(editing, 'name') : ''}
       >
         {editing ? (
           <ItemForm
@@ -128,12 +133,14 @@ function ItemForm({
   groups: string[];
   onDone: () => void;
 }) {
+  const t = useTravelT();
   const queryClient = useQueryClient();
   const [name, setName] = useState(item?.name ?? '');
   const [group, setGroup] = useState(item?.group ?? 'For the trip');
   const [quantity, setQuantity] = useState<Quantity>(item?.quantity ?? 'one');
   const [rules, setRules] = useState<Rules>(item?.rules ?? {});
   const [dueHours, setDue] = useState<number | null>(item?.dueHours ?? null);
+  const [translations, setTranslations] = useState<Translations>(item?.translations ?? {});
   const set = (patch: Partial<Rules>) => {
     const next: Rules = { ...rules, ...patch };
     for (const key of Object.keys(next) as Array<keyof Rules>) {
@@ -142,7 +149,14 @@ function ItemForm({
     }
     setRules(next);
   };
-  const body: ItemInput = { name: name.trim(), group, quantity, rules, dueHours };
+  const body: ItemInput = {
+    name: name.trim(),
+    group,
+    quantity,
+    rules,
+    dueHours,
+    translations: translationsPatch(item?.translations, translations),
+  };
   const after = () => {
     void queryClient.invalidateQueries({ queryKey: travelKeys.all });
     onDone();
@@ -154,7 +168,7 @@ function ItemForm({
   const remove = useMutation({
     mutationFn: () => travelApi.removeItem(item!.id),
     onSuccess: () => {
-      toast.success(`${item!.name} is off the list`);
+      toast.success(t.list.offList(tr(item!, 'name')));
       after();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -165,19 +179,25 @@ function ItemForm({
     save.mutate();
   };
   const overnight = rules.overnight === undefined ? 'any' : rules.overnight ? 'yes' : 'no';
+  const options = dueOptions();
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <TextField
-        label="What"
-        placeholder="Phone charger"
+        label={t.list.what}
+        placeholder={t.list.whatPlaceholder}
         value={name}
         onChange={(e) => setName(e.target.value)}
         error={fields.name}
         autoFocus={!item}
       />
+      <TranslationFields
+        fields={[{ key: 'name', label: t.list.what, maxLength: 80 }]}
+        value={translations}
+        onChange={setTranslations}
+      />
       <label className="flex flex-col gap-1.5">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">Section</span>
+        <span className="text-[0.8125rem] font-semibold text-ink-700">{t.list.section}</span>
         <select
           value={group}
           onChange={(e) => setGroup(e.target.value)}
@@ -185,83 +205,83 @@ function ItemForm({
         >
           {groups.map((g) => (
             <option key={g} value={g}>
-              {g}
+              {groupLabel(g)}
             </option>
           ))}
         </select>
       </label>
       <div>
-        <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">How many</p>
+        <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.common.howMany}</p>
         <Chips
-          label="How many"
+          label={t.common.howMany}
           tone="sheet"
           dense
           value={quantity}
           onChange={setQuantity}
-          options={QUANTITIES.map((q) => ({ value: q, label: QUANTITY_LABEL[q] }))}
+          options={QUANTITIES.map((q) => ({ value: q, label: quantityLabel(q) }))}
         />
       </div>
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">Done by</span>
+        <span className="text-[0.8125rem] font-semibold text-ink-700">{t.list.dueBy}</span>
         <select
           value={dueHours ?? ''}
           onChange={(e) => setDue(e.target.value === '' ? null : Number(e.target.value))}
           className="h-12 rounded-[1.125rem] bg-ink-50 px-4 text-base outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
         >
-          {DUE_OPTIONS.map((o) => (
+          {options.map((o) => (
             <option key={o.hours ?? 'none'} value={o.hours ?? ''}>
               {o.label}
             </option>
           ))}
-          {dueHours !== null && !DUE_OPTIONS.some((o) => o.hours === dueHours) ? (
+          {dueHours !== null && !options.some((o) => o.hours === dueHours) ? (
             <option value={dueHours}>{dueText(dueHours)}</option>
           ) : null}
         </select>
       </label>
       <div className="flex flex-col gap-3 rounded-[1.25rem] bg-ink-50 p-3">
         <p className="text-[0.8125rem] font-semibold text-ink-700">
-          When it comes along{' '}
+          {t.list.whenComes}{' '}
           <span className="font-medium text-ink-500">· {rulesLabel(rules)}</span>
         </p>
         <Chips
-          label="Where"
+          label={t.list.where}
           dense
           value={rules.scope ?? 'any'}
           onChange={(v) => set({ scope: v === 'any' ? undefined : v })}
           options={[
-            { value: 'any', label: 'Anywhere' },
-            { value: 'national', label: SCOPE_LABEL.national },
-            { value: 'international', label: SCOPE_LABEL.international },
+            { value: 'any', label: t.list.anywhere },
+            { value: 'national', label: scopeLabel('national') },
+            { value: 'international', label: scopeLabel('international') },
           ]}
         />
         <Chips
-          label="Nights away"
+          label={t.list.nights}
           dense
           value={overnight}
           onChange={(v) => set({ overnight: v === 'any' ? undefined : v === 'yes' })}
           options={[
-            { value: 'any', label: 'Any length' },
-            { value: 'yes', label: 'Nights away' },
-            { value: 'no', label: 'Day trips' },
+            { value: 'any', label: t.list.anyLength },
+            { value: 'yes', label: t.list.nightsAway },
+            { value: 'no', label: t.list.dayTrips },
           ]}
         />
         <div>
-          <p className="mb-1 text-xs font-semibold text-ink-600">Getting there (none: any)</p>
+          <p className="mb-1 text-xs font-semibold text-ink-600">{t.list.gettingThere}</p>
           <div className="flex flex-wrap gap-1.5">
-            {TRANSPORTS.map((t) => (
+            {TRANSPORTS.map((x) => (
               <ToggleChip
-                key={t}
-                on={Boolean(rules.transport?.includes(t))}
-                onClick={() => set({ transport: toggle(rules.transport, t) })}
+                key={x}
+                on={Boolean(rules.transport?.includes(x))}
+                onClick={() => set({ transport: toggle(rules.transport, x) })}
               >
-                {TRANSPORT_LABEL[t]}
+                {transportLabel(x)}
               </ToggleChip>
             ))}
           </div>
         </div>
         <div>
-          <p className="mb-1 text-xs font-semibold text-ink-600">Kind of trip (none: any)</p>
+          <p className="mb-1 text-xs font-semibold text-ink-600">{t.list.kindOfTrip}</p>
           <div className="flex flex-wrap gap-1.5">
             {KINDS.map((k) => (
               <ToggleChip
@@ -269,15 +289,15 @@ function ItemForm({
                 on={Boolean(rules.kinds?.includes(k))}
                 onClick={() => set({ kinds: toggle(rules.kinds, k) })}
               >
-                {KIND_LABEL[k]}
+                {kindLabel(k)}
               </ToggleChip>
             ))}
           </div>
         </div>
         <TextField
-          label="At least how many days"
+          label={t.list.minDays}
           inputMode="numeric"
-          placeholder="Any"
+          placeholder={t.list.any}
           value={rules.minDays ? String(rules.minDays) : ''}
           onChange={(e) => {
             const n = Number.parseInt(e.target.value, 10);
@@ -298,11 +318,11 @@ function ItemForm({
             loading={remove.isPending}
             onClick={() => remove.mutate()}
           >
-            Remove
+            {t.common.remove}
           </Button>
         ) : null}
         <Button type="submit" fullWidth loading={save.isPending} disabled={!name.trim()}>
-          {item ? 'Save' : 'Add it'}
+          {item ? t.common.save : t.common.addIt}
         </Button>
       </div>
     </form>

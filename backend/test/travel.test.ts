@@ -287,3 +287,110 @@ describe('travel: deadlines, things to buy, the way there and back', () => {
     expect(listed.listedAt).not.toBeNull();
   });
 });
+
+describe('travel: in English, Romanian and Russian', () => {
+  it('gives the starting list its words in every language, and keeps the household’s', async () => {
+    const { b } = await traveller();
+    const items = (await b.get('/api/travel')).body.items;
+    const passport = items.find((i: any) => i.preset === 'passport');
+    expect(passport.translations).toEqual({ ro: { name: 'Pașaport' }, ru: { name: 'Паспорт' } });
+    for (const item of items.filter((i: any) => i.preset))
+      expect(item.translations.ro?.name && item.translations.ru?.name).toBeTruthy();
+
+    // An edit merges per language and field; an empty one clears that field.
+    const edited = await b.patch(`/api/travel/items/${passport.id}`, {
+      translations: { ro: { name: 'Pașapoartele' }, ru: { name: '' } },
+    });
+    expect(edited.body.item.translations).toEqual({ ro: { name: 'Pașapoartele' } });
+
+    // A trip's checklist carries the item's words, until the check is renamed.
+    const { body } = await b.post('/api/travel/trips', {
+      name: 'Iași',
+      translations: { ru: { name: 'Яссы' } },
+      scope: 'international',
+      kind: 'other',
+      transport: 'car',
+      startDate: '2026-10-20',
+      endDate: '2026-10-20',
+    });
+    expect(body.trip.translations).toEqual({ ru: { name: 'Яссы' } });
+    const licence = body.checks.find((c: any) => c.name === 'Driving licence');
+    expect(licence.translations.ro.name).toBe('Permis de conducere');
+    const renamed = await b.patch(`/api/travel/trips/${body.trip.id}/checks/${licence.id}`, {
+      name: 'Both licences',
+    });
+    expect(renamed.body.check.translations).toEqual({});
+
+    // The shopping list gets the words of whoever puts things on it.
+    const wipes = body.checks.find((c: any) => c.name === 'Wet wipes');
+    await b.patch(`/api/travel/trips/${body.trip.id}/checks/${wipes.id}`, { toBuy: true });
+    await b.post(`/api/travel/trips/${body.trip.id}/shop`, undefined, { 'accept-language': 'ru' });
+    // (The name matches a known product, so the line is that product's.)
+    const lines = (await b.get('/api/food/shopping')).body.items;
+    expect(lines.find((l: any) => l.note === 'Для поездки «Яссы»')).toBeDefined();
+  });
+
+  it('fills in the words for a list made before, by key, once, without undoing the household’s', async () => {
+    const { b } = await traveller();
+    await b.get('/api/travel');
+    // As a household's list was before the translations: none, and the old catalog version.
+    await t.db.query(`UPDATE travel_items SET translations = '{}'`);
+    await t.db.query(`UPDATE travel_items SET name = 'Our passports' WHERE preset = 'passport'`);
+    await t.db.query(
+      `UPDATE travel_items SET translations = '{"ro":{"name":"Cheile"}}' WHERE preset = 'keys'`,
+    );
+    await t.db.query('UPDATE households SET travel_catalog_version = 2');
+
+    const items = (await b.get('/api/travel')).body.items;
+    const by = (key: string) => items.find((i: any) => i.preset === key);
+    expect(by('toothbrush').translations).toEqual({
+      ro: { name: 'Periuță de dinți' },
+      ru: { name: 'Зубная щётка' },
+    });
+    expect(by('passport').translations).toEqual({}); // renamed: the list's words don't fit
+    expect(by('keys').translations).toEqual({
+      ro: { name: 'Cheile' },
+      ru: { name: 'Ключи от дома' },
+    });
+    // Once: later visits leave the words alone.
+    await t.db.query(`UPDATE travel_items SET translations = '{}' WHERE preset = 'socks'`);
+    expect((await b.get('/api/travel')).body.items.find((i: any) => i.preset === 'socks').translations).toEqual({});
+  });
+
+  it('keeps bags, gear and trips in other languages, merged on each change', async () => {
+    const { b } = await traveller();
+    const bag = await b.post('/api/travel/bags', {
+      name: 'Blue backpack',
+      kind: 'backpack',
+      translations: { ro: { name: 'Rucsacul albastru' } },
+    });
+    expect(bag.body.bag.translations).toEqual({ ro: { name: 'Rucsacul albastru' } });
+    const moved = await b.patch(`/api/travel/bags/${bag.body.bag.id}`, {
+      translations: { ru: { name: 'Синий рюкзак', note: 'Для ноутбука' } },
+    });
+    expect(moved.body.bag.translations).toEqual({
+      ro: { name: 'Rucsacul albastru' },
+      ru: { name: 'Синий рюкзак', note: 'Для ноутбука' },
+    });
+    const gear = await b.post('/api/travel/gear', {
+      name: 'Charger',
+      kind: 'charger',
+      translations: { ro: { name: 'Încărcător' } },
+    });
+    expect(gear.body.gear.translations).toEqual({ ro: { name: 'Încărcător' } });
+    const patched = await b.patch(`/api/travel/gear/${gear.body.gear.id}`, { count: 2 });
+    expect(patched.body.gear).toMatchObject({ count: 2, translations: { ro: { name: 'Încărcător' } } });
+    const trip = await b.post('/api/travel/trips', {
+      name: 'Soroca',
+      scope: 'national',
+      kind: 'day',
+      transport: 'car',
+      startDate: '2026-10-18',
+      endDate: '2026-10-18',
+    });
+    const changed = await b.patch(`/api/travel/trips/${trip.body.trip.id}`, {
+      translations: { ro: { note: 'Luăm termosul' } },
+    });
+    expect(changed.body.trip.translations).toEqual({ ro: { note: 'Luăm termosul' } });
+  });
+});

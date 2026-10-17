@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono';
 import type { AppDeps, AppEnv } from '../../context';
+import { requestLocale } from '../../lib/i18n';
 import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { foodCtx, requireKitchen } from '../food/kitchen';
@@ -124,7 +125,9 @@ export function travelRoutes(deps: AppDeps) {
     return c.body(null, 204);
   });
 
-  app.post('/trips/:id/shop', async (c) => c.json(await shopForTrip(ctx(c), c.req.param('id'))));
+  app.post('/trips/:id/shop', async (c) =>
+    c.json(await shopForTrip(ctx(c), c.req.param('id'), requestLocale(c))),
+  );
 
   app.post('/bags', async (c) =>
     c.json({ bag: await addBag(ctx(c), await readJson(c, BagInput)) }, 201),

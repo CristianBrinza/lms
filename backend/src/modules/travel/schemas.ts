@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Translations } from '../../lib/i18n';
 import { dateField, idField } from '../food/schemas';
 import {
   BAG_KINDS,
@@ -25,6 +26,7 @@ export const BagInput = z.object({
   widthCm: cm.optional(),
   heightCm: cm.optional(),
   note: text(300).optional(),
+  translations: Translations.optional(),
 });
 export type BagInput = z.infer<typeof BagInput>;
 export const BagPatch = BagInput.partial();
@@ -35,6 +37,7 @@ export const GearInput = z.object({
   connectors: z.array(z.enum(CONNECTORS)).max(8).optional().describe('MagSafe, USB-C, USB-A…'),
   count: z.number().int().min(0).max(99).optional().describe('How many the household has'),
   note: text(300).optional(),
+  translations: Translations.optional(),
 });
 export type GearInput = z.infer<typeof GearInput>;
 export const GearPatch = GearInput.partial();
@@ -67,6 +70,7 @@ export const ItemInput = z.object({
     .nullable()
     .optional()
     .describe('Done by so many hours before leaving (24: the day before); null: no deadline'),
+  translations: Translations.optional(),
 });
 export type ItemInput = z.infer<typeof ItemInput>;
 export const ItemPatch = ItemInput.partial();
@@ -114,6 +118,7 @@ export const TripInput = z
       .optional()
       .describe('Packing-list item id → on or off for this trip, against its rules'),
     note: text(1000).optional(),
+    translations: Translations.optional(),
   })
   .refine((t) => t.endDate >= t.startDate, {
     message: 'The trip ends before it starts',
@@ -143,6 +148,7 @@ export const TripPatch = z
     bagIds: z.array(idField).max(10),
     overrides: z.record(z.string(), z.boolean()),
     note: text(1000),
+    translations: Translations,
   })
   .partial();
 export type TripPatch = z.infer<typeof TripPatch>;

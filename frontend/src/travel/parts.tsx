@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { IconComponent } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { useTravelT } from './i18n';
 
 /** One of several, on or off (people going, bags taken). */
 export function ToggleChip({
@@ -65,6 +66,7 @@ export function PackedBar({
   total: number;
   className?: string;
 }) {
+  const t = useTravelT();
   const share = total ? done / total : 0;
   return (
     <div
@@ -72,7 +74,7 @@ export function PackedBar({
       aria-valuemin={0}
       aria-valuemax={total}
       aria-valuenow={done}
-      aria-label="Packed"
+      aria-label={t.common.packed}
       className={cx('h-2 overflow-hidden rounded-full bg-ink-100', className)}
     >
       <div

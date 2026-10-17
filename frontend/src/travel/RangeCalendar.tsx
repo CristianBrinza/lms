@@ -1,10 +1,21 @@
 import { useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { localDate, parseDay } from '@/food/format';
+import { intlLocale } from '@/i18n';
 import { cx } from '@/lib/cx';
+import { useTravelT } from './i18n';
 
-const monthName = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
-const WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+/** The days of the week, Monday first, short ("Mon", "lun", "пн"). */
+const weekdays = () => {
+  const format = new Intl.DateTimeFormat(intlLocale(), { weekday: 'short' });
+  // 1 January 2024 was a Monday.
+  return Array.from({ length: 7 }, (_, i) =>
+    format.format(new Date(2024, 0, 1 + i)).replace('.', ''),
+  );
+};
+
+/** "octombrie 2026" → "Octombrie 2026" (Romanian and Russian months are written small). */
+const capitalize = (text: string) => text.charAt(0).toLocaleUpperCase() + text.slice(1);
 
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -28,7 +39,10 @@ export function RangeCalendar({
   });
   // Waiting for the second tap (the day back).
   const [picking, setPicking] = useState(false);
+  const t = useTravelT().calendar;
   const today = localDate();
+  const monthName = new Intl.DateTimeFormat(intlLocale(), { month: 'long', year: 'numeric' });
+  const dayName = new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'full' });
 
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const lead = (first.getDay() + 6) % 7; // Monday first
@@ -57,25 +71,25 @@ export function RangeCalendar({
         <button
           type="button"
           onClick={() => shift(-1)}
-          aria-label="Previous month"
+          aria-label={t.previous}
           className="press grid size-10 place-items-center rounded-full text-[1.3rem] text-ink-700 hover:bg-white"
         >
           <ChevronLeftIcon fontSize="inherit" />
         </button>
         <p className="text-[0.9375rem] font-bold" aria-live="polite">
-          {monthName.format(month)}
+          {capitalize(monthName.format(month))}
         </p>
         <button
           type="button"
           onClick={() => shift(1)}
-          aria-label="Next month"
+          aria-label={t.next}
           className="press grid size-10 place-items-center rounded-full text-[1.3rem] text-ink-700 hover:bg-white"
         >
           <ChevronRightIcon fontSize="inherit" />
         </button>
       </div>
       <div className="grid grid-cols-7 text-center text-xs font-semibold text-ink-500">
-        {WEEKDAYS.map((d) => (
+        {weekdays().map((d) => (
           <span key={d} className="py-1">
             {d}
           </span>
@@ -93,7 +107,7 @@ export function RangeCalendar({
               type="button"
               onClick={() => tap(day)}
               aria-pressed={inRange}
-              aria-label={`${parseDay(day).toDateString()}${day === start ? ', leaving' : ''}${day === end ? ', back' : ''}`}
+              aria-label={`${dayName.format(parseDay(day))}${day === start ? t.leaving : ''}${day === end ? t.back : ''}`}
               className={cx(
                 'press relative h-10 text-[0.9375rem] font-semibold tabular',
                 inRange && !edge && 'bg-cyan-100',
@@ -119,7 +133,7 @@ export function RangeCalendar({
         })}
       </div>
       <p className="mt-2 text-center text-xs font-medium text-ink-600">
-        {picking ? 'Now tap the day you come back' : 'Tap the day you leave, then the day back'}
+        {picking ? t.pickBack : t.pickStart}
       </p>
     </div>
   );

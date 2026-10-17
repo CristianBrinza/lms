@@ -1,3 +1,4 @@
+import type { Translations } from '@/i18n';
 import type { Person } from '@/training/types';
 
 export type Scope = 'national' | 'international';
@@ -23,6 +24,8 @@ export interface Bag {
   heightCm: number | null;
   litres: number | null;
   note: string;
+  /** The name and note in other languages. */
+  translations: Translations;
 }
 
 export interface PackingItem {
@@ -34,6 +37,8 @@ export interface PackingItem {
   /** Done by so many hours before leaving; null: whenever. */
   dueHours: number | null;
   preset: string | null;
+  /** The name in other languages. */
+  translations: Translations;
 }
 
 export interface Trip {
@@ -60,6 +65,8 @@ export interface Trip {
   bagIds: string[];
   overrides: Record<string, boolean>;
   note: string;
+  /** The name, destination and note in other languages. */
+  translations: Translations;
   packed: { done: number; total: number };
 }
 
@@ -74,6 +81,8 @@ export interface TripCheck {
   dueAt: string | null;
   toBuy: boolean;
   listedAt: string | null;
+  /** Its packing-list item's name in other languages. */
+  translations: Translations;
 }
 
 export type GearKind = 'power-bank' | 'charger' | 'cable' | 'adapter' | 'headphones' | 'other';
@@ -86,6 +95,8 @@ export interface Gear {
   connectors: string[];
   count: number;
   note: string;
+  /** The name and note in other languages. */
+  translations: Translations;
 }
 
 export interface TravelHome {

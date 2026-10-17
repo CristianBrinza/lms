@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import {
+  cleanTranslations,
+  mergeTranslations,
+  translated,
+  type Locale,
+  type Translations,
+} from '../../lib/i18n';
 import type { FoodCtx } from '../food/kitchen';
 import { addShoppingItems } from '../food/shopping';
 import {
@@ -7,6 +14,7 @@ import {
   itemApplies,
   itemQuantity,
   PRESET_ITEMS,
+  presetTranslations,
   TRAVEL_CATALOG_VERSION,
   type BagKind,
   type GearKind,
@@ -28,6 +36,24 @@ import type { BagInput, GearInput, ItemInput, Money, TripInput, TripPatch } from
 
 type Ctx = FoodCtx;
 
+/**
+ * A record's stored translations merged with an update (per language, per field), as JSON for
+ * the query; null when no update was given, so the stored ones stay.
+ */
+async function nextTranslations(
+  ctx: Ctx,
+  table: 'travel_bags' | 'travel_gear' | 'travel_items' | 'trips',
+  id: string,
+  update: Translations | undefined,
+): Promise<string | null> {
+  if (!update) return null;
+  const { rows } = await ctx.db.query<{ translations: Translations }>(
+    `SELECT translations FROM ${table} WHERE id = $1 AND household_id = $2`,
+    [id, ctx.actor.householdId],
+  );
+  return JSON.stringify(mergeTranslations(rows[0]?.translations, update));
+}
+
 // ---------------------------------------------------------------- bags
 
 export interface Bag {
@@ -40,6 +66,8 @@ export interface Bag {
   /** Litres, from the measurements. */
   litres: number | null;
   note: string;
+  /** The name and note in other languages. */
+  translations: Translations;
 }
 
 interface BagRow {
@@ -50,6 +78,7 @@ interface BagRow {
   width_cm: string | null;
   height_cm: string | null;
   note: string;
+  translations: Translations;
 }
 
 const num = (v: string | null) => (v === null ? null : Number(v));
@@ -65,6 +94,7 @@ function toBag(row: BagRow): Bag {
     heightCm: h,
     litres: l && w && h ? Math.round((l * w * h) / 1000) : null,
     note: row.note,
+    translations: row.translations ?? {},
   };
 }
 
@@ -78,8 +108,8 @@ export async function listBags(ctx: Ctx): Promise<Bag[]> {
 
 export async function addBag(ctx: Ctx, input: BagInput): Promise<Bag> {
   const { rows } = await ctx.db.query<BagRow>(
-    `INSERT INTO travel_bags (id, household_id, name, kind, length_cm, width_cm, height_cm, note, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    `INSERT INTO travel_bags (id, household_id, name, kind, length_cm, width_cm, height_cm, note, created_at, translations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
     [
       randomUUID(),
       ctx.actor.householdId,
@@ -90,6 +120,7 @@ export async function addBag(ctx: Ctx, input: BagInput): Promise<Bag> {
       input.heightCm ?? null,
       input.note ?? '',
       ctx.now,
+      JSON.stringify(cleanTranslations(input.translations)),
     ],
   );
   return toBag(rows[0]!);
@@ -102,7 +133,7 @@ export async function updateBag(ctx: Ctx, id: string, patch: Partial<BagInput>):
        length_cm = CASE WHEN $5::boolean THEN $6 ELSE length_cm END,
        width_cm = CASE WHEN $7::boolean THEN $8 ELSE width_cm END,
        height_cm = CASE WHEN $9::boolean THEN $10 ELSE height_cm END,
-       note = coalesce($11, note)
+       note = coalesce($11, note), translations = coalesce($12::jsonb, translations)
      WHERE id = $1 AND household_id = $2 RETURNING *`,
     [
       id,
@@ -116,6 +147,7 @@ export async function updateBag(ctx: Ctx, id: string, patch: Partial<BagInput>):
       patch.heightCm !== undefined,
       patch.heightCm ?? null,
       patch.note ?? null,
+      await nextTranslations(ctx, 'travel_bags', id, patch.translations),
     ],
   );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'No such bag');
@@ -145,9 +177,11 @@ export interface Gear {
   connectors: string[];
   count: number;
   note: string;
+  /** The name and note in other languages. */
+  translations: Translations;
 }
 
-const GEAR_COLUMNS = 'id, name, kind, connectors, count, note';
+const GEAR_COLUMNS = 'id, name, kind, connectors, count, note, translations';
 
 export async function listGear(ctx: Ctx): Promise<Gear[]> {
   const { rows } = await ctx.db.query<Gear>(
@@ -159,8 +193,8 @@ export async function listGear(ctx: Ctx): Promise<Gear[]> {
 
 export async function addGear(ctx: Ctx, input: GearInput): Promise<Gear> {
   const { rows } = await ctx.db.query<Gear>(
-    `INSERT INTO travel_gear (id, household_id, name, kind, connectors, count, note, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING ${GEAR_COLUMNS}`,
+    `INSERT INTO travel_gear (id, household_id, name, kind, connectors, count, note, created_at, translations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING ${GEAR_COLUMNS}`,
     [
       randomUUID(),
       ctx.actor.householdId,
@@ -170,6 +204,7 @@ export async function addGear(ctx: Ctx, input: GearInput): Promise<Gear> {
       input.count ?? 1,
       input.note ?? '',
       ctx.now,
+      JSON.stringify(cleanTranslations(input.translations)),
     ],
   );
   return rows[0]!;
@@ -178,7 +213,8 @@ export async function addGear(ctx: Ctx, input: GearInput): Promise<Gear> {
 export async function updateGear(ctx: Ctx, id: string, patch: Partial<GearInput>): Promise<Gear> {
   const { rows } = await ctx.db.query<Gear>(
     `UPDATE travel_gear SET name = coalesce($3, name), kind = coalesce($4, kind),
-       connectors = coalesce($5, connectors), count = coalesce($6, count), note = coalesce($7, note)
+       connectors = coalesce($5, connectors), count = coalesce($6, count), note = coalesce($7, note),
+       translations = coalesce($8::jsonb, translations)
      WHERE id = $1 AND household_id = $2 RETURNING ${GEAR_COLUMNS}`,
     [
       id,
@@ -188,6 +224,7 @@ export async function updateGear(ctx: Ctx, id: string, patch: Partial<GearInput>
       patch.connectors ?? null,
       patch.count ?? null,
       patch.note ?? null,
+      await nextTranslations(ctx, 'travel_gear', id, patch.translations),
     ],
   );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'No such gear');
@@ -221,6 +258,8 @@ export interface PackingItem {
   dueHours: number | null;
   /** From the starting list (its key), or the household's own. */
   preset: string | null;
+  /** The name in other languages. */
+  translations: Translations;
 }
 
 interface ItemRow {
@@ -232,6 +271,7 @@ interface ItemRow {
   preset: string | null;
   sort: number;
   due_hours: number | null;
+  translations: Translations;
 }
 
 const toItem = (row: ItemRow): PackingItem => ({
@@ -242,6 +282,7 @@ const toItem = (row: ItemRow): PackingItem => ({
   rules: row.rules,
   dueHours: row.due_hours,
   preset: row.preset,
+  translations: row.translations ?? {},
 });
 
 const groupIndex = (group: string) => {
@@ -264,10 +305,15 @@ export async function syncTravelCatalog(ctx: Ctx): Promise<void> {
     if ((locked.rows[0]?.v ?? 0) >= TRAVEL_CATALOG_VERSION) return;
     for (const [sort, item] of PRESET_ITEMS.entries()) {
       await tx.db.query(
-        `INSERT INTO travel_items (id, household_id, preset, name, grp, quantity, rules, sort, created_at, due_hours)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        // The list's words fill in only while the name is still the list's, and the household's
+        // own translations win (a renamed item keeps just what the household wrote).
+        `INSERT INTO travel_items (id, household_id, preset, name, grp, quantity, rules, sort, created_at, due_hours, translations)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (household_id, preset) WHERE preset IS NOT NULL
-         DO UPDATE SET due_hours = coalesce(travel_items.due_hours, EXCLUDED.due_hours)`,
+         DO UPDATE SET due_hours = coalesce(travel_items.due_hours, EXCLUDED.due_hours),
+           translations = CASE WHEN travel_items.name = EXCLUDED.name
+             THEN EXCLUDED.translations || travel_items.translations
+             ELSE travel_items.translations END`,
         [
           randomUUID(),
           tx.actor.householdId,
@@ -279,6 +325,7 @@ export async function syncTravelCatalog(ctx: Ctx): Promise<void> {
           sort,
           tx.now,
           item.dueHours ?? null,
+          JSON.stringify(presetTranslations(item)),
         ],
       );
     }
@@ -293,7 +340,7 @@ export async function syncTravelCatalog(ctx: Ctx): Promise<void> {
 
 async function itemRows(ctx: Ctx): Promise<ItemRow[]> {
   const { rows } = await ctx.db.query<ItemRow>(
-    'SELECT id, name, grp, quantity, rules, preset, sort, due_hours FROM travel_items WHERE household_id = $1 AND archived_at IS NULL',
+    'SELECT id, name, grp, quantity, rules, preset, sort, due_hours, translations FROM travel_items WHERE household_id = $1 AND archived_at IS NULL',
     [ctx.actor.householdId],
   );
   return rows.sort(
@@ -311,8 +358,8 @@ export async function addItem(ctx: Ctx, input: ItemInput): Promise<PackingItem> 
   await syncTravelCatalog(ctx);
   const item = await ctx.tx(async (tx) => {
     const { rows } = await tx.db.query<ItemRow>(
-      `INSERT INTO travel_items (id, household_id, name, grp, quantity, rules, sort, created_at, due_hours)
-       VALUES ($1, $2, $3, $4, $5, $6, 1000, $7, $8) RETURNING id, name, grp, quantity, rules, preset, sort, due_hours`,
+      `INSERT INTO travel_items (id, household_id, name, grp, quantity, rules, sort, created_at, due_hours, translations)
+       VALUES ($1, $2, $3, $4, $5, $6, 1000, $7, $8, $9) RETURNING id, name, grp, quantity, rules, preset, sort, due_hours, translations`,
       [
         randomUUID(),
         tx.actor.householdId,
@@ -322,6 +369,7 @@ export async function addItem(ctx: Ctx, input: ItemInput): Promise<PackingItem> 
         JSON.stringify(input.rules ?? {}),
         tx.now,
         input.dueHours ?? null,
+        JSON.stringify(cleanTranslations(input.translations)),
       ],
     );
     await syncUpcoming(tx);
@@ -339,9 +387,10 @@ export async function updateItem(
     const { rows } = await tx.db.query<ItemRow>(
       `UPDATE travel_items SET name = coalesce($3, name), grp = coalesce($4, grp),
          quantity = coalesce($5, quantity), rules = coalesce($6::jsonb, rules),
-         due_hours = CASE WHEN $7::boolean THEN $8::integer ELSE due_hours END
+         due_hours = CASE WHEN $7::boolean THEN $8::integer ELSE due_hours END,
+         translations = coalesce($9::jsonb, translations)
        WHERE id = $1 AND household_id = $2 AND archived_at IS NULL
-       RETURNING id, name, grp, quantity, rules, preset, sort, due_hours`,
+       RETURNING id, name, grp, quantity, rules, preset, sort, due_hours, translations`,
       [
         id,
         tx.actor.householdId,
@@ -351,6 +400,7 @@ export async function updateItem(
         patch.rules ? JSON.stringify(patch.rules) : null,
         patch.dueHours !== undefined,
         patch.dueHours ?? null,
+        await nextTranslations(tx, 'travel_items', id, patch.translations),
       ],
     );
     if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'No such item on the packing list');
@@ -406,6 +456,8 @@ export interface Trip {
   /** Packing-list item id → switched on or off for this trip, against its rules. */
   overrides: Record<string, boolean>;
   note: string;
+  /** The name, destination and note in other languages. */
+  translations: Translations;
   packed: { done: number; total: number };
 }
 
@@ -423,6 +475,8 @@ export interface TripCheck {
   toBuy: boolean;
   /** Put on the shopping list (when). */
   listedAt: string | null;
+  /** The packing-list item's name in other languages, while the check keeps that name. */
+  translations: Translations;
 }
 
 interface TripRow {
@@ -447,6 +501,7 @@ interface TripRow {
   bag_ids: string[];
   overrides: Record<string, boolean>;
   note: string;
+  translations: Translations;
   done?: number;
   total?: number;
 }
@@ -456,7 +511,7 @@ const TRIP_SELECT = `SELECT t.id, t.name, t.destination, t.scope, t.kind, t.tran
   to_char(t.depart_time, 'HH24:MI') AS depart_time, to_char(t.return_time, 'HH24:MI') AS return_time,
   t.arrive_date::text AS arrive_date, to_char(t.arrive_time, 'HH24:MI') AS arrive_time,
   t.back_date::text AS back_date, to_char(t.back_time, 'HH24:MI') AS back_time, t.money, t.gear,
-  t.people, t.guests, t.bag_ids, t.overrides, t.note,
+  t.people, t.guests, t.bag_ids, t.overrides, t.note, t.translations,
   (SELECT count(*)::int FROM trip_checks c WHERE c.trip_id = t.id AND c.checked_at IS NOT NULL) AS done,
   (SELECT count(*)::int FROM trip_checks c WHERE c.trip_id = t.id) AS total
   FROM trips t`;
@@ -505,6 +560,7 @@ function toTrip(row: TripRow): Trip {
     bagIds: row.bag_ids,
     overrides: row.overrides,
     note: row.note,
+    translations: row.translations ?? {},
     packed: { done: row.done ?? 0, total: row.total ?? 0 },
   };
 }
@@ -542,8 +598,10 @@ export async function getTrip(ctx: Ctx, id: string): Promise<{ trip: Trip; check
     due_hours: number | null;
     to_buy: boolean;
     listed_at: Date | null;
+    translations: Translations;
   }>(
-    `SELECT c.id, c.item_id, c.name, c.grp, c.quantity, c.checked_at, i.sort, c.due_hours, c.to_buy, c.listed_at
+    `SELECT c.id, c.item_id, c.name, c.grp, c.quantity, c.checked_at, i.sort, c.due_hours, c.to_buy, c.listed_at,
+            ${CHECK_TRANSLATIONS} AS translations
        FROM trip_checks c LEFT JOIN travel_items i ON i.id = c.item_id
       WHERE c.trip_id = $1 ORDER BY c.created_at`,
     [id],
@@ -565,9 +623,13 @@ export async function getTrip(ctx: Ctx, id: string): Promise<{ trip: Trip; check
       dueAt: r.due_hours === null ? null : dueAt(trip, r.due_hours),
       toBuy: r.to_buy,
       listedAt: r.listed_at?.toISOString() ?? null,
+      translations: r.translations ?? {},
     }));
   return { trip, checks };
 }
+
+/** A check's words in other languages: its packing-list item's, unless renamed for this trip. */
+const CHECK_TRANSLATIONS = `CASE WHEN i.name = c.name THEN i.translations ELSE '{}'::jsonb END`;
 
 async function checkMembers(ctx: Ctx, people: string[] | undefined, bagIds: string[] | undefined) {
   if (people?.length) {
@@ -646,8 +708,9 @@ export async function createTrip(
     await checkMembers(tx, input.people, input.bagIds);
     await tx.db.query(
       `INSERT INTO trips (id, household_id, name, destination, scope, kind, transport, start_date, end_date,
-         depart_time, return_time, people, guests, bag_ids, overrides, note, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18)`,
+         depart_time, return_time, people, guests, bag_ids, overrides, note, created_by, created_at, updated_at,
+         translations)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18, $19)`,
       [
         id,
         tx.actor.householdId,
@@ -667,6 +730,7 @@ export async function createTrip(
         input.note ?? '',
         tx.actor.userId,
         tx.now,
+        JSON.stringify(cleanTranslations(input.translations)),
       ],
     );
     await setLegs(tx, id, input);
@@ -696,7 +760,8 @@ export async function updateTrip(
          depart_time = CASE WHEN $10::boolean THEN $11::time ELSE depart_time END,
          return_time = CASE WHEN $12::boolean THEN $13::time ELSE return_time END,
          people = coalesce($14, people), guests = coalesce($15, guests), bag_ids = coalesce($16, bag_ids),
-         overrides = coalesce($17::jsonb, overrides), note = coalesce($18, note), updated_at = $19
+         overrides = coalesce($17::jsonb, overrides), note = coalesce($18, note), updated_at = $19,
+         translations = coalesce($20::jsonb, translations)
        WHERE id = $1 AND household_id = $2`,
       [
         id,
@@ -718,6 +783,7 @@ export async function updateTrip(
         patch.overrides ? JSON.stringify(patch.overrides) : null,
         patch.note ?? null,
         tx.now,
+        await nextTranslations(tx, 'trips', id, patch.translations),
       ],
     );
     await setLegs(tx, id, patch);
@@ -856,17 +922,36 @@ export async function removeCheck(ctx: Ctx, tripId: string, checkId: string): Pr
   });
 }
 
+/** The shopping list's note: which trip it's for. */
+const FOR_TRIP: Record<Locale, (trip: string) => string> = {
+  en: (trip) => `For ${trip}`,
+  ro: (trip) => `Pentru călătoria „${trip}”`,
+  ru: (trip) => `Для поездки «${trip}»`,
+};
+
 /**
  * What still has to be bought for a trip, onto the shopping list (the house's, unless the name is
  * a known food): needed by the day before leaving, with the trip in the note. Each thing once.
  */
-export async function shopForTrip(ctx: Ctx, tripId: string): Promise<{ listed: number }> {
+export async function shopForTrip(
+  ctx: Ctx,
+  tripId: string,
+  locale: Locale = 'en',
+): Promise<{ listed: number }> {
   const trip = toTrip(await tripRow(ctx, tripId));
-  const { rows } = await ctx.db.query<{ id: string; name: string; quantity: number }>(
-    `SELECT id, name, quantity FROM trip_checks
-      WHERE trip_id = $1 AND to_buy AND listed_at IS NULL AND checked_at IS NULL ORDER BY created_at`,
+  const { rows } = await ctx.db.query<{
+    id: string;
+    name: string;
+    quantity: number;
+    translations: Translations;
+  }>(
+    `SELECT c.id, c.name, c.quantity, ${CHECK_TRANSLATIONS} AS translations
+       FROM trip_checks c LEFT JOIN travel_items i ON i.id = c.item_id
+      WHERE c.trip_id = $1 AND c.to_buy AND c.listed_at IS NULL AND c.checked_at IS NULL
+      ORDER BY c.created_at`,
     [tripId],
   );
+  const tripName = translated({ name: trip.name, translations: trip.translations }, 'name', locale);
   if (!rows.length) return { listed: 0 };
   const dayBefore = new Date(Date.parse(`${trip.startDate}T00:00:00Z`) - 86_400_000)
     .toISOString()
@@ -875,9 +960,9 @@ export async function shopForTrip(ctx: Ctx, tripId: string): Promise<{ listed: n
     await addShoppingItems(
       tx,
       rows.map((r) => ({
-        name: r.name,
+        name: translated(r, 'name', locale),
         area: 'house' as const,
-        note: `For ${trip.name}${r.quantity > 1 ? ` · ${r.quantity}` : ''}`,
+        note: `${FOR_TRIP[locale](tripName)}${r.quantity > 1 ? ` · ${r.quantity}` : ''}`,
         needBy: dayBefore,
       })),
     );

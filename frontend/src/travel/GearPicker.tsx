@@ -1,6 +1,8 @@
 import { AddIcon, RemoveIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
-import { GEAR_ICON } from './format';
+import { connectorLabel, GEAR_ICON } from './format';
+import { useTravelT } from './i18n';
 import type { Gear } from './types';
 
 type Taken = Array<{ gearId: string; count: number }>;
@@ -15,6 +17,7 @@ export function GearPicker({
   value: Taken;
   onChange: (next: Taken) => void;
 }) {
+  const t = useTravelT();
   if (!gear.length) return null;
   const countOf = (id: string) => value.find((g) => g.gearId === id)?.count ?? 0;
   const set = (id: string, count: number) =>
@@ -31,6 +34,7 @@ export function GearPicker({
         const Icon = GEAR_ICON[g.kind];
         const n = countOf(g.id);
         const max = Math.max(1, g.count);
+        const name = tr(g, 'name');
         return (
           <li
             key={g.id}
@@ -41,27 +45,29 @@ export function GearPicker({
           >
             <Icon fontSize="inherit" className="shrink-0 text-[1.3rem] text-cyan-800" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.9375rem] font-semibold">{g.name}</span>
+              <span className="block truncate text-[0.9375rem] font-semibold">{name}</span>
               <span className="block truncate text-xs text-ink-600">
-                {[g.connectors.join(', '), `${g.count} at home`].filter(Boolean).join(' · ')}
+                {[g.connectors.map(connectorLabel).join(', '), t.picker.atHome(g.count)]
+                  .filter(Boolean)
+                  .join(' · ')}
               </span>
             </span>
             <span className="flex items-center gap-0.5">
               <button
                 type="button"
-                aria-label={`One fewer ${g.name}`}
+                aria-label={t.picker.fewer(name)}
                 disabled={!n}
                 onClick={() => set(g.id, n - 1)}
                 className="press grid size-9 place-items-center rounded-full bg-white text-[1.1rem] shadow-xs disabled:opacity-40"
               >
                 <RemoveIcon fontSize="inherit" />
               </button>
-              <span className="tabular w-7 text-center font-bold" aria-label={`${n} taken`}>
+              <span className="tabular w-7 text-center font-bold" aria-label={t.picker.taken(n)}>
                 {n}
               </span>
               <button
                 type="button"
-                aria-label={`One more ${g.name}`}
+                aria-label={t.picker.more(name)}
                 disabled={n >= max}
                 onClick={() => set(g.id, n + 1)}
                 className="press grid size-9 place-items-center rounded-full bg-white text-[1.1rem] shadow-xs disabled:opacity-40"
