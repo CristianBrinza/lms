@@ -2,8 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Button, Skeleton, toast } from '@/components/ui';
-import { CheckCircleIcon, ContentCopyIcon, InsightsIcon, WarningIcon } from '@/components/ui/icons';
+import { Button, ButtonAnchor, Skeleton, toast } from '@/components/ui';
+import {
+  CheckCircleIcon,
+  ContentCopyIcon,
+  InsightsIcon,
+  RefreshIcon,
+  WarningIcon,
+} from '@/components/ui/icons';
 import { keysApi } from '@/food/api';
 import { addDays, localDate } from '@/food/format';
 import { formatNumber, intlLocale } from '@/i18n';
@@ -338,6 +344,7 @@ function Connect({ synced }: { synced: string | null }) {
       </button>
     ),
     energyUrl: <code>{url.replace('/health', '/energy/today')}</code>,
+    back: <code className="[overflow-wrap:anywhere]">{`${window.location.origin}/training/health`}</code>,
     download: (
       <a className="font-semibold text-lav-800 underline" href="/lms-health.apk" download>
         {t.download}
@@ -373,6 +380,17 @@ function Connect({ synced }: { synced: string | null }) {
       {tab === 'ios' ? (
         <div className="mt-3 flex flex-col gap-3 text-sm text-ink-800">
           <p className="text-ink-600">{t.iosIntro}</p>
+          {/* Runs the shortcut now: Apple's Health prompt the first time, then today's numbers. */}
+          <div className="flex flex-col items-start gap-1.5">
+            <ButtonAnchor
+              href={`shortcuts://run-shortcut?name=${encodeURIComponent('LMS Health')}`}
+              icon={RefreshIcon}
+              variant="tint"
+            >
+              {t.syncNow}
+            </ButtonAnchor>
+            <span className="text-xs text-ink-600">{t.syncHint}</span>
+          </div>
           <ol className="flex list-decimal flex-col gap-2 pl-5">
             {t.iosSteps.map((step) => (
               <li key={step}>{rich(step, slots)}</li>
