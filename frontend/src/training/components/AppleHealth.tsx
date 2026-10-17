@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Button, toast } from '@/components/ui';
-import { FavoriteIcon, SyncIcon } from '@/components/ui/icons';
+import { DownloadIcon, FavoriteIcon, SyncIcon } from '@/components/ui/icons';
 import {
   nativeApp,
   NATIVE_EVENT,
@@ -14,13 +14,53 @@ import { useAppleHealthT } from './AppleHealth.i18n';
 
 /**
  * The iPhone part of "Connect the phone". Inside the LMS app for iPhone (ios/), a real
- * "Connect Apple Health" and the sync's state; in a browser, one line saying where to get it.
+ * "Connect Apple Health" and the sync's state; in a browser, how to install it and connect.
  */
 export function AppleHealth() {
-  const t = useAppleHealthT();
   const native = nativeApp();
-  if (!native) return <p className="mt-3 text-sm text-ink-600">{t.getApp}</p>;
+  if (!native) return <GetApp />;
   return <NativeHealth native={native} />;
+}
+
+/** The app is free and outside the App Store: AltStore puts it on the phone from a PC. */
+const IPA = 'https://github.com/CristianBrinza/lms/releases/download/ios-latest/LMS.ipa';
+const ALTSTORE = 'https://altstore.io';
+
+function GetApp() {
+  const t = useAppleHealthT();
+  return (
+    <div className="mt-3 flex flex-col items-start gap-3 text-sm">
+      <p className="text-ink-600">{t.getApp}</p>
+      <ol className="flex flex-col gap-2.5">
+        {t.steps.map((step, index) => (
+          <li key={index} className="flex gap-2.5">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink-900 text-xs font-semibold text-white tabular">
+              {index + 1}
+            </span>
+            <span className="pt-0.5 text-ink-800">{step}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap gap-2">
+        <a
+          href={IPA}
+          className="press inline-flex h-9 items-center gap-1.5 rounded-pill bg-ink-900 px-3.5 text-sm font-semibold text-white"
+        >
+          <DownloadIcon fontSize="inherit" className="text-base" />
+          {t.download}
+        </a>
+        <a
+          href={ALTSTORE}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="press inline-flex h-9 items-center rounded-pill bg-ink-50 px-3.5 text-sm font-semibold text-ink-800"
+        >
+          {t.altstore}
+        </a>
+      </div>
+      <span className="text-xs text-ink-600">{t.refresh}</span>
+    </div>
+  );
 }
 
 function NativeHealth({ native }: { native: LMSNative }) {

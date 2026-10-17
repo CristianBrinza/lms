@@ -3,8 +3,17 @@ import { messages, plural } from '@/i18n';
 /** Apple Health on the health screen: through the LMS app for iPhone, or where to get it. */
 
 const en = {
-  getApp:
-    'Apple Health connects through the LMS app for iPhone. Open this page in the app and tap Connect Apple Health.',
+  getApp: 'Apple Health connects through the free LMS app for iPhone. To set it up once:',
+  steps: [
+    'On a Windows PC, install iTunes and iCloud from apple.com (not the Microsoft Store), then AltServer from altstore.io.',
+    'Plug the iPhone in by cable and tap Trust. In the tray, AltServer → Install AltStore → your iPhone, and sign in with your Apple ID.',
+    'On the iPhone: Settings → General → VPN & Device Management → trust your Apple ID. Then Settings → Privacy & Security → Developer Mode → on, and restart.',
+    'Download LMS.ipa below on the iPhone, open AltStore → My Apps → +, and pick it.',
+    'Open LMS, sign in, come back to this page and tap Connect Apple Health.',
+  ],
+  download: 'Download LMS for iPhone',
+  altstore: 'AltStore',
+  refresh: 'AltStore renews the app every 7 days on its own while the iPhone is on the same Wi-Fi as the PC with AltServer.',
   intro:
     'Steps, sleep, heart rate, weight and workouts come here from Apple Health, and what you eat here goes back to it as dietary energy.',
   connect: 'Connect Apple Health',
@@ -28,8 +37,17 @@ const en = {
 };
 
 const ro: typeof en = {
-  getApp:
-    'Sănătatea Apple se conectează prin aplicația LMS pentru iPhone. Deschide pagina asta în aplicație și apasă Conectează Sănătatea.',
+  getApp: 'Sănătatea Apple se conectează prin aplicația LMS gratuită pentru iPhone. O configurezi o singură dată:',
+  steps: [
+    'Pe un PC cu Windows, instalează iTunes și iCloud de pe apple.com (nu din Microsoft Store), apoi AltServer de pe altstore.io.',
+    'Conectează iPhone-ul prin cablu și apasă Ai încredere. Din bara de sistem, AltServer → Install AltStore → iPhone-ul tău, și intră cu Apple ID-ul.',
+    'Pe iPhone: Configurări → General → VPN și gestionare dispozitiv → ai încredere în Apple ID-ul tău. Apoi Configurări → Confidențialitate și securitate → Mod dezvoltator → activat, și repornește.',
+    'Descarcă LMS.ipa de mai jos pe iPhone, deschide AltStore → My Apps → + și alege-l.',
+    'Deschide LMS, autentifică-te, revino pe pagina asta și apasă Conectează Sănătatea.',
+  ],
+  download: 'Descarcă LMS pentru iPhone',
+  altstore: 'AltStore',
+  refresh: 'AltStore reînnoiește aplicația singur la fiecare 7 zile, cât timp iPhone-ul e pe același Wi-Fi cu PC-ul cu AltServer.',
   intro:
     'Pașii, somnul, pulsul, greutatea și antrenamentele vin aici din Sănătate, iar ce mănânci aici ajunge înapoi ca energie din alimentație.',
   connect: 'Conectează Sănătatea',
@@ -54,8 +72,17 @@ const ro: typeof en = {
 };
 
 const ru: typeof en = {
-  getApp:
-    '«Здоровье» подключается через приложение LMS для iPhone. Откройте эту страницу в приложении и нажмите «Подключить Здоровье».',
+  getApp: '«Здоровье» подключается через бесплатное приложение LMS для iPhone. Настройка один раз:',
+  steps: [
+    'На ПК с Windows установите iTunes и iCloud с apple.com (не из Microsoft Store), затем AltServer с altstore.io.',
+    'Подключите iPhone кабелем и нажмите «Доверять». В трее: AltServer → Install AltStore → ваш iPhone, войдите со своим Apple ID.',
+    'На iPhone: Настройки → Основные → VPN и управление устройством → доверьте своему Apple ID. Затем Настройки → Конфиденциальность и безопасность → Режим разработчика → вкл., и перезагрузите.',
+    'Скачайте LMS.ipa ниже на iPhone, откройте AltStore → My Apps → + и выберите его.',
+    'Откройте LMS, войдите, вернитесь на эту страницу и нажмите «Подключить Здоровье».',
+  ],
+  download: 'Скачать LMS для iPhone',
+  altstore: 'AltStore',
+  refresh: 'AltStore сам продлевает приложение каждые 7 дней, пока iPhone в той же сети Wi-Fi, что и ПК с AltServer.',
   intro:
     'Шаги, сон, пульс, вес и тренировки приходят сюда из «Здоровья», а съеденное здесь уходит туда как энергия из еды.',
   connect: 'Подключить Здоровье',
