@@ -33,6 +33,8 @@ import { profileInput, profileValues } from '@/lib/profile';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { formatDate, fullName } from '@/lib/format';
 import { meApi } from '@/services/api/endpoints';
+import type { Gender } from '@/types/api';
+import { useProfilePageT } from './i18n';
 
 /**
  * Who you are in LMS, laid out like the mood apps' profile: the avatar and name centred, a yellow
@@ -42,11 +44,12 @@ export default function ProfilePage() {
   const user = useUser();
   const { logout, setUser } = useAuth();
   const t = useProfileT();
+  const p = useProfilePageT();
   const [open, setOpen] = useState<'details' | 'about' | 'paydays' | 'password' | null>(null);
   const close = () => setOpen(null);
   return (
     <Screen tone="white">
-      <PageHeader title="Profile" />
+      <PageHeader title={p.title} />
       <div className="gutter-x mx-auto mt-4 flex max-w-xl flex-col items-center lg:max-w-2xl lg:px-8 xl:mx-0 xl:mt-8 xl:grid xl:max-w-5xl xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] xl:items-start xl:gap-8">
         <div className="flex w-full flex-col items-center xl:rounded-[2rem] xl:bg-white xl:p-7 xl:shadow-[var(--shadow-card)] xl:ring-1 xl:ring-inset xl:ring-ink-100/70">
           <PhotoPicker person={user} onSave={(image) => meApi.setAvatar(image).then(setUser)} />
@@ -55,32 +58,30 @@ export default function ProfilePage() {
 
           <section
             className="mt-6 w-full rounded-3xl bg-butter-300 p-5 shadow-[0_18px_32px_-20px_rgb(110_80_0/0.6)]"
-            aria-label="Your account"
+            aria-label={p.yourAccount}
           >
             <p className="text-[1.0625rem] font-semibold leading-snug text-ink-900">
-              {user.role === 'admin'
-                ? 'Admin: you can add and manage everyone’s accounts.'
-                : 'Member: the admin manages accounts.'}
+              {p.roleLine(user.role === 'admin')}
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <span className="inline-flex h-7 items-center rounded-pill bg-white px-2.5 text-xs font-semibold text-ink-900">
-                Since {formatDate(user.createdAt)}
+                {p.since(formatDate(user.createdAt))}
               </span>
             </div>
           </section>
         </div>
 
-        <ListGroup className="mt-5 w-full xl:mt-0" title="Your account">
+        <ListGroup className="mt-5 w-full xl:mt-0" title={p.yourAccount}>
           <ListRowButton
             icon={BadgeIcon}
-            label="Your details"
-            detail="Name and surname"
+            label={p.details}
+            detail={p.detailsLine}
             onClick={() => setOpen('details')}
           />
           <ListRowButton
             icon={PersonIcon}
-            label="About you"
-            detail={aboutLine(user)}
+            label={p.about}
+            detail={aboutLine(user, t, p)}
             onClick={() => setOpen('about')}
           />
           <ListRowButton
@@ -91,34 +92,29 @@ export default function ProfilePage() {
           />
           <ListRowButton
             icon={LockIcon}
-            label="Password"
-            detail="Change it any time"
+            label={p.password}
+            detail={p.passwordLine}
             onClick={() => setOpen('password')}
           />
           <ListRowLink
             to="/settings"
             icon={SettingsIcon}
-            label="Settings"
-            detail="This device, signed-in devices"
+            label={p.settings}
+            detail={p.settingsLine}
           />
           <ListRowButton
             icon={LogoutIcon}
-            label="Sign out"
-            detail="On this device"
+            label={p.signOut}
+            detail={p.signOutLine}
             onClick={() => void logout()}
           />
         </ListGroup>
       </div>
 
-      <Sheet open={open === 'details'} onClose={close} title="Your details">
+      <Sheet open={open === 'details'} onClose={close} title={p.details}>
         <NameForm onDone={close} />
       </Sheet>
-      <Sheet
-        open={open === 'about'}
-        onClose={close}
-        title="About you"
-        description="Used for training plans and health numbers."
-      >
+      <Sheet open={open === 'about'} onClose={close} title={p.about} description={p.aboutUse}>
         <AboutForm onDone={close} />
       </Sheet>
       <Sheet
@@ -145,13 +141,14 @@ export default function ProfilePage() {
 function NameForm({ onDone }: { onDone: () => void }) {
   const user = useUser();
   const { setUser } = useAuth();
+  const p = useProfilePageT();
   const [name, setName] = useState(user.name);
   const [surname, setSurname] = useState(user.surname);
   const save = useMutation({
     mutationFn: () => meApi.update({ name: name.trim(), surname: surname.trim() }),
     onSuccess: (updated) => {
       setUser(updated);
-      toast.success('Saved');
+      toast.success(p.saved);
       onDone();
     },
   });
@@ -165,7 +162,7 @@ function NameForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
-          label="Name"
+          label={p.name}
           autoComplete="given-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -173,7 +170,7 @@ function NameForm({ onDone }: { onDone: () => void }) {
           required
         />
         <TextField
-          label="Surname"
+          label={p.surname}
           autoComplete="family-name"
           value={surname}
           onChange={(e) => setSurname(e.target.value)}
@@ -181,12 +178,12 @@ function NameForm({ onDone }: { onDone: () => void }) {
         />
       </div>
       <TextField
-        label="Email"
+        label={p.email}
         icon={EmailIcon}
         value={user.email}
         readOnly
         disabled
-        hint="Only an admin can change your email."
+        hint={p.emailHint}
       />
       {save.error && !fields.name && !fields.surname ? (
         <p className="text-sm font-medium text-danger-600">{errorMessage(save.error)}</p>
@@ -198,37 +195,36 @@ function NameForm({ onDone }: { onDone: () => void }) {
         loading={save.isPending}
         disabled={!changed || !name.trim()}
       >
-        Save details
+        {p.saveDetails}
       </Button>
     </form>
   );
 }
 
-const GENDER_WORD = { female: 'Female', male: 'Male', other: 'Other' } as const;
-
-function aboutLine(user: {
-  gender: keyof typeof GENDER_WORD | null;
-  birthDate: string | null;
-  heightCm: number | null;
-}): string {
+function aboutLine(
+  user: { gender: Gender | null; birthDate: string | null; heightCm: number | null },
+  t: ReturnType<typeof useProfileT>,
+  p: ReturnType<typeof useProfilePageT>,
+): string {
   const parts = [
-    user.gender ? GENDER_WORD[user.gender] : null,
-    user.birthDate ? `born ${formatDate(user.birthDate)}` : null,
-    user.heightCm ? `${user.heightCm} cm` : null,
+    user.gender ? t.genders[user.gender] : null,
+    user.birthDate ? p.born(formatDate(user.birthDate)) : null,
+    user.heightCm ? p.cm(user.heightCm) : null,
   ].filter(Boolean);
-  return parts.length ? parts.join(' · ') : 'Gender, birth date, height';
+  return parts.length ? parts.join(' · ') : p.aboutEmpty;
 }
 
 function AboutForm({ onDone }: { onDone: () => void }) {
   const user = useUser();
   const { setUser } = useAuth();
+  const p = useProfilePageT();
   const [value, setValue] = useState(() => profileValues(user));
   const weight = useWeightField(user);
   const save = useMutation({
     mutationFn: () => meApi.update({ ...profileInput(value), ...weight.input() }),
     onSuccess: (updated) => {
       setUser(updated);
-      toast.success('Saved');
+      toast.success(p.saved);
       onDone();
     },
   });
@@ -247,7 +243,7 @@ function AboutForm({ onDone }: { onDone: () => void }) {
           if (weight.check()) save.mutate();
         }}
       >
-        Save
+        {p.save}
       </Button>
     </div>
   );

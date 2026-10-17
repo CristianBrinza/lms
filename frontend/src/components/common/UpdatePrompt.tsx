@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { toast } from '@/components/ui';
+import { uiT } from '../i18n';
 import { BUSY_PATHS, UPDATE_MESSAGE, newBuildOnServer, reloadsAtOnce } from '@/lib/appUpdate';
 
 /** How often an open app asks whether a new build is out (/version.json: a few hundred bytes, never cached). */
@@ -137,10 +138,10 @@ function UpdateToast({ apply }: { apply: () => void }) {
   }, [location.pathname, apply]);
 
   useEffect(() => {
-    const id = toast.info('A new version of LMS is ready', {
-      description: 'Finish what you’re typing, then update. You stay signed in.',
+    const id = toast.info(uiT().update.title, {
+      description: uiT().update.detail,
       duration: Infinity,
-      action: { label: 'Update', onClick: apply },
+      action: { label: uiT().update.action, onClick: apply },
     });
     const onHidden = () => {
       if (document.visibilityState === 'hidden' && !BUSY_PATHS.test(pathRef.current)) apply();

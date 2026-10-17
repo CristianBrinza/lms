@@ -6,6 +6,7 @@ import { LockIcon } from '@/components/ui/icons';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { meApi } from '@/services/api/endpoints';
+import { uiT } from '../i18n';
 import { MatchMark, PasswordStrength } from './PasswordStrength';
 
 /** Change your password, from Profile or Settings. Other devices sign out; this one stays. */
@@ -14,8 +15,8 @@ export function PasswordSheet({ open, onClose }: { open: boolean; onClose: () =>
     <Sheet
       open={open}
       onClose={onClose}
-      title="Change password"
-      description="Your other devices will be signed out. This one stays signed in."
+      title={uiT().password.title}
+      description={uiT().password.description}
     >
       {open ? <PasswordForm onDone={onClose} /> : null}
     </Sheet>
@@ -34,7 +35,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
     onSuccess: (updated) => {
       setUser(updated);
       haptic('success');
-      toast.success('Password changed', { description: 'Your other devices were signed out.' });
+      toast.success(uiT().password.changed, { description: uiT().password.changedDetail });
       onDone();
     },
     onError: () => {
@@ -68,7 +69,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
         hidden
       />
       <PasswordField
-        label="Current password"
+        label={uiT().password.current}
         icon={LockIcon}
         autoComplete="current-password"
         value={current}
@@ -78,19 +79,19 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
       />
       <div className="flex flex-col gap-2">
         <PasswordField
-          label="New password"
+          label={uiT().password.next}
           icon={LockIcon}
           autoComplete="new-password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
           error={fields.newPassword}
-          hint="At least 10 characters. A short sentence works well."
+          hint={uiT().password.nextHint}
         />
         <PasswordStrength password={next} />
       </div>
       <div className="flex flex-col gap-2">
         <PasswordField
-          label="Repeat new password"
+          label={uiT().password.repeat}
           icon={LockIcon}
           autoComplete="new-password"
           value={repeat}
@@ -109,7 +110,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
         loading={save.isPending}
         disabled={!current || next.length < 10 || next !== repeat}
       >
-        Change password
+        {uiT().password.submit}
       </Button>
     </form>
   );

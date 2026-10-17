@@ -2,6 +2,7 @@ import { AddBoxIcon, IosShareIcon, LockIcon, MoreHorizIcon } from '@/components/
 import { LogoTile } from '@/components/brand/Logo';
 import { cx } from '@/lib/cx';
 import { mark } from './highlight';
+import { useInstallT } from './i18n';
 import { Dimmed, HomeScene, MenuLine, PageLines } from './parts';
 
 /**
@@ -60,6 +61,7 @@ function BarScene() {
 }
 
 function MenuScene() {
+  const t = useInstallT().ios;
   const m = mark(1);
   return (
     <div className="size-full bg-lav-100">
@@ -72,7 +74,7 @@ function MenuScene() {
           )}
           style={m.style}
         >
-          Share
+          <span className="min-w-0 truncate">{t.share}</span>
           <IosShareIcon fontSize="inherit" className="text-[1.2em]" />
         </div>
         <MenuLine width="60%" />
@@ -85,6 +87,7 @@ function MenuScene() {
 }
 
 function ShareScene() {
+  const t = useInstallT().ios;
   const m = mark(2);
   return (
     <Dimmed>
@@ -103,7 +106,7 @@ function ShareScene() {
             )}
             style={m.style}
           >
-            Add to Home Screen
+            <span className="min-w-0 truncate">{t.addToHome}</span>
             <AddBoxIcon fontSize="inherit" className="text-[1.25em]" />
           </div>
           <MenuLine width="52%" />
@@ -114,17 +117,21 @@ function ShareScene() {
 }
 
 function ConfirmScene() {
+  const t = useInstallT().ios;
   const m = mark(3);
   return (
     <div className="size-full bg-ink-50 px-[5%] pt-[4%]">
       <div className="flex items-center justify-between font-semibold">
-        <span className="text-ink-500">Cancel</span>
-        <span className="text-[0.95em]">Add to Home Screen</span>
+        <span className="shrink-0 text-ink-500">{t.cancel}</span>
+        <span className="min-w-0 truncate px-[0.4em] text-[0.95em]">{t.addToHome}</span>
         <span
-          className={cx('rounded-pill bg-lav-600 px-[0.9em] py-[0.3em] text-white', m.className)}
+          className={cx(
+            'shrink-0 rounded-pill bg-lav-600 px-[0.9em] py-[0.3em] text-white',
+            m.className,
+          )}
           style={m.style}
         >
-          Add
+          {t.add}
         </span>
       </div>
       <div className="mt-[1.2em] flex items-center gap-[0.8em] rounded-[1em] bg-white p-[0.8em]">
@@ -135,8 +142,8 @@ function ConfirmScene() {
         </div>
       </div>
       <div className="mt-[0.8em] flex items-center justify-between rounded-[1em] bg-white px-[0.9em] py-[0.7em] font-medium">
-        Open as Web App
-        <span className="relative h-[1.5em] w-[2.6em] rounded-pill bg-mint-800">
+        <span className="min-w-0 truncate">{t.openAsWebApp}</span>
+        <span className="relative h-[1.5em] w-[2.6em] shrink-0 rounded-pill bg-mint-800">
           <span className="absolute right-[0.15em] top-[0.15em] size-[1.2em] rounded-full bg-white" />
         </span>
       </div>

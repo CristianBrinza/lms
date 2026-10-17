@@ -22,6 +22,8 @@ import { cx } from '@/lib/cx';
 import { currentPlatform } from '@/lib/platform';
 import { useInstallPrompt } from '@/lib/pwa';
 import { THEME, useThemeColor } from '@/lib/themeColor';
+import { uiT } from '@/components/i18n';
+import { useInstallT } from './i18n';
 
 // Drawings load only with their device's steps.
 const IosArt = lazy(() => import('./IosArt'));
@@ -35,46 +37,8 @@ const IN_APP_NAMES = {
   facebook: 'Facebook',
   tiktok: 'TikTok',
   telegram: 'Telegram',
-  other: 'this app',
+  other: null,
 } as const;
-
-const IOS_STEPS = [
-  'In Safari, tap ⋯ at the bottom right.',
-  'Tap “Share”.',
-  'Scroll down and tap “Add to Home Screen” (under “View More” on some iPhones).',
-  'Leave “Open as Web App” on and tap “Add”.',
-  'Open LMS from your Home Screen, like any app.',
-];
-const IOS_ALTS = [
-  'Safari’s bottom bar with the ⋯ button circled at the right.',
-  'Safari’s ⋯ menu with “Share” circled.',
-  'The share sheet with “Add to Home Screen” circled.',
-  'The “Add to Home Screen” screen with “Open as Web App” on and “Add” circled.',
-  'The LMS icon on the Home Screen, circled.',
-];
-const ANDROID_STEPS = [
-  'In Chrome, tap ⋮ at the top right, then “Install app” (or “Add to Home screen”).',
-  'Choose “Install”.',
-  'Confirm with “Install”.',
-  'Open LMS from your home screen or app list.',
-];
-const ANDROID_ALTS = [
-  'Chrome with the ⋮ button circled and its menu open at “Install app”.',
-  'The install panel with “Install” circled.',
-  'The install dialog with “Install” circled.',
-  'The LMS icon on the home screen, circled.',
-];
-const PERKS = [
-  'Opens in one\u00a0tap',
-  'Full screen, no browser bars',
-  'Stays signed in',
-  'Updates by itself',
-];
-const GUIDE_BELOW: Record<Device, string> = {
-  iphone: 'See the guide for iPhone\u00a0below',
-  android: 'See the guide for Android\u00a0below',
-  computer: 'See the guide for your computer\u00a0below',
-};
 
 /**
  * /app: how to put LMS on the Home Screen. Detects the device and in-app browsers, uses the real
@@ -82,6 +46,7 @@ const GUIDE_BELOW: Record<Device, string> = {
  * phone. Every device's steps stay one tap away.
  */
 export default function InstallPage() {
+  const t = useInstallT();
   const navigate = useNavigate();
   const { user } = useAuth();
   const platform = currentPlatform();
@@ -104,16 +69,16 @@ export default function InstallPage() {
 
   const install = async () => {
     if ((await prompt()) === 'accepted')
-      toast.success('LMS is installed', {
-        description: 'Open it from your Home Screen or app list.',
+      toast.success(t.installedToast, {
+        description: t.openFromHome,
       });
   };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(appUrl);
-      toast.success('Link copied');
+      toast.success(t.linkCopied);
     } catch {
-      toast.error('Couldn’t copy. Press and hold the address bar instead.');
+      toast.error(t.copyFailed);
     }
   };
 
@@ -122,7 +87,7 @@ export default function InstallPage() {
       <header className="gutter-x mx-auto box-content flex h-16 w-full max-w-3xl items-center justify-between pt-[var(--safe-top)] lg:max-w-5xl lg:pt-4">
         <IconButton
           icon={ArrowBackIcon}
-          label="Back"
+          label={uiT().back}
           onClick={() =>
             window.history.state?.idx > 0
               ? navigate(-1)
@@ -137,25 +102,25 @@ export default function InstallPage() {
         <h1 className="text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] sm:text-[2.75rem]">
           {installed ? (
             <>
-              <span className="text-lav-800">LMS is on</span> this device.
+              <span className="text-lav-800">{t.titleInstalled[0]}</span>
+              {t.titleInstalled[1]}
             </>
           ) : (
             <>
-              <span className="text-lav-800">Add LMS to</span> your Home Screen.
+              <span className="text-lav-800">{t.titleAdd[0]}</span>
+              {t.titleAdd[1]}
             </>
           )}
         </h1>
         <p className="mt-3 max-w-lg text-base font-medium text-lav-900">
-          {installed
-            ? 'Open it from your Home Screen or app list.'
-            : 'The app opens full screen with one tap, like any app. No store, nothing to download, always up to date.'}
+          {installed ? t.openFromHome : t.intro}
           {!installed ? (
             <button
               type="button"
               aria-expanded={perksOpen}
               aria-controls="install-perks"
-              aria-label="What the app gives you"
-              title="What the app gives you"
+              aria-label={t.perksLabel}
+              title={t.perksLabel}
               onClick={() => setPerksOpen((open) => !open)}
               className={cx(
                 'press -my-2 ml-1 inline-flex size-10 items-center justify-center rounded-full align-middle text-[1.3rem] transition-colors duration-150',
@@ -171,7 +136,7 @@ export default function InstallPage() {
         {!installed ? (
           perksOpen ? (
             <ul id="install-perks" className="mt-4 flex flex-wrap gap-2 animate-rise">
-              {PERKS.map((perk) => (
+              {t.perks.map((perk) => (
                 <li
                   key={perk}
                   className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-white px-3.5 text-sm font-semibold text-ink-800"
@@ -186,7 +151,7 @@ export default function InstallPage() {
               id="install-perks"
               className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-ink-900"
             >
-              {GUIDE_BELOW[device]}
+              {t.guideBelow[device]}
               <ExpandMoreIcon aria-hidden="true" fontSize="inherit" className="text-xl" />
             </p>
           )
@@ -194,7 +159,7 @@ export default function InstallPage() {
 
         {installed ? (
           <ButtonLink to={home} replace icon={CheckCircleIcon} className="mt-8">
-            Continue here
+            {t.continueHere}
           </ButtonLink>
         ) : (
           <DeviceTiles value={device} onChange={setDevice} />
@@ -211,22 +176,18 @@ export default function InstallPage() {
             aria-hidden="true"
             className="mx-auto block h-1.5 w-10 rounded-pill bg-ink-200 md:hidden"
           />
-          <h2 className="mt-5 text-h2 font-bold md:mt-0">{SHEET_TITLE[device]}</h2>
+          <h2 className="mt-5 text-h2 font-bold md:mt-0">{t.sheetTitle[device]}</h2>
 
           {platform.inApp ? (
             <div className="mt-5 rounded-[1.5rem] bg-ink-900 p-5 text-sm text-white/85 animate-rise">
-              <p>
-                You’re inside {IN_APP_NAMES[platform.inApp]}’s built-in browser, which can’t add
-                apps. Open this page in Safari or Chrome: tap ⋯ and choose “Open in browser”, or
-                copy the link.
-              </p>
+              <p>{t.inApp(IN_APP_NAMES[platform.inApp])}</p>
               <button
                 type="button"
                 onClick={() => void copy()}
                 className="press mt-4 inline-flex h-10 items-center gap-2 rounded-pill bg-butter-300 px-4 text-sm font-semibold text-ink-900"
               >
                 <ContentCopyIcon fontSize="inherit" className="text-base" />
-                Copy link
+                {t.copyLink}
               </button>
             </div>
           ) : null}
@@ -234,20 +195,15 @@ export default function InstallPage() {
           {device === 'iphone' ? (
             <>
               <Timeline
-                texts={IOS_STEPS}
-                alts={IOS_ALTS}
+                texts={t.iosSteps}
+                alts={t.iosAlts}
                 picture={(step, alt) => (
                   <Frame ratio="16 / 10">
                     <IosArt step={step} alt={alt} />
                   </Frame>
                 )}
               />
-              <Notes
-                lines={[
-                  'Is the Share button right in Safari’s toolbar (iOS 18 or earlier, or an iPad)? Tap it and carry on from step 3.',
-                  'Chrome on iPhone: tap Share on the right of the address bar, then “Add to Home Screen” and “Add”.',
-                ]}
-              />
+              <Notes lines={t.iosNotes} />
             </>
           ) : null}
 
@@ -255,26 +211,22 @@ export default function InstallPage() {
             canPrompt && detected === 'android' ? (
               <div className="mt-6 flex max-w-sm flex-col gap-3">
                 <Button size="lg" icon={InstallIcon} fullWidth onClick={() => void install()}>
-                  Install LMS
+                  {t.installLms}
                 </Button>
-                <p className="text-sm text-ink-600">Your phone asks once to confirm. That’s it.</p>
+                <p className="text-sm text-ink-600">{t.confirmOnce}</p>
               </div>
             ) : (
               <>
                 <Timeline
-                  texts={ANDROID_STEPS}
-                  alts={ANDROID_ALTS}
+                  texts={t.androidSteps}
+                  alts={t.androidAlts}
                   picture={(step, alt) => (
                     <Frame ratio="16 / 10">
                       <AndroidArt step={step} alt={alt} />
                     </Frame>
                   )}
                 />
-                <Notes
-                  lines={[
-                    'Not there? Look for “Install app” or “Add to Home screen” in your browser’s menu.',
-                  ]}
-                />
+                <Notes lines={t.androidNotes} />
               </>
             )
           ) : null}
@@ -282,15 +234,9 @@ export default function InstallPage() {
           {device === 'computer' ? (
             <div className="mt-6 grid gap-5 md:grid-cols-[auto_minmax(0,1fr)] md:items-start md:gap-8">
               <div className="flex flex-col items-center rounded-[1.75rem] bg-butter-300 p-5 text-center">
-                <QrCode
-                  value={appUrl}
-                  label="QR code to open this guide on your phone"
-                  className="size-44 p-2"
-                />
-                <h3 className="mt-3 font-bold">Scan with your phone</h3>
-                <p className="mt-1 max-w-56 text-sm text-butter-800">
-                  Opens this guide on the phone, ready to add LMS to its Home Screen.
-                </p>
+                <QrCode value={appUrl} label={t.qr} className="size-44 p-2" />
+                <h3 className="mt-3 font-bold">{t.scan}</h3>
+                <p className="mt-1 max-w-56 text-sm text-butter-800">{t.scanLine}</p>
               </div>
               <div className="flex flex-col gap-3">
                 {canPrompt && detected === 'computer' ? (
@@ -300,22 +246,15 @@ export default function InstallPage() {
                     className="self-start"
                     onClick={() => void install()}
                   >
-                    Install on this computer
+                    {t.installComputer}
                   </Button>
                 ) : (
                   <>
                     <Frame ratio="16 / 7">
-                      <DesktopArt alt="A browser address bar with the install icon circled at its right end." />
+                      <DesktopArt alt={t.desktopAlt} />
                     </Frame>
-                    <p className="text-[0.9375rem] font-semibold leading-snug">
-                      Or install it here: in Chrome or Edge, click the install icon at the right end
-                      of the address bar.
-                    </p>
-                    <Notes
-                      lines={[
-                        'No icon? In Chrome: ⋮ → “Cast, save, and share” → “Install page as app”. In Safari on a Mac: File → “Add to Dock”.',
-                      ]}
-                    />
+                    <p className="text-[0.9375rem] font-semibold leading-snug">{t.desktopLine}</p>
+                    <Notes lines={t.desktopNotes} />
                   </>
                 )}
               </div>
@@ -327,27 +266,22 @@ export default function InstallPage() {
   );
 }
 
-const SHEET_TITLE: Record<Device, string> = {
-  iphone: 'On your iPhone',
-  android: 'On your Android phone',
-  computer: 'On a computer',
-};
-
-const DEVICES: Array<{ value: Device; label: string; icon: IconComponent }> = [
-  { value: 'iphone', label: 'iPhone', icon: PhoneIphoneIcon },
-  { value: 'android', label: 'Android', icon: AndroidIcon },
-  { value: 'computer', label: 'Computer', icon: LaptopIcon },
+const DEVICES: Array<{ value: Device; icon: IconComponent }> = [
+  { value: 'iphone', icon: PhoneIphoneIcon },
+  { value: 'android', icon: AndroidIcon },
+  { value: 'computer', icon: LaptopIcon },
 ];
 
 /** Which device the steps are for, as three tiles like the dashboard's: the chosen one goes dark. */
 function DeviceTiles({ value, onChange }: { value: Device; onChange: (device: Device) => void }) {
+  const t = useInstallT();
   return (
     <div
       role="radiogroup"
-      aria-label="Your device"
+      aria-label={t.yourDevice}
       className="mt-7 grid grid-cols-3 gap-3 sm:max-w-md"
     >
-      {DEVICES.map(({ value: option, label, icon: Icon }) => {
+      {DEVICES.map(({ value: option, icon: Icon }) => {
         const active = option === value;
         return (
           <button
@@ -362,7 +296,9 @@ function DeviceTiles({ value, onChange }: { value: Device; onChange: (device: De
             )}
           >
             <Icon fontSize="inherit" className="text-[1.5rem]" />
-            <span className="text-[0.9375rem] font-semibold">{label}</span>
+            <span className="min-w-0 hyphens-auto break-words text-[0.9375rem] font-semibold">
+              {t.devices[option]}
+            </span>
             {active ? (
               <span
                 aria-hidden="true"

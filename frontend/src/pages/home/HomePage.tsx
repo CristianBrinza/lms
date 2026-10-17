@@ -9,6 +9,9 @@ import { AdminIcon, DevicesIcon, PersonIcon } from '@/components/ui/icons';
 import { formatDay, partOfDay } from '@/lib/format';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
+import { areasT } from '@/areas/i18n';
+import { intlLocale } from '@/i18n';
+import { useHomeT } from './i18n';
 import { Paydays } from './Paydays';
 
 /**
@@ -17,10 +20,11 @@ import { Paydays } from './Paydays';
  * the bottom with featured cards.
  */
 export default function HomePage() {
+  const t = useHomeT();
   const user = useUser();
   const { isAdmin } = useAuth();
   const now = new Date();
-  const since = new Intl.DateTimeFormat(undefined, { month: 'short', year: 'numeric' }).format(
+  const since = new Intl.DateTimeFormat(intlLocale(), { month: 'short', year: 'numeric' }).format(
     new Date(user.createdAt),
   );
 
@@ -34,20 +38,20 @@ export default function HomePage() {
       <div className="min-w-0">
         <header className="gutter-x flex items-center gap-3 pt-[calc(var(--safe-top)+1rem)] lg:px-8 lg:pt-8">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-h2 font-bold">Hi, {user.name}!</p>
+            <p className="truncate text-h2 font-bold">{t.hi(user.name)}</p>
             <p className="truncate text-sm font-medium text-lav-800">{formatDay(now)}</p>
           </div>
         </header>
 
         <div className="gutter-x mt-7 lg:px-8">
           <h1 className="text-display font-bold lg:text-[3.5rem]">
-            <span className="text-lav-800">Good {partOfDay(now)}.</span>
+            <span className="text-lav-800">{t.good[partOfDay(now)]}</span>
             <br />
-            What’s next?
+            {t.whatsNext}
           </h1>
           <section aria-labelledby="areas-title" className="mt-7">
             <h2 id="areas-title" className="sr-only">
-              Your areas
+              {areasT().yourAreas}
             </h2>
             <AreaGrid areas={AREAS}>
               <Paydays />
@@ -66,7 +70,7 @@ export default function HomePage() {
           className="mx-auto block h-1.5 w-10 rounded-pill bg-ink-200 lg:hidden"
         />
         <h2 id="for-you-title" className="mt-5 text-h3 font-bold lg:mt-0">
-          For you
+          {t.forYou}
         </h2>
         <div className="mt-3.5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] xl:grid-cols-1">
           <InstallCard />
@@ -76,15 +80,15 @@ export default function HomePage() {
               to="/profile"
               thumbClassName="bg-pink-200 text-[1.6rem] text-ink-900"
               thumb={<PersonIcon fontSize="inherit" />}
-              title="Your profile and password"
-              detail={`${user.role === 'admin' ? 'Admin' : 'Member'} since ${since}`}
+              title={t.profileTitle}
+              detail={t.since(user.role === 'admin', since)}
             />
             <ThumbRow
               to="/settings"
               thumbClassName="bg-ink-900 text-[1.5rem] text-white"
               thumb={<DevicesIcon fontSize="inherit" />}
-              title="Devices and updates"
-              detail="Where you’re signed in"
+              title={t.devicesTitle}
+              detail={t.devicesDetail}
             />
           </div>
         </div>
@@ -95,6 +99,7 @@ export default function HomePage() {
 
 /** Admins only: who can sign in, one tap from the console. */
 function PeopleRow() {
+  const t = useHomeT();
   const users = useQuery({ queryKey: queryKeys.users(''), queryFn: () => adminApi.users() });
   const active = (users.data ?? []).filter((person) => person.isActive).length;
   return (
@@ -102,8 +107,8 @@ function PeopleRow() {
       to="/admin/users"
       thumbClassName="bg-cyan-200 text-[1.6rem] text-ink-900"
       thumb={<AdminIcon fontSize="inherit" />}
-      title="People and access"
-      detail={users.isPending ? 'Loading…' : `${active} can sign in · add a person`}
+      title={t.peopleTitle}
+      detail={users.isPending ? t.loading : t.canSignIn(active)}
     />
   );
 }

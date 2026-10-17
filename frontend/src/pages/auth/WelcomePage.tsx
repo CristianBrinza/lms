@@ -9,12 +9,15 @@ import { errorMessage, fieldErrors } from '@/lib/errors';
 import { MatchMark, PasswordStrength } from '@/components/common/PasswordStrength';
 import { meApi } from '@/services/api/endpoints';
 import { THEME, useThemeColor } from '@/lib/themeColor';
+import { uiT } from '@/components/i18n';
+import { useAuthT } from './i18n';
 
 /**
  * First sign-in with a one-time password from the admin: the person chooses their own before
  * anything else. The temporary one is not asked for again; they just used it.
  */
 export default function WelcomePage() {
+  const t = useAuthT();
   const user = useUser();
   const { setUser, logout } = useAuth();
   const [password, setPassword] = useState('');
@@ -25,7 +28,7 @@ export default function WelcomePage() {
   const save = useMutation({
     mutationFn: () => meApi.changePassword({ newPassword: password }),
     onSuccess: (updated) => {
-      toast.success('Password saved', { description: 'Use it next time you sign in.' });
+      toast.success(t.passwordSaved, { description: t.useNextTime });
       setUser(updated);
     },
   });
@@ -52,12 +55,12 @@ export default function WelcomePage() {
         <div>
           <LogoTile className="mx-auto size-14 lg:mx-0" />
           <h1 className="mt-7 text-center text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] lg:text-left lg:text-[4.25rem] lg:font-extrabold lg:leading-[0.98] lg:tracking-[-0.045em]">
-            {user.name}, choose
+            {t.choose(user.name)[0]}
             <br />
-            your password.
+            {t.choose(user.name)[1]}
           </h1>
           <p className="mx-auto mt-3 max-w-xs text-center text-base font-medium text-butter-800 lg:mx-0 lg:mt-5 lg:max-w-md lg:text-left lg:text-lg">
-            You signed in with a one-time password. Pick your own to finish.
+            {t.oneTime}
           </p>
         </div>
 
@@ -76,23 +79,23 @@ export default function WelcomePage() {
               hidden
             />
             <PasswordField
-              label="New password"
+              label={uiT().password.next}
               icon={LockIcon}
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              hint="At least 10 characters. A short sentence works well."
+              hint={uiT().password.nextHint}
               error={fields.newPassword}
               autoFocus
             />
             <PasswordStrength password={password} />
             <PasswordField
-              label="Repeat it"
+              label={t.repeatIt}
               icon={LockIcon}
               autoComplete="new-password"
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
-              error={mismatch ? 'The two passwords are different' : undefined}
+              error={mismatch ? t.different : undefined}
             />
             {!mismatch ? <MatchMark password={password} repeat={confirm} /> : null}
             {save.error && !fields.newPassword ? (
@@ -106,10 +109,10 @@ export default function WelcomePage() {
               loading={save.isPending}
               disabled={password.length < 10 || !confirm}
             >
-              Save and continue
+              {t.saveContinue}
             </Button>
             <Button variant="outline" fullWidth onClick={() => void logout()}>
-              Not you? Sign out
+              {t.notYou}
             </Button>
           </div>
         </form>

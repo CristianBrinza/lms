@@ -4,7 +4,8 @@ import { Lockup, LogoTile } from '@/components/brand/Logo';
 import { Avatar } from '@/components/ui';
 import { cx } from '@/lib/cx';
 import { fullName } from '@/lib/format';
-import { isActivePath, NAV_ITEMS } from './nav';
+import { uiT } from '../i18n';
+import { isActivePath, navItems } from './nav';
 
 /**
  * Navigation beside the page, from tablets up. On an iPad (and narrow windows) a rail: each place
@@ -12,7 +13,8 @@ import { isActivePath, NAV_ITEMS } from './nav';
  * page keeps the width. From desktop widths, the full white menu with names beside the icons.
  */
 export function SideNav() {
-  const items = NAV_ITEMS;
+  const t = uiT().nav;
+  const items = navItems();
   const user = useUser();
   const { pathname } = useLocation();
   return (
@@ -22,7 +24,7 @@ export function SideNav() {
         'w-[5.5rem] px-2 pb-3 pt-[max(1rem,var(--safe-top))] lg:top-4 lg:h-[calc(100dvh-2rem)] lg:w-64 lg:p-4',
       )}
     >
-      <Link to="/home" className="mx-auto rounded-2xl px-2 py-1.5 lg:mx-0" aria-label="LMS home">
+      <Link to="/home" className="mx-auto rounded-2xl px-2 py-1.5 lg:mx-0" aria-label={t.lmsHome}>
         <span className="lg:hidden">
           <LogoTile className="size-10" label={null} />
         </span>
@@ -30,7 +32,7 @@ export function SideNav() {
           <Lockup />
         </span>
       </Link>
-      <nav aria-label="Main" className="mt-6 lg:mt-8">
+      <nav aria-label={t.main} className="mt-6 lg:mt-8">
         <ul className="flex flex-col gap-1.5 lg:gap-1">
           {items.map((item) => {
             const active = isActivePath(pathname, item);
@@ -69,7 +71,7 @@ export function SideNav() {
       </nav>
       <Link
         to="/profile"
-        aria-label={`Profile: ${fullName(user)}`}
+        aria-label={t.profileOf(fullName(user))}
         className="press mx-auto mt-auto flex items-center gap-3 rounded-2xl p-1.5 hover:bg-ink-50 lg:mx-0 lg:p-2"
       >
         <Avatar person={user} size="md" />

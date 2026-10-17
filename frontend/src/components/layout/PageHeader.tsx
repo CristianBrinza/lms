@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { IconButton } from '@/components/ui';
 import { ArrowBackIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { uiT } from '../i18n';
 
 interface PageHeaderProps {
   title: ReactNode;
@@ -51,7 +52,7 @@ export function PageHeader({
         {back ? (
           <IconButton
             icon={ArrowBackIcon}
-            label="Back"
+            label={uiT().back}
             variant="outline"
             size="sm"
             onClick={goBack}
@@ -79,7 +80,7 @@ export function PageHeader({
         )}
       >
         {back ? (
-          <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} />
+          <IconButton icon={ArrowBackIcon} label={uiT().back} variant="outline" onClick={goBack} />
         ) : (
           <span />
         )}
@@ -98,7 +99,12 @@ export function PageHeader({
       {back || actions ? (
         <div className="flex min-h-12 items-center justify-between gap-3">
           {back ? (
-            <IconButton icon={ArrowBackIcon} label="Back" variant="outline" onClick={goBack} />
+            <IconButton
+              icon={ArrowBackIcon}
+              label={uiT().back}
+              variant="outline"
+              onClick={goBack}
+            />
           ) : (
             <span />
           )}

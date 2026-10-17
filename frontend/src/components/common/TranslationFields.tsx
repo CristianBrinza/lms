@@ -60,13 +60,8 @@ export function TranslationFields({
   const [open, setOpen] = useState(filled > 0);
 
   const set = (locale: Locale, key: string, text: string) => {
-    const entry = { ...(current[locale] ?? {}) };
-    if (text) entry[key] = text;
-    else delete entry[key];
-    const next: Translations = { ...current };
-    if (Object.keys(entry).length) next[locale] = entry;
-    else delete next[locale];
-    onChange(next);
+    // A cleared field is sent as '' (not left out), so the server's per-field merge clears it too.
+    onChange({ ...current, [locale]: { ...(current[locale] ?? {}), [key]: text } });
   };
 
   return (

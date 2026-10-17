@@ -21,12 +21,14 @@ import { formatAgo, fullName } from '@/lib/format';
 import { useCountUp } from '@/lib/useCountUp';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
-import type { ActivityEntry, AdminUser } from '@/types/api';
+import type { ActivityEntry, AdminUser, Role } from '@/types/api';
+import { useAdminT } from './i18n';
 
 type Filter = 'all' | 'admins' | 'members' | 'off';
 
 /** The admin console: everyone who has an account, and what changed lately. */
 export default function UsersPage() {
+  const t = useAdminT();
   const me = useUser();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
@@ -60,10 +62,10 @@ export default function UsersPage() {
   return (
     <Screen tone="white">
       <PageHeader
-        title="People"
+        title={t.people}
         back="/settings"
         actions={
-          <IconLink to="/admin/users/new" icon={PersonAddIcon} label="Add a person" variant="ink" />
+          <IconLink to="/admin/users/new" icon={PersonAddIcon} label={t.addPerson} variant="ink" />
         }
       />
 
@@ -73,31 +75,36 @@ export default function UsersPage() {
         <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start xl:gap-8">
           <div className="flex min-w-0 flex-col gap-4">
             <TextField
-              label="Search people"
+              label={t.searchLabel}
               hideLabel
               surface="raised"
               icon={SearchIcon}
               type="search"
-              placeholder="Search by name or email"
+              placeholder={t.searchPlaceholder}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               autoComplete="off"
             />
             <Chips<Filter>
-              label="Show"
+              label={t.show}
               tone="sheet"
               value={filter}
               onChange={setFilter}
               className="-mx-5 px-5 lg:-mx-1 lg:px-1"
               options={[
-                { value: 'all', label: 'All', count: counts.all, icon: GroupIcon },
-                { value: 'admins', label: 'Admins', count: counts.admins, icon: AdminIcon },
-                { value: 'members', label: 'Members', count: counts.members, icon: PersonIcon },
-                { value: 'off', label: 'Switched off', count: counts.off, icon: BlockIcon },
+                { value: 'all', label: t.filters.all, count: counts.all, icon: GroupIcon },
+                { value: 'admins', label: t.filters.admins, count: counts.admins, icon: AdminIcon },
+                {
+                  value: 'members',
+                  label: t.filters.members,
+                  count: counts.members,
+                  icon: PersonIcon,
+                },
+                { value: 'off', label: t.filters.off, count: counts.off, icon: BlockIcon },
               ]}
             />
 
-            <section aria-label="Accounts">
+            <section aria-label={t.accounts}>
               {users.isPending ? (
                 <div className="flex flex-col gap-4 rounded-[1.375rem] bg-white p-4 ring-1 ring-inset ring-ink-100">
                   {[0, 1, 2].map((i) => (
@@ -116,14 +123,8 @@ export default function UsersPage() {
                 </p>
               ) : shown.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 rounded-[1.375rem] bg-white px-6 py-10 text-center ring-1 ring-inset ring-ink-100">
-                  <p className="text-h3 font-bold">
-                    {q ? `No one matches “${q}”` : 'No one here yet'}
-                  </p>
-                  <p className="max-w-xs text-sm text-ink-600">
-                    {q
-                      ? 'Try part of a name or the email.'
-                      : 'Add family and friends: each gets their own sign-in.'}
-                  </p>
+                  <p className="text-h3 font-bold">{q ? t.noMatch(q) : t.noOne}</p>
+                  <p className="max-w-xs text-sm text-ink-600">{q ? t.tryPart : t.addFamily}</p>
                   {!q ? (
                     <ButtonLink
                       to="/admin/users/new"
@@ -131,7 +132,7 @@ export default function UsersPage() {
                       icon={PersonAddIcon}
                       className="mt-2"
                     >
-                      Add a person
+                      {t.addPerson}
                     </ButtonLink>
                   ) : null}
                 </div>
@@ -160,27 +161,28 @@ export default function UsersPage() {
 
 /** The learning app's stat tiles: four real counts, the first one in butter. */
 function Stats({ people }: { people: AdminUser[] }) {
+  const t = useAdminT().stats;
   const active = people.filter((person) => person.isActive);
   const tiles = [
     {
-      label: 'Can sign in',
+      label: t.canSignIn,
       value: active.length,
-      note: active.length === 1 ? 'active account' : 'active accounts',
+      note: t.activeAccounts(active.length),
     },
     {
-      label: 'Admins',
+      label: t.admins,
       value: active.filter((person) => person.role === 'admin').length,
-      note: 'manage accounts',
+      note: t.manage,
     },
     {
-      label: 'Not set up yet',
+      label: t.notSetUp,
       value: active.filter((person) => person.mustChangePassword).length,
-      note: 'no own password yet',
+      note: t.noPassword,
     },
     {
-      label: 'Signed in now',
+      label: t.signedInNow,
       value: active.reduce((sum, person) => sum + person.activeSessions, 0),
-      note: 'devices',
+      note: t.devices(active.reduce((sum, person) => sum + person.activeSessions, 0)),
     },
   ];
   return (
@@ -224,6 +226,7 @@ function CountUp({ value }: { value: number }) {
 }
 
 function PersonRow({ person, isMe }: { person: AdminUser; isMe: boolean }) {
+  const t = useAdminT();
   return (
     <Link
       to={`/admin/users/${person.id}`}
@@ -245,13 +248,13 @@ function PersonRow({ person, isMe }: { person: AdminUser; isMe: boolean }) {
         </span>
         <span className="block truncate text-sm text-ink-600">{person.email}</span>
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {isMe ? <Badge tone="lav">You</Badge> : null}
-          {person.role === 'admin' ? <Badge tone="ink">Admin</Badge> : null}
-          {!person.isActive ? <Badge tone="muted">Off</Badge> : null}
+          {isMe ? <Badge tone="lav">{t.you}</Badge> : null}
+          {person.role === 'admin' ? <Badge tone="ink">{t.adminBadge}</Badge> : null}
+          {!person.isActive ? <Badge tone="muted">{t.off}</Badge> : null}
           <span className="text-xs font-medium text-ink-500">
             {person.mustChangePassword
-              ? 'Hasn’t chosen a password yet'
-              : `Active ${formatAgo(person.lastSeenAt ?? person.lastLoginAt).toLowerCase()}`}
+              ? t.noPasswordYet
+              : t.activeAgo(formatAgo(person.lastSeenAt ?? person.lastLoginAt).toLowerCase())}
           </span>
         </span>
       </span>
@@ -260,38 +263,28 @@ function PersonRow({ person, isMe }: { person: AdminUser; isMe: boolean }) {
   );
 }
 
-const ACTIONS: Record<string, string> = {
-  'auth.login': 'signed in',
-  'auth.session_reuse': 'had a session ended (an old sign-in token was reused)',
-  'user.created': 'created an account for',
-  'user.updated': 'edited the details of',
-  'user.role_changed': 'changed the role of',
-  'user.deactivated': 'switched off',
-  'user.reactivated': 'switched back on',
-  'user.password_reset': 'reset the password of',
-  'user.password_changed': 'changed their password',
-  'user.signed_out': 'signed out every device of',
-  'user.deleted': 'deleted the account of',
-};
-
-function describe(entry: ActivityEntry): { who: string; what: string } {
-  const who = entry.actor?.name || 'Someone';
-  const verb = ACTIONS[entry.action] ?? entry.action;
+function describe(
+  entry: ActivityEntry,
+  t: ReturnType<typeof useAdminT>,
+): { who: string; what: string } {
+  const who = entry.actor?.name || t.someone;
+  const verb = t.actions[entry.action] ?? entry.action;
   const self = entry.actor && entry.target && entry.actor.id === entry.target.id;
   if (entry.action === 'auth.login' || entry.action === 'user.password_changed' || self)
     return { who, what: verb };
   const target =
     entry.target?.name ||
     (typeof entry.meta.name === 'string' ? entry.meta.name : '') ||
-    'a removed account';
+    t.removedAccount;
   const role =
     entry.action === 'user.role_changed' && typeof entry.meta.to === 'string'
-      ? ` (now ${entry.meta.to})`
+      ? t.nowRole(t.roles[entry.meta.to as Role] ?? entry.meta.to)
       : '';
   return { who, what: `${verb} ${target}${role}` };
 }
 
 function Activity() {
+  const t = useAdminT();
   const activity = useQuery({ queryKey: queryKeys.activity, queryFn: adminApi.activity });
   const entries = (activity.data ?? [])
     .filter((entry) => entry.action !== 'auth.login')
@@ -304,11 +297,11 @@ function Activity() {
     >
       <h2 id="activity-title" className="mb-2.5 flex items-center gap-2 px-1 text-h3 font-bold">
         <HistoryIcon fontSize="inherit" className="text-lav-800" />
-        Recent changes
+        {t.recent}
       </h2>
       <ol className="flex flex-col gap-2">
         {entries.map((entry) => {
-          const { who, what } = describe(entry);
+          const { who, what } = describe(entry, t);
           return (
             <li
               key={entry.id}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircleIcon, WifiOffIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { uiT } from '../i18n';
 
 type State = 'online' | 'offline' | 'back';
 
@@ -51,12 +52,12 @@ export function OfflineBanner() {
         {state === 'back' ? (
           <>
             <CheckCircleIcon fontSize="inherit" className="animate-pop text-base" />
-            Back online
+            {uiT().offline.back}
           </>
         ) : visible ? (
           <>
             <WifiOffIcon fontSize="inherit" className="text-base text-butter-300" />
-            You’re offline. Changes will wait.
+            {uiT().offline.away}
           </>
         ) : null}
       </span>

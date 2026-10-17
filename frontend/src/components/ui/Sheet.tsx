@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { cx } from '@/lib/cx';
 import { lockScroll } from '@/lib/scroll-lock';
+import { uiT } from '../i18n';
 import { CloseIcon } from './icons';
 
 interface SheetProps {
@@ -143,8 +144,8 @@ export function Sheet({
           <button
             type="button"
             onClick={requestClose}
-            aria-label="Close"
-            title="Close"
+            aria-label={uiT().close}
+            title={uiT().close}
             className="press -mr-1 -mt-1 flex size-10 shrink-0 items-center justify-center rounded-full bg-ink-900 text-[1.2rem] text-white hover:bg-ink-800"
           >
             <CloseIcon fontSize="inherit" />

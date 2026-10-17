@@ -12,14 +12,17 @@ import {
   ListRow,
   ListRowButton,
   ListRowLink,
+  Sheet,
   Skeleton,
   toast,
 } from '@/components/ui';
 import {
   AdminIcon,
+  CheckIcon,
   CloseIcon,
   DevicesIcon,
   InstallIcon,
+  LanguageIcon,
   LaptopIcon,
   LockIcon,
   PersonIcon,
@@ -29,11 +32,15 @@ import {
   SyncIcon,
 } from '@/components/ui/icons';
 import { NotificationsIcon } from './icons';
+import { settingsT } from './i18n';
 import { PeopleLink } from './PeopleLink';
 import { BUILD } from '@/build-info';
+import { LOCALE_NAMES, LOCALES, useLocale } from '@/i18n';
+import { useChangeLocale } from '@/i18n/I18nRoot';
 import { newBuildOnServer } from '@/lib/appUpdate';
 import { errorMessage } from '@/lib/errors';
 import { describeDevice, formatAgo, formatDate } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { currentPlatform } from '@/lib/platform';
 import { meApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
@@ -41,9 +48,12 @@ import type { DeviceSession } from '@/types/api';
 
 /** The app on this device, the devices signed in to this account, admin tools and sign-out. */
 export default function SettingsPage() {
+  const t = settingsT();
   const { isAdmin, logout } = useAuth();
+  const locale = useLocale();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [checking, setChecking] = useState(false);
   const standalone = currentPlatform().standalone;
 
@@ -51,14 +61,14 @@ export default function SettingsPage() {
     setChecking(true);
     try {
       if (await newBuildOnServer()) {
-        toast.info('Updating LMS…', { description: 'You stay signed in.' });
+        toast.info(t.updating, { description: t.staySignedIn });
         const registration = await navigator.serviceWorker?.getRegistration();
         await registration?.update().catch(() => undefined);
         // The update prompt takes over once the new version has downloaded; without a service
         // worker (development, private mode) a reload is the update.
         if (!registration) window.location.reload();
       } else {
-        toast.success('LMS is up to date');
+        toast.success(t.upToDate);
       }
     } finally {
       setChecking(false);
@@ -67,72 +77,78 @@ export default function SettingsPage() {
 
   return (
     <Screen tone="white">
-      <PageHeader title="Settings" />
+      <PageHeader title={t.title} />
       <div className="gutter-x mt-7 grid max-w-2xl gap-7 lg:max-w-none lg:grid-cols-2 lg:items-start lg:gap-8 lg:px-8 xl:max-w-6xl">
         <div className="flex flex-col gap-7">
-          <ListGroup title="This device">
+          <ListGroup title={t.thisDevice}>
             {standalone ? (
               <ListRow
                 icon={InstallIcon}
-                label="LMS app"
-                detail="Installed and running from your Home Screen"
-                trailing={<Badge tone="mint">Installed</Badge>}
+                label={t.lmsApp}
+                detail={t.lmsAppDetail}
+                trailing={<Badge tone="mint">{t.installed}</Badge>}
               />
             ) : (
               <ListRowLink
                 to="/app"
                 icon={InstallIcon}
-                label="Add to Home Screen"
-                detail="Full screen, stays signed in, updates by itself"
+                label={t.addToHome}
+                detail={t.addToHomeDetail}
               />
             )}
             <ListRowButton
               icon={SyncIcon}
-              label="Check for updates"
-              detail={`Version ${BUILD.version}`}
+              label={t.checkUpdates}
+              detail={t.version(BUILD.version)}
               onClick={() => void checkForUpdate()}
               disabled={checking}
             />
           </ListGroup>
 
-          <ListGroup title="Your account">
+          <ListGroup title={t.yourAccount}>
+            <ListRowButton
+              icon={LanguageIcon}
+              label={t.language}
+              detail={LOCALE_NAMES[locale]}
+              onClick={() => setLanguageOpen(true)}
+            />
             <ListRowButton
               icon={LockIcon}
-              label="Change password"
-              detail="Other devices sign out; this one stays"
+              label={t.changePassword}
+              detail={t.changePasswordDetail}
               onClick={() => setPasswordOpen(true)}
             />
             <ListRowLink
               to="/profile"
               icon={PersonIcon}
-              label="Profile"
-              detail="Your name and surname"
+              label={t.profile}
+              detail={t.profileDetail}
             />
           </ListGroup>
 
-          <ListGroup title="Kitchen">
+          <ListGroup title={t.kitchen}>
             <ListRowLink
               to="/settings/reminders"
               icon={NotificationsIcon}
-              label="Reminders"
-              detail="Shopping, expiring food, meals"
+              label={t.reminders}
+              detail={t.remindersDetail}
             />
             <PeopleLink />
             <ListRowLink
               to="/settings/ai"
               icon={SparkleIcon}
-              label="Claude access"
-              detail="Keys for Claude to use the kitchen"
+              label={t.claude}
+              detail={t.claudeDetail}
             />
           </ListGroup>
 
           {isAdmin ? (
-            <ListGroup title="Admin">
+            <ListGroup title={t.admin}>
               <ListRowLink
                 to="/admin/users"
                 icon={AdminIcon}
-                label="People and access"
-                detail="Create accounts, reset passwords, switch people off"
+                label={t.peopleAccess}
+                detail={t.peopleAccessDetail}
               />
             </ListGroup>
           ) : null}
@@ -143,25 +159,71 @@ export default function SettingsPage() {
           <ListGroup>
             <ListRowButton
               icon={LogoutIcon}
-              label="Sign out"
-              detail="On this device only"
+              label={t.signOut}
+              detail={t.signOutDetail}
               onClick={() => setConfirmSignOut(true)}
             />
           </ListGroup>
         </div>
       </div>
 
+      <LanguageSheet open={languageOpen} onClose={() => setLanguageOpen(false)} />
       <PasswordSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
       <ConfirmSheet
         open={confirmSignOut}
         onClose={() => setConfirmSignOut(false)}
         onConfirm={() => void logout()}
-        title="Sign out of LMS?"
-        description="You’ll need your email and password to come back on this device."
-        confirmLabel="Sign out"
+        title={t.signOutTitle}
+        description={t.signOutLine}
+        confirmLabel={t.signOut}
         tone="danger"
       />
     </Screen>
+  );
+}
+
+/**
+ * The language, for the person: each one in its own words, the chosen one ticked. Switching
+ * redraws the app at once and is saved on the account, so other devices follow.
+ */
+function LanguageSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = settingsT();
+  const locale = useLocale();
+  const changeLocale = useChangeLocale();
+  return (
+    <Sheet open={open} onClose={onClose} title={t.language} description={t.languageDetail}>
+      <div
+        role="radiogroup"
+        aria-label={t.language}
+        className="divide-y divide-ink-100 overflow-hidden rounded-3xl bg-white ring-1 ring-inset ring-ink-100"
+      >
+        {LOCALES.map((option) => {
+          const active = option === locale;
+          return (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              lang={option}
+              onClick={() => {
+                haptic('tap');
+                onClose();
+                if (!active) changeLocale(option);
+              }}
+              className="press flex min-h-14 w-full items-center gap-3.5 px-4 py-3 text-left transition-colors hover:bg-ink-50 active:bg-ink-100"
+            >
+              <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-ink-900">
+                {LOCALE_NAMES[option]}
+              </span>
+              {active ? (
+                <CheckIcon fontSize="inherit" className="shrink-0 text-[1.4rem] text-ink-900" />
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </Sheet>
   );
 }
 
@@ -169,6 +231,7 @@ export default function SettingsPage() {
 const DEVICES_SHOWN = 5;
 
 function Devices() {
+  const t = settingsT();
   const queryClient = useQueryClient();
   const sessions = useQuery({ queryKey: queryKeys.sessions, queryFn: meApi.sessions });
   const [confirmOthers, setConfirmOthers] = useState(false);
@@ -177,7 +240,7 @@ function Devices() {
   const end = useMutation({
     mutationFn: (id: string) => meApi.endSession(id),
     onSuccess: () => {
-      toast.success('That device is signed out');
+      toast.success(t.deviceSignedOut);
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -186,7 +249,7 @@ function Devices() {
     mutationFn: meApi.signOutOthers,
     onSuccess: () => {
       setConfirmOthers(false);
-      toast.success('Signed out everywhere else');
+      toast.success(t.othersSignedOut);
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -201,10 +264,10 @@ function Devices() {
   return (
     <section>
       <div className="mb-2.5 flex items-center justify-between gap-3 px-1">
-        <h2 className="text-h3 font-bold text-ink-900">Signed in on</h2>
+        <h2 className="text-h3 font-bold text-ink-900">{t.signedInOn}</h2>
         {hasOthers ? (
           <Button variant="soft" size="sm" className="-my-2" onClick={() => setConfirmOthers(true)}>
-            Sign out others
+            {t.signOutOthers}
           </Button>
         ) : null}
       </div>
@@ -217,7 +280,7 @@ function Devices() {
         ) : sessions.isError ? (
           <ListRow
             icon={DevicesIcon}
-            label="Couldn’t load your devices"
+            label={t.devicesFailed}
             detail={errorMessage(sessions.error)}
           />
         ) : (
@@ -237,7 +300,7 @@ function Devices() {
                 aria-expanded={showAll}
                 className="flex min-h-12 w-full items-center justify-center text-sm font-semibold text-lav-700 transition-colors hover:bg-ink-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-lav-600 active:bg-ink-100"
               >
-                {showAll ? 'Show fewer' : `Show all ${list.length}`}
+                {showAll ? t.showFewer : t.showAll(list.length)}
               </button>
             ) : null}
           </>
@@ -248,9 +311,9 @@ function Devices() {
         onClose={() => setConfirmOthers(false)}
         onConfirm={() => others.mutate()}
         loading={others.isPending}
-        title="Sign out every other device?"
-        description="This device stays signed in. The others will need your password again."
-        confirmLabel="Sign them out"
+        title={t.othersTitle}
+        description={t.othersLine}
+        confirmLabel={t.othersConfirm}
       />
     </section>
   );
@@ -265,6 +328,7 @@ function DeviceRow({
   onEnd: () => void;
   ending: boolean;
 }) {
+  const t = settingsT();
   const name = describeDevice(session.userAgent);
   const mobile = /iPhone|iPad|Android/.test(name);
   return (
@@ -273,19 +337,19 @@ function DeviceRow({
       label={name}
       detail={
         session.current
-          ? `Signed in ${formatDate(session.createdAt)}`
-          : `Last used ${formatAgo(session.lastUsedAt).toLowerCase()}`
+          ? t.signedInAt(formatDate(session.createdAt))
+          : t.lastUsed(formatAgo(session.lastUsedAt).toLowerCase())
       }
       trailing={
         session.current ? (
-          <Badge tone="ink">This device</Badge>
+          <Badge tone="ink">{t.thisDeviceBadge}</Badge>
         ) : (
           <button
             type="button"
             onClick={onEnd}
             disabled={ending}
-            aria-label={`Sign out ${name}`}
-            title="Sign out this device"
+            aria-label={t.signOutDevice(name)}
+            title={t.signOutThisDevice}
             className="press flex size-11 shrink-0 items-center justify-center rounded-full text-[1.25rem] text-ink-500 hover:bg-danger-50 hover:text-danger-600 disabled:opacity-40"
           >
             <CloseIcon fontSize="inherit" />

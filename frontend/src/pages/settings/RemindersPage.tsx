@@ -19,6 +19,7 @@ import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodKeys, remindersApi } from '@/food/api';
 import type { Reminder } from '@/food/types';
+import { tr } from '@/i18n';
 import {
   NotificationsActiveIcon,
   NotificationsIcon,
@@ -32,7 +33,15 @@ import {
   subscribeDevice,
   unsubscribeDevice,
 } from './push';
-import { daysLabel, DAYS, KIND_LABEL, MINUTES_BEFORE, reminderWhen } from './reminderText';
+import { settingsT } from './i18n';
+import {
+  DAY_VALUES,
+  daysLabel,
+  kindLabel,
+  MINUTES_BEFORE,
+  reminderWhen,
+  weekDays,
+} from './reminderText';
 
 type RemindersData = Awaited<ReturnType<typeof remindersApi.list>>;
 const deviceKey = ['me', 'push', 'device'] as const;
@@ -43,6 +52,7 @@ const deviceKey = ['me', 'push', 'device'] as const;
  * arrives without them), then the reminders. Tablets and up: reminders left, this device beside.
  */
 export default function RemindersPage() {
+  const t = settingsT();
   const queryClient = useQueryClient();
   const data = useQuery({ queryKey: foodKeys.reminders, queryFn: remindersApi.list });
   const [editing, setEditing] = useState<{ open: boolean; reminder: Reminder | null }>({
@@ -67,12 +77,7 @@ export default function RemindersPage() {
 
   return (
     <Screen tone="white">
-      <PageHeader
-        compact
-        back="/settings"
-        title="Reminders"
-        subtitle="On your phone, from the kitchen as it is"
-      />
+      <PageHeader compact back="/settings" title={t.reminders} subtitle={t.remindersSubtitle} />
 
       <div className="gutter-x mt-3 md:grid md:grid-cols-[minmax(0,1fr)_19rem] md:items-start md:gap-4 md:px-5 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-6 lg:px-8">
         <div className="md:sticky md:top-4 md:col-start-2 md:row-start-1">
@@ -89,7 +94,7 @@ export default function RemindersPage() {
         >
           <div className="mb-1.5 flex items-center justify-between gap-3 px-1">
             <h2 id="reminders-title" className="text-[0.9375rem] font-bold">
-              What to remind you of
+              {t.whatToRemind}
             </h2>
             <button
               type="button"
@@ -97,7 +102,7 @@ export default function RemindersPage() {
               className="press -my-1 flex h-11 shrink-0 items-center gap-1 rounded-pill bg-lav-100 px-3.5 text-sm font-semibold text-ink-900 hover:bg-lav-200"
             >
               <AddIcon fontSize="inherit" className="text-[1.15rem]" />
-              Add your own
+              {t.addOwn}
             </button>
           </div>
           {data.isPending ? (
@@ -108,10 +113,10 @@ export default function RemindersPage() {
             </div>
           ) : data.error ? (
             <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-              <p className="font-semibold text-danger-700">Couldn’t load your reminders</p>
+              <p className="font-semibold text-danger-700">{t.remindersFailed}</p>
               <p className="mt-1 text-sm text-ink-600">{errorMessage(data.error)}</p>
               <Button size="sm" variant="tint" className="mt-3" onClick={() => void data.refetch()}>
-                Try again
+                {t.tryAgain}
               </Button>
             </div>
           ) : (
@@ -149,8 +154,9 @@ function ReminderRow({
   onOpen: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
+  const t = settingsT();
   const custom = reminder.kind === 'custom';
-  const title = custom ? reminder.text || 'Your reminder' : KIND_LABEL[reminder.kind];
+  const title = custom ? tr(reminder, 'text') || t.yourReminder : kindLabel(reminder.kind);
   const when = reminderWhen(reminder);
   return (
     <li className="flex items-center">
@@ -169,7 +175,7 @@ function ReminderRow({
             {title}
           </span>
           <span className="tabular mt-0.5 block truncate text-sm text-ink-600">
-            {custom ? 'Your own · ' : ''}
+            {custom ? t.yourOwn : ''}
             {when}
           </span>
         </span>
@@ -228,10 +234,11 @@ function ReminderSheet({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const t = settingsT();
   const kind = reminder?.kind ?? 'custom';
   const [time, setTime] = useState('18:00');
   const [minutes, setMinutes] = useState(45);
-  const [days, setDays] = useState<number[]>(DAYS.map((d) => d.value));
+  const [days, setDays] = useState<number[]>([...DAY_VALUES]);
   const [text, setText] = useState('');
 
   const [wasOpen, setWasOpen] = useState(open);
@@ -240,7 +247,7 @@ function ReminderSheet({
     if (open) {
       setTime(reminder?.time ?? '18:00');
       setMinutes(reminder?.minutesBefore ?? 45);
-      setDays(reminder?.days.length ? [...reminder.days] : DAYS.map((d) => d.value));
+      setDays(reminder?.days.length ? [...reminder.days] : [...DAY_VALUES]);
       setText(reminder?.text ?? '');
     }
   }
@@ -258,7 +265,7 @@ function ReminderSheet({
         : remindersApi.create({ ...body, kind: 'custom', enabled: true });
     },
     onSuccess: () => {
-      toast.success(reminder ? 'Reminder saved' : 'Reminder added');
+      toast.success(reminder ? t.saved : t.added);
       void refresh();
       onClose();
     },
@@ -266,7 +273,7 @@ function ReminderSheet({
   const remove = useMutation({
     mutationFn: () => remindersApi.remove(reminder!.id),
     onSuccess: () => {
-      toast.success('Reminder deleted');
+      toast.success(t.deleted);
       void refresh();
       onClose();
     },
@@ -285,17 +292,17 @@ function ReminderSheet({
     value,
     label:
       value < 60
-        ? `${value} min`
+        ? t.minutes(value)
         : value % 60
-          ? `${Math.floor(value / 60)} h ${value % 60}`
-          : `${value / 60} h`,
+          ? t.hoursMinutes(Math.floor(value / 60), value % 60)
+          : t.hours(value / 60),
   }));
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title={reminder ? (kind === 'custom' ? 'Your reminder' : KIND_LABEL[kind]) : 'New reminder'}
+      title={reminder ? (kind === 'custom' ? t.yourReminder : kindLabel(kind)) : t.newReminder}
       footer={
         <div className="flex flex-col gap-2">
           {save.isError && !Object.keys(fields).length ? (
@@ -307,7 +314,7 @@ function ReminderSheet({
             loading={save.isPending}
             disabled={!ready}
           >
-            {reminder ? 'Save' : 'Add reminder'}
+            {reminder ? t.save : t.addReminder}
           </Button>
         </div>
       }
@@ -321,8 +328,8 @@ function ReminderSheet({
       >
         {kind === 'custom' ? (
           <TextField
-            label="Say"
-            placeholder="On the way home? Check the list."
+            label={t.say}
+            placeholder={t.sayPlaceholder}
             value={text}
             onChange={(event) => setText(event.target.value)}
             error={fields.text}
@@ -332,12 +339,10 @@ function ReminderSheet({
         ) : null}
         {kind === 'meal' ? (
           <div>
-            <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
-              Before each planned meal
-            </p>
+            <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.beforeEachMeal}</p>
             <div
               role="radiogroup"
-              aria-label="Minutes before"
+              aria-label={t.minutesBefore}
               className="grid grid-cols-3 gap-1 sm:grid-cols-6"
             >
               {minuteOptions.map((option) => (
@@ -361,7 +366,7 @@ function ReminderSheet({
           </div>
         ) : (
           <TextField
-            label="At"
+            label={t.at}
             type="time"
             value={time}
             onChange={(event) => setTime(event.target.value)}
@@ -371,13 +376,13 @@ function ReminderSheet({
         )}
         <fieldset>
           <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
-            On{' '}
+            {t.on}{' '}
             <span className="font-medium text-ink-500">
-              · {days.length ? daysLabel(days) : 'pick at least one day'}
+              · {days.length ? daysLabel(days) : t.pickDay}
             </span>
           </legend>
           <div className="grid grid-cols-7 gap-1">
-            {DAYS.map((day) => {
+            {weekDays().map((day) => {
               const on = days.includes(day.value);
               return (
                 <button
@@ -415,7 +420,7 @@ function ReminderSheet({
             loading={remove.isPending}
             onClick={() => remove.mutate()}
           >
-            Delete reminder
+            {t.deleteReminder}
           </Button>
         ) : null}
       </form>
@@ -427,6 +432,7 @@ function ReminderSheet({
 
 function DevicePanel({ push }: { push: RemindersData['push'] }) {
   const queryClient = useQueryClient();
+  const t = settingsT();
   const support = pushSupport();
   const device = useQuery({
     queryKey: deviceKey,
@@ -441,13 +447,13 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
 
   const turnOn = useMutation({
     mutationFn: async () => {
-      if (!push.publicKey) throw new PushError('Reminders aren’t set up on the server yet.');
+      if (!push.publicKey) throw new PushError(t.notSetUp);
       const subscription = await subscribeDevice(push.publicKey);
       return remindersApi.subscribe(subscription.toJSON());
     },
     onSuccess: () => {
       haptic('success');
-      toast.success('Notifications are on', { description: 'Send a test to see one.' });
+      toast.success(t.notificationsOn, { description: t.sendTestHint });
       refresh();
     },
     onError: (error) =>
@@ -459,31 +465,25 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
       if (endpoint) await remindersApi.unsubscribe(endpoint);
     },
     onSuccess: () => {
-      toast.success('Notifications are off on this device');
+      toast.success(t.notificationsOff);
       refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
   const test = useMutation({
     mutationFn: remindersApi.test,
-    onSuccess: ({ sent }) =>
-      toast.success(sent === 1 ? 'Test sent' : `Test sent to ${sent} devices`),
+    onSuccess: ({ sent }) => toast.success(t.testSent(sent)),
     onError: (error) => toast.error(errorMessage(error)),
   });
 
-  const devices =
-    push.devices === 0
-      ? 'No device gets them yet'
-      : push.devices === 1
-        ? 'They go to 1 device'
-        : `They go to ${push.devices} devices`;
+  const devices = t.devices(push.devices);
   let tone = 'bg-ink-100 text-ink-700';
   let Icon: IconComponent = NotificationsOffIcon;
-  let headline = 'Off on this device';
+  let headline = t.offHere;
   if (on) {
     tone = 'bg-mint-200 text-mint-800';
     Icon = NotificationsActiveIcon;
-    headline = 'On on this device';
+    headline = t.onHere;
   } else if (support === 'ok' && push.available) {
     tone = 'bg-butter-300 text-ink-900';
     Icon = NotificationsIcon;
@@ -510,22 +510,18 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
           </h2>
           <p className="mt-0.5 text-[0.8125rem] font-medium text-ink-600">{devices}</p>
         </div>
-        {on ? <Badge tone="mint">On</Badge> : null}
+        {on ? <Badge tone="mint">{t.onBadge}</Badge> : null}
       </div>
 
       <div className="mt-3 flex flex-col gap-2">
         {!push.available ? (
-          <p className="rounded-2xl bg-ink-50 p-3 text-sm text-ink-700">
-            Reminders aren’t set up on the server yet.
-          </p>
+          <p className="rounded-2xl bg-ink-50 p-3 text-sm text-ink-700">{t.notSetUp}</p>
         ) : support === 'install-first' ? (
           <ButtonLink to="/app" variant="primary" size="md" icon={InstallIcon} fullWidth>
-            Add LMS to the Home Screen
+            {t.addToHomeScreen}
           </ButtonLink>
         ) : support === 'unsupported' ? (
-          <p className="rounded-2xl bg-ink-50 p-3 text-sm text-ink-700">
-            This browser can’t show notifications.
-          </p>
+          <p className="rounded-2xl bg-ink-50 p-3 text-sm text-ink-700">{t.noNotifications}</p>
         ) : device.isLoading ? (
           <Skeleton className="h-12 rounded-pill" />
         ) : on ? (
@@ -538,7 +534,7 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
               loading={test.isPending}
               onClick={() => test.mutate()}
             >
-              Send a test
+              {t.sendTest}
             </Button>
             <Button
               variant="outline"
@@ -548,7 +544,7 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
               loading={turnOff.isPending}
               onClick={() => turnOff.mutate()}
             >
-              Turn off on this device
+              {t.turnOff}
             </Button>
           </>
         ) : (
@@ -566,7 +562,7 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
               ) : (
                 <NotificationsActiveIcon fontSize="inherit" className="shrink-0 text-[1.3rem]" />
               )}
-              Turn on notifications on this device
+              {t.turnOn}
             </button>
             {push.devices > 0 ? (
               <Button
@@ -577,14 +573,12 @@ function DevicePanel({ push }: { push: RemindersData['push'] }) {
                 loading={test.isPending}
                 onClick={() => test.mutate()}
               >
-                Send a test
+                {t.sendTest}
               </Button>
             ) : null}
           </>
         )}
-        <p className="px-1 text-xs leading-snug text-ink-500">
-          On iPhone and iPad, notifications work only from the Home Screen app (iOS 16.4 or later).
-        </p>
+        <p className="px-1 text-xs leading-snug text-ink-500">{t.iosNote}</p>
       </div>
     </section>
   );

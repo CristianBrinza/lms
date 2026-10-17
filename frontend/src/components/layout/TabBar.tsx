@@ -3,7 +3,8 @@ import { Link, useLocation, useNavigation } from 'react-router';
 import { cx } from '@/lib/cx';
 import { haptic } from '@/lib/haptics';
 import { setNavDirection } from '@/lib/navDirection';
-import { isActivePath, NAV_ITEMS } from './nav';
+import { uiT } from '../i18n';
+import { isActivePath, navItems } from './nav';
 
 /**
  * The bottom menu: Rounded icons, each with its name underneath, every tab the full width of its
@@ -11,7 +12,7 @@ import { isActivePath, NAV_ITEMS } from './nav';
  * on the chosen tab; the icon darkens with a small pop. Phones only; tablets and desktops get SideNav.
  */
 export function TabBar() {
-  const items = NAV_ITEMS;
+  const items = navItems();
   const location = useLocation();
   // While a tab's page loads, it already shows as chosen: the tap answers at once.
   const pending = useNavigation().location;
@@ -37,7 +38,7 @@ export function TabBar() {
   return (
     <nav
       ref={navRef}
-      aria-label="Main"
+      aria-label={uiT().nav.main}
       className="fixed inset-x-0 bottom-0 z-40 bg-white px-1 pb-[max(0.25rem,var(--safe-bottom))] pt-1 shadow-[0_-1px_0_rgb(42_43_102/0.08),0_-10px_24px_-18px_rgb(42_43_102/0.4)] [view-transition-name:tabbar] md:hidden"
     >
       <ul className="mx-auto flex max-w-lg items-stretch">
@@ -74,7 +75,7 @@ export function TabBar() {
                 </span>
                 <span
                   className={cx(
-                    'text-[0.75rem] leading-none',
+                    'max-w-full truncate px-0.5 text-[0.75rem] leading-none',
                     active ? 'font-bold' : 'font-medium',
                   )}
                 >

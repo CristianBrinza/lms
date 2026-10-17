@@ -1,0 +1,92 @@
+import { messages } from '@/i18n';
+
+/** Your profile (the body fields, photo and paydays are in ProfileFields' dictionary). */
+export const useProfilePageT = messages({
+  en: {
+    title: 'Profile',
+    yourAccount: 'Your account',
+    roleLine: (admin: boolean): string =>
+      admin
+        ? 'Admin: you can add and manage everyone’s accounts.'
+        : 'Member: the admin manages accounts.',
+    since: (date: string) => `Since ${date}`,
+    details: 'Your details',
+    detailsLine: 'Name and surname',
+    about: 'About you',
+    aboutUse: 'Used for training plans and health numbers.',
+    born: (date: string) => `born ${date}`,
+    cm: (cm: number) => `${cm} cm`,
+    aboutEmpty: 'Gender, birth date, height',
+    password: 'Password',
+    passwordLine: 'Change it any time',
+    settings: 'Settings',
+    settingsLine: 'This device, signed-in devices',
+    signOut: 'Sign out',
+    signOutLine: 'On this device',
+    saved: 'Saved',
+    name: 'Name',
+    surname: 'Surname',
+    email: 'Email',
+    emailHint: 'Only an admin can change your email.',
+    saveDetails: 'Save details',
+    save: 'Save',
+  },
+  ro: {
+    title: 'Profil',
+    yourAccount: 'Contul tău',
+    roleLine: (admin: boolean) =>
+      admin
+        ? 'Administrator: poți adăuga și gestiona conturile tuturor.'
+        : 'Membru: conturile le gestionează administratorul.',
+    since: (date: string) => `Din ${date}`,
+    details: 'Datele tale',
+    detailsLine: 'Prenumele și numele',
+    about: 'Despre tine',
+    aboutUse: 'Pentru planurile de antrenament și indicatorii de sănătate.',
+    born: (date: string) => `data nașterii: ${date}`,
+    cm: (cm: number) => `${cm} cm`,
+    aboutEmpty: 'Gen, data nașterii, înălțime',
+    password: 'Parola',
+    passwordLine: 'Schimb-o oricând',
+    settings: 'Setări',
+    settingsLine: 'Acest dispozitiv, dispozitivele conectate',
+    signOut: 'Ieși din cont',
+    signOutLine: 'Pe acest dispozitiv',
+    saved: 'Salvat',
+    name: 'Prenume',
+    surname: 'Nume',
+    email: 'Email',
+    emailHint: 'Doar un administrator îți poate schimba emailul.',
+    saveDetails: 'Salvează datele',
+    save: 'Salvează',
+  },
+  ru: {
+    title: 'Профиль',
+    yourAccount: 'Ваш аккаунт',
+    roleLine: (admin: boolean) =>
+      admin
+        ? 'Администратор: вы можете добавлять аккаунты и управлять ими.'
+        : 'Участник: аккаунтами управляет администратор.',
+    since: (date: string) => `С ${date}`,
+    details: 'Ваши данные',
+    detailsLine: 'Имя и фамилия',
+    about: 'О вас',
+    aboutUse: 'Нужно для планов тренировок и показателей здоровья.',
+    born: (date: string) => `дата рождения: ${date}`,
+    cm: (cm: number) => `${cm} см`,
+    aboutEmpty: 'Пол, дата рождения, рост',
+    password: 'Пароль',
+    passwordLine: 'Можно сменить в любой момент',
+    settings: 'Настройки',
+    settingsLine: 'Это устройство и другие, где выполнен вход',
+    signOut: 'Выйти',
+    signOutLine: 'На этом устройстве',
+    saved: 'Сохранено',
+    name: 'Имя',
+    surname: 'Фамилия',
+    email: 'Эл. почта',
+    emailHint: 'Почту может изменить только администратор.',
+    saveDetails: 'Сохранить данные',
+    save: 'Сохранить',
+  },
+});

@@ -7,10 +7,12 @@ import { I18nRoot } from '@/i18n/I18nRoot';
 import { hideSplash } from '@/lib/splash';
 import { queryClient } from '@/services/queries';
 import { AuthProvider, useAuth } from './auth';
+import { useAppT } from './i18n';
 import { getRouter } from './router';
 
 /** Waits for the session check (under the splash) so guards never flash the wrong screen. */
 function AuthGate() {
+  const t = useAppT();
   const { status, retry } = useAuth();
   if (status === 'loading') return null;
   if (status === 'error') {
@@ -21,13 +23,10 @@ function AuthGate() {
           <span className="mx-auto mb-6 inline-flex size-16 items-center justify-center rounded-full bg-white text-[2rem] text-peach-800 shadow-card">
             <WarningIcon fontSize="inherit" />
           </span>
-          <h1 className="text-h1 font-extrabold">LMS can’t connect</h1>
-          <p className="mt-3 text-ink-700">
-            Check your connection. If it works elsewhere, the server may be restarting; try again in
-            a minute.
-          </p>
+          <h1 className="text-h1 font-extrabold">{t.cantConnect}</h1>
+          <p className="mt-3 text-ink-700">{t.cantConnectLine}</p>
           <Button className="mt-8" icon={RefreshIcon} onClick={retry}>
-            Try again
+            {t.tryAgain}
           </Button>
         </div>
       </main>

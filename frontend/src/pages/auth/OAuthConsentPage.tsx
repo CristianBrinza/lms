@@ -6,14 +6,9 @@ import { LogoTile } from '@/components/brand/Logo';
 import { Button, Chips, Skeleton } from '@/components/ui';
 import { errorMessage } from '@/lib/errors';
 import { api } from '@/services/api/client';
+import { useAuthT } from './i18n';
 
 type Scope = 'food:read' | 'food' | 'admin';
-
-const SCOPE_LABEL: Record<Scope, string> = {
-  'food:read': 'Read only',
-  food: 'Kitchen',
-  admin: 'Everything',
-};
 
 /**
  * "Connect Claude Code to LMS?" — where an assistant (Claude Code, Codex, claude.ai, ChatGPT)
@@ -22,6 +17,7 @@ const SCOPE_LABEL: Record<Scope, string> = {
  * code, which it trades for an access key (backend/src/modules/oauth.ts).
  */
 export default function OAuthConsentPage() {
+  const t = useAuthT();
   const { user } = useAuth();
   const [params] = useSearchParams();
   const clientId = params.get('client_id') ?? '';
@@ -67,7 +63,7 @@ export default function OAuthConsentPage() {
     },
   });
 
-  const name = client.data?.name ?? 'An assistant';
+  const name = client.data?.name ?? t.anAssistant;
   const returnsTo = (() => {
     try {
       return new URL(redirectUri).host;
@@ -87,13 +83,10 @@ export default function OAuthConsentPage() {
         {broken ? (
           <>
             <h1 className="mt-7 text-center text-[2rem] font-bold leading-[1.1] tracking-[-0.03em]">
-              This link doesn’t work
+              {t.brokenTitle}
             </h1>
             <p className="mx-auto mt-3 max-w-xs text-center text-base font-medium text-butter-800">
-              {client.isError
-                ? errorMessage(client.error)
-                : 'It’s missing what the assistant should have sent.'}{' '}
-              Start connecting again from the assistant.
+              {client.isError ? errorMessage(client.error) : t.missing} {t.startAgain}
             </p>
           </>
         ) : (
@@ -102,27 +95,26 @@ export default function OAuthConsentPage() {
               {client.isPending ? (
                 <Skeleton className="mx-auto h-9 w-56 bg-butter-200" />
               ) : (
-                <>Connect {name}?</>
+                t.connectTitle(name)
               )}
             </h1>
             <p className="mx-auto mt-3 max-w-xs text-center text-base font-medium text-butter-800">
-              It will use LMS as {user?.name}. You can disconnect it any time in Settings → Claude
-              access.
+              {t.actsAs(user?.name ?? '')}
             </p>
 
             <div className="mt-7 flex flex-col gap-3 rounded-[1.75rem] bg-white p-5 shadow-[0_20px_40px_-28px_rgb(110_80_0/0.6)]">
-              <p className="text-[0.8125rem] font-semibold text-ink-700">What it may do</p>
+              <p className="text-[0.8125rem] font-semibold text-ink-700">{t.mayDo}</p>
               <Chips
-                label="What it may do"
+                label={t.mayDo}
                 tone="sheet"
                 dense
                 value={scope}
                 onChange={setScope}
-                options={options.map((value) => ({ value, label: SCOPE_LABEL[value] }))}
+                options={options.map((value) => ({ value, label: t.scope[value] }))}
               />
               <p className="text-sm text-ink-600">{client.data?.scopes[scope]}</p>
               <p className="border-t border-ink-100 pt-3 text-sm text-ink-600">
-                Returns to <span className="font-semibold text-ink-800">{returnsTo}</span>
+                {t.returnsTo} <span className="font-semibold text-ink-800">{returnsTo}</span>
               </p>
               {answer.error ? (
                 <p className="text-sm font-medium text-danger-600">{errorMessage(answer.error)}</p>
@@ -136,7 +128,7 @@ export default function OAuthConsentPage() {
                 disabled={client.isPending || answer.isPending || leaving}
                 onClick={() => answer.mutate(true)}
               >
-                Connect
+                {t.connect}
               </Button>
               <Button
                 variant="outline"
@@ -144,7 +136,7 @@ export default function OAuthConsentPage() {
                 disabled={answer.isPending || leaving}
                 onClick={() => answer.mutate(false)}
               >
-                Cancel
+                {t.cancel}
               </Button>
             </div>
           </>

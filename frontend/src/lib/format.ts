@@ -1,4 +1,5 @@
 import { getLocale, intlLocale, type Locale } from '@/i18n';
+import { libT } from './i18n';
 
 /** Dates and names, in the app's language (English, Romanian or Russian). */
 
@@ -28,7 +29,8 @@ const timeFormat = cached(
 const relativeFormat = cached((tag) => new Intl.RelativeTimeFormat(tag, { numeric: 'auto' }));
 const shortDate = { format: (date: Date) => shortDateFormat().format(date) };
 const relative = {
-  format: (value: number, unit: Intl.RelativeTimeFormatUnit) => relativeFormat().format(value, unit),
+  format: (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+    relativeFormat().format(value, unit),
 };
 
 export const formatDay = (date: Date) => dayFormat().format(date);
@@ -36,11 +38,11 @@ export const formatDate = (iso: string) => shortDate.format(new Date(iso));
 
 /** "just now", "5 minutes ago", "yesterday", then a date. */
 export function formatAgo(iso: string | null, now: Date = new Date()): string {
-  if (!iso) return 'Never';
+  if (!iso) return libT().never;
   const then = new Date(iso);
   const seconds = Math.round((then.getTime() - now.getTime()) / 1000);
   const abs = Math.abs(seconds);
-  if (abs < 60) return 'Just now';
+  if (abs < 60) return libT().justNow;
   if (abs < 3600) return relative.format(Math.round(seconds / 60), 'minute');
   if (abs < 86_400) return relative.format(Math.round(seconds / 3600), 'hour');
   if (abs < 7 * 86_400) return relative.format(Math.round(seconds / 86_400), 'day');
@@ -80,10 +82,10 @@ export function describeDevice(userAgent: string): string {
         : /Macintosh|Mac OS X/.test(ua)
           ? 'Mac'
           : /Windows/.test(ua)
-            ? 'Windows PC'
+            ? libT().windowsPc
             : /Linux/.test(ua)
               ? 'Linux'
-              : 'Device';
+              : libT().device;
   const browser = /EdgiOS|EdgA|Edg\//.test(ua)
     ? 'Edge'
     : /SamsungBrowser/.test(ua)

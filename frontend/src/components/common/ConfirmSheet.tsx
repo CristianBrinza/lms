@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, Sheet } from '@/components/ui';
+import { uiT } from '../i18n';
 
 interface ConfirmSheetProps {
   open: boolean;
@@ -31,7 +32,7 @@ export function ConfirmSheet({
       footer={
         <div className="flex flex-col gap-2.5">
           <Button variant="outline" fullWidth onClick={onClose}>
-            Cancel
+            {uiT().cancel}
           </Button>
           <Button
             variant={tone === 'danger' ? 'danger' : 'primary'}

@@ -12,28 +12,18 @@ import { formatAgo, formatDate } from '@/lib/format';
 import { foodKeys, keysApi } from '@/food/api';
 import type { AccessKey } from '@/food/types';
 import { HubIcon, TerminalIcon } from './icons';
+import { settingsT } from './i18n';
 
 type Scope = AccessKey['scope'];
-
-const SCOPE_LABEL: Record<Scope, string> = {
-  'food:read': 'Read only',
-  food: 'Kitchen',
-  admin: 'Everything',
-};
-const SCOPE_HINT: Record<Scope, string> = {
-  'food:read': 'Claude can look at the kitchen, recipes, lists and plan, and change nothing.',
-  food: 'Claude can read and change everything in Food.',
-  admin: 'Food, plus managing people’s accounts.',
-};
 
 const origin = () => window.location.origin;
 
 async function copy(text: string, what: string) {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success(`${what} copied`);
+    toast.success(settingsT().copied(what));
   } catch {
-    toast.error('Couldn’t copy. Select it and copy by hand.');
+    toast.error(settingsT().copyFailed);
   }
 }
 
@@ -42,6 +32,7 @@ async function copy(text: string, what: string) {
  * when it is made. Nothing here calls an AI; Claude calls LMS. Tablets and up: keys beside the how-to.
  */
 export default function AiAccessPage() {
+  const t = settingsT();
   const queryClient = useQueryClient();
   const keys = useQuery({ queryKey: foodKeys.keys, queryFn: keysApi.list });
   const [creating, setCreating] = useState(false);
@@ -50,7 +41,7 @@ export default function AiAccessPage() {
   const revoke = useMutation({
     mutationFn: (id: string) => keysApi.revoke(id),
     onSuccess: () => {
-      toast.success(`${revoking?.name ?? 'Key'} revoked`, { description: 'It stopped working.' });
+      toast.success(t.revoked(revoking?.name ?? t.keyWord), { description: t.stoppedWorking });
       setRevoking(null);
       void queryClient.invalidateQueries({ queryKey: foodKeys.keys });
     },
@@ -59,18 +50,13 @@ export default function AiAccessPage() {
 
   return (
     <Screen tone="white">
-      <PageHeader
-        compact
-        back="/settings"
-        title="Claude access"
-        subtitle="Keys for Claude to read and run the kitchen"
-      />
+      <PageHeader compact back="/settings" title={t.claude} subtitle={t.claudeSubtitle} />
 
       <div className="gutter-x mt-3 md:grid md:grid-cols-2 md:items-start md:gap-4 md:px-5 lg:gap-6 lg:px-8">
         <section aria-labelledby="keys-title">
           <div className="mb-1.5 flex items-center justify-between gap-3 px-1">
             <h2 id="keys-title" className="text-[0.9375rem] font-bold">
-              Access keys
+              {t.accessKeys}
             </h2>
             <button
               type="button"
@@ -78,7 +64,7 @@ export default function AiAccessPage() {
               className="press -my-1 flex h-11 shrink-0 items-center gap-1 rounded-pill bg-ink-900 px-4 text-sm font-semibold text-white hover:bg-ink-800"
             >
               <AddIcon fontSize="inherit" className="text-[1.15rem]" />
-              New key
+              {t.newKey}
             </button>
           </div>
           <div className="divide-y divide-ink-100 overflow-hidden rounded-[1.25rem] bg-white shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
@@ -89,13 +75,11 @@ export default function AiAccessPage() {
               </div>
             ) : keys.error ? (
               <div className="p-4">
-                <p className="font-semibold text-danger-700">Couldn’t load your keys</p>
+                <p className="font-semibold text-danger-700">{t.keysFailed}</p>
                 <p className="mt-1 text-sm text-ink-600">{errorMessage(keys.error)}</p>
               </div>
             ) : !keys.data.length ? (
-              <p className="p-4 text-[0.9375rem] text-ink-600">
-                No keys yet. Make one, then give it to Claude.
-              </p>
+              <p className="p-4 text-[0.9375rem] text-ink-600">{t.noKeys}</p>
             ) : (
               keys.data.map((key) => (
                 <div key={key.id} className="flex items-center gap-3 py-2.5 pl-3.5 pr-2">
@@ -109,21 +93,21 @@ export default function AiAccessPage() {
                     <span className="flex items-center gap-2">
                       <span className="truncate text-[0.9375rem] font-semibold">{key.name}</span>
                       <span className="shrink-0 rounded-pill bg-ink-100 px-2 py-0.5 text-xs font-semibold text-ink-700">
-                        {SCOPE_LABEL[key.scope]}
+                        {t.scope[key.scope]}
                       </span>
                     </span>
                     <span className="mt-0.5 block truncate text-sm text-ink-600">
                       <span className="font-mono text-[0.8125rem]">{key.prefix}…</span> ·{' '}
                       {key.lastUsedAt
-                        ? `used ${formatAgo(key.lastUsedAt).toLowerCase()}`
-                        : `made ${formatDate(key.createdAt)}, not used yet`}
+                        ? t.used(formatAgo(key.lastUsedAt).toLowerCase())
+                        : t.madeNotUsed(formatDate(key.createdAt))}
                     </span>
                   </span>
                   <button
                     type="button"
                     onClick={() => setRevoking(key)}
-                    aria-label={`Revoke ${key.name}`}
-                    title="Revoke"
+                    aria-label={t.revokeName(key.name)}
+                    title={t.revoke}
                     className="press grid size-11 shrink-0 place-items-center rounded-full text-[1.25rem] text-ink-500 hover:bg-danger-50 hover:text-danger-600"
                   >
                     <CloseIcon fontSize="inherit" />
@@ -143,9 +127,9 @@ export default function AiAccessPage() {
         onClose={() => setRevoking(null)}
         onConfirm={() => revoking && revoke.mutate(revoking.id)}
         loading={revoke.isPending}
-        title={`Revoke ${revoking?.name ?? 'this key'}?`}
-        description="Anything using this key stops working at once."
-        confirmLabel="Revoke"
+        title={t.revokeTitle(revoking?.name ?? null)}
+        description={t.revokeLine}
+        confirmLabel={t.revoke}
         tone="danger"
       />
     </Screen>
@@ -155,6 +139,7 @@ export default function AiAccessPage() {
 // ---------------------------------------------------------------- making a key
 
 function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = settingsT();
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
   const [name, setName] = useState('Claude');
@@ -181,7 +166,7 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   const fields = fieldErrors(create.error);
   const scopes = (
     isAdmin ? (['food:read', 'food', 'admin'] as const) : (['food:read', 'food'] as const)
-  ).map((value) => ({ value, label: SCOPE_LABEL[value] }));
+  ).map((value) => ({ value, label: t.scope[value] }));
 
   if (made) {
     const connector = `${origin()}/api/mcp/k/${made.token}`;
@@ -189,10 +174,10 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
       <Sheet
         open={open}
         onClose={onClose}
-        title="Your new key"
+        title={t.yourNewKey}
         footer={
           <Button fullWidth onClick={onClose}>
-            Done
+            {t.done}
           </Button>
         }
       >
@@ -202,16 +187,12 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
               fontSize="inherit"
               className="mt-0.5 shrink-0 text-[1.15rem] text-butter-800"
             />
-            Copy it now. It won’t be shown again; if it’s lost, make a new one.
+            {t.copyNow}
           </p>
-          <CopyBlock label="Key" value={made.token} what="Key" />
-          <CopyBlock
-            label="Connector URL (has the key in it)"
-            value={connector}
-            what="Connector URL"
-          />
+          <CopyBlock label={t.keyWord} value={made.token} what={t.keyWord} />
+          <CopyBlock label={t.connectorUrlWithKey} value={connector} what={t.connectorUrl} />
           <p className="text-sm text-ink-600">
-            {made.key.name} · {SCOPE_LABEL[made.key.scope]}. {SCOPE_HINT[made.key.scope]}
+            {made.key.name} · {t.scope[made.key.scope]}. {t.scopeHint[made.key.scope]}
           </p>
         </div>
       </Sheet>
@@ -222,7 +203,7 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
     <Sheet
       open={open}
       onClose={onClose}
-      title="New key for Claude"
+      title={t.newKeyTitle}
       footer={
         <div className="flex flex-col gap-2">
           {create.isError && !Object.keys(fields).length ? (
@@ -235,7 +216,7 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
             loading={create.isPending}
             disabled={!name.trim()}
           >
-            Make the key
+            {t.makeKey}
           </Button>
         </div>
       }
@@ -248,24 +229,24 @@ function NewKeySheet({ open, onClose }: { open: boolean; onClose: () => void }) 
         }}
       >
         <TextField
-          label="Name"
-          placeholder="Claude on my laptop"
+          label={t.name}
+          placeholder={t.namePlaceholder}
           value={name}
           onChange={(event) => setName(event.target.value)}
           error={fields.name}
           maxLength={60}
         />
         <div>
-          <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">What Claude may do</p>
+          <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.mayDo}</p>
           <Chips
-            label="What Claude may do"
+            label={t.mayDo}
             tone="sheet"
             dense
             value={scope}
             onChange={setScope}
             options={scopes}
           />
-          <p className="mt-1.5 text-sm text-ink-600">{SCOPE_HINT[scope]}</p>
+          <p className="mt-1.5 text-sm text-ink-600">{t.scopeHint[scope]}</p>
         </div>
       </form>
     </Sheet>
@@ -295,8 +276,8 @@ function CopyBlock({
         <button
           type="button"
           onClick={() => void copy(value, what)}
-          aria-label={`Copy ${what.toLowerCase()}`}
-          title="Copy"
+          aria-label={settingsT().copyWhat(what.toLowerCase())}
+          title={settingsT().copy}
           className="press grid size-11 shrink-0 place-items-center rounded-xl text-[1.15rem] text-ink-700 hover:bg-white hover:text-ink-900"
         >
           <ContentCopyIcon fontSize="inherit" />
@@ -307,6 +288,7 @@ function CopyBlock({
 }
 
 function HowTo({ className }: { className?: string }) {
+  const t = settingsT();
   const base = origin();
   return (
     <section
@@ -317,48 +299,45 @@ function HowTo({ className }: { className?: string }) {
       )}
     >
       <h2 id="howto-title" className="text-[1rem] font-bold">
-        How Claude connects
+        {t.howTitle}
       </h2>
-      <p className="mt-0.5 text-sm text-ink-600">
-        The key acts as you, with the access you picked. Nothing in LMS calls an AI.
-      </p>
+      <p className="mt-0.5 text-sm text-ink-600">{t.howLine}</p>
 
       <div className="mt-3.5 flex items-center gap-2 text-[0.9375rem] font-bold">
         <HubIcon fontSize="inherit" className="text-[1.2rem] text-lav-700" aria-hidden="true" />
         MCP
       </div>
-      <p className="mt-0.5 text-sm text-ink-600">
-        Sign in, no key to copy: add this address as a custom connector (claude.ai, the Claude app,
-        ChatGPT) or in Claude Code or Codex. LMS opens to ask what it may do, and the connection
-        shows up in the list above.
-      </p>
-      <CopyBlock className="mt-1.5" label="MCP address" value={`${base}/api/mcp`} what="Address" />
-      <CopyBlock
-        className="mt-2.5"
-        label="Claude Code (then /mcp → lms → Authenticate)"
-        value={`claude mcp add --transport http --scope user lms ${base}/api/mcp`}
-        what="Command"
-      />
-      <CopyBlock
-        className="mt-2.5"
-        label="Codex (then codex mcp login lms)"
-        value={`codex mcp add lms --url ${base}/api/mcp`}
-        what="Command"
-      />
-      <p className="mt-2.5 text-sm text-ink-600">
-        Or with a key you made here, for clients without sign-in:
-      </p>
+      <p className="mt-0.5 text-sm text-ink-600">{t.mcpLine}</p>
       <CopyBlock
         className="mt-1.5"
-        label="Connector URL with the key"
-        value={`${base}/api/mcp/k/<key>`}
-        what="Connector URL"
+        label={t.mcpAddress}
+        value={`${base}/api/mcp`}
+        what={t.address}
       />
       <CopyBlock
         className="mt-2.5"
-        label="Header"
+        label={t.claudeCode}
+        value={`claude mcp add --transport http --scope user lms ${base}/api/mcp`}
+        what={t.command}
+      />
+      <CopyBlock
+        className="mt-2.5"
+        label={t.codex}
+        value={`codex mcp add lms --url ${base}/api/mcp`}
+        what={t.command}
+      />
+      <p className="mt-2.5 text-sm text-ink-600">{t.orWithKey}</p>
+      <CopyBlock
+        className="mt-1.5"
+        label={t.connectorWithKey}
+        value={`${base}/api/mcp/k/<key>`}
+        what={t.connectorUrl}
+      />
+      <CopyBlock
+        className="mt-2.5"
+        label={t.header}
         value={`Authorization: Bearer <key>`}
-        what="Header"
+        what={t.header}
       />
 
       <div className="mt-3.5 flex items-center gap-2 text-[0.9375rem] font-bold">
@@ -370,15 +349,15 @@ function HowTo({ className }: { className?: string }) {
         REST API
       </div>
       <p className="mt-0.5 text-sm text-ink-600">
-        Everything under{' '}
-        <code className="font-mono text-[0.8125rem] text-ink-900">{base}/api/food/…</code> with the
-        key in a header:
+        {t.restBefore}{' '}
+        <code className="font-mono text-[0.8125rem] text-ink-900">{base}/api/food/…</code>{' '}
+        {t.restAfter}
       </p>
       <CopyBlock
         className="mt-1.5"
-        label="Example"
+        label={t.example}
         value={`curl -H "Authorization: Bearer <key>" ${base}/api/food/kitchen`}
-        what="Example"
+        what={t.example}
       />
     </section>
   );

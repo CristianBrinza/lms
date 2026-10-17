@@ -6,24 +6,20 @@ import { Screen } from '@/components/layout/Screen';
 import { Avatar, ButtonLink, Chips, Skeleton } from '@/components/ui';
 import { ChevronRightIcon, FavoriteIcon, PhoneIphoneIcon } from '@/components/ui/icons';
 import { foodApi, foodKeys } from '@/food/api';
-import { addDays, localDate, money, plural } from '@/food/format';
+import { addDays, localDate, money } from '@/food/format';
 import { trainingApi, trainingKeys } from '@/training/api';
 import { PersonSwitcher } from '@/training/components/PersonSwitcher';
 import { duration } from '@/training/format';
 import { usePerson } from '@/training/person';
 import type { HealthSummary, Person } from '@/training/types';
 import { travelApi, travelKeys } from '@/travel/api';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
+import { useStatsT } from './i18n';
 
 type View = 'personal' | 'family';
 type Range = 'week' | 'month' | 'quarter' | 'year';
 const RANGE_DAYS: Record<Range, number> = { week: 7, month: 30, quarter: 91, year: 365 };
-const RANGE_LABEL: Record<Range, string> = {
-  week: '7 days',
-  month: '30 days',
-  quarter: '3 months',
-  year: 'A year',
-};
 
 const avg = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
@@ -54,32 +50,33 @@ function healthNumbers(health: HealthSummary | undefined) {
  * shopping and travel. The phone's health data comes in through Training → Health.
  */
 export default function StatisticsPage() {
+  const t = useStatsT();
   const [view, setView] = useState<View>('personal');
   const [range, setRange] = useState<Range>('month');
   const today = localDate();
   const from = addDays(today, -(RANGE_DAYS[range] - 1));
   return (
     <Screen tone="field">
-      <PageHeader title="Statistics" subtitle={`${RANGE_LABEL[range]}, up to today`} />
+      <PageHeader title={t.title} subtitle={t.upToToday(t.range[range])} />
       <div className="gutter-x mt-2 flex flex-col gap-3 md:px-5 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Chips
-            label="Whose statistics"
+            label={t.whose}
             value={view}
             onChange={setView}
             options={[
-              { value: 'personal', label: 'Personal' },
-              { value: 'family', label: 'Family' },
+              { value: 'personal', label: t.personal },
+              { value: 'family', label: t.family },
             ]}
           />
           <Chips
-            label="Range"
+            label={t.rangeLabel}
             dense
             value={range}
             onChange={setRange}
             options={(Object.keys(RANGE_DAYS) as Range[]).map((r) => ({
               value: r,
-              label: RANGE_LABEL[r],
+              label: t.range[r],
             }))}
           />
         </div>
@@ -94,6 +91,7 @@ export default function StatisticsPage() {
 }
 
 function Personal({ from, today }: { from: string; today: string }) {
+  const t = useStatsT();
   const { personId, person, isMe } = usePerson();
   const health = useQuery({
     queryKey: trainingKeys.health(personId, from, today),
@@ -117,72 +115,70 @@ function Personal({ from, today }: { from: string; today: string }) {
   const eaten = round(avg(days.filter((d) => d.eaten).map((d) => d.eaten!.kcal)));
   const burned = round(avg(days.map((d) => d.burned.total)));
   const trips = (travel.data?.trips ?? []).filter(
-    (t) => t.people.includes(personId) && t.endDate >= from && t.startDate <= today,
+    (trip) => trip.people.includes(personId) && trip.endDate >= from && trip.startDate <= today,
   );
-  const name = isMe ? 'You' : (person?.name ?? 'They');
 
   return (
     <>
       <PersonSwitcher />
       {health.data && !h.synced ? <ConnectCard isMe={isMe} name={person?.name} /> : null}
       <div className="grid gap-3 md:grid-cols-2">
-        <Card title="Body" to="/training/health" loading={health.isPending}>
+        <Card title={t.body} to="/training/health" loading={health.isPending}>
           <Tiles>
             <Tile
-              label="Weight"
-              value={h.weight ? `${round(h.weight.value, 1)} kg` : '—'}
+              label={t.weight}
+              value={h.weight ? t.kg(String(round(h.weight.value, 1))) : '—'}
               hint={
-                h.weight ? `on ${h.weight.day.slice(5).split('-').reverse().join('.')}` : undefined
+                h.weight
+                  ? t.weighedOn(h.weight.day.slice(5).split('-').reverse().join('.'))
+                  : undefined
               }
             />
-            <Tile label="Steps a day" value={h.steps !== null ? thousands(h.steps) : '—'} />
-            <Tile label="Sleep a night" value={h.sleep !== null ? duration(h.sleep * 60) : '—'} />
+            <Tile label={t.steps} value={h.steps !== null ? thousands(h.steps) : '—'} />
+            <Tile label={t.sleepNight} value={h.sleep !== null ? duration(h.sleep * 60) : '—'} />
             <Tile
-              label="Resting heart rate"
-              value={h.restingHeartRate ? `${Math.round(h.restingHeartRate.value)} bpm` : '—'}
+              label={t.restingHeart}
+              value={h.restingHeartRate ? t.bpm(Math.round(h.restingHeartRate.value)) : '—'}
             />
           </Tiles>
         </Card>
-        <Card title="Training" to="/training/progress" loading={stats.isPending}>
+        <Card title={t.training} to="/training/progress" loading={stats.isPending}>
           <Tiles>
-            <Tile label="Workouts" value={totals ? String(totals.workouts) : '—'} />
-            <Tile label="Days active" value={totals ? String(totals.activeDays) : '—'} />
-            <Tile label="Time" value={totals ? duration(totals.minutes * 60) : '—'} />
+            <Tile label={t.workouts} value={totals ? String(totals.workouts) : '—'} />
+            <Tile label={t.daysActive} value={totals ? String(totals.activeDays) : '—'} />
+            <Tile label={t.time} value={totals ? duration(totals.minutes * 60) : '—'} />
             <Tile
-              label="Streak"
-              value={stats.data ? plural(stats.data.streak.current, 'day') : '—'}
-              hint={stats.data ? `best ${stats.data.streak.best}` : undefined}
+              label={t.streak}
+              value={stats.data ? t.days(stats.data.streak.current) : '—'}
+              hint={stats.data ? t.best(stats.data.streak.best) : undefined}
             />
           </Tiles>
         </Card>
-        <Card title="Energy" to="/training/health" loading={energy.isPending}>
+        <Card title={t.energy} to="/training/health" loading={energy.isPending}>
           <Tiles>
-            <Tile label="Eaten a day" value={eaten !== null ? `${thousands(eaten)} kcal` : '—'} />
+            <Tile label={t.eaten} value={eaten !== null ? t.kcal(thousands(eaten)) : '—'} />
+            <Tile label={t.burned} value={burned !== null ? t.kcal(thousands(burned)) : '—'} />
             <Tile
-              label="Burned a day"
-              value={burned !== null ? `${thousands(burned)} kcal` : '—'}
+              label={t.target}
+              value={energy.data ? t.kcal(thousands(energy.data.target.kcal)) : '—'}
             />
-            <Tile
-              label="Target"
-              value={energy.data ? `${thousands(energy.data.target.kcal)} kcal` : '—'}
-            />
-            <Tile
-              label="Moving a day"
-              value={h.active !== null ? `${thousands(h.active)} kcal` : '—'}
-            />
+            <Tile label={t.moving} value={h.active !== null ? t.kcal(thousands(h.active)) : '—'} />
           </Tiles>
         </Card>
-        <Card title="Trips" to="/travel" loading={travel.isPending}>
+        <Card title={t.trips} to="/travel" loading={travel.isPending}>
           <Tiles>
-            <Tile label="Trips" value={String(trips.length)} />
-            <Tile label="Days away" value={String(trips.reduce((sum, t) => sum + t.days, 0))} />
+            <Tile label={t.trips} value={String(trips.length)} />
+            <Tile
+              label={t.daysAway}
+              value={String(trips.reduce((sum, trip) => sum + trip.days, 0))}
+            />
           </Tiles>
           {trips.length ? (
             <p className="mt-2 truncate text-sm text-ink-600">
-              {trips.map((t) => t.name).join(', ')}
+              {trips.map((trip) => tr(trip, 'name')).join(', ')}
             </p>
           ) : (
-            <p className="mt-2 text-sm text-ink-600">{name} went nowhere in this range.</p>
+            <p className="mt-2 text-sm text-ink-600">{t.wentNowhere(isMe, person?.name)}</p>
           )}
         </Card>
       </div>
@@ -191,6 +187,7 @@ function Personal({ from, today }: { from: string; today: string }) {
 }
 
 function Family({ from, today }: { from: string; today: string }) {
+  const t = useStatsT();
   const { people } = usePerson();
   const stats = useQueries({
     queries: people.map((p) => ({
@@ -210,23 +207,25 @@ function Family({ from, today }: { from: string; today: string }) {
     queryFn: () => travelApi.home(today),
   });
 
-  const inRange = (shops.data ?? []).filter((t) => t.finishedAt.slice(0, 10) >= from);
-  const spent = inRange.reduce((sum, t) => sum + (t.total ?? 0), 0);
-  const trips = (travel.data?.trips ?? []).filter((t) => t.endDate >= from && t.startDate <= today);
+  const inRange = (shops.data ?? []).filter((shop) => shop.finishedAt.slice(0, 10) >= from);
+  const spent = inRange.reduce((sum, shop) => sum + (shop.total ?? 0), 0);
+  const trips = (travel.data?.trips ?? []).filter(
+    (trip) => trip.endDate >= from && trip.startDate <= today,
+  );
   const workouts = stats.reduce((sum, s) => sum + (s.data?.totals.workouts ?? 0), 0);
 
   return (
     <>
-      <Card title="The household">
+      <Card title={t.household}>
         <Tiles>
           <Tile
-            label="Spent shopping"
+            label={t.spent}
             value={shops.data ? money(Math.round(spent)) : '—'}
-            hint={plural(inRange.length, 'shop')}
+            hint={t.shops(inRange.length)}
           />
-          <Tile label="Trips" value={travel.data ? String(trips.length) : '—'} />
-          <Tile label="Workouts, all of you" value={String(workouts)} />
-          <Tile label="People" value={String(people.length)} />
+          <Tile label={t.trips} value={travel.data ? String(trips.length) : '—'} />
+          <Tile label={t.allWorkouts} value={String(workouts)} />
+          <Tile label={t.people} value={String(people.length)} />
         </Tiles>
       </Card>
       <ul className="grid gap-3 md:grid-cols-2">
@@ -236,7 +235,7 @@ function Family({ from, today }: { from: string; today: string }) {
               person={p}
               stats={stats[i]?.data}
               health={health[i]?.data}
-              trips={trips.filter((t) => t.people.includes(p.id)).length}
+              trips={trips.filter((trip) => trip.people.includes(p.id)).length}
             />
           </li>
         ))}
@@ -256,6 +255,7 @@ function PersonCard({
   health: HealthSummary | undefined;
   trips: number;
 }) {
+  const t = useStatsT();
   const h = healthNumbers(health);
   return (
     <section className="rounded-[1.5rem] bg-white p-4 shadow-[var(--shadow-card)]">
@@ -266,17 +266,17 @@ function PersonCard({
         </p>
         {!h.synced && health ? (
           <span className="rounded-pill bg-ink-50 px-2.5 py-1 text-xs font-semibold text-ink-600">
-            Phone not connected
+            {t.phoneNotConnected}
           </span>
         ) : null}
       </div>
       <Tiles>
-        <Tile label="Workouts" value={stats ? String(stats.totals.workouts) : '—'} />
-        <Tile label="Time" value={stats ? duration(stats.totals.minutes * 60) : '—'} />
-        <Tile label="Steps a day" value={h.steps !== null ? thousands(h.steps) : '—'} />
-        <Tile label="Weight" value={h.weight ? `${round(h.weight.value, 1)} kg` : '—'} />
-        <Tile label="Sleep" value={h.sleep !== null ? duration(h.sleep * 60) : '—'} />
-        <Tile label="Trips" value={String(trips)} />
+        <Tile label={t.workouts} value={stats ? String(stats.totals.workouts) : '—'} />
+        <Tile label={t.time} value={stats ? duration(stats.totals.minutes * 60) : '—'} />
+        <Tile label={t.steps} value={h.steps !== null ? thousands(h.steps) : '—'} />
+        <Tile label={t.weight} value={h.weight ? t.kg(String(round(h.weight.value, 1))) : '—'} />
+        <Tile label={t.sleep} value={h.sleep !== null ? duration(h.sleep * 60) : '—'} />
+        <Tile label={t.trips} value={String(trips)} />
       </Tiles>
     </section>
   );
@@ -284,17 +284,14 @@ function PersonCard({
 
 /** Where the phone's health data comes from: Apple Health (a Shortcut) or Health Connect (the app). */
 function ConnectCard({ isMe, name }: { isMe: boolean; name?: string }) {
+  const t = useStatsT();
   return (
     <section className="flex flex-col gap-3 rounded-[1.5rem] bg-ink-900 p-4 text-white shadow-[var(--shadow-tile)] sm:flex-row sm:items-center">
       <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/10 text-[1.5rem] text-butter-300">
         <PhoneIphoneIcon fontSize="inherit" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="font-bold">
-          {isMe
-            ? 'Bring in your phone’s health data'
-            : `${name ?? 'They'} haven’t connected a phone`}
-        </p>
+        <p className="font-bold">{isMe ? t.bringIn : t.notConnected(name)}</p>
         <p className="mt-0.5 text-sm text-white/70">
           Weight, steps, sleep, heart rate and workouts from Apple Health (iPhone) or Health Connect
           (Android), every day by themselves.
@@ -302,7 +299,7 @@ function ConnectCard({ isMe, name }: { isMe: boolean; name?: string }) {
       </div>
       {isMe ? (
         <ButtonLink to="/training/health" variant="accent" size="sm" icon={FavoriteIcon}>
-          Connect
+          {t.connect}
         </ButtonLink>
       ) : null}
     </section>
@@ -320,6 +317,7 @@ function Card({
   loading?: boolean;
   children: ReactNode;
 }) {
+  const t = useStatsT();
   return (
     <section className="rounded-[1.5rem] bg-white p-4 shadow-[var(--shadow-card)]">
       <h2 className="mb-3 flex items-center justify-between text-[1.0625rem] font-bold">
@@ -327,7 +325,7 @@ function Card({
         {to ? (
           <Link
             to={to}
-            aria-label={`More about ${title.toLowerCase()}`}
+            aria-label={t.more(title)}
             className="press grid size-9 place-items-center rounded-full text-[1.3rem] text-ink-500 hover:bg-ink-50"
           >
             <ChevronRightIcon fontSize="inherit" />

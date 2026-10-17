@@ -1,6 +1,7 @@
 import { Toaster as Sonner } from 'sonner';
 import { CheckIcon, ErrorIcon, InfoIcon, WarningIcon } from './icons';
 import { Spinner } from './Spinner';
+import { uiT } from '../i18n';
 
 const chip =
   'flex size-9 animate-pop items-center justify-center rounded-full text-[1.15rem] text-ink-900';
@@ -18,6 +19,7 @@ export function Toaster() {
       mobileOffset={{ bottom }}
       gap={10}
       visibleToasts={3}
+      containerAriaLabel={uiT().notifications}
       icons={{
         success: (
           <span className={`${chip} bg-mint-200`}>

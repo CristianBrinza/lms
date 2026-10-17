@@ -1,0 +1,77 @@
+import { messages } from '@/i18n';
+
+/**
+ * The start screen. The headline is set in short pieces, each sized to fit a phone line beside
+ * its sticker: the stickers are decoration, so they take the shortest good word.
+ */
+export const useLandingT = messages({
+  en: {
+    private: 'Private',
+    headline: {
+      train: 'Train,',
+      trainSticker: 'Training',
+      eat: 'eat,',
+      eatSticker: 'Food',
+      live: 'live.',
+      allIn: 'All in',
+      familySticker: 'Family',
+      onePlace: 'one place.',
+    },
+    install: 'Install the app',
+    browser: 'Continue in the browser',
+    appLine: 'The app opens full screen, stays signed in and updates by itself.',
+    getStarted: 'Get started',
+    how: 'How do you want to use LMS?',
+    accounts: 'Accounts are made by the admin. Use the email and password they gave you.',
+    installHere: 'Install it on this computer',
+    qr: 'QR code that opens the install guide on your phone',
+    onPhone: 'On your phone?',
+    scan: 'Scan to open the install guide there and add LMS to its Home Screen.',
+  },
+  ro: {
+    private: 'Privat',
+    headline: {
+      train: 'Mișcă-te,',
+      trainSticker: 'Sport',
+      eat: 'mănâncă,',
+      eatSticker: 'Mâncare',
+      live: 'trăiește.',
+      allIn: 'Totul',
+      familySticker: 'Familia',
+      onePlace: 'într-un loc.',
+    },
+    install: 'Instalează aplicația',
+    browser: 'Continuă în browser',
+    appLine: 'Aplicația se deschide pe tot ecranul, rămâi conectat și se actualizează singură.',
+    getStarted: 'Începe',
+    how: 'Cum vrei să folosești LMS?',
+    accounts: 'Conturile le face administratorul. Folosește emailul și parola primite de la el.',
+    installHere: 'Instalează pe acest calculator',
+    qr: 'Cod QR care deschide pe telefon ghidul de instalare',
+    onPhone: 'Pe telefon?',
+    scan: 'Scanează ca să deschizi acolo ghidul și să pui LMS pe ecranul principal.',
+  },
+  ru: {
+    private: 'Приватно',
+    headline: {
+      train: 'Бегай,',
+      trainSticker: 'Тренировки',
+      eat: 'ешь,',
+      eatSticker: 'Еда',
+      live: 'живи.',
+      allIn: 'Всё в',
+      familySticker: 'Семья',
+      onePlace: 'одном месте.',
+    },
+    install: 'Установить приложение',
+    browser: 'Продолжить в браузере',
+    appLine: 'Приложение открывается на весь экран, не просит входить заново и обновляется само.',
+    getStarted: 'Начать',
+    how: 'Как вы хотите пользоваться LMS?',
+    accounts: 'Аккаунты создаёт администратор. Войдите с почтой и паролем, которые он вам дал.',
+    installHere: 'Установить на этот компьютер',
+    qr: 'QR-код, который откроет инструкцию по установке на телефоне',
+    onPhone: 'На телефоне?',
+    scan: 'Отсканируйте, чтобы открыть там инструкцию и добавить LMS на главный экран.',
+  },
+});

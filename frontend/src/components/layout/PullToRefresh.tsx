@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { RefreshIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { uiT } from '../i18n';
 import { haptic } from '@/lib/haptics';
 
 const THRESHOLD = 76;
@@ -100,7 +101,7 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
       <div
         aria-hidden={!refreshing}
         role="status"
-        aria-label={refreshing ? 'Refreshing' : undefined}
+        aria-label={refreshing ? uiT().refreshing : undefined}
         className={cx(
           'pointer-events-none fixed inset-x-0 top-[calc(var(--safe-top)+0.5rem)] z-50 flex justify-center',
           !dragging && 'transition-[translate,opacity] duration-300 ease-(--ease-out)',

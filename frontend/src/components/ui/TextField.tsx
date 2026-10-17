@@ -1,5 +1,6 @@
 import { forwardRef, useId, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { cx } from '@/lib/cx';
+import { uiT } from '../i18n';
 import { ErrorIcon, VisibilityIcon, VisibilityOffIcon, type IconComponent } from './icons';
 
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
@@ -120,7 +121,7 @@ export const PasswordField = forwardRef<
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
-          aria-label={visible ? 'Hide password' : 'Show password'}
+          aria-label={visible ? uiT().hidePassword : uiT().showPassword}
           aria-pressed={visible}
           className="press inline-flex size-10 items-center justify-center rounded-[0.875rem] text-[1.25rem] text-ink-500 hover:bg-white hover:text-ink-900"
         >

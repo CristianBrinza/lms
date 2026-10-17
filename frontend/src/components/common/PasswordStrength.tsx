@@ -1,7 +1,7 @@
 import { passwordScore } from '@/lib/passwordScore';
 import { cx } from '@/lib/cx';
+import { uiT } from '../i18n';
 
-const LABELS = ['Too short', 'Okay', 'Good', 'Strong'] as const;
 const FILLS = ['bg-ink-200', 'bg-peach-200', 'bg-butter-300', 'bg-success-600'] as const;
 
 /** Three segments filling as the password gets stronger, with a word for it. */
@@ -28,11 +28,11 @@ export function PasswordStrength({ password }: { password: string }) {
       </div>
       <span
         className={cx(
-          'w-16 text-right text-xs font-semibold',
+          'min-w-16 shrink-0 whitespace-nowrap text-right text-xs font-semibold',
           score === 0 ? 'text-ink-500' : 'text-ink-800',
         )}
       >
-        {LABELS[score]}
+        {uiT().password.strength[score]}
       </span>
     </div>
   );
@@ -50,7 +50,7 @@ export function MatchMark({ password, repeat }: { password: string; repeat: stri
       )}
       aria-live="polite"
     >
-      {matches ? 'Passwords match' : 'Keep typing: they don’t match yet'}
+      {matches ? uiT().password.match : uiT().password.noMatch}
     </p>
   );
 }

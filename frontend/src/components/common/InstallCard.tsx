@@ -4,6 +4,7 @@ import { CloseIcon, InstallIcon } from '@/components/ui/icons';
 import { currentPlatform } from '@/lib/platform';
 import { useInstallPrompt } from '@/lib/pwa';
 import { storage, STORAGE_KEYS } from '@/lib/storage';
+import { uiT } from '../i18n';
 
 /**
  * The featured card (the learning app's "UX Lab" card, in butter): a white icon circle, a title,
@@ -12,6 +13,7 @@ import { storage, STORAGE_KEYS } from '@/lib/storage';
  * it stays away on this device.
  */
 export function InstallCard() {
+  const t = uiT().install;
   const { installed } = useInstallPrompt();
   const [hidden, setHidden] = useState(() => storage.get(STORAGE_KEYS.installCardHidden) !== null);
   if (hidden || installed || currentPlatform().standalone) return null;
@@ -32,23 +34,21 @@ export function InstallCard() {
         <InstallIcon fontSize="inherit" />
       </span>
       <h3 id="install-card-title" className="mt-5 pr-6 text-h2 font-bold text-ink-900">
-        Put LMS on your Home Screen
+        {t.title}
       </h3>
-      <p className="mt-1.5 max-w-xs text-[0.9375rem] leading-snug text-butter-800">
-        It opens full screen, stays signed in and updates by itself.
-      </p>
+      <p className="mt-1.5 max-w-xs text-[0.9375rem] leading-snug text-butter-800">{t.line}</p>
       <Link
         to="/app"
         viewTransition
         className="press mt-5 inline-flex h-12 items-center self-start rounded-pill bg-ink-900 px-6 text-[0.9375rem] font-semibold text-white shadow-[0_10px_20px_-12px_rgb(29_29_36/0.8)] hover:bg-ink-800"
       >
-        Show me how
+        {t.action}
       </Link>
       <button
         type="button"
         onClick={hide}
-        aria-label="Hide this card"
-        title="Hide this card"
+        aria-label={t.hide}
+        title={t.hide}
         className="press absolute right-2.5 top-2.5 flex size-11 items-center justify-center rounded-full text-xl text-butter-800 hover:bg-white/50"
       >
         <CloseIcon fontSize="inherit" />

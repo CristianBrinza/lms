@@ -4,6 +4,7 @@ import { useAuth } from '@/app/auth';
 import { StarBurst } from '@/components/brand/Doodles';
 import { Lockup } from '@/components/brand/Logo';
 import { Sticker } from '@/components/brand/Sticker';
+import { LocaleSwitcher } from '@/components/common/LocaleSwitcher';
 import { Button, ButtonLink, Checkbox, PasswordField, Sheet, TextField } from '@/components/ui';
 import { EmailIcon, ErrorIcon, InstallIcon, LockIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
@@ -14,6 +15,7 @@ import { isApiError } from '@/services/api/client';
 import { authApi } from '@/services/api/endpoints';
 import { haptic } from '@/lib/haptics';
 import { THEME, useThemeColor } from '@/lib/themeColor';
+import { useAuthT } from './i18n';
 
 /**
  * Sign-in, the only way in (accounts come from the admin). A real <form> with autocomplete
@@ -21,6 +23,7 @@ import { THEME, useThemeColor } from '@/lib/themeColor';
  * session then lasts a year on this device.
  */
 export default function LoginPage() {
+  const t = useAuthT();
   const { setUser } = useAuth();
   const [email, setEmail] = useState(() => storage.get(STORAGE_KEYS.lastEmail) ?? '');
   const [password, setPassword] = useState('');
@@ -59,8 +62,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="gutter-x mx-auto flex w-full max-w-md items-center pt-[calc(var(--safe-top)+1.25rem)] lg:max-w-6xl lg:pt-8">
+      <header className="gutter-x mx-auto flex w-full max-w-md items-center justify-between pt-[calc(var(--safe-top)+1.25rem)] lg:max-w-6xl lg:pt-8">
         <Lockup />
+        <LocaleSwitcher />
       </header>
       <main
         id="main"
@@ -69,16 +73,17 @@ export default function LoginPage() {
         <div className="relative">
           <StarBurst className="pointer-events-none absolute -left-10 -top-12 hidden w-16 -rotate-12 animate-pop text-cyan-500 lg:block" />
           <h1 className="mt-8 text-center text-[2.25rem] font-bold leading-[1.08] tracking-[-0.035em] lg:mt-0 lg:text-left lg:text-[4.75rem] lg:font-extrabold lg:leading-[0.98] lg:tracking-[-0.045em]">
-            <span className="text-lav-800">Welcome</span> back.
+            <span className="text-lav-800">{t.welcome}</span>
+            {t.welcomeRest}
             <Sticker
               className="ml-3 hidden -rotate-[8deg] bg-butter-300 align-[0.6em] lg:inline-block"
               delay={200}
             >
-              Private
+              {t.private}
             </Sticker>
           </h1>
           <p className="mx-auto mt-2 max-w-xs text-center text-base font-medium text-lav-900 lg:mx-0 lg:mt-5 lg:max-w-md lg:text-left lg:text-lg">
-            Sign in with the email the admin set up for you.
+            {t.signInLine}
           </p>
         </div>
 
@@ -99,7 +104,7 @@ export default function LoginPage() {
               </p>
             ) : null}
             <TextField
-              label="Email"
+              label={t.email}
               icon={EmailIcon}
               type="email"
               name="email"
@@ -116,7 +121,7 @@ export default function LoginPage() {
             />
             <PasswordField
               ref={passwordRef}
-              label="Password"
+              label={t.password}
               icon={LockIcon}
               name="password"
               autoComplete="current-password"
@@ -131,11 +136,11 @@ export default function LoginPage() {
               onClick={() => setForgotOpen(true)}
               className="press -mt-2 self-end rounded-pill px-2 py-1.5 text-sm font-semibold text-lav-800 underline-offset-4 hover:underline"
             >
-              Forgot password?
+              {t.forgot}
             </button>
             <Checkbox
-              label="Keep me signed in"
-              hint="Stay signed in on this device for a year."
+              label={t.remember}
+              hint={t.rememberHint}
               checked={remember}
               onChange={(event) => setRemember(event.target.checked)}
             />
@@ -149,35 +154,29 @@ export default function LoginPage() {
               loading={login.isPending}
               disabled={!email || !password}
             >
-              Sign in
+              {t.signIn}
             </Button>
             {!standalone ? (
               <ButtonLink to="/app" variant="outline" icon={InstallIcon} fullWidth>
-                Add LMS to your Home Screen
+                {t.addToHome}
               </ButtonLink>
             ) : null}
-            <p className="px-2 text-center text-sm text-lav-900">
-              No account yet? Ask the admin to add you. Forgot your password? The admin can reset
-              it.
-            </p>
+            <p className="px-2 text-center text-sm text-lav-900">{t.noAccount}</p>
           </div>
         </form>
         <Sheet
           open={forgotOpen}
           onClose={() => setForgotOpen(false)}
-          title="Forgot your password?"
+          title={t.forgotTitle}
           footer={
             <Button fullWidth onClick={() => setForgotOpen(false)}>
-              Got it
+              {t.gotIt}
             </Button>
           }
         >
           <div className="flex flex-col gap-3 text-[0.9375rem] text-ink-700">
-            <p>LMS is private, so passwords are reset by the admin, not by email.</p>
-            <p>
-              Ask them for a new one-time password. Sign in with it, and LMS asks you to choose your
-              own straight away.
-            </p>
+            <p>{t.forgotPrivate}</p>
+            <p>{t.forgotAsk}</p>
           </div>
         </Sheet>
       </main>

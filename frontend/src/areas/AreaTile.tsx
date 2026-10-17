@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { toast } from '@/components/ui';
 import { ArrowOutIcon, ChevronRightIcon, HourglassIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { areasT } from './i18n';
 import { TONES, type Area } from './registry';
 
 /**
@@ -25,7 +26,7 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   const content: ReactNode = (
     <>
       <span className="flex items-start justify-between gap-2">
-        <span className="text-[1.375rem] font-bold leading-[1.1] tracking-[-0.025em]">
+        <span className="min-w-0 hyphens-auto break-words text-[1.375rem] font-bold leading-[1.1] tracking-[-0.025em]">
           {area.name}
         </span>
         <Icon fontSize="inherit" className={cx('mt-0.5 shrink-0 text-[1.35rem]', tone.muted)} />
@@ -55,7 +56,7 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
               tone.chip,
             )}
           >
-            Soon
+            {areasT().soon}
           </span>
         )}
       </span>
@@ -72,9 +73,9 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
       className={classes}
       style={style}
       onClick={() =>
-        toast.info(`${area.name} is being built`, {
+        toast.info(areasT().building(area.name), {
           id: `area-${area.id}`,
-          description: 'Its screen arrives in a coming update.',
+          description: areasT().buildingDetail,
         })
       }
     >
@@ -148,7 +149,7 @@ export function AreaGrid({
         'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] lg:gap-4',
         className,
       )}
-      aria-label="Your areas"
+      aria-label={areasT().yourAreas}
     >
       {children}
       {areas.map((area, index) => (

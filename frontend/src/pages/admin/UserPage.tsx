@@ -39,11 +39,13 @@ import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
 import type { AdminUser, Role } from '@/types/api';
 import { CredentialsSheet } from './CredentialsSheet';
+import { useAdminT } from './i18n';
 
 type Confirm = 'reset' | 'signOut' | 'toggle' | 'delete' | null;
 
 /** One person: their details, role and the account actions, each confirmed before it runs. */
 export default function UserPage() {
+  const t = useAdminT();
   const { id = '' } = useParams();
   const me = useUser();
   const person = useQuery({ queryKey: queryKeys.user(id), queryFn: () => adminApi.user(id) });
@@ -62,11 +64,7 @@ export default function UserPage() {
   if (person.isError) {
     return (
       <Screen tone="white">
-        <PageHeader
-          title="Person not found"
-          subtitle={errorMessage(person.error)}
-          back="/admin/users"
-        />
+        <PageHeader title={t.notFound} subtitle={errorMessage(person.error)} back="/admin/users" />
       </Screen>
     );
   }
@@ -74,6 +72,7 @@ export default function UserPage() {
 }
 
 function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
+  const t = useAdminT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirm, setConfirm] = useState<Confirm>(null);
@@ -100,7 +99,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
     onSuccess: (user) => {
       setConfirm(null);
       refresh(user);
-      toast.success(`${user.name} is signed out everywhere`);
+      toast.success(t.signedOutEverywhere(user.name));
     },
     onError,
   });
@@ -109,9 +108,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
     onSuccess: (user) => {
       setConfirm(null);
       refresh(user);
-      toast.success(
-        user.isActive ? `${user.name} can sign in again` : `${user.name} is switched off`,
-      );
+      toast.success(user.isActive ? t.canSignInAgain(user.name) : t.switchedOffToast(user.name));
     },
     onError,
   });
@@ -120,7 +117,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
     onSuccess: () => {
       setConfirm(null);
       refresh();
-      toast.success(`${fullName(person)}’s account is deleted`);
+      toast.success(t.deletedToast(fullName(person)));
       navigate('/admin/users', { replace: true });
     },
     onError,
@@ -144,74 +141,66 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {isMe ? <Badge tone="lav">You</Badge> : null}
-            <Badge tone={person.role === 'admin' ? 'ink' : 'lav'}>
-              {person.role === 'admin' ? 'Admin' : 'Member'}
-            </Badge>
+            {isMe ? <Badge tone="lav">{t.you}</Badge> : null}
+            <Badge tone={person.role === 'admin' ? 'ink' : 'lav'}>{t.roles[person.role]}</Badge>
             {person.isActive ? (
-              <Badge tone="mint">Can sign in</Badge>
+              <Badge tone="mint">{t.canSignInBadge}</Badge>
             ) : (
-              <Badge tone="muted">Switched off</Badge>
+              <Badge tone="muted">{t.switchedOff}</Badge>
             )}
-            {person.mustChangePassword ? <Badge tone="peach">Password not chosen yet</Badge> : null}
+            {person.mustChangePassword ? <Badge tone="peach">{t.passwordNotChosen}</Badge> : null}
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-ink-100 pt-4 text-sm">
             <div className="min-w-0">
-              <dt className="text-ink-600">Last active</dt>
+              <dt className="text-ink-600">{t.lastActive}</dt>
               <dd className="mt-0.5 truncate font-semibold">
                 {formatAgo(person.lastSeenAt ?? person.lastLoginAt)}
               </dd>
             </div>
             <div className="min-w-0">
-              <dt className="text-ink-600">Devices</dt>
+              <dt className="text-ink-600">{t.devicesLabel}</dt>
               <dd className="tabular mt-0.5 font-semibold">{person.activeSessions}</dd>
             </div>
             <div className="min-w-0">
-              <dt className="text-ink-600">Since</dt>
+              <dt className="text-ink-600">{t.since}</dt>
               <dd className="mt-0.5 truncate font-semibold">{formatDate(person.createdAt)}</dd>
             </div>
           </dl>
         </section>
 
         <ListGroup
-          title="Account"
+          title={t.account}
           className="xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start"
         >
           {isMe ? (
-            <p className="px-4 py-4 text-sm text-ink-600">
-              This is you. Change your password and devices from your Profile and Settings.
-            </p>
+            <p className="px-4 py-4 text-sm text-ink-600">{t.thisIsYou}</p>
           ) : (
             <>
               <ListRowButton
                 icon={LockResetIcon}
-                label="Reset password"
-                detail="Make a new one-time password"
+                label={t.resetPassword}
+                detail={t.resetLine}
                 onClick={() => setConfirm('reset')}
               />
               <ListRowButton
                 icon={DevicesIcon}
-                label="Sign out everywhere"
+                label={t.signOutEverywhere}
                 detail={
-                  person.activeSessions
-                    ? `${person.activeSessions} signed-in device${person.activeSessions === 1 ? '' : 's'}`
-                    : 'Not signed in anywhere'
+                  person.activeSessions ? t.signedInDevices(person.activeSessions) : t.notSignedIn
                 }
                 onClick={() => setConfirm('signOut')}
                 disabled={person.activeSessions === 0}
               />
               <ListRowButton
                 icon={person.isActive ? BlockIcon : LockOpenIcon}
-                label={person.isActive ? 'Switch off' : 'Switch back on'}
-                detail={
-                  person.isActive ? 'Keeps the account, blocks sign-in' : 'Let them sign in again'
-                }
+                label={person.isActive ? t.switchOff : t.switchBackOn}
+                detail={person.isActive ? t.switchOffLine : t.switchOnLine}
                 onClick={() => setConfirm('toggle')}
               />
               <ListRowButton
                 icon={DeleteIcon}
-                label="Delete account"
-                detail="Can’t be undone"
+                label={t.deleteAccount}
+                detail={t.cantUndo}
                 tone="danger"
                 onClick={() => setConfirm('delete')}
               />
@@ -232,31 +221,27 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
         onClose={() => setConfirm(null)}
         onConfirm={() => reset.mutate()}
         loading={reset.isPending}
-        title={`Reset ${person.name}’s password?`}
-        description="Their current password stops working and every device signs out. You’ll get a one-time password to send them."
-        confirmLabel="Reset password"
+        title={t.resetTitle(person.name)}
+        description={t.resetDescription}
+        confirmLabel={t.resetPassword}
       />
       <ConfirmSheet
         open={confirm === 'signOut'}
         onClose={() => setConfirm(null)}
         onConfirm={() => signOut.mutate()}
         loading={signOut.isPending}
-        title={`Sign ${person.name} out everywhere?`}
-        description="Every device they use signs out at once. Their password stays the same."
-        confirmLabel="Sign out everywhere"
+        title={t.signOutTitle(person.name)}
+        description={t.signOutDescription}
+        confirmLabel={t.signOutEverywhere}
       />
       <ConfirmSheet
         open={confirm === 'toggle'}
         onClose={() => setConfirm(null)}
         onConfirm={() => toggle.mutate()}
         loading={toggle.isPending}
-        title={person.isActive ? `Switch ${person.name} off?` : `Switch ${person.name} back on?`}
-        description={
-          person.isActive
-            ? 'They’re signed out everywhere and can’t sign in until you switch them back on. Nothing is deleted.'
-            : 'They can sign in again with their current password.'
-        }
-        confirmLabel={person.isActive ? 'Switch off' : 'Switch on'}
+        title={person.isActive ? t.switchOffTitle(person.name) : t.switchOnTitle(person.name)}
+        description={person.isActive ? t.switchOffDescription : t.switchOnDescription}
+        confirmLabel={person.isActive ? t.switchOff : t.switchOn}
         tone={person.isActive ? 'danger' : 'default'}
       />
       <ConfirmSheet
@@ -264,9 +249,9 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
         onClose={() => setConfirm(null)}
         onConfirm={() => remove.mutate()}
         loading={remove.isPending}
-        title={`Delete ${name}’s account?`}
-        description="The account and its sign-ins are removed for good. To only block sign-in, switch them off instead."
-        confirmLabel="Delete account"
+        title={t.deleteTitle(name)}
+        description={t.deleteDescription}
+        confirmLabel={t.deleteAccount}
         tone="danger"
       />
       {credentials ? (
@@ -292,6 +277,7 @@ function DetailsForm({
   isMe: boolean;
   onSaved: (user: AdminUser) => void;
 }) {
+  const t = useAdminT();
   const [name, setName] = useState(person.name);
   const [surname, setSurname] = useState(person.surname);
   const [email, setEmail] = useState(person.email);
@@ -308,7 +294,7 @@ function DetailsForm({
     },
     onSuccess: (user) => {
       onSaved(user);
-      toast.success('Saved');
+      toast.success(t.saved);
     },
   });
   const changed =
@@ -328,17 +314,17 @@ function DetailsForm({
       noValidate
       className="flex flex-col gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
     >
-      <h2 className="text-h3 font-bold">Details</h2>
+      <h2 className="text-h3 font-bold">{t.details}</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
-          label="Name"
+          label={t.name}
           autoComplete="off"
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={fields.name}
         />
         <TextField
-          label="Surname"
+          label={t.surname}
           autoComplete="off"
           value={surname}
           onChange={(e) => setSurname(e.target.value)}
@@ -346,7 +332,7 @@ function DetailsForm({
         />
       </div>
       <TextField
-        label="Email"
+        label={t.email}
         icon={EmailIcon}
         type="email"
         autoCapitalize="none"
@@ -355,24 +341,22 @@ function DetailsForm({
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         error={fields.email}
-        hint="They sign in with this."
+        hint={t.emailHint}
       />
       <fieldset className="flex flex-col gap-2">
-        <legend className="mb-1.5 pl-1 text-sm font-semibold text-ink-800">Role</legend>
+        <legend className="mb-1.5 pl-1 text-sm font-semibold text-ink-800">{t.role}</legend>
         <Chips<Role>
-          label="Role"
+          label={t.role}
           tone="sheet"
           value={role}
           onChange={setRole}
           options={[
-            { value: 'member', label: 'Member' },
-            { value: 'admin', label: 'Admin' },
+            { value: 'member', label: t.roles.member },
+            { value: 'admin', label: t.roles.admin },
           ]}
         />
         {isMe && role === 'member' && person.role === 'admin' ? (
-          <p className="pl-1 text-sm font-medium text-peach-800">
-            You’ll lose access to People as soon as you save.
-          </p>
+          <p className="pl-1 text-sm font-medium text-peach-800">{t.loseAccess}</p>
         ) : null}
       </fieldset>
       {save.error && Object.keys(fields).length === 0 ? (
@@ -385,7 +369,7 @@ function DetailsForm({
         loading={save.isPending}
         disabled={!changed || !name.trim() || !email.trim()}
       >
-        Save changes
+        {t.saveChanges}
       </Button>
     </form>
   );
@@ -396,13 +380,14 @@ function DetailsForm({
  * (a child without a phone).
  */
 function AboutCard({ person, onSaved }: { person: AdminUser; onSaved: (user: AdminUser) => void }) {
+  const t = useAdminT();
   const [value, setValue] = useState(() => profileValues(person));
   const weight = useWeightField(person);
   const save = useMutation({
     mutationFn: () => adminApi.update(person.id, { ...profileInput(value), ...weight.input() }),
     onSuccess: (user) => {
       onSaved(user);
-      toast.success('Saved');
+      toast.success(t.saved);
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -412,9 +397,9 @@ function AboutCard({ person, onSaved }: { person: AdminUser; onSaved: (user: Adm
       className="mt-5 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
     >
       <h2 id="about" className="text-h3 font-bold">
-        About {person.name}
+        {t.about(person.name)}
       </h2>
-      <p className="mt-1 text-sm text-ink-600">Used for their training plans and health numbers.</p>
+      <p className="mt-1 text-sm text-ink-600">{t.aboutUse}</p>
       <div className="mt-4 grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
         <PhotoPicker
           person={person}
@@ -434,7 +419,7 @@ function AboutCard({ person, onSaved }: { person: AdminUser; onSaved: (user: Adm
               if (weight.check()) save.mutate();
             }}
           >
-            Save
+            {t.save}
           </Button>
         </div>
       </div>

@@ -24,7 +24,7 @@ const onDayEn = (day: number) =>
 const onDayRo = (day: number) => (day === LAST_DAY ? 'în ultima zi a lunii' : `pe ${day}`);
 const onDayRu = (day: number) => (day === LAST_DAY ? 'в последний день месяца' : `${day}-го`);
 
-/** The copy for the current weight and the paydays; the profile's older copy is translated later. */
+/** The profile fields' copy: the body, the goal, the current weight, the photo and the paydays. */
 export const useProfileT = messages({
   en: {
     weight: 'Current weight, kg',
@@ -58,6 +58,34 @@ export const useProfileT = messages({
     lastDay: 'Last day of the month',
     save: 'Save',
     saved: 'Saved',
+    gender: 'Gender',
+    genders: { female: 'Female', male: 'Male', other: 'Other' } as Record<Gender, string>,
+    birthDate: 'Birth date',
+    height: 'Height, cm',
+    goal: 'Goal',
+    goals: { lose: 'Lose weight', keep: 'Keep my weight', gain: 'Gain weight' } as Record<
+      Goal,
+      string
+    >,
+    goalWeight: 'Goal weight, kg',
+    pace: 'Pace',
+    perWeek: (kg: string) => `${kg} kg a week`,
+    usualDay: 'A usual day, without training',
+    usualDayHint: 'Used when the phone doesn’t send active energy.',
+    activity: {
+      sedentary: 'Mostly sitting',
+      light: 'On my feet a bit',
+      moderate: 'On my feet a lot',
+      active: 'Physical work',
+      very: 'Hard physical work',
+    } as Record<Activity, string>,
+    photoSaved: 'Photo saved',
+    photoNotSaved: 'Couldn’t save the photo',
+    changePhoto: 'Change photo',
+    addPhoto: 'Add a photo',
+    removePhoto: 'Remove',
+    photoRemoved: 'Photo removed',
+    photoNotRemoved: 'Couldn’t remove the photo',
   },
   ro: {
     weight: 'Greutatea actuală, kg',
@@ -92,6 +120,31 @@ export const useProfileT = messages({
     lastDay: 'Ultima zi a lunii',
     save: 'Salvează',
     saved: 'Salvat',
+    gender: 'Gen',
+    genders: { female: 'Feminin', male: 'Masculin', other: 'Altul' },
+    birthDate: 'Data nașterii',
+    height: 'Înălțimea, cm',
+    goal: 'Obiectiv',
+    goals: { lose: 'Să slăbesc', keep: 'Să-mi păstrez greutatea', gain: 'Să iau în greutate' },
+    goalWeight: 'Greutatea dorită, kg',
+    pace: 'Ritm',
+    perWeek: (kg: string) => `${kg} kg pe săptămână`,
+    usualDay: 'O zi obișnuită, fără antrenament',
+    usualDayHint: 'Se folosește când telefonul nu trimite energia activă.',
+    activity: {
+      sedentary: 'Stau mai mult jos',
+      light: 'Puțin în picioare',
+      moderate: 'Mult în picioare',
+      active: 'Muncă fizică',
+      very: 'Muncă fizică grea',
+    },
+    photoSaved: 'Poza a fost salvată',
+    photoNotSaved: 'Nu s-a putut salva poza',
+    changePhoto: 'Schimbă poza',
+    addPhoto: 'Adaugă o poză',
+    removePhoto: 'Șterge',
+    photoRemoved: 'Poza a fost ștearsă',
+    photoNotRemoved: 'Nu s-a putut șterge poza',
   },
   ru: {
     weight: 'Текущий вес, кг',
@@ -125,6 +178,31 @@ export const useProfileT = messages({
     lastDay: 'Последний день месяца',
     save: 'Сохранить',
     saved: 'Сохранено',
+    gender: 'Пол',
+    genders: { female: 'Женский', male: 'Мужской', other: 'Другой' },
+    birthDate: 'Дата рождения',
+    height: 'Рост, см',
+    goal: 'Цель',
+    goals: { lose: 'Похудеть', keep: 'Сохранить вес', gain: 'Набрать вес' },
+    goalWeight: 'Желаемый вес, кг',
+    pace: 'Темп',
+    perWeek: (kg: string) => `${kg} кг в неделю`,
+    usualDay: 'Обычный день, без тренировок',
+    usualDayHint: 'Используется, когда телефон не передаёт активную энергию.',
+    activity: {
+      sedentary: 'В основном сижу',
+      light: 'Немного на ногах',
+      moderate: 'Много на ногах',
+      active: 'Физическая работа',
+      very: 'Тяжёлая физическая работа',
+    },
+    photoSaved: 'Фото сохранено',
+    photoNotSaved: 'Не удалось сохранить фото',
+    changePhoto: 'Сменить фото',
+    addPhoto: 'Добавить фото',
+    removePhoto: 'Удалить',
+    photoRemoved: 'Фото удалено',
+    photoNotRemoved: 'Не удалось удалить фото',
   },
 });
 
@@ -203,20 +281,10 @@ export function useWeightField(latest: LatestWeight) {
   };
 }
 
-const GENDER_LABEL: Record<Gender, string> = { female: 'Female', male: 'Male', other: 'Other' };
-const GOALS: Array<[Goal, string]> = [
-  ['lose', 'Lose weight'],
-  ['keep', 'Keep my weight'],
-  ['gain', 'Gain weight'],
-];
+const GENDERS: Gender[] = ['female', 'male', 'other'];
+const GOALS: Goal[] = ['lose', 'keep', 'gain'];
 const RATES = [0.25, 0.5, 0.75];
-const ACTIVITY: Array<[Activity, string]> = [
-  ['sedentary', 'Mostly sitting'],
-  ['light', 'On my feet a bit'],
-  ['moderate', 'On my feet a lot'],
-  ['active', 'Physical work'],
-  ['very', 'Hard physical work'],
-];
+const ACTIVITY: Activity[] = ['sedentary', 'light', 'moderate', 'active', 'very'];
 
 const chipClass = (active: boolean) =>
   cx(
@@ -265,9 +333,9 @@ export function ProfileFieldsForm({
   return (
     <div className="flex flex-col gap-4">
       <fieldset>
-        <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Gender</legend>
+        <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.gender}</legend>
         <div role="radiogroup" className="flex flex-wrap gap-1.5">
-          {(Object.keys(GENDER_LABEL) as Gender[]).map((g) => (
+          {GENDERS.map((g) => (
             <button
               key={g}
               type="button"
@@ -276,14 +344,14 @@ export function ProfileFieldsForm({
               className={chip(value.gender === g)}
               onClick={() => onChange({ ...value, gender: value.gender === g ? null : g })}
             >
-              {GENDER_LABEL[g]}
+              {t.genders[g]}
             </button>
           ))}
         </div>
       </fieldset>
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
-          label="Birth date"
+          label={t.birthDate}
           type="date"
           max={today}
           min="1900-01-01"
@@ -291,7 +359,7 @@ export function ProfileFieldsForm({
           onChange={(e) => onChange({ ...value, birthDate: e.target.value })}
         />
         <TextField
-          label="Height, cm"
+          label={t.height}
           inputMode="numeric"
           placeholder="170"
           value={value.height}
@@ -299,9 +367,9 @@ export function ProfileFieldsForm({
         />
       </div>
       <fieldset>
-        <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Goal</legend>
+        <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.goal}</legend>
         <div role="radiogroup" className="flex flex-wrap gap-1.5">
-          {GOALS.map(([g, label]) => (
+          {GOALS.map((g) => (
             <button
               key={g}
               type="button"
@@ -316,7 +384,7 @@ export function ProfileFieldsForm({
                 })
               }
             >
-              {label}
+              {t.goals[g]}
             </button>
           ))}
         </div>
@@ -334,7 +402,7 @@ export function ProfileFieldsForm({
         />
         {losingOrGaining ? (
           <TextField
-            label="Goal weight, kg"
+            label={t.goalWeight}
             inputMode="decimal"
             placeholder="70"
             value={value.goalWeight}
@@ -348,7 +416,7 @@ export function ProfileFieldsForm({
       </div>
       {losingOrGaining ? (
         <fieldset>
-          <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Pace</legend>
+          <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.pace}</legend>
           <div role="radiogroup" className="flex flex-wrap gap-1.5">
             {RATES.map((r) => (
               <button
@@ -359,21 +427,17 @@ export function ProfileFieldsForm({
                 className={chip(value.goalRate === r)}
                 onClick={() => onChange({ ...value, goalRate: r })}
               >
-                {r} kg a week
+                {t.perWeek(formatNumber(r))}
               </button>
             ))}
           </div>
         </fieldset>
       ) : null}
       <fieldset>
-        <legend className="mb-1 text-[0.8125rem] font-semibold text-ink-700">
-          A usual day, without training
-        </legend>
-        <p className="mb-1.5 text-xs text-ink-500">
-          Used when the phone doesn’t send active energy.
-        </p>
+        <legend className="mb-1 text-[0.8125rem] font-semibold text-ink-700">{t.usualDay}</legend>
+        <p className="mb-1.5 text-xs text-ink-500">{t.usualDayHint}</p>
         <div role="radiogroup" className="flex flex-wrap gap-1.5">
-          {ACTIVITY.map(([a, label]) => (
+          {ACTIVITY.map((a) => (
             <button
               key={a}
               type="button"
@@ -382,7 +446,7 @@ export function ProfileFieldsForm({
               className={chip((value.activity ?? 'light') === a)}
               onClick={() => onChange({ ...value, activity: a })}
             >
-              {label}
+              {t.activity[a]}
             </button>
           ))}
         </div>
@@ -404,6 +468,7 @@ export function PhotoPicker({
   onSave: (image: string | null) => Promise<unknown>;
   busy?: boolean;
 }) {
+  const t = useProfileT();
   const input = useRef<HTMLInputElement>(null);
   const [working, setWorking] = useState(false);
   const pick = async (file: File | undefined) => {
@@ -411,9 +476,9 @@ export function PhotoPicker({
     setWorking(true);
     try {
       await onSave(await shrinkPhoto(file));
-      toast.success('Photo saved');
+      toast.success(t.photoSaved);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Couldn’t save the photo');
+      toast.error(error instanceof Error ? error.message : t.photoNotSaved);
     } finally {
       setWorking(false);
       if (input.current) input.current.value = '';
@@ -430,7 +495,7 @@ export function PhotoPicker({
           loading={working || busy}
           onClick={() => input.current?.click()}
         >
-          {person.avatarUrl ? 'Change photo' : 'Add a photo'}
+          {person.avatarUrl ? t.changePhoto : t.addPhoto}
         </Button>
         {person.avatarUrl ? (
           <Button
@@ -440,12 +505,12 @@ export function PhotoPicker({
             disabled={working || busy}
             onClick={() =>
               void onSave(null).then(
-                () => toast.success('Photo removed'),
-                () => toast.error('Couldn’t remove the photo'),
+                () => toast.success(t.photoRemoved),
+                () => toast.error(t.photoNotRemoved),
               )
             }
           >
-            Remove
+            {t.removePhoto}
           </Button>
         ) : null}
       </div>

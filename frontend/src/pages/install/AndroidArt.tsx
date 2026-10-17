@@ -10,6 +10,7 @@ import {
 import { LogoTile } from '@/components/brand/Logo';
 import { cx } from '@/lib/cx';
 import { mark } from './highlight';
+import { useInstallT } from './i18n';
 import { Dimmed, HomeScene, MenuLine, PageLines } from './parts';
 
 /**
@@ -33,6 +34,7 @@ export default function AndroidArt({ step, alt }: { step: number; alt: string })
 }
 
 function MenuScene() {
+  const t = useInstallT().android;
   const dots = mark(0);
   const item = mark(0);
   return (
@@ -64,7 +66,7 @@ function MenuScene() {
           style={item.style}
         >
           <AddToHomeScreenIcon fontSize="inherit" className="shrink-0 text-[1.3em] text-lav-700" />
-          <span>Install app</span>
+          <span className="min-w-0 truncate">{t.installApp}</span>
         </div>
         <MenuLine width="50%" />
       </div>
@@ -105,18 +107,20 @@ function Option({
 }
 
 function SheetScene() {
+  const t = useInstallT().android;
   return (
     <Dimmed>
       <div className="absolute inset-x-0 bottom-0 rounded-t-[1.3em] bg-white px-[5%] pb-[4%] pt-[0.6em] shadow-sheet">
         <span className="mx-auto mb-[0.7em] block h-[0.3em] w-[2.6em] rounded-pill bg-ink-200" />
-        <Option icon={DownloadIcon} title="Install" marked />
-        <Option icon={LanguageIcon} title="Create shortcut" note="Shortcuts open in Chrome" />
+        <Option icon={DownloadIcon} title={t.install} marked />
+        <Option icon={LanguageIcon} title={t.createShortcut} note={t.shortcutsNote} />
       </div>
     </Dimmed>
   );
 }
 
 function DialogScene() {
+  const t = useInstallT().android;
   const m = mark(2);
   return (
     <Dimmed>
@@ -129,12 +133,12 @@ function DialogScene() {
           </div>
         </div>
         <div className="mt-[1.3em] flex items-center justify-end gap-[0.6em] font-semibold">
-          <span className="px-[0.6em] py-[0.5em] text-ink-600">Cancel</span>
+          <span className="px-[0.6em] py-[0.5em] text-ink-600">{t.cancel}</span>
           <span
             className={cx('rounded-pill bg-ink-900 px-[1.1em] py-[0.5em] text-white', m.className)}
             style={m.style}
           >
-            Install
+            {t.install}
           </span>
         </div>
       </div>

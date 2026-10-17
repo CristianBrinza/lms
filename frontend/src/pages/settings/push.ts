@@ -1,4 +1,5 @@
 import { currentPlatform } from '@/lib/platform';
+import { settingsT } from './i18n';
 
 /**
  * Web push on this device: whether it can, and turning it on and off. The service worker that
@@ -54,16 +55,10 @@ export class PushError extends Error {}
 /** Asks for permission and subscribes this device. Throws PushError with a sentence to show. */
 export async function subscribeDevice(publicKey: string): Promise<PushSubscription> {
   const permission = await Notification.requestPermission();
-  if (permission === 'denied')
-    throw new PushError(
-      'Notifications are blocked for LMS. Allow them in the browser’s or the phone’s settings.',
-    );
-  if (permission !== 'granted') throw new PushError('Notifications weren’t allowed.');
+  if (permission === 'denied') throw new PushError(settingsT().blocked);
+  if (permission !== 'granted') throw new PushError(settingsT().notAllowed);
   const reg = await registration();
-  if (!reg)
-    throw new PushError(
-      'The installed app is needed for notifications. Open LMS from the Home Screen or the published site.',
-    );
+  if (!reg) throw new PushError(settingsT().needsApp);
   const key = urlBase64ToUint8Array(publicKey);
   const existing = await reg.pushManager.getSubscription();
   if (existing) {

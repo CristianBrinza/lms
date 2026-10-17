@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import { UpdatePrompt } from '@/components/common/UpdatePrompt';
 import { hideSplash } from '@/lib/splash';
+import { useAppT } from './i18n';
 
 /** Every screen: the update watcher, focus and scroll reset on navigation, and the splash hand-off. */
 export function Root() {
+  const t = useAppT();
   const { pathname } = useLocation();
   useEffect(() => hideSplash(), []);
   useEffect(() => {
@@ -16,7 +18,7 @@ export function Root() {
         href="#main"
         className="sr-only z-50 rounded-pill bg-ink-900 px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-[calc(var(--safe-top)+0.75rem)]"
       >
-        Skip to content
+        {t.skip}
       </a>
       <Outlet />
       <UpdatePrompt />

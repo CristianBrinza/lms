@@ -6,6 +6,7 @@ import {
   TrainingIcon,
   type IconComponent,
 } from '@/components/ui/icons';
+import { areasT, type AreaId } from './i18n';
 
 /**
  * The life areas LMS has, shown on the dashboard: Shopping as a row on top, then the tiles (Training, Food,
@@ -30,48 +31,24 @@ export interface Area {
   wide?: boolean;
 }
 
+/** An area whose name and line are read in the current language each time they're shown. */
+const area = (id: AreaId, rest: Omit<Area, 'id' | 'name' | 'summary'>): Area => ({
+  id,
+  get name() {
+    return areasT().areas[id].name;
+  },
+  get summary() {
+    return areasT().areas[id].summary;
+  },
+  ...rest,
+});
+
 export const AREAS: readonly Area[] = [
-  {
-    id: 'shopping',
-    name: 'Shopping',
-    summary: 'Groceries and the house, store by store.',
-    icon: BasketIcon,
-    tone: 'butter',
-    to: '/shopping',
-    wide: true,
-  },
-  {
-    id: 'training',
-    name: 'Training',
-    summary: 'Workouts and how they add up, week by week.',
-    icon: TrainingIcon,
-    tone: 'ink',
-    to: '/training',
-  },
-  {
-    id: 'food',
-    name: 'Food',
-    summary: 'Meals, groceries and what’s for dinner.',
-    icon: FoodIcon,
-    tone: 'white',
-    to: '/food',
-  },
-  {
-    id: 'house',
-    name: 'House',
-    summary: 'Bathroom, cleaning, paper, pets.',
-    icon: HouseIcon,
-    tone: 'mint',
-    to: '/house',
-  },
-  {
-    id: 'travel',
-    name: 'Travel',
-    summary: 'Trips, bags and what to pack.',
-    icon: LuggageIcon,
-    tone: 'cyan',
-    to: '/travel',
-  },
+  area('shopping', { icon: BasketIcon, tone: 'butter', to: '/shopping', wide: true }),
+  area('training', { icon: TrainingIcon, tone: 'ink', to: '/training' }),
+  area('food', { icon: FoodIcon, tone: 'white', to: '/food' }),
+  area('house', { icon: HouseIcon, tone: 'mint', to: '/house' }),
+  area('travel', { icon: LuggageIcon, tone: 'cyan', to: '/travel' }),
 ];
 
 /**
