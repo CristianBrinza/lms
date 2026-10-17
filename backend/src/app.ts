@@ -10,8 +10,11 @@ import {
   jsonBodyLimit,
   noStore,
   originGuard,
+  photoBodyLimit,
   requestContext,
 } from './middleware/security';
+import { drinksRoutes } from './modules/drinks/routes';
+import { backupRoutes } from './modules/admin/backup';
 import { adminRoutes } from './modules/admin/routes';
 import { authRoutes } from './modules/auth/routes';
 import { foodRoutes } from './modules/food/routes';
@@ -29,14 +32,24 @@ import { oauthMetadataRoutes, oauthRoutes } from './modules/oauth';
 import { reminderRoutes } from './modules/reminders/routes';
 import { webApp, webVersion } from './web';
 
+/** Where a drink's photo arrives: its own route, and MCP (drinks_add_photo). */
+const PHOTO_PATHS = /^\/api\/(drinks\/[^/]+\/photos|mcp(\/.*)?)$/;
+
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
 
   app.use('*', requestContext(deps), hostGuard(deps));
   app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps));
-  // A TV Time or Trakt export is bigger than any other body: that one route gets more room.
+  // A TV Time or Trakt export is bigger than any other body: that one route gets more room. So do
+  // a drink's photos (a phone's label photo as a data URL), sent to the app's route or over MCP.
   app.use('/api/*', (c, next) =>
-    c.req.path === '/api/watching/import' ? importBodyLimit(c, next) : jsonBodyLimit(c, next),
+    c.req.path === '/api/admin/backup/restore'
+      ? next()
+      : c.req.path === '/api/watching/import'
+      ? importBodyLimit(c, next)
+      : PHOTO_PATHS.test(c.req.path)
+        ? photoBodyLimit(c, next)
+        : jsonBodyLimit(c, next),
   );
   // Every change that works is announced to the household's open apps (GET /api/events).
   app.use('/api/*', liveSync(deps));
@@ -48,12 +61,14 @@ export function createApp(deps: AppDeps) {
   app.route('/api/events', liveRoutes(deps));
   app.route('/api/me', reminderRoutes(deps));
   app.route('/api/me', meRoutes(deps));
+  app.route('/api/admin/backup', backupRoutes(deps));
   app.route('/api/admin', adminRoutes(deps));
   app.route('/api/food', foodRoutes(deps));
   app.route('/api/training', trainingRoutes(deps));
   app.route('/api/travel', travelRoutes(deps));
   app.route('/api/watching', watchingRoutes(deps));
   app.route('/api/wishlist', wishlistRoutes(deps));
+  app.route('/api/drinks', drinksRoutes(deps));
   app.route('/api/users', avatarRoutes(deps));
   app.route(
     '/api/mcp',

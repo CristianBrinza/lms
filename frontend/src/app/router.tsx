@@ -23,6 +23,7 @@ const adminRoutes: RouteObject = {
     { path: 'users/new', lazy: page(() => import('@/pages/admin/NewUserPage')) },
     { path: 'users/:id', lazy: page(() => import('@/pages/admin/UserPage')) },
     { path: 'households', lazy: page(() => import('@/pages/admin/HouseholdsPage')) },
+    { path: 'backups', lazy: page(() => import('@/pages/admin/BackupsPage')) },
   ],
 };
 
@@ -106,6 +107,17 @@ const watchingRoutes: RouteObject = {
   ],
 };
 
+/** Drinks: the household's cellar and tasting journal. Fixed screens before a drink's `:id`. */
+const drinksRoutes: RouteObject = {
+  path: 'drinks',
+  children: [
+    { index: true, lazy: page(() => import('@/drinks/pages/DrinksHomePage')) },
+    { path: 'journal', lazy: page(() => import('@/drinks/pages/JournalPage')) },
+    { path: 'stats', lazy: page(() => import('@/drinks/pages/StatsPage')) },
+    { path: ':id', lazy: page(() => import('@/drinks/pages/DrinkPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -150,6 +162,7 @@ const routes: RouteObject[] = [
               travelRoutes,
               wishlistRoutes,
               watchingRoutes,
+              drinksRoutes,
               { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,
             ],
