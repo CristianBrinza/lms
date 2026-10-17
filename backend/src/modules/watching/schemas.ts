@@ -53,6 +53,12 @@ export const PlayInput = z.object({
     .boolean()
     .optional()
     .describe('Bulk: with season, the whole season; without, every aired episode of the show.'),
+  episodes: z
+    .array(int(1, 5000))
+    .min(1)
+    .max(500)
+    .optional()
+    .describe('Bulk: with season, exactly these episodes of it (the ones picked in the app).'),
   watchedAt: watchedAtField.optional(),
   rewatch: z
     .boolean()
@@ -62,11 +68,28 @@ export const PlayInput = z.object({
 });
 export type PlayInput = z.infer<typeof PlayInput>;
 
+/** How a title made someone feel: up to three, next to the rating and the review. */
+export const REACTIONS = [
+  'loved',
+  'funny',
+  'wow',
+  'moving',
+  'tense',
+  'scary',
+  'meh',
+  'disliked',
+] as const;
+
 export const StatusInput = z.object({
   status: z.enum(STATUSES).optional(),
   favorite: z.boolean().optional(),
   rating: int(1, 10).nullable().optional().describe('Your rating, 1–10; null clears it'),
-  notes: z.string().trim().max(2000).optional(),
+  notes: z.string().trim().max(2000).optional().describe('Your review: what you liked or not'),
+  reactions: z
+    .array(z.enum(REACTIONS))
+    .max(3)
+    .optional()
+    .describe('How it made you feel, up to three; [] clears them'),
   userIds: userIdsField,
 });
 

@@ -114,6 +114,7 @@ export { default as BookmarkIcon } from '@mui/icons-material/BookmarkRounded';
 export { default as BookmarkBorderIcon } from '@mui/icons-material/BookmarkBorderRounded';
 export { default as StarIcon } from '@mui/icons-material/StarRounded';
 export { default as StarBorderIcon } from '@mui/icons-material/StarBorderRounded';
+export { default as StarHalfIcon } from '@mui/icons-material/StarHalfRounded';
 export { default as UploadIcon } from '@mui/icons-material/FileUploadRounded';
 export { default as ExploreIcon } from '@mui/icons-material/ExploreRounded';
 export { default as LibraryIcon } from '@mui/icons-material/VideoLibraryRounded';

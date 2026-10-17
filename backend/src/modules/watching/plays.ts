@@ -184,6 +184,7 @@ interface ListRow {
   favorite: boolean;
   rating: number | null;
   notes: string;
+  reactions: string[];
   added_at: Date;
   updated_at: Date;
 }
@@ -194,7 +195,7 @@ export async function listRows(
   titleIds?: string[],
 ): Promise<ListRow[]> {
   const { rows } = await db.query<ListRow>(
-    `SELECT user_id, title_id, status, favorite, rating, notes, added_at, updated_at FROM watch_list
+    `SELECT user_id, title_id, status, favorite, rating, notes, reactions, added_at, updated_at FROM watch_list
       WHERE user_id = ANY($1) ${titleIds ? 'AND title_id = ANY($2)' : ''}`,
     titleIds ? [userIds, titleIds] : [userIds],
   );
@@ -247,7 +248,13 @@ async function targetsOf(
   const bad = (field: string, message: string) =>
     new AppError(400, 'VALIDATION', 'Some fields need attention', { fields: { [field]: message } });
   if (title.kind === 'movie') {
-    if (input.season !== undefined || input.episode !== undefined || input.upTo || input.all)
+    if (
+      input.season !== undefined ||
+      input.episode !== undefined ||
+      input.upTo ||
+      input.all ||
+      input.episodes
+    )
       throw bad('season', 'A film has no episodes');
     return { targets: [null], bulk: false };
   }
@@ -256,6 +263,13 @@ async function targetsOf(
     const data = await getSeason(w.deps, title.tmdbId, season, w.locale);
     return data.episodes.filter((e) => e.airDate && e.airDate <= today).map((e) => e.n);
   };
+  if (input.season !== undefined && input.episodes?.length) {
+    const season = input.season;
+    return {
+      targets: [...new Set(input.episodes)].sort((a, b) => a - b).map((n) => ({ season, episode: n })),
+      bulk: true,
+    };
+  }
   if (input.season !== undefined && input.episode !== undefined && !input.upTo && !input.all)
     return { targets: [{ season: input.season, episode: input.episode }], bulk: false };
   if (input.season !== undefined && typeof input.upTo === 'number') {
@@ -408,6 +422,7 @@ export async function setStatus(
     favorite?: boolean;
     rating?: number | null;
     notes?: string;
+    reactions?: string[];
     userIds?: string[];
   },
 ) {
@@ -416,13 +431,14 @@ export async function setStatus(
   const now = w.ctx.now;
   for (const userId of people) {
     await w.ctx.db.query(
-      `INSERT INTO watch_list (user_id, title_id, status, favorite, rating, notes, added_at, updated_at)
-       VALUES ($1, $2, coalesce($3, 'watchlist'), coalesce($4, false), $5, coalesce($6, ''), $7, $7)
+      `INSERT INTO watch_list (user_id, title_id, status, favorite, rating, notes, reactions, added_at, updated_at)
+       VALUES ($1, $2, coalesce($3, 'watchlist'), coalesce($4, false), $5, coalesce($6, ''), coalesce($9::text[], '{}'), $7, $7)
        ON CONFLICT (user_id, title_id) DO UPDATE SET
          status = coalesce($3, watch_list.status),
          favorite = coalesce($4, watch_list.favorite),
          rating = CASE WHEN $8 THEN $5 ELSE watch_list.rating END,
          notes = coalesce($6, watch_list.notes),
+         reactions = coalesce($9::text[], watch_list.reactions),
          updated_at = $7`,
       [
         userId,
@@ -433,6 +449,7 @@ export async function setStatus(
         input.notes ?? null,
         now,
         input.rating !== undefined,
+        input.reactions ? [...new Set(input.reactions)].slice(0, 3) : null,
       ],
     );
   }
@@ -469,6 +486,7 @@ export async function mineOf(w: Watch, userId: string, title: StoredTitle) {
     favorite: row?.favorite ?? false,
     rating: row?.rating ?? null,
     notes: row?.notes ?? '',
+    reactions: row?.reactions ?? [],
     addedAt: row?.added_at.toISOString() ?? null,
     updatedAt: row?.updated_at.toISOString() ?? null,
     plays,

@@ -1073,6 +1073,14 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       );
     `,
   },
+  {
+    version: 35,
+    name: 'watching: how a title made you feel, a few reactions next to the rating and review',
+    sql: `
+      -- At most three of: loved, funny, wow, moving, tense, scary, meh, disliked (checked by the API).
+      ALTER TABLE watch_list ADD COLUMN reactions text[] NOT NULL DEFAULT '{}';
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

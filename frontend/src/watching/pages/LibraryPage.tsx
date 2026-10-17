@@ -8,6 +8,7 @@ import { watchingApi, watchingKeys, type LibraryParams } from '../api';
 import { ErrorCard, ViewSwitcher, WatchingScreen } from '../components/parts';
 import { PosterCard } from '../components/Poster';
 import { formatMinutes } from '../format';
+import { stars } from '../components/pickers';
 import { useWatchingT } from '../i18n';
 import type { LibrarySort } from '../logic';
 import { useWatchView } from '../people';
@@ -325,7 +326,7 @@ function LibraryCard({ item, sort }: { item: LibraryItem; sort: LibrarySort }) {
           {item.rating ? (
             <span className="tabular absolute right-1.5 top-1.5 inline-flex h-6 items-center gap-0.5 rounded-pill bg-white/90 px-1.5 text-[0.6875rem] font-bold text-ink-900">
               <StarIcon fontSize="inherit" className="text-butter-400" />
-              {item.rating}
+              {stars(item.rating)}
             </span>
           ) : null}
           {item.title.kind === 'tv' && share > 0 && share < 1 ? (

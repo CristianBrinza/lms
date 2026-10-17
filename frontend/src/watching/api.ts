@@ -10,6 +10,7 @@ import type {
   PlayInput,
   PlaysResponse,
   Provider,
+  Reaction,
   SeasonResponse,
   TitleCard,
   TitleKind,
@@ -101,6 +102,8 @@ export const watchingApi = {
       status?: WatchStatus;
       favorite?: boolean;
       rating?: number | null;
+      notes?: string;
+      reactions?: Reaction[];
       userIds?: string[];
     },
   ) => api.put<unknown>(`${t(id)}/status`, body),

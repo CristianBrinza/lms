@@ -24,6 +24,7 @@ import { haptic } from '@/lib/haptics';
 import { watchingApi, watchingKeys } from '../api';
 import { EpisodeList } from '../components/EpisodeList';
 import { MarkWatchedSheet } from '../components/MarkWatchedSheet';
+import { Review } from '../components/Review';
 import {
   CheckMark,
   ErrorCard,
@@ -33,7 +34,7 @@ import {
   ViewSwitcher,
   WatchingScreen,
 } from '../components/parts';
-import { ListPickerSheet, RatingPicker } from '../components/pickers';
+import { ListPickerSheet } from '../components/pickers';
 import { Face, Poster, PosterRow } from '../components/Poster';
 import { airDay, formatMinutes, formatVote, watchedWhen } from '../format';
 import { isPending, useAddPlays, useRemovePlay, useSetStatus } from '../hooks';
@@ -164,6 +165,7 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
             </p>
           ) : null}
           <Household data={data} />
+          <Review title={title} mine={mine} />
 
           {!isShow && moviePlays.length ? <MoviePlays mine={mine} /> : null}
 
@@ -332,7 +334,7 @@ function ActionButton({
 function ActionBar({ title, mine, who }: { title: TitleDetail; mine: Mine; who: string[] }) {
   const t = useWatchingT();
   const setStatus = useSetStatus();
-  const [sheet, setSheet] = useState<'watched' | 'rate' | 'more' | 'list' | null>(null);
+  const [sheet, setSheet] = useState<'watched' | 'more' | 'list' | null>(null);
   const watchedMovie = title.kind === 'movie' && mine.plays.some((p) => p.season === null);
   const onList = mine.status === 'watchlist';
   const status = (body: Parameters<typeof setStatus.mutate>[0]['body'], message?: string) =>
@@ -365,23 +367,16 @@ function ActionBar({ title, mine, who }: { title: TitleDetail; mine: Mine; who: 
           icon={mine.rating ? StarIcon : StarBorderIcon}
           label={mine.rating ? t.title.rated(mine.rating) : t.title.rate}
           on={!!mine.rating}
-          onClick={() => setSheet('rate')}
+          onClick={() =>
+            document
+              .getElementById('your-take')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
         />
         <ActionButton icon={MoreHorizIcon} label={t.title.more} onClick={() => setSheet('more')} />
       </div>
 
       <MarkWatchedSheet open={sheet === 'watched'} onClose={() => setSheet(null)} title={title} />
-
-      <Sheet open={sheet === 'rate'} onClose={() => setSheet(null)} title={t.title.yourRating}>
-        <RatingPicker
-          label={t.title.yourRating}
-          value={mine.rating}
-          onChange={(rating) => {
-            status({ rating });
-            setSheet(null);
-          }}
-        />
-      </Sheet>
 
       <Sheet open={sheet === 'more'} onClose={() => setSheet(null)} title={title.title}>
         <div className="flex flex-col gap-4">

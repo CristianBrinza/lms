@@ -1,62 +1,90 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, Sheet, Skeleton, Switch, TextField, toast } from '@/components/ui';
-import { AddIcon, CheckIcon } from '@/components/ui/icons';
+import { AddIcon, CheckIcon, StarBorderIcon, StarHalfIcon, StarIcon } from '@/components/ui/icons';
+import { getLocale, intlLocale } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { watchingApi, watchingKeys } from '../api';
 import { useWatchingT } from '../i18n';
 
-/** A 1–10 rating as a row of round numbers; the chosen one and those under it fill. */
+/**
+ * A rating as five stars in half steps (stored 1–10: one half star each). The left half of a star
+ * gives the half, the right half the whole star; tapping the current value again clears it.
+ */
 export function RatingPicker({
   value,
   onChange,
   label,
+  size = 'md',
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
   label: string;
+  size?: 'md' | 'lg';
 }) {
   const t = useWatchingT();
+  const choose = (n: number) => {
+    haptic('tap');
+    onChange(value === n ? null : n);
+  };
   return (
-    <div role="radiogroup" aria-label={label} className="flex flex-col gap-2">
-      <div className="grid grid-cols-10 gap-1">
-        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
-          const on = value !== null && n <= value;
-          return (
-            <button
-              key={n}
-              type="button"
-              role="radio"
-              aria-checked={value === n}
-              aria-label={t.title.ratingLabel(n)}
-              onClick={() => {
-                haptic('tap');
-                onChange(value === n ? null : n);
-              }}
-              className={cx(
-                'press tabular grid aspect-square min-w-0 place-items-center rounded-full text-sm font-bold transition-colors',
-                on ? 'bg-butter-300 text-ink-900' : 'bg-ink-50 text-ink-500 hover:bg-butter-100',
-                value === n && 'ring-2 ring-ink-900 ring-offset-1',
-              )}
-            >
-              {n}
-            </button>
-          );
-        })}
+    <div className="flex flex-col items-start gap-1.5">
+      <div role="radiogroup" aria-label={label} className="flex items-center gap-2">
+        <div className="flex items-center">
+          {[1, 2, 3, 4, 5].map((star) => {
+            const full = value !== null && value >= star * 2;
+            const half = value !== null && value === star * 2 - 1;
+            const Icon = full ? StarIcon : half ? StarHalfIcon : StarBorderIcon;
+            return (
+              <span
+                key={star}
+                className={cx(
+                  'relative grid place-items-center',
+                  size === 'lg' ? 'size-12 text-[2.5rem]' : 'size-10 text-[2rem]',
+                  full || half ? 'text-butter-400' : 'text-ink-300',
+                )}
+              >
+                <Icon fontSize="inherit" />
+                {[star * 2 - 1, star * 2].map((n, i) => (
+                  <button
+                    key={n}
+                    type="button"
+                    role="radio"
+                    aria-checked={value === n}
+                    aria-label={t.title.ratingLabel(n)}
+                    onClick={() => choose(n)}
+                    className={cx(
+                      'press absolute inset-y-0 w-1/2 focus-visible:outline-2 focus-visible:outline-ink-900',
+                      i === 0 ? 'left-0 rounded-l-full' : 'right-0 rounded-r-full',
+                    )}
+                  />
+                ))}
+              </span>
+            );
+          })}
+        </div>
+        {value !== null ? (
+          <span className="tabular text-[1.0625rem] font-bold text-ink-900">{stars(value)}</span>
+        ) : null}
       </div>
       {value !== null ? (
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="self-start text-sm font-semibold text-ink-600 underline-offset-2 hover:underline"
+          className="text-sm font-semibold text-ink-600 underline-offset-2 hover:underline"
         >
           {t.title.clearRating}
         </button>
       ) : null}
     </div>
   );
+}
+
+/** 1–10 as stars: 9 → "4.5" (in the reader's own decimal mark). */
+export function stars(value: number): string {
+  return (value / 2).toLocaleString(intlLocale(getLocale()), { maximumFractionDigits: 1 });
 }
 
 /** "Add to a list": the household's lists (mine and shared), a tap adds; a new one in place. */

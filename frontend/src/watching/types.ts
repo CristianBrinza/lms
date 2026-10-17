@@ -131,11 +131,26 @@ export interface Progress {
   left: number;
 }
 
+export const REACTIONS = [
+  'loved',
+  'funny',
+  'wow',
+  'moving',
+  'tense',
+  'scary',
+  'meh',
+  'disliked',
+] as const;
+export type Reaction = (typeof REACTIONS)[number];
+
 export interface Mine {
   status: WatchStatus | null;
   favorite: boolean;
   rating: number | null;
+  /** My review: what I liked or not. */
   notes: string;
+  /** How it made me feel, up to three. */
+  reactions: Reaction[];
   addedAt: string | null;
   plays: Play[];
   playCount: number;
@@ -331,6 +346,8 @@ export interface PlayInput {
   upTo?: number | { season: number; episode: number };
   /** Bulk: with `season` the whole season, without it the whole show. */
   all?: boolean;
+  /** Bulk: with `season`, exactly these episodes. */
+  episodes?: number[];
   /** Left out: now. Else an ISO moment, a day, a month ('2025-03') or 'unknown'. */
   watchedAt?: string;
   /** Everyone who watched (default: me). */

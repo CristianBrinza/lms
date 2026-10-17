@@ -8,7 +8,7 @@ import { importHistory } from './import';
 import { addToList, listByName, getList } from './lists';
 import { householdIds, peopleOf, type Watch } from './people';
 import { addPlays, seasonView, setAvailability, setStatus, titleView } from './plays';
-import { LIBRARY_SORTS, STATUSES, titleIdField, watchedAtField } from './schemas';
+import { LIBRARY_SORTS, REACTIONS, STATUSES, titleIdField, watchedAtField } from './schemas';
 import { watchStats, yearInReview } from './stats';
 import type { Card } from './titles';
 
@@ -221,7 +221,12 @@ export const WATCHING_TOOLS: Tool[] = [
       status: z.enum(STATUSES).optional(),
       favorite: z.boolean().optional(),
       rating: z.number().int().min(1).max(10).nullable().optional(),
-      notes: z.string().max(2000).optional(),
+      notes: z.string().max(2000).optional().describe('A review: what they liked or not'),
+      reactions: z
+        .array(z.enum(REACTIONS))
+        .max(3)
+        .optional()
+        .describe('How it made them feel, up to three'),
       people: peopleField,
     }),
     run: async (env, { people, ...args }) => {
@@ -230,7 +235,12 @@ export const WATCHING_TOOLS: Tool[] = [
         ...args,
         userIds: await whom(w, people),
       });
-      return { status: mine.status, favorite: mine.favorite, rating: mine.rating };
+      return {
+        status: mine.status,
+        favorite: mine.favorite,
+        rating: mine.rating,
+        reactions: mine.reactions,
+      };
     },
   }),
   tool({

@@ -4,7 +4,14 @@ import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { watchingApi, watchingKeys, type EpisodeInput } from './api';
 import { watchingT } from './i18n';
-import type { Play, PlayInput, SeasonResponse, TitleResponse, WatchStatus } from './types';
+import type {
+  Play,
+  PlayInput,
+  Reaction,
+  SeasonResponse,
+  TitleResponse,
+  WatchStatus,
+} from './types';
 
 /**
  * Watching's changes. Checks are optimistic: the cached title and season tick at once, the server
@@ -47,7 +54,8 @@ function addOptimistic(client: QueryClient, input: PlayInput) {
           },
         },
     );
-  if (input.season === undefined || !(single || wholeSeason || upTo)) return;
+  const picked = input.season !== undefined && input.episodes?.length ? new Set(input.episodes) : null;
+  if (input.season === undefined || !(single || wholeSeason || upTo || picked)) return;
   client.setQueriesData<SeasonResponse>(
     { queryKey: ['watching', 'season', input.titleId, input.season] },
     (old) =>
@@ -56,7 +64,9 @@ function addOptimistic(client: QueryClient, input: PlayInput) {
         episodes: old.episodes.map((ep) => {
           const hit = single
             ? ep.n === input.episode
-            : ep.aired && !ep.watched.length && (wholeSeason || ep.n <= (upTo ?? 0));
+            : ep.aired &&
+              !ep.watched.length &&
+              (wholeSeason || (picked ? picked.has(ep.n) : ep.n <= (upTo ?? 0)));
           return hit ? { ...ep, watched: [...ep.watched, now] } : ep;
         }),
       },
@@ -157,6 +167,8 @@ export function useSetStatus() {
         status?: WatchStatus | null;
         favorite?: boolean;
         rating?: number | null;
+        notes?: string;
+        reactions?: Reaction[];
         userIds?: string[];
       };
       message?: string;
@@ -175,6 +187,8 @@ export function useSetStatus() {
               ...(body.status !== undefined ? { status: body.status } : {}),
               ...(body.favorite !== undefined ? { favorite: body.favorite } : {}),
               ...(body.rating !== undefined ? { rating: body.rating } : {}),
+              ...(body.notes !== undefined ? { notes: body.notes } : {}),
+              ...(body.reactions !== undefined ? { reactions: body.reactions } : {}),
             },
           },
       );
