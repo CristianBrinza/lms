@@ -6,7 +6,7 @@ import { formatList, getLocale, intlLocale, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
-import { foodApi, foodKeys } from '../api';
+import { foodApi, foodKeys, peopleApi } from '../api';
 import { normalize } from '../catalog';
 import { addDays, SLOT_TIME } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
@@ -73,7 +73,11 @@ function Form({
   // Eating out, planned ahead (a restaurant on Saturday): nothing is taken from the kitchen.
   const [out, setOut] = useState<OutKind | null>(null);
   const recipe = recipes.data?.find((r) => r.id === picked) ?? null;
-  const shownServings = servings ?? recipe?.servings ?? 2;
+  // At least everyone in the kitchen (a one-person recipe for the two of us comes out doubled);
+  // a batch recipe keeps its own yield.
+  const people = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
+  const kitchenSize = people.data?.people.length ?? 0;
+  const shownServings = servings ?? (Math.max(kitchenSize, recipe?.servings ?? 0) || 2);
 
   const add = useMutation({
     mutationFn: () =>

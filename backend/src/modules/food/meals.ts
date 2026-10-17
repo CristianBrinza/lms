@@ -395,6 +395,15 @@ export async function ateNow(
   return { meal: done.meal, shortfalls: done.shortfalls };
 }
 
+/** How many active people share the kitchen. */
+async function kitchenSize(ctx: FoodCtx): Promise<number> {
+  const { rows } = await ctx.db.query<{ count: number }>(
+    'SELECT count(*)::int AS count FROM users WHERE household_id = $1 AND is_active',
+    [ctx.actor.householdId],
+  );
+  return rows[0]?.count ?? 0;
+}
+
 /** People the meal is for: each must be in the household (400 otherwise). */
 async function householdMembers(ctx: FoodCtx, ids: string[]): Promise<string[]> {
   const unique = [...new Set(ids)];
@@ -512,9 +521,12 @@ async function syncMainRecipe(ctx: FoodCtx, mealId: string): Promise<void> {
 
 export async function planMeal(ctx: FoodCtx, input: MealInput): Promise<Meal> {
   const recipe = input.recipeId ? await getRecipe(ctx, input.recipeId) : null;
+  // At least everyone in the kitchen unless said otherwise: a one-person recipe planned for the
+  // two of us comes out doubled, while a batch (ten energy balls) keeps its yield.
+  const people = input.servings ? 0 : await kitchenSize(ctx);
   const id = randomUUID();
   await ctx.tx(async (tx) => {
-    const servings = input.servings ?? recipe?.servings ?? 2;
+    const servings = input.servings ?? (Math.max(people, recipe?.servings ?? 0) || 2);
     const parts: MealPartInput[] = [
       ...(recipe ? [{ recipeId: recipe.id, servings }] : []),
       ...(input.parts ?? []),
