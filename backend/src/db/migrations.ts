@@ -938,6 +938,15 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       );
     `,
   },
+  {
+    version: 33,
+    name: 'the household’s own names for an item’s kinds, per language',
+    sql: `
+      -- { "ro": { "Greek 2%": "Grecesc 2%" }, "ru": { … } }, keyed by the kind as stored, so each
+      -- kind keeps its names when others are added, renamed or reordered. Wins over the catalog's.
+      ALTER TABLE products ADD COLUMN variant_names jsonb NOT NULL DEFAULT '{}';
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

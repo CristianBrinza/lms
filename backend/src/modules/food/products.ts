@@ -6,10 +6,12 @@ import { isUuid } from '../users';
 import {
   combine,
   fieldIn,
+  mergeKindNames,
   presetLocalNames,
   presetTranslations,
   variantForms,
   variantsTranslations,
+  type KindNames,
 } from './catalog-i18n';
 import { checkIcon } from './icons';
 import type { FoodCtx } from './kitchen';
@@ -29,7 +31,7 @@ import {
   type Location,
   type TrackMode,
 } from './presets';
-import type { ProductInput } from './schemas';
+import type { ItemTranslations, ProductInput } from './schemas';
 import { canConvert, type BaseUnit, type CustomUnit, type Measured } from './units';
 
 /** A thing the kitchen keeps or buys: tomatoes, a beef steak, water. Stock lives in its lots. */
@@ -74,8 +76,9 @@ export interface Product extends Measured {
   archived: boolean;
   /**
    * Its name and note in other languages ({ ro: { name, note }, ru: …, en: … }): the catalog's for
-   * a catalog item, else what the household wrote. `variants` (read only) are its kinds in that
-   * language, in the same order as `variants`.
+   * a catalog item, else what the household wrote. `variants` are its kinds in that language, in
+   * the same order as `variants`: the household's own names (stored by kind, in variant_names),
+   * else the catalog's.
    */
   translations: Translations;
   createdAt: string;
@@ -110,10 +113,11 @@ export interface ProductRow {
   updated_at: Date;
   nutrition: NutritionEntry | null;
   translations: Translations | null;
+  variant_names: KindNames | null;
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at, nutrition, translations';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at, nutrition, translations, variant_names';
 
 /** What is stored: the fields people translate, not the kinds the catalog adds when read. */
 export function storedTranslations(value: Translations | null | undefined): Translations {
@@ -123,6 +127,55 @@ export function storedTranslations(value: Translations | null | undefined): Tran
     if (!entry) continue;
     const { variants: _variants, variant: _variant, ...rest } = entry;
     if (Object.keys(rest).length) out[locale] = rest;
+  }
+  return out;
+}
+
+/**
+ * Translations as sent, split into the item's fields and its kinds' names. Kinds come by kind
+ * ({ "Greek 2%": "Grecesc 2%" }) or as a list in the order of `variants` (the item's kinds after
+ * this change); either way they are kept by kind, so each stays with its kind.
+ */
+export function splitKinds(
+  value: ItemTranslations | null | undefined,
+  variants: readonly string[],
+): { translations: Translations | undefined; kinds: KindNames } {
+  if (!value) return { translations: undefined, kinds: {} };
+  const translations: Translations = {};
+  const kinds: KindNames = {};
+  for (const locale of LOCALES) {
+    const entry = value[locale];
+    if (!entry) continue;
+    const { variants: names, variant: _variant, ...rest } = entry;
+    translations[locale] = rest as Record<string, string | string[]>;
+    const byKind: Record<string, string> = {};
+    if (Array.isArray(names)) {
+      names.forEach((name, index) => {
+        const kind = variants[index];
+        if (kind) byKind[kind] = name;
+      });
+    } else if (names) {
+      for (const [key, name] of Object.entries(names)) {
+        const wanted = normalizeName(key);
+        byKind[variants.find((kind) => normalizeName(kind) === wanted) ?? key] = name;
+      }
+    }
+    if (Object.keys(byKind).length) kinds[locale] = byKind;
+  }
+  return { translations, kinds };
+}
+
+/** An item's kinds in each language, as it shows them (its own names, else the catalog's). */
+export function kindNamesOf(product: Pick<Product, 'variants' | 'translations'>): KindNames {
+  const out: KindNames = {};
+  for (const locale of LOCALES) {
+    const names = product.translations[locale]?.variants;
+    if (!Array.isArray(names)) continue;
+    const byKind: Record<string, string> = {};
+    product.variants.forEach((kind, index) => {
+      if (names[index]) byKind[kind] = names[index];
+    });
+    out[locale] = byKind;
   }
   return out;
 }
@@ -204,7 +257,7 @@ export function toProduct(row: ProductRow): Product {
     archived: row.archived_at !== null,
     translations: combine(
       storedTranslations(row.translations),
-      variantsTranslations(row.name, row.variants ?? []),
+      variantsTranslations(row.name, row.variants ?? [], row.variant_names),
     ),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -320,10 +373,12 @@ async function insertProduct(
   await checkIcon(ctx, input.icon);
   const preset = presetOrGuess(input.name);
   const mode = modeOf(input) ?? preset?.track ?? 'exact';
+  const variants = input.variants ?? preset?.variants ?? [];
+  const { translations, kinds } = splitKinds(input.translations, variants);
   const { rows } = await ctx.db.query<ProductRow>(
     `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at,
-                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants, opened_location, translations)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants, opened_location, translations, variant_names)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
      RETURNING ${PRODUCT_COLUMNS}`,
     [
       randomUUID(),
@@ -351,12 +406,11 @@ async function insertProduct(
       JSON.stringify(
         input.units ?? (preset && preset.unit === input.unit ? (preset.units ?? []) : []),
       ),
-      input.variants ?? preset?.variants ?? [],
+      variants,
       input.openedLocation === undefined ? (preset?.openedLocation ?? null) : input.openedLocation,
       // A catalog item arrives with its names in all three languages.
-      JSON.stringify(
-        storedTranslations(mergeTranslations(catalogSeed(input.name), input.translations)),
-      ),
+      JSON.stringify(storedTranslations(mergeTranslations(catalogSeed(input.name), translations))),
+      JSON.stringify(mergeKindNames(input.name, {}, kinds)),
     ],
   );
   return toProduct(rows[0]!);
@@ -425,14 +479,21 @@ export async function resolveNamed(
 }
 
 /** A type of an item named in any language ("de mere" or "яблочный" is Juice's "Apple"). */
-function typeNamed(item: string, variants: readonly string[], word: string): string | undefined {
+function typeNamed(
+  item: string,
+  variants: readonly string[],
+  word: string,
+  own?: KindNames | null,
+): string | undefined {
   const wanted = normalizeName(word);
-  return variants.find((v) => variantForms(item, v).some((form) => normalizeName(form) === wanted));
+  return variants.find((v) =>
+    variantForms(item, v, own).some((form) => normalizeName(form) === wanted),
+  );
 }
 
 /** The item's own type a word names ("mango peach" is its "Mango-peach"), if it has one. */
 function variantNamed(product: Product, word: string): string | null {
-  return typeNamed(product.name, product.variants, word) ?? null;
+  return typeNamed(product.name, product.variants, word, kindNamesOf(product)) ?? null;
 }
 
 /** "mango peach juice" → Juice + "Mango peach", when Juice is an item that comes in types. */
@@ -445,12 +506,23 @@ export async function splitVariant(
     name: string;
     variants: string[];
     translations: Translations | null;
+    variant_names: KindNames | null;
   }>(
-    `SELECT name, variants, translations FROM products WHERE household_id = $1 AND cardinality(variants) > 0`,
+    `SELECT name, variants, translations, variant_names FROM products WHERE household_id = $1 AND cardinality(variants) > 0`,
     [ctx.actor.householdId],
   );
-  const typed = [
-    ...rows.map((row) => ({ item: row.name, forms: namesOf(row), variants: row.variants })),
+  const typed: Array<{
+    item: string;
+    forms: string[];
+    variants: string[];
+    own?: KindNames | null;
+  }> = [
+    ...rows.map((row) => ({
+      item: row.name,
+      forms: namesOf(row),
+      variants: row.variants,
+      own: row.variant_names,
+    })),
     ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({
       item: preset.name,
       forms: [preset.name, ...(preset.aliases ?? []), ...presetLocalNames(preset.name)],
@@ -474,7 +546,7 @@ export async function splitVariant(
   if (words.length < 2) return null;
   // The longest name wins; between equals, the name at the end ("apple juice" is juice, not apples).
   let best: { item: string; variant: string; score: number } | null = null;
-  for (const { item, forms, variants } of typed) {
+  for (const { item, forms, variants, own } of typed) {
     for (const form of forms) {
       const size = normalizeName(form).split(' ').length;
       if (size >= words.length) continue;
@@ -486,7 +558,7 @@ export async function splitVariant(
       cuts.forEach(({ head, rest }, index) => {
         if (rest.length > 3 || !sameName(head.join(' '), form)) return;
         // Through a loose alias ("oil"), only a type the item knows: "pumpkin seed oil" is its own item.
-        if (form !== item && !typeNamed(item, variants, rest.join(' '))) return;
+        if (form !== item && !typeNamed(item, variants, rest.join(' '), own)) return;
         const score = size * 2 + (index === 0 ? 1 : 0);
         if (best && score <= best.score) return;
         const variant = rest.join(' ');
@@ -628,6 +700,33 @@ async function resolveExact(
   });
 }
 
+/** The household's own names for an item's kinds, as stored. */
+async function storedKindNames(ctx: FoodCtx, id: string): Promise<KindNames> {
+  const { rows } = await ctx.db.query<{ variant_names: KindNames | null }>(
+    'SELECT variant_names FROM products WHERE id = $1',
+    [id],
+  );
+  return rows[0]?.variant_names ?? {};
+}
+
+/** Merges translations as sent (its name, note and kinds) into an item, and returns it. */
+export async function translateProduct(
+  ctx: FoodCtx,
+  product: Product,
+  sent: ItemTranslations,
+): Promise<Product> {
+  const { translations, kinds } = splitKinds(sent, product.variants);
+  const merged = storedTranslations(
+    mergeTranslations(storedTranslations(product.translations), translations),
+  );
+  const own = mergeKindNames(product.name, await storedKindNames(ctx, product.id), kinds);
+  const { rows } = await ctx.db.query<ProductRow>(
+    `UPDATE products SET translations = $2::jsonb, variant_names = $3::jsonb WHERE id = $1 RETURNING ${PRODUCT_COLUMNS}`,
+    [product.id, JSON.stringify(merged), JSON.stringify(own)],
+  );
+  return toProduct(rows[0]!);
+}
+
 export async function updateProduct(
   ctx: FoodCtx,
   id: string,
@@ -682,9 +781,7 @@ export async function updateProduct(
         { fields: { unit: 'It still has stock' } },
       );
   }
-  const renamed = Boolean(
-    patch.name && normalizeName(patch.name) !== normalizeName(product.name),
-  );
+  const renamed = Boolean(patch.name && normalizeName(patch.name) !== normalizeName(product.name));
   if (renamed) {
     const clash = await findByName(ctx, patch.name!);
     if (clash && clash.id !== id && normalizeName(clash.name) === normalizeName(patch.name!)) {
@@ -698,10 +795,17 @@ export async function updateProduct(
   const base = renamed
     ? mergeTranslations(withoutField(before, 'name'), catalogSeed(patch.name!))
     : before;
+  // Names for kinds sent as a list follow the kinds as they are after this change.
+  const sent = splitKinds(patch.translations, patch.variants ?? product.variants);
   const translations =
     renamed || patch.translations !== undefined
-      ? JSON.stringify(storedTranslations(mergeTranslations(base, patch.translations)))
+      ? JSON.stringify(storedTranslations(mergeTranslations(base, sent.translations)))
       : undefined;
+  const variantNames = Object.keys(sent.kinds).length
+    ? JSON.stringify(
+        mergeKindNames(patch.name ?? product.name, await storedKindNames(ctx, id), sent.kinds),
+      )
+    : undefined;
   const columns: Record<string, unknown> = {
     name: patch.name,
     icon: patch.icon,
@@ -725,6 +829,7 @@ export async function updateProduct(
     store_id: patch.storeId,
     note: patch.note,
     translations,
+    variant_names: variantNames,
     // null clears the household's own values: the catalog's count again.
     nutrition:
       patch.nutrition === undefined
@@ -739,7 +844,7 @@ export async function updateProduct(
     if (value === undefined) continue;
     values.push(value);
     sets.push(
-      column === 'nutrition' || column === 'translations'
+      column === 'nutrition' || column === 'translations' || column === 'variant_names'
         ? `${column} = $${values.length}::jsonb`
         : `${column} = $${values.length}`,
     );

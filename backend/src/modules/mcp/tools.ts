@@ -459,7 +459,8 @@ export const TOOLS: Tool[] = [
     description:
       'Put food in the kitchen, one lot per entry (each steak or pack separately). Name items as they are called (matched loosely; unknown names become new items). Expiry defaults from shelf life.',
     access: 'write',
-    input: batch(translatable(AddStockInput)),
+    // Its own translations: the item's name, and its kinds by kind ({ "Greek 2%": "Grecesc 2%" }).
+    input: batch(AddStockInput),
     run: async ({ ctx }, args) => {
       return ctx.tx(async (tx) => {
         const out = [];
@@ -587,9 +588,8 @@ export const TOOLS: Tool[] = [
     description:
       'Create a catalog item, or change one (productId): icon (a built-in key, or a custom:… key from create_icon), category, unit, piece size, place, shelf life, frozen/thawed days, running-low amount, usual store, and trackMode (exact amounts, level = full/low/out for spices and sauces, none = always there).',
     access: 'write',
-    input: ProductInput.partial().and(
-      z.object({ productId: idField.optional(), ...translationsField }),
-    ),
+    // ProductInput's translations take the item's kinds too ({ "ro": { "variants": { … } } }).
+    input: ProductInput.partial().and(z.object({ productId: idField.optional() })),
     run: async ({ ctx }, { productId, ...input }) => {
       if (productId) return updateProduct(ctx, productId, input);
       if (!input.name)

@@ -32,14 +32,18 @@ export function requestLocale(c: Context): Locale {
   return parseAcceptLanguage(c.req.header('accept-language'));
 }
 
-const text = z.union([z.string().max(4000), z.array(z.string().max(4000)).max(100)]);
+/** One translated field: a text, or a list of them (a recipe's steps). */
+export const TranslatedText = z.union([
+  z.string().max(4000),
+  z.array(z.string().max(4000)).max(100),
+]);
 
 /** One record's translations, as the API takes them: per language, per field. */
 export const Translations = z
   .object({
-    en: z.record(z.string().max(40), text).optional(),
-    ro: z.record(z.string().max(40), text).optional(),
-    ru: z.record(z.string().max(40), text).optional(),
+    en: z.record(z.string().max(40), TranslatedText).optional(),
+    ro: z.record(z.string().max(40), TranslatedText).optional(),
+    ru: z.record(z.string().max(40), TranslatedText).optional(),
   })
   .describe(
     'The text in other languages, per field: { "ro": { "name": "…" }, "ru": { "name": "…" }, "en": { "name": "…" } }. Fill all three (en, ro, ru) so everyone reads it in their own language.',

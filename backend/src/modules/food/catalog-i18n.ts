@@ -801,37 +801,88 @@ export function variantName(item: string, variant: string, locale: Locale): stri
   return names ? pick(names, locale) : null;
 }
 
-/** Every name a kind of a catalog item goes by: as stored, and in Romanian and Russian. */
-export function variantForms(item: string, variant: string): string[] {
+/**
+ * The household's own names for an item's kinds (products.variant_names), per language, keyed by
+ * the kind as stored: { ro: { "Greek 2%": "Grecesc 2%" } }. They win over the catalog's.
+ */
+export type KindNames = Partial<Record<Locale, Record<string, string>>>;
+
+const sameKind = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** A kind in a language: the household's name for it, else the catalog's, else null (as stored). */
+export function kindName(
+  item: string,
+  variant: string,
+  locale: Locale,
+  own?: KindNames | null,
+): string | null {
+  const names = own?.[locale];
+  const mine = names
+    ? (names[variant] ?? Object.entries(names).find(([key]) => sameKind(key, variant))?.[1])
+    : undefined;
+  return mine || variantName(item, variant, locale);
+}
+
+/**
+ * Merges names for kinds into the stored ones, kind by kind. A name that reads as the kind would
+ * anyway (the catalog's word, or the kind itself) or an empty one clears the household's own.
+ */
+export function mergeKindNames(
+  item: string,
+  stored: KindNames | null | undefined,
+  update: KindNames | null | undefined,
+): KindNames {
+  const out: KindNames = {};
+  for (const locale of LOCALES) {
+    const names: Record<string, string> = { ...(stored?.[locale] ?? {}) };
+    for (const [kind, raw] of Object.entries(update?.[locale] ?? {})) {
+      for (const key of Object.keys(names)) if (sameKind(key, kind)) delete names[key];
+      const name = raw.trim();
+      if (name && name !== (variantName(item, kind, locale) ?? kind)) names[kind.trim()] = name;
+    }
+    if (Object.keys(names).length) out[locale] = names;
+  }
+  return out;
+}
+
+/** Every name a kind of an item goes by: as stored, and in each language. */
+export function variantForms(item: string, variant: string, own?: KindNames | null): string[] {
   const forms = [variant];
-  for (const locale of ['ro', 'ru'] as const) {
-    const name = variantName(item, variant, locale);
-    if (name) forms.push(name);
+  for (const locale of LOCALES) {
+    const name = kindName(item, variant, locale, own);
+    if (name && !forms.includes(name)) forms.push(name);
   }
   return forms;
 }
 
 /**
- * What a catalog item shows in each language beyond its name: its kinds, in the same order as
- * `variants` (a kind the catalog has no word for keeps its own name).
+ * What an item shows in each language beyond its name: its kinds, in the same order as `variants`
+ * (the household's names, else the catalog's; a kind with neither keeps its own name).
  */
-export function variantsTranslations(item: string, variants: readonly string[]): Translations {
-  if (!variants.length || !VARIANT_NAMES[item]) return {};
+export function variantsTranslations(
+  item: string,
+  variants: readonly string[],
+  own?: KindNames | null,
+): Translations {
+  if (!variants.length) return {};
   const out: Translations = {};
   for (const locale of LOCALES) {
-    if (locale === 'en') continue;
-    const names = variants.map((v) => variantName(item, v, locale) ?? v);
+    const names = variants.map((v) => kindName(item, v, locale, own) ?? v);
     if (names.some((name, index) => name !== variants[index])) out[locale] = { variants: names };
   }
   return out;
 }
 
 /** One kind of an item, as a `variant` field per language. */
-export function variantTranslations(item: string, variant: string | null | undefined): Translations {
+export function variantTranslations(
+  item: string,
+  variant: string | null | undefined,
+  own?: KindNames | null,
+): Translations {
   if (!variant) return {};
   const out: Translations = {};
-  for (const locale of ['ro', 'ru'] as const) {
-    const name = variantName(item, variant, locale);
+  for (const locale of LOCALES) {
+    const name = kindName(item, variant, locale, own);
     if (name) out[locale] = { variant: name };
   }
   return out;

@@ -73,9 +73,9 @@ describe('food in English, Romanian and Russian: the kitchen', () => {
 
     // Searching finds it in any language.
     for (const q of ['roș', 'помид', 'tomat'])
-      expect((await b.get(`/api/food/products?q=${encodeURIComponent(q)}`)).body.products).toEqual(
-        [expect.objectContaining({ id: ro.id })],
-      );
+      expect((await b.get(`/api/food/products?q=${encodeURIComponent(q)}`)).body.products).toEqual([
+        expect.objectContaining({ id: ro.id }),
+      ]);
 
     // A kind in another language is the catalog's kind: "pâine neagră" is Bread, Black.
     const bread = (await b.post('/api/food/stock', { name: 'pâine neagră', quantity: 1 })).body;
@@ -149,6 +149,122 @@ describe('food in English, Romanian and Russian: the kitchen', () => {
     expect(tools.find((x: any) => x.id === pan.id).translations.ro.name).toBe('Tigaie');
   });
 
+  it('keeps the names people give kinds the catalog doesn’t know, each with its kind', async () => {
+    const b = await cook();
+    const bread = (
+      await b.post('/api/food/products', {
+        name: 'Bread',
+        variants: ['White', 'Sourdough'],
+        // As a list, in the order of variants ('' leaves the catalog's word).
+        translations: { ro: { variants: ['', 'Cu maia'] }, ru: { variants: ['', 'На закваске'] } },
+      })
+    ).body.product;
+    expect(bread.translations.ro.variants).toEqual(['Albă', 'Cu maia']);
+    expect(bread.translations.ru.variants).toEqual(['Белый', 'На закваске']);
+
+    // Adding and reordering kinds keeps each name with its kind; a new one comes by kind.
+    const more = (
+      await b.patch(`/api/food/products/${bread.id}`, {
+        variants: ['Seeded', 'White', 'Sourdough', 'Spelt'],
+        translations: {
+          ro: { variants: { spelt: 'Din spelt' } },
+          ru: { variants: { Spelt: 'Из полбы' } },
+        },
+      })
+    ).body.product;
+    expect(more.variants).toEqual(['Seeded', 'White', 'Sourdough', 'Spelt']);
+    expect(more.translations.ro.variants).toEqual(['Cu semințe', 'Albă', 'Cu maia', 'Din spelt']);
+    expect(more.translations.ru.variants).toEqual([
+      'С семенами',
+      'Белый',
+      'На закваске',
+      'Из полбы',
+    ]);
+    expect(more.translations.ro.name).toBe('Pâine');
+
+    // A name of their own wins over the catalog's; the catalog's word again clears it.
+    const fixed = (
+      await b.patch(`/api/food/products/${bread.id}`, {
+        translations: { ro: { variants: { White: 'Albă feliată' } } },
+      })
+    ).body.product;
+    expect(fixed.translations.ro.variants[1]).toBe('Albă feliată');
+    const back = (
+      await b.patch(`/api/food/products/${bread.id}`, {
+        translations: { ro: { variants: { White: 'Albă' } } },
+      })
+    ).body.product;
+    expect(back.translations.ro.variants[1]).toBe('Albă');
+    const { rows } = await t.db.query('SELECT variant_names FROM products WHERE id = $1', [
+      bread.id,
+    ]);
+    expect(rows[0]?.variant_names).toEqual({
+      ro: { Sourdough: 'Cu maia', Spelt: 'Din spelt' },
+      ru: { Sourdough: 'На закваске', Spelt: 'Из полбы' },
+    });
+
+    // Its pieces carry the kind's names, and the kind is found by them.
+    const lot = (await b.post('/api/food/stock', { name: 'pâine cu maia', quantity: 1 })).body.lot;
+    expect(lot.variant).toBe('Sourdough');
+    expect(lot.translations).toEqual({
+      ro: { variant: 'Cu maia' },
+      ru: { variant: 'На закваске' },
+    });
+    // Catalog kinds still translate.
+    const white = (
+      await b.post('/api/food/stock', { name: 'Bread', variant: 'White', quantity: 1 })
+    ).body.lot;
+    expect(white.translations).toEqual({ ro: { variant: 'Albă' }, ru: { variant: 'Белый' } });
+  });
+
+  it('takes kinds’ names with stock, by kind, and keeps them as kinds are added', async () => {
+    const b = await cook();
+    const greek = (
+      await b.post('/api/food/stock', {
+        name: 'Homemade yogurt',
+        variant: 'Greek 2%',
+        quantity: 1,
+        translations: {
+          ro: { name: 'Iaurt de casă', variants: { 'greek 2%': 'Grecesc 2%' } },
+          ru: { name: 'Домашний йогурт', variants: { 'Greek 2%': 'Греческий 2%' } },
+        },
+      })
+    ).body;
+    // (Its other kinds, if any, are guessed from the catalog's yogurt.)
+    const g = greek.product.variants.indexOf('Greek 2%');
+    expect(g).toBeGreaterThanOrEqual(0);
+    expect(greek.product.translations.ro.name).toBe('Iaurt de casă');
+    expect(greek.product.translations.ro.variants[g]).toBe('Grecesc 2%');
+    expect(greek.product.translations.ru.variants[g]).toBe('Греческий 2%');
+    expect(greek.lot.translations).toEqual({
+      ro: { variant: 'Grecesc 2%' },
+      ru: { variant: 'Греческий 2%' },
+    });
+    // Another kind: the first keeps its names.
+    const free = (
+      await b.post('/api/food/stock', {
+        name: 'Homemade yogurt',
+        variant: 'Lactose-free',
+        quantity: 1,
+        translations: { ro: { variants: { 'Lactose-free': 'Fără lactoză' } } },
+      })
+    ).body.product;
+    const f = free.variants.indexOf('Lactose-free');
+    expect(f).toBe(free.variants.length - 1);
+    expect(free.variants.indexOf('Greek 2%')).toBe(g);
+    expect(free.translations.ro.variants[g]).toBe('Grecesc 2%');
+    expect(free.translations.ro.variants[f]).toBe('Fără lactoză');
+    expect(free.translations.ru.variants[g]).toBe('Греческий 2%');
+    expect(free.translations.ru.variants[f]).toBe('Lactose-free');
+    // A shopping line for a kind shows the kind's names.
+    const [line] = (
+      await b.post('/api/food/shopping/items', {
+        items: [{ name: 'Homemade yogurt', variant: 'Greek 2%' }],
+      })
+    ).body.items;
+    expect(line.translations.ro.variant).toBe('Grecesc 2%');
+  });
+
   it('names kitchenware in every language and finds it by any of its names', async () => {
     const b = await cook();
     const pan = (await b.post('/api/food/kitchenware', { name: 'tigaie' })).body.tool;
@@ -200,9 +316,8 @@ describe('food in English, Romanian and Russian: recipes, meals, stores', () => 
     expect(edited.translations.ro).toEqual({ title: 'Salată de roșii' });
 
     // A meal from it is called by the recipe's title in every language.
-    const meal = (
-      await b.post('/api/food/meals', { date: '2026-10-20', recipeId: recipe.id })
-    ).body.meal;
+    const meal = (await b.post('/api/food/meals', { date: '2026-10-20', recipeId: recipe.id })).body
+      .meal;
     expect(meal.translations.ro.title).toBe('Salată de roșii');
     expect(meal.parts[0].translations.ru.title).toBe('Салат из помидоров');
   });

@@ -9,6 +9,7 @@ import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import {
   findProduct,
+  kindNamesOf,
   namesOf,
   PRODUCT_COLUMNS,
   rememberVariant,
@@ -126,7 +127,7 @@ export function lineTranslations(
     (preset !== null && preset.name === product.name);
   return combine(
     same ? onlyFields(product.translations, ['name']) : {},
-    variantTranslations(product.name, variant),
+    variantTranslations(product.name, variant, kindNamesOf(product)),
   );
 }
 

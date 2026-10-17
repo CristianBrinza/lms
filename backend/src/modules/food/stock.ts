@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
-import { mergeTranslations, type Translations } from '../../lib/i18n';
-import { variantTranslations } from './catalog-i18n';
+import type { Translations } from '../../lib/i18n';
+import { variantTranslations, type KindNames } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import { freezingFor, OPENED_BY_CATEGORY, type Level, type Location } from './presets';
 import {
@@ -11,6 +11,7 @@ import {
   rememberVariant,
   resolveNamed,
   toProduct,
+  translateProduct,
   type Product,
   type ProductRow,
 } from './products';
@@ -120,6 +121,7 @@ interface LotRow {
   store_name: string | null;
   store_translations: Translations | null;
   product_name: string | null;
+  product_variant_names: KindNames | null;
   trip_id: string | null;
   note: string;
   variant: string;
@@ -129,7 +131,7 @@ interface LotRow {
 }
 
 const LOT_SELECT = `SELECT l.id, l.product_id, l.quantity, l.initial_quantity, l.location, l.added_at, l.expires_on, l.opened_at,
-       l.price, l.store_id, s.name AS store_name, s.translations AS store_translations, lp.name AS product_name, l.trip_id, l.note, l.variant, l.package, l.package_size, l.finished_at
+       l.price, l.store_id, s.name AS store_name, s.translations AS store_translations, lp.name AS product_name, lp.variant_names AS product_variant_names, l.trip_id, l.note, l.variant, l.package, l.package_size, l.finished_at
   FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id LEFT JOIN products lp ON lp.id = l.product_id`;
 
 /** Opened first, then soonest to expire, then oldest: the order stock is used in. */
@@ -155,7 +157,9 @@ export function toLot(row: LotRow): Lot {
     noteKey: note?.key ?? null,
     noteValues: note?.values ?? {},
     variant: row.variant,
-    translations: row.product_name ? variantTranslations(row.product_name, row.variant) : {},
+    translations: row.product_name
+      ? variantTranslations(row.product_name, row.variant, row.product_variant_names)
+      : {},
     package: row.package,
     packageSize: row.package_size,
   };
@@ -306,15 +310,8 @@ export async function addStock(
     let product = named ? named.product : await findProduct(tx, input.productId!, { lock: true });
     const variant = input.variant || named?.variant || '';
     product = await rememberVariant(tx, product, variant);
-    // An assistant adding "Plăcinte" names it in every language at once.
-    if (input.translations) {
-      const merged = mergeTranslations(product.translations, input.translations);
-      await tx.db.query('UPDATE products SET translations = $2 WHERE id = $1', [
-        product.id,
-        JSON.stringify(merged),
-      ]);
-      product = { ...product, translations: merged };
-    }
+    // An assistant adding "Plăcinte" names it, and its kinds, in every language at once.
+    if (input.translations) product = await translateProduct(tx, product, input.translations);
     if (product.archived) {
       await tx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [
         product.id,

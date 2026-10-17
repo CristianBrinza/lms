@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Translations } from '../../lib/i18n';
+import { TranslatedText, Translations } from '../../lib/i18n';
 import { NutritionInput } from './nutrition';
 import { customIconKey } from './icons';
 import { TOOL_ICONS, TOOL_KINDS } from './kitchenware';
@@ -49,6 +49,29 @@ export const priceField = z
   .number()
   .min(0, 'Price can’t be negative')
   .max(1_000_000, 'That price is too large');
+
+/** An item's kinds in one language: by kind ({ "Greek 2%": "Grecesc 2%" }), or in `variants` order. */
+const KindNamesField = z
+  .union([
+    z.record(z.string().trim().min(1).max(40), z.string().trim().max(40)),
+    z.array(z.string().trim().max(40)).max(30),
+  ])
+  .describe(
+    'Its kinds in this language, by kind as written in variants: { "Greek 2%": "Grecesc 2%" } (or a list in the same order as variants). Kinds named the same in every language (brands) can be left out.',
+  );
+const itemLanguage = z.object({ variants: KindNamesField.optional() }).catchall(TranslatedText);
+
+/** An item's translations: its fields (name, note), and the names of its kinds. */
+export const ItemTranslations = z
+  .object({
+    en: itemLanguage.optional(),
+    ro: itemLanguage.optional(),
+    ru: itemLanguage.optional(),
+  })
+  .describe(
+    'Its name, note and kinds in other languages: { "ro": { "name": "Iaurt", "variants": { "Greek 2%": "Grecesc 2%" } }, "ru": { "name": "Йогурт", "variants": { "Greek 2%": "Греческий 2%" } }, "en": { "name": "Yogurt" } }. Fill all three (en, ro, ru).',
+  );
+export type ItemTranslations = z.infer<typeof ItemTranslations>;
 
 export const ProductInput = z.object({
   name: nameField,
@@ -147,9 +170,7 @@ export const ProductInput = z.object({
   storeId: idField.nullable().optional().describe('The store it is usually bought at'),
   note: noteField.optional(),
   nutrition: NutritionInput.optional(),
-  translations: Translations.optional().describe(
-    'Its name and note in other languages: { "ro": { "name": "…", "note": "…" }, "ru": { … }, "en": { … } }',
-  ),
+  translations: ItemTranslations.optional(),
 });
 export type ProductInput = z.infer<typeof ProductInput>;
 
@@ -186,8 +207,8 @@ export type Packages = z.infer<typeof PackagesField>;
 export const AddStockInput = z
   .object({
     ...productRef,
-    translations: Translations.optional().describe(
-      'The item’s name in the other languages ({ ro: { name }, ru: { name }, en: { name } }), merged into the item',
+    translations: ItemTranslations.optional().describe(
+      'The item’s name and kinds in the other languages, merged into the item: { "ro": { "name": "Iaurt", "variants": { "Greek 2%": "Grecesc 2%" } }, "ru": { … }, "en": { "name": "Yogurt" } }',
     ),
     area: z
       .enum(['food', 'house'])

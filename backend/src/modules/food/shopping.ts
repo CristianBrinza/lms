@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
 import type { Translations } from '../../lib/i18n';
-import { combine, onlyFields, variantTranslations } from './catalog-i18n';
+import { combine, onlyFields, variantTranslations, type KindNames } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import type { Category, FoodIcon } from './presets';
 import { findProduct, rememberVariant, resolveNamed, type Product } from './products';
@@ -110,24 +110,27 @@ interface ItemRow {
   piece_unit: 'g' | 'ml' | null;
   p_units: CustomUnit[] | null;
   p_translations: Translations | null;
+  p_variant_names: KindNames | null;
   package: string;
   bought: BoughtPackage[] | null;
 }
 
 /** A line's name and kind in other languages: its item's, while the line still goes by its name. */
-function itemTranslations(row: Pick<ItemRow, 'name' | 'p_name' | 'p_translations' | 'variant'>) {
+function itemTranslations(
+  row: Pick<ItemRow, 'name' | 'p_name' | 'p_translations' | 'p_variant_names' | 'variant'>,
+) {
   if (!row.p_name) return {};
   const named = sameName(row.name, row.p_name);
   return combine(
     named ? onlyFields(row.p_translations, ['name']) : {},
-    variantTranslations(row.p_name, row.variant),
+    variantTranslations(row.p_name, row.variant, row.p_variant_names),
   );
 }
 
 const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.name AS p_name, p.category, i.amount, i.unit, i.note, i.variant, i.priority,
        to_char(i.need_by, 'YYYY-MM-DD') AS need_by, i.source, i.checked_at,
        i.price, i.trip_id, i.lot_id, i.created_at, i.package, i.bought, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units,
-       p.translations AS p_translations
+       p.translations AS p_translations, p.variant_names AS p_variant_names
   FROM shopping_items i LEFT JOIN products p ON p.id = i.product_id`;
 
 interface PriceRow {
