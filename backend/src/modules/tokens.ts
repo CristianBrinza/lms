@@ -151,6 +151,9 @@ export function tokenMayAccess(scope: TokenScope, method: string, path: string):
   // Watching: each person's films and series, the same as training.
   if (path === '/api/watching' || path.startsWith('/api/watching/'))
     return scope === 'food:read' ? read : true;
+  // The priority buy list: the household's, like the kitchen.
+  if (path === '/api/wishlist' || path.startsWith('/api/wishlist/'))
+    return scope === 'food:read' ? read : true;
   if (path.startsWith('/api/admin/')) return scope === 'admin';
   return false;
 }
