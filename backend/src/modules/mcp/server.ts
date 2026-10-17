@@ -59,6 +59,11 @@ Watching (films and series, each person's own; from TMDB)
 Priority buy list (bigger things to buy one day, in order)
 - buy_list first: what's wanted, in priority order (rank 1 first), with urgency (now, soon, someday), price, link, note; bought ones after. buy_list_add for something new ("a cordless vacuum", "a monitor"): put a real price and a shop link when you find them, top: true when it should come first. buy_list_update to change it, reorder (position), or mark it bought (status bought, boughtPrice). Groceries go on the shopping list, not here.
 
+Drinks (the household's cellar and everyone's tasting journal: wine, sparkling, spirits, beer…)
+- A drink is one specific version: "Jack Daniel's" is the line, "Tennessee Honey" the variant; a wine's each vintage is its own drink. drinks_list first (search by name, producer, region…), so a known bottle gets a tasting or stock rather than a duplicate; drinks_add with fromId makes a new version of the same line.
+- From label photos: read everything the labels say into drinks_add (name as on the label, producer, line, variant, vintage, age, ABV, volume, country as an ISO code, region, appellation, grapes, style, cask, the back label's text in labelText as written), then drinks_add_photo with each photo (front first, then kind "back"). Never guess facts the labels don't show.
+- drinks_add_tasting: who (person, default you), when, where (place, country), stars as rating 1–10 in half stars (9 = 4.5 stars), comment, pairing, buyAgain; a structured sheet (WSET-style for wine and spirits, BJCP scores for beer) only when they described it. drinks_set_stock for bottles at home (delta +1 bought, −1 finished), where they are, open or not.
+
 Training (home workouts, each person's own)
 - training_overview first: whose (userId; default you), today's and next workouts, the week, streaks. People are the household's, with gender, age and height: "for Maria" means her userId. Each person has their own exercise library and routines (exercise ids differ per person; plan_workout maps another person's to theirs); the equipment is shared.
 - Equipment pieces: bands each with a resistance (kg), the bar's grips. An exercise's options are its variations plus those pieces; plan items and sets take variant ("Wide grip", "Black band").

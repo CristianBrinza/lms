@@ -13,6 +13,7 @@ export const LIVE_AREAS = [
   'travel',
   'watching',
   'wishlist',
+  'drinks',
   'reminders',
   'people',
   'paydays',

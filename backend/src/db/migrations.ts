@@ -1109,6 +1109,123 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE INDEX wishlist_items_household ON wishlist_items (household_id, status, position);
     `,
   },
+  {
+    version: 37,
+    name: "drinks: the household cellar and everyone's tasting journal, with label photos",
+    sql: `
+      -- One specific version of a drink (a wine's vintage, Jack Daniel's Tennessee Honey), the
+      -- household's. Versions of one family share the same line ("Jack Daniel's").
+      CREATE TABLE drinks (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        category text NOT NULL CHECK (category IN ('wine', 'sparkling', 'fortified', 'brandy',
+          'whisky', 'rum', 'vodka', 'gin', 'agave', 'liqueur', 'beer', 'cider', 'sake', 'other')),
+        name text NOT NULL,
+        producer text NOT NULL DEFAULT '',
+        line text NOT NULL DEFAULT '',
+        variant text NOT NULL DEFAULT '',
+        vintage integer CHECK (vintage BETWEEN 1800 AND 2100),
+        -- Bottled or produced on, when the label says a day rather than a year.
+        produced_on date,
+        age_years integer CHECK (age_years BETWEEN 0 AND 100),
+        abv numeric(4, 1) CHECK (abv BETWEEN 0 AND 100),
+        volume_ml integer CHECK (volume_ml > 0),
+        -- ISO 3166 code (MD, FR); '' when unknown. Names are shown in the reader's language.
+        country text NOT NULL DEFAULT '',
+        region text NOT NULL DEFAULT '',
+        appellation text NOT NULL DEFAULT '',
+        grapes text[] NOT NULL DEFAULT '{}',
+        -- Wine's colour: white, rose, red, orange; '' for the rest.
+        color text NOT NULL DEFAULT '',
+        -- Free words by kind: Brut, Extra Brut; VSOP, XO; Single malt; IPA.
+        style text NOT NULL DEFAULT '',
+        cask text NOT NULL DEFAULT '',
+        label_text text NOT NULL DEFAULT '',
+        tags text[] NOT NULL DEFAULT '{}',
+        notes text NOT NULL DEFAULT '',
+        -- The last price paid; every price ever paid is in drink_prices.
+        price numeric(12, 2),
+        currency text NOT NULL DEFAULT 'MDL',
+        bought_at text NOT NULL DEFAULT '',
+        -- The cellar: bottles at home, where, one open, when bought; or only wanted.
+        stock integer NOT NULL DEFAULT 0 CHECK (stock >= 0),
+        location text NOT NULL DEFAULT '',
+        opened boolean NOT NULL DEFAULT false,
+        bought_on date,
+        wanted boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX drinks_household ON drinks (household_id, category);
+      CREATE INDEX drinks_line ON drinks (household_id, lower(line)) WHERE line <> '';
+
+      CREATE TABLE drink_prices (
+        id uuid PRIMARY KEY,
+        drink_id uuid NOT NULL REFERENCES drinks(id) ON DELETE CASCADE,
+        price numeric(12, 2) NOT NULL,
+        currency text NOT NULL,
+        bought_at text NOT NULL DEFAULT '',
+        bought_on date,
+        created_at timestamptz NOT NULL
+      );
+      CREATE INDEX drink_prices_drink ON drink_prices (drink_id, created_at);
+
+      -- One person's tasting, kept for good and seen by the household.
+      CREATE TABLE drink_tastings (
+        id uuid PRIMARY KEY,
+        drink_id uuid NOT NULL REFERENCES drinks(id) ON DELETE CASCADE,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        tasted_on date NOT NULL,
+        place text NOT NULL DEFAULT '',
+        occasion text NOT NULL DEFAULT '',
+        country text NOT NULL DEFAULT '',
+        with_people uuid[] NOT NULL DEFAULT '{}',
+        with_others text NOT NULL DEFAULT '',
+        -- Half stars: 1 = 0.5 star … 10 = 5 stars.
+        rating smallint CHECK (rating BETWEEN 1 AND 10),
+        score smallint CHECK (score BETWEEN 0 AND 100),
+        buy_again boolean,
+        comment text NOT NULL DEFAULT '',
+        pairing text NOT NULL DEFAULT '',
+        mode text NOT NULL DEFAULT 'quick' CHECK (mode IN ('quick', 'full')),
+        -- The structured tasting sheet ({ v: 1, kind: wine | spirit | beer, … }), checked by the API.
+        sheet jsonb,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX drink_tastings_drink ON drink_tastings (drink_id, tasted_on DESC);
+      CREATE INDEX drink_tastings_household ON drink_tastings (household_id, tasted_on DESC);
+
+      -- Label and moment photos, shrunk on upload (WebP, 1600 px and a 480 px thumb).
+      CREATE TABLE drink_photos (
+        id uuid PRIMARY KEY,
+        drink_id uuid NOT NULL REFERENCES drinks(id) ON DELETE CASCADE,
+        tasting_id uuid REFERENCES drink_tastings(id) ON DELETE CASCADE,
+        position integer NOT NULL DEFAULT 0,
+        kind text NOT NULL DEFAULT 'front' CHECK (kind IN ('front', 'back', 'other')),
+        mime text NOT NULL,
+        -- "full" is a reserved word: always quoted.
+        "full" bytea NOT NULL,
+        thumb bytea NOT NULL,
+        width integer,
+        height integer,
+        bytes integer NOT NULL,
+        created_at timestamptz NOT NULL
+      );
+      CREATE INDEX drink_photos_drink ON drink_photos (drink_id, position);
+    `,
+  },
+  {
+    version: 38,
+    name: 'watching: reactions on an episode, like the ones on a title',
+    sql: `
+      -- At most three of: loved, funny, wow, moving, tense, scary, meh, disliked (checked by the API).
+      ALTER TABLE watch_episode_marks ADD COLUMN reactions text[] NOT NULL DEFAULT '{}';
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

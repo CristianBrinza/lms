@@ -154,6 +154,9 @@ export function tokenMayAccess(scope: TokenScope, method: string, path: string):
   // The priority buy list: the household's, like the kitchen.
   if (path === '/api/wishlist' || path.startsWith('/api/wishlist/'))
     return scope === 'food:read' ? read : true;
+  // Drinks: the household's cellar and tastings, like the kitchen (label photos included).
+  if (path === '/api/drinks' || path.startsWith('/api/drinks/'))
+    return scope === 'food:read' ? read : true;
   if (path.startsWith('/api/admin/')) return scope === 'admin';
   return false;
 }

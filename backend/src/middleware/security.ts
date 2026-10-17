@@ -123,6 +123,17 @@ export const importBodyLimit = bodyLimit({
   },
 });
 
+/**
+ * A drink's photo (POST /api/drinks/:id/photos, or MCP's drinks_add_photo): up to 12 MB as a
+ * base64 data URL, which is a third bigger. The server shrinks it before storing it.
+ */
+export const photoBodyLimit = bodyLimit({
+  maxSize: 17 * 1024 * 1024,
+  onError: () => {
+    throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body too large');
+  },
+});
+
 /** 32 KB is plenty for every other JSON body this API accepts. */
 export const jsonBodyLimit = bodyLimit({
   maxSize: 32 * 1024,

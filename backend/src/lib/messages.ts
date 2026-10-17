@@ -181,6 +181,48 @@ export const MESSAGES: Record<string, Pair> = {
   },
   'No picture': { ro: 'Nu e nicio poză', ru: 'Фото нет' },
 
+  // ------------------------------------------------------------ drinks: cellar and tastings
+  'That drink isn’t in your cellar': {
+    ro: 'Băutura asta nu e în colecția ta',
+    ru: 'Этого напитка нет в вашей коллекции',
+  },
+  'That tasting isn’t in the journal': {
+    ro: 'Degustarea asta nu e în jurnal',
+    ru: 'Этой дегустации нет в журнале',
+  },
+  'Say which drink': { ro: 'Spune ce băutură e', ru: 'Укажите напиток' },
+  'Pick what kind of drink it is': { ro: 'Alege ce fel de băutură e', ru: 'Выберите вид напитка' },
+  'A country code like MD, FR or US': {
+    ro: 'Un cod de țară, ca MD, FR sau US',
+    ru: 'Код страны, например MD, FR или US',
+  },
+  'A currency like MDL, EUR or USD': {
+    ro: 'O monedă, ca MDL, EUR sau USD',
+    ru: 'Валюта, например MDL, EUR или USD',
+  },
+  'Pick people from your household': {
+    ro: 'Alege oameni din casa ta',
+    ru: 'Выберите людей из вашей семьи',
+  },
+  'Not in your household': { ro: 'Nu e din casa ta', ru: 'Не из вашей семьи' },
+  'That tasting sheet doesn’t fit this drink': {
+    ro: 'Fișa de degustare nu se potrivește cu băutura',
+    ru: 'Этот лист дегустации не подходит к напитку',
+  },
+  'Only the person who tasted it can change this': {
+    ro: 'Doar cine a degustat poate schimba asta',
+    ru: 'Изменить это может только тот, кто дегустировал',
+  },
+  'Use a JPEG, PNG, WebP or HEIC photo': {
+    ro: 'Folosește o poză JPEG, PNG, WebP sau HEIC',
+    ru: 'Используйте фото в формате JPEG, PNG, WebP или HEIC',
+  },
+  'That photo is too large': { ro: 'Poza e prea mare', ru: 'Фото слишком большое' },
+  'That photo couldn’t be read': {
+    ro: 'Poza nu a putut fi citită',
+    ru: 'Не удалось прочитать фото',
+  },
+
   // ------------------------------------------------------------ admin: people and kitchens
   'Choose member or admin': {
     ro: 'Alege: membru sau administrator',

@@ -5,13 +5,14 @@ import {
   LuggageIcon,
   MovieIcon,
   TrainingIcon,
+  WineBarIcon,
   type IconComponent,
 } from '@/components/ui/icons';
 import { areasT, type AreaId } from './i18n';
 
 /**
  * The life areas LMS has, shown on the dashboard: Shopping as a row on top, then the tiles (Training, Food,
- * House, Travel, Watching); the grid is built
+ * House, Travel, Watching, Drinks); the grid is built
  * for 10+. An area's own screen comes later: build the page, add its route in app/router.tsx and
  * set `to` here, and its card becomes a link. Until then the card says the area is being built.
  */
@@ -51,6 +52,7 @@ export const AREAS: readonly Area[] = [
   area('house', { icon: HouseIcon, tone: 'mint', to: '/house' }),
   area('travel', { icon: LuggageIcon, tone: 'cyan', to: '/travel' }),
   area('watching', { icon: MovieIcon, tone: 'pink', to: '/watching' }),
+  area('drinks', { icon: WineBarIcon, tone: 'peach', to: '/drinks' }),
 ];
 
 /**

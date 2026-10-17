@@ -1,6 +1,6 @@
 import { messages } from '@/i18n';
 
-type AreaId = 'shopping' | 'training' | 'food' | 'house' | 'travel' | 'watching';
+type AreaId = 'shopping' | 'training' | 'food' | 'house' | 'travel' | 'watching' | 'drinks';
 type AreaWords = Record<AreaId, { name: string; summary: string }>;
 
 /** The life areas' names and lines, and the tile's own words. */
@@ -12,6 +12,7 @@ const en = {
     house: { name: 'House', summary: 'Bathroom, cleaning, paper, pets.' },
     travel: { name: 'Travel', summary: 'Trips, bags and what to pack.' },
     watching: { name: 'Watching', summary: 'Shows and films, episode by episode.' },
+    drinks: { name: 'Drinks', summary: 'The cellar, and every glass worth remembering.' },
   } as AreaWords,
   soon: 'Soon',
   building: (name: string) => `${name} is being built`,
@@ -30,6 +31,7 @@ const ro: typeof en = {
     house: { name: 'Casă', summary: 'Baie, curățenie, hârtie, animale.' },
     travel: { name: 'Călătorii', summary: 'Excursii, bagaje și ce să iei cu tine.' },
     watching: { name: 'Filme și seriale', summary: 'Ce ai văzut, episod cu episod.' },
+    drinks: { name: 'Băuturi', summary: 'Colecția și fiecare pahar care merită ținut minte.' },
   },
   soon: 'În curând',
   building: (name: string) => `${name}: în lucru`,
@@ -45,6 +47,7 @@ const ru: typeof en = {
     house: { name: 'Дом', summary: 'Ванная, уборка, бумага, питомцы.' },
     travel: { name: 'Поездки', summary: 'Даты, сумки и что взять с собой.' },
     watching: { name: 'Кино и сериалы', summary: 'Что вы смотрели, серия за серией.' },
+    drinks: { name: 'Напитки', summary: 'Коллекция и каждый бокал, который стоит запомнить.' },
   },
   soon: 'Скоро',
   building: (name: string) => `${name}: в разработке`,

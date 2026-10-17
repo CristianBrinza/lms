@@ -15,6 +15,7 @@ export type LiveArea =
   | 'travel'
   | 'watching'
   | 'wishlist'
+  | 'drinks'
   | 'reminders'
   | 'people'
   | 'paydays'
@@ -59,6 +60,8 @@ const TARGETS: Record<Exclude<LiveArea, 'other'>, LiveTarget[]> = {
   watching: [{ queryKey: ['watching'] }],
   // The priority buy list (its count also shows on Home).
   wishlist: [{ queryKey: ['wishlist'] }],
+  // The cellar, everyone's tastings and the label photos.
+  drinks: [{ queryKey: ['drinks'] }],
   reminders: [{ queryKey: ['me', 'reminders'] }],
   people: [
     { queryKey: ['me'], exact: true },

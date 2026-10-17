@@ -125,3 +125,6 @@ export { default as UncheckedIcon } from '@mui/icons-material/RadioButtonUncheck
 export { default as SortIcon } from '@mui/icons-material/SortRounded';
 export { default as NoteIcon } from '@mui/icons-material/StickyNote2Rounded';
 export { default as TuneIcon } from '@mui/icons-material/TuneRounded';
+export { default as WineBarIcon } from '@mui/icons-material/WineBarRounded';
+export { default as LiquorIcon } from '@mui/icons-material/LiquorRounded';
+export { default as AddPhotoIcon } from '@mui/icons-material/AddAPhotoRounded';
