@@ -54,6 +54,9 @@ function Img({
   );
 }
 
+/** The caller set its own width (w-12, size-10): then the box isn't full width. */
+const sized = (className?: string) => /(^|\s)(w|size)-/.test(className ?? '');
+
 /** A 2:3 poster. `sizes` is how wide it's drawn, so the browser picks w185 or w342. */
 export function Poster({
   path,
@@ -76,7 +79,8 @@ export function Poster({
   return (
     <span
       className={cx(
-        'relative block aspect-[2/3] w-full overflow-hidden rounded-[0.875rem] bg-ink-100 shadow-[var(--shadow-xs)]',
+        'relative block aspect-[2/3] overflow-hidden rounded-[0.875rem] bg-ink-100 shadow-[var(--shadow-xs)]',
+        !sized(className) && 'w-full',
         className,
       )}
     >
@@ -114,7 +118,11 @@ export function Still({
   const sources = stillSources(path);
   return (
     <span
-      className={cx('relative block aspect-video w-full overflow-hidden bg-ink-100', className)}
+      className={cx(
+        'relative block aspect-video overflow-hidden bg-ink-100',
+        !sized(className) && 'w-full',
+        className,
+      )}
     >
       {sources ? (
         <>
