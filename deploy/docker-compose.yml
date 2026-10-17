@@ -68,6 +68,8 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      # Watching: a TMDB v4 read access token (or a v3 API key). Empty: Watching asks for it.
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
       # Optional tuning; empty means the app's own default (backend/src/config.ts).
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-}
       ACCESS_TOKEN_TTL_MIN: ${ACCESS_TOKEN_TTL_MIN:-}
