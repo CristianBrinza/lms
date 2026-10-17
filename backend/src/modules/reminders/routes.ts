@@ -2,9 +2,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppDeps, AppEnv } from '../../context';
 import { AppError } from '../../lib/errors';
+import { Translations } from '../../lib/i18n';
 import { readJson } from '../../lib/validation';
 import { requireAuth, sessionOf } from '../../middleware/auth';
 import { isUuid } from '../users';
+import { reminderWords } from './i18n';
 import {
   deleteReminder,
   deviceCount,
@@ -23,6 +25,7 @@ const ReminderBody = z.object({
   minutesBefore: z.number().int().min(5).max(600).nullable().optional(),
   days: z.array(z.number().int().min(1).max(7)).min(1, 'Pick at least one day').max(7).optional(),
   text: z.string().trim().max(200).optional(),
+  translations: Translations.optional(),
   enabled: z.boolean().optional(),
 });
 const SubscriptionBody = z.object({
@@ -89,9 +92,10 @@ export function reminderRoutes(deps: AppDeps) {
     return c.body(null, 204);
   });
   app.post('/push/test', async (c) => {
+    const words = reminderWords(c.get('user').locale);
     const sent = await sendToUser(deps, c.get('user').id, {
-      title: 'LMS reminders are on',
-      body: 'This is how they will look.',
+      title: words.testTitle,
+      body: words.testBody,
       url: '/settings/reminders',
       tag: 'test',
     });

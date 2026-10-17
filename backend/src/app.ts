@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { AppDeps, AppEnv } from './context';
 import { AppError } from './lib/errors';
+import { requestLocale } from './lib/i18n';
+import { translateFields, translateMessage } from './lib/messages';
 import {
   apiSecurityHeaders,
   hostGuard,
@@ -68,17 +70,25 @@ export function createApp(deps: AppDeps) {
     app.get('*', (c, next) => (c.req.path.startsWith('/api/') ? next() : web(c)));
   }
 
-  app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: 'Not found' } }, 404));
+  app.notFound((c) =>
+    c.json(
+      { error: { code: 'NOT_FOUND', message: translateMessage('Not found', requestLocale(c)) } },
+      404,
+    ),
+  );
 
+  // Errors are thrown in English; they are answered in the person's language (lib/messages.ts).
   app.onError((error, c) => {
+    const locale = requestLocale(c);
     if (error instanceof AppError) {
+      const fields = translateFields(error.fields, locale);
       for (const [name, value] of Object.entries(error.headers ?? {})) c.header(name, value);
       return c.json(
         {
           error: {
             code: error.code,
-            message: error.message,
-            ...(error.fields ? { fields: error.fields } : {}),
+            message: translateMessage(error.message, locale),
+            ...(fields ? { fields } : {}),
           },
         },
         error.status as 400,
@@ -88,7 +98,16 @@ export function createApp(deps: AppDeps) {
     // An MCP key in the path never reaches the logs.
     const path = new URL(c.req.url).pathname.replace(/\/api\/mcp\/k\/[^/]+/, '/api/mcp/k/…');
     console.error(`[api] ${c.req.method} ${path} failed (request ${requestId})`, error);
-    return c.json({ error: { code: 'INTERNAL', message: 'Something went wrong', requestId } }, 500);
+    return c.json(
+      {
+        error: {
+          code: 'INTERNAL',
+          message: translateMessage('Something went wrong', locale),
+          requestId,
+        },
+      },
+      500,
+    );
   });
 
   return app;

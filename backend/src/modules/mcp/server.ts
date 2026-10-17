@@ -58,6 +58,11 @@ Training (home workouts, each person's own)
 - Health (health_summary): steps, sleep, resting heart rate, weight… from the phone's health app. Use it to adjust plans (a short night or a raised resting heart rate: go easier). Observations, never diagnoses.
 - Progress: workouts show last time's sets and a suggestion (one more rep; a heavier owned weight when well past the target). training_stats for weeks and months.
 
+Languages (English, Romanian, Russian)
+- The family reads LMS in English, Romanian or Russian. Always write names, steps and notes in English, Romanian and Russian: the base text in the language Cristian used, and translations with the other two (and en). Use natural Moldovan Romanian with diacritics (ă, â, î, ș, ț) and natural Russian, the words shops here use (smântână / сметана, Linella, lei).
+- Example: Cristian writes "Plăcinte cu brânză". save_recipe gets title "Plăcinte cu brânză", steps in Romanian, and translations { "en": { "title": "Cheese pies", "steps": ["Knead the dough", …] }, "ro": { "title": "Plăcinte cu brânză", "steps": [ … ] }, "ru": { "title": "Плацинды с брынзой", "steps": ["Замесите тесто", …] } }.
+- Records come back with their translations; fill in a language that is missing when you change one. Item names in ingredients and shopping lines stay the kitchen item's base name, so they match.
+
 Good habits
 - Start with kitchen_overview and kitchen_people. Never plan or suggest a dish with something someone is allergic to; avoid what people don't eat unless asked.
 - Cook what expires first; plan meals that use it. Food a planned meal has claimed shows as reservedFor.
@@ -117,7 +122,7 @@ const PROMPTS: Prompt[] = [
     description: 'Turn a link or pasted text into a recipe linked to the kitchen.',
     arguments: [{ name: 'source', description: 'A link or the recipe text', required: true }],
     text: (a) =>
-      `Save this as a recipe: ${a.source}\nUse my kitchen's item names for ingredients (check find_items), with amounts and units; set servings, times, tags and short steps. Translate to English if needed. Tell me what is missing from the kitchen to cook it.`,
+      `Save this as a recipe: ${a.source}\nUse my kitchen's item names for ingredients (check find_items), with amounts and units; set servings, times, tags and short steps. Write it in English, Romanian and Russian (the base text in my language, translations with the rest). Tell me what is missing from the kitchen to cook it.`,
   },
 ];
 
@@ -171,6 +176,7 @@ export function mcpRoutes(deps: AppDeps, getApp: () => Hono<AppEnv>) {
     const env: ToolEnv = {
       ctx: foodCtx(deps, actor),
       deps,
+      locale: auth.user.locale ?? 'en',
       internal: async (method, path, payload) => {
         const headers: Record<string, string> = { authorization: `Bearer ${raw}` };
         if (payload !== undefined) headers['content-type'] = 'application/json';

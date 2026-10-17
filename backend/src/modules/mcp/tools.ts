@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AppDeps } from '../../context';
 import { AppError } from '../../lib/errors';
+import { Translations, type Locale } from '../../lib/i18n';
 import type { FoodCtx } from '../food/kitchen';
 import {
   addMealPart,
@@ -150,6 +151,8 @@ export type Access = 'read' | 'write' | 'admin';
 export interface ToolEnv {
   ctx: FoodCtx;
   deps: AppDeps;
+  /** The key owner's language: what the server writes itself (workouts, insights, lines) uses it. */
+  locale: Locale;
   /** Calls this API as the same key (used by the people tools). */
   internal: (
     method: string,
@@ -191,11 +194,28 @@ export const scopeAllows = (scope: TokenScope, access: Access) =>
   (access === 'write' && scope !== 'food:read') ||
   (access === 'admin' && scope === 'admin');
 
+// ---------------------------------------------------------------- languages
+
+/** Every record people read gets its words in English, Romanian and Russian (see INSTRUCTIONS). */
+const translationsField = {
+  translations: Translations.optional().describe(
+    'This record’s text in the other languages, per field (the same field names as the record: name, note…; recipes and meals use title, description, steps, notes), e.g. { "ro": { "name": "Smântână" }, "ru": { "name": "Сметана" }, "en": { "name": "Sour cream" } }. Always fill en, ro and ru.',
+  ),
+};
+const translatable = <S extends z.ZodType>(schema: S) => schema.and(z.object(translationsField));
+
+/** A record's stored translations, when it has any, so the assistant sees what exists. */
+const withTranslations = (row: object) => {
+  const value = (row as { translations?: Translations | null }).translations;
+  return value && Object.keys(value).length ? { translations: value } : {};
+};
+
 // ---------------------------------------------------------------- compact shapes for the model
 
 const stockItem = (p: StockedProduct) => ({
   id: p.id,
   name: p.name,
+  ...withTranslations(p),
   category: p.category,
   unit: p.unit,
   total: p.total,
@@ -237,6 +257,7 @@ const lines = (items: Recipe['ingredients']) =>
 const recipeBrief = (r: Recipe) => ({
   id: r.id,
   title: r.title,
+  ...withTranslations(r),
   servings: r.servings,
   minutes: (r.prepMinutes ?? 0) + (r.cookMinutes ?? 0) || null,
   tags: r.tags,
@@ -275,6 +296,7 @@ const meal = (m: Meal) => ({
   time: m.time,
   slot: m.slot,
   title: m.title,
+  ...withTranslations(m),
   recipeId: m.recipeId,
   servings: m.servings,
   status: m.status,
@@ -377,6 +399,7 @@ export const TOOLS: Tool[] = [
       (await listProducts(ctx, args.query)).slice(0, 40).map((p) => ({
         id: p.id,
         name: p.name,
+        ...withTranslations(p),
         unit: p.unit,
         category: p.category,
         location: p.location,
@@ -407,7 +430,7 @@ export const TOOLS: Tool[] = [
     description:
       'Put food in the kitchen, one lot per entry (each steak or pack separately). Name items as they are called (matched loosely; unknown names become new items). Expiry defaults from shelf life.',
     access: 'write',
-    input: batch(AddStockInput),
+    input: batch(translatable(AddStockInput)),
     run: async ({ ctx }, args) => {
       return ctx.tx(async (tx) => {
         const out = [];
@@ -492,6 +515,7 @@ export const TOOLS: Tool[] = [
       'Adds kitchenware by name (or changes it with toolId): how many, kind, where it is kept. used: n marks that many dirty; remove: true takes it off.',
     access: 'write',
     input: ToolInput.extend({
+      ...translationsField,
       toolId: idField.optional(),
       used: z.number().int().min(1).max(50).optional(),
       remove: z.boolean().optional(),
@@ -534,7 +558,9 @@ export const TOOLS: Tool[] = [
     description:
       'Create a catalog item, or change one (productId): icon, category, unit, piece size, place, shelf life, frozen/thawed days, running-low amount, usual store, and trackMode (exact amounts, level = full/low/out for spices and sauces, none = always there).',
     access: 'write',
-    input: ProductInput.partial().and(z.object({ productId: idField.optional() })),
+    input: ProductInput.partial().and(
+      z.object({ productId: idField.optional(), ...translationsField }),
+    ),
     run: async ({ ctx }, { productId, ...input }) => {
       if (productId) return updateProduct(ctx, productId, input);
       if (!input.name)
@@ -583,7 +609,9 @@ export const TOOLS: Tool[] = [
     description:
       'Create a recipe, or replace fields of one (recipeId). Ingredients: name as the kitchen calls it + amount + unit; omit amount for “to taste”; link: false for tap water. Steps are short imperative sentences.',
     access: 'write',
-    input: RecipeInput.partial().and(z.object({ recipeId: idField.optional() })),
+    input: RecipeInput.partial().and(
+      z.object({ recipeId: idField.optional(), ...translationsField }),
+    ),
     run: async ({ ctx }, { recipeId, ...input }) => {
       if (recipeId) return recipeFull(await updateRecipe(ctx, recipeId, input));
       if (!input.title)
@@ -631,7 +659,7 @@ export const TOOLS: Tool[] = [
     description:
       'Put a meal on a day: from a recipe (ingredients copied and scaled to servings) or just named. Time HH:MM or a slot.',
     access: 'write',
-    input: MealInput,
+    input: translatable(MealInput),
     run: async ({ ctx }, args) => meal(await planMeal(ctx, args)),
   }),
   tool({
@@ -641,6 +669,7 @@ export const TOOLS: Tool[] = [
       'Move, rescale, swap the recipe, skip (status: skipped) or annotate a meal; ingredients (optional) replace its list for that day only, e.g. to use a specific lot.',
     access: 'write',
     input: MealPatchFields.partial().extend({
+      ...translationsField,
       mealId: idField,
       ingredients: z.array(MealIngredientInput).max(60).optional(),
     }),
@@ -766,6 +795,7 @@ export const TOOLS: Tool[] = [
         stores: stores.map((s) => ({
           id: s.id,
           name: s.name,
+          ...withTranslations(s),
           lines: items.filter((i) => i.storeId === s.id).map(line),
         })),
         anyStore: items.filter((i) => !i.storeId).map(line),
@@ -822,7 +852,7 @@ export const TOOLS: Tool[] = [
     title: 'Add a store',
     description: 'A new store with its own list (e.g. Linella, Metro).',
     access: 'write',
-    input: StoreInput,
+    input: translatable(StoreInput),
     run: async ({ ctx }, args) => createStore(ctx, args),
   }),
   tool({
@@ -971,6 +1001,7 @@ export const TOOLS: Tool[] = [
         .map((e) => ({
           id: e.id,
           name: e.name,
+          ...withTranslations(e),
           category: e.category,
           muscles: e.muscles,
           measure: e.measure,
@@ -994,7 +1025,7 @@ export const TOOLS: Tool[] = [
     description:
       'A new exercise in one person’s library (userId): name, category, measure, muscles, equipment alternatives ([] = none; [["dumbbells"],["kettlebell"]]), weighted, unilateral, default reps/seconds/distance, rest, level, impact, steps, variants (grips, stances).',
     access: 'write',
-    input: ExerciseCreate,
+    input: translatable(ExerciseCreate),
     run: async ({ ctx }, args) => createExercise(ctx, await personId(ctx, args.userId), args),
   }),
   tool({
@@ -1003,7 +1034,7 @@ export const TOOLS: Tool[] = [
     description:
       'Changes an exercise in someone’s library (any field of add_exercise), or hides it (archived: true) / shows it again.',
     access: 'write',
-    input: z.object({ exerciseId: idField }).and(ExercisePatch),
+    input: z.object({ exerciseId: idField, ...translationsField }).and(ExercisePatch),
     run: async ({ ctx }, { exerciseId, ...patch }) => updateExercise(ctx, exerciseId, patch),
   }),
   tool({
@@ -1012,7 +1043,7 @@ export const TOOLS: Tool[] = [
     description:
       'A saved routine (program) for one person (userId): name, items like plan_workout’s, rounds, roundRest. Plan it on days with plan_workout routineId.',
     access: 'write',
-    input: RoutineInput,
+    input: translatable(RoutineInput),
     run: async ({ ctx }, args) => createRoutine(ctx, args),
   }),
   tool({
@@ -1033,7 +1064,7 @@ export const TOOLS: Tool[] = [
     description:
       'Adds equipment the household owns. kind from training_equipment.kinds (or "other" with a name); weights in kg; pairs when they come two of each.',
     access: 'write',
-    input: EquipmentInput,
+    input: translatable(EquipmentInput),
     run: async ({ ctx }, args) => addEquipment(ctx, args),
   }),
   tool({
@@ -1043,7 +1074,7 @@ export const TOOLS: Tool[] = [
       'Plans a workout for someone on a date: an ordered list of exercises (exerciseId from list_exercises) with sets and a target (reps, seconds or distance in metres; weight in kg), rest in seconds. rounds > 1 repeats the main block as a circuit; block "warmup"/"cooldown" items are done once. Or routineId to copy a saved routine.',
     access: 'write',
     input: WorkoutInput,
-    run: async ({ ctx }, args) => createWorkout(ctx, args),
+    run: async ({ ctx, locale }, args) => createWorkout(ctx, args, locale),
   }),
   tool({
     name: 'suggest_workout',
@@ -1052,7 +1083,8 @@ export const TOOLS: Tool[] = [
       'Builds a workout from the equipment at home for a length (minutes), a focus (full, upper, lower, core, cardio, mobility), a level 1–3 and quiet (no jumping). Returns items to pass to plan_workout; saves nothing.',
     access: 'read',
     input: GenerateInput,
-    run: async ({ ctx }, args) => generateWorkout(ctx, await personId(ctx, args.userId), args),
+    run: async ({ ctx, locale }, args) =>
+      generateWorkout(ctx, await personId(ctx, args.userId), args, Math.random, locale),
   }),
   tool({
     name: 'list_workouts',
@@ -1099,8 +1131,8 @@ export const TOOLS: Tool[] = [
       'Steps, distance, sleep (minutes), resting heart rate, HRV, weight, body fat… per day from Apple Health / Health Connect (or typed in), this week against the week before, and plain observations. Not medical advice.',
     access: 'read',
     input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
-    run: async ({ ctx }, args) =>
-      healthSummary(ctx, await personId(ctx, args.userId), args.from, args.to),
+    run: async ({ ctx, locale }, args) =>
+      healthSummary(ctx, await personId(ctx, args.userId), args.from, args.to, locale),
   }),
   // Nutrition and energy: food in, training and the day out.
   tool({
@@ -1131,8 +1163,15 @@ export const TOOLS: Tool[] = [
       'For one person (userId) and dates: per day eaten (kcal, protein, fat, carbs from meals they ate), burned (resting + active from the phone or formulas, + training logged here), the balance; the daily target from their goal; insights. Use it to suggest meals and training that fit.',
     access: 'read',
     input: z.object({ from: dateField, to: dateField, userId: idField.optional() }),
-    run: async ({ ctx }, args) =>
-      energySummary(ctx, await personId(ctx, args.userId), args.from, args.to),
+    run: async ({ ctx, locale }, args) =>
+      energySummary(
+        ctx,
+        await personId(ctx, args.userId),
+        args.from,
+        args.to,
+        localDate(ctx.now),
+        locale,
+      ),
   }),
   tool({
     name: 'set_goal',
@@ -1141,12 +1180,12 @@ export const TOOLS: Tool[] = [
       'A person’s goal (lose, keep or gain weight; goalWeight kg; goalRate kg a week, 0.25–0.75 is sensible), activity without training (sedentary … very), and profile facts the formulas need (gender, birthDate, heightCm). Also weightKg (today’s weight, kg; kept as today’s typed-in reading in Health) and paydays: salaryDay and advanceDay, the day of the month (1–31) the salary and the advance (avans) come.',
     access: 'write',
     input: z.object({ userId: idField.optional() }).and(ProfileFields),
-    run: async ({ ctx }, { userId, ...fields }) => {
+    run: async ({ ctx, locale }, { userId, ...fields }) => {
       const id = await personId(ctx, userId);
       await saveProfileFields(ctx.db, id, fields, ctx.now);
       // Health's own import, for this person in this household: the same row as one typed in.
       if (typeof fields.weightKg === 'number')
-        await importHealth(ctx, { source: 'manual', userId: id, weight: fields.weightKg });
+        await importHealth(ctx, { source: 'manual', userId: id, weight: fields.weightKg }, locale);
       return (await trainingPeople(ctx)).find((p) => p.id === id);
     },
   }),
@@ -1179,7 +1218,7 @@ export const TOOLS: Tool[] = [
     description:
       'A new trip: name, destination, scope (national/international), kind (vacation, family, day, event, work, other), transport (car, bus, train, plane, other), start and end dates, the times (leave home departTime, arrive there arriveDate/arriveTime, head back backDate/backTime, home again returnTime), who goes (household user ids; default the key’s owner) plus guests, bags. Its checklist is made from the packing list rules; overrides switch packing-list items on or off for this trip.',
     access: 'write',
-    input: TripInput,
+    input: translatable(TripInput),
     run: async ({ ctx }, args) => createTrip(ctx, args),
   }),
   tool({
@@ -1188,7 +1227,7 @@ export const TOOLS: Tool[] = [
     description:
       'Change any of a trip’s details; its checklist follows (ticks stay). overrides replaces the trip’s on/off switches for packing-list items.',
     access: 'write',
-    input: TripPatch.and(z.object({ tripId: idField })),
+    input: TripPatch.and(z.object({ tripId: idField, ...translationsField })),
     run: async ({ ctx }, { tripId, ...patch }) => updateTrip(ctx, tripId, patch),
   }),
   tool({
@@ -1214,7 +1253,7 @@ export const TOOLS: Tool[] = [
       'Everything on the trip’s checklist marked toBuy (and not yet listed) goes onto the shopping list, needed the day before leaving. Mark items with update_trip_item (toBuy) first.',
     access: 'write',
     input: z.object({ tripId: idField }),
-    run: async ({ ctx }, args) => shopForTrip(ctx, args.tripId),
+    run: async ({ ctx, locale }, args) => shopForTrip(ctx, args.tripId, locale),
   }),
   tool({
     name: 'update_trip_item',
@@ -1245,7 +1284,7 @@ export const TOOLS: Tool[] = [
     description:
       'A new item on the household’s packing list, with its group, quantity rule and when it belongs on a trip; upcoming trips get it if it fits them.',
     access: 'write',
-    input: ItemInput,
+    input: translatable(ItemInput),
     run: async ({ ctx }, args) => addItem(ctx, args),
   }),
   tool({
@@ -1254,7 +1293,7 @@ export const TOOLS: Tool[] = [
     description:
       'Gear the household travels with, beyond bags: power banks, chargers, cables, adapters, headphones; with connectors (MagSafe, USB-C, USB-A, Lightning…) and how many it has. Trips pick gear with plan_trip/update_trip (gear: [{gearId, count}]).',
     access: 'write',
-    input: GearInput,
+    input: translatable(GearInput),
     run: async ({ ctx }, args) => addGear(ctx, args),
   }),
   tool({
@@ -1263,7 +1302,7 @@ export const TOOLS: Tool[] = [
     description:
       'A bag the household owns: name, kind (backpack, handbag, carry-on, suitcase, duffel, other), size in cm.',
     access: 'write',
-    input: BagInput,
+    input: translatable(BagInput),
     run: async ({ ctx }, args) => addBag(ctx, args),
   }),
 ];

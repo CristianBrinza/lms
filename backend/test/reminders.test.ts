@@ -100,6 +100,43 @@ describe('reminders', () => {
     expect(inbox.at(-1)).toMatchObject({ body: 'Linella on the way home' });
   });
 
+  it('speak each person’s language', async () => {
+    t.setNow(at('08:00'));
+    const b = await cook();
+    await b.patch('/api/me', { locale: 'ro' });
+    const reminders = (await b.get('/api/me/reminders')).body.reminders;
+    const custom = reminders.find((r: any) => r.kind === 'custom');
+    expect(custom.translations.ru.text).toBe('Едете домой? Загляните в список покупок.');
+    await b.post('/api/me/push', subscription);
+    expect((await b.post('/api/me/push/test')).body.sent).toBe(1);
+    expect(inbox.at(-1)).toMatchObject({ title: 'Mementourile LMS sunt pornite' });
+
+    await b.post('/api/food/stock', {
+      name: 'Milk',
+      quantity: 1,
+      unit: 'l',
+      expiresOn: '2026-10-02',
+    });
+    expect(await runReminders(t.deps, at('09:01'))).toBe(1);
+    expect(inbox.at(-1)!.title).toBe('De consumat curând');
+    expect(inbox.at(-1)!.body).toMatch(/\(azi\)$/);
+
+    await b.post('/api/food/meals', { date: '2026-10-02', time: '13:00', title: 'Zeamă' });
+    expect(await runReminders(t.deps, at('12:16'))).toBe(1);
+    expect(inbox.at(-1)).toMatchObject({
+      title: 'Zeamă la 13:00',
+      body: 'Peste 45 de minute. Atinge ca să vezi ce trebuie.',
+    });
+
+    // The starting custom reminder in Russian; once rewritten, its own words.
+    await b.patch('/api/me', { locale: 'ru' });
+    await b.patch(`/api/me/reminders/${custom.id}`, { enabled: true, days: [5] });
+    expect(await runReminders(t.deps, at('17:31'))).toBe(1);
+    expect(inbox.at(-1)).toMatchObject({ body: 'Едете домой? Загляните в список покупок.' });
+    const changed = await b.patch(`/api/me/reminders/${custom.id}`, { text: 'Linella!' });
+    expect(changed.body.reminder.translations).toEqual({});
+  });
+
   it('forgets phones that are gone, and stays for people only', async () => {
     const b = await cook();
     await b.post('/api/me/push', { ...subscription, endpoint: 'https://push.example.com/gone' });
