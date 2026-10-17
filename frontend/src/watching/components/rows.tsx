@@ -113,10 +113,13 @@ export function PlayRow({ play, group }: { play: PlayLine; group?: readonly Play
           </span>
         ) : null}
       </span>
-      <PeopleStack ids={people.length ? people : undefined} />
-      <span className="max-w-[35%] shrink-0 truncate text-right text-xs font-medium text-ink-500">
-        {watchedWhen(play.watchedAt, play.precision)}
-        {filmTimes > 1 ? ` · ×${filmTimes}` : ''}
+      {/* Who and when stacked on the right, so titles keep their width on a phone. */}
+      <span className="flex max-w-[6.5rem] shrink-0 flex-col items-end gap-1">
+        <PeopleStack ids={people.length ? people : undefined} />
+        <span className="max-w-full truncate text-right text-[0.6875rem] font-medium leading-tight text-ink-500">
+          {watchedWhen(play.watchedAt, play.precision)}
+          {filmTimes > 1 ? ` · ×${filmTimes}` : ''}
+        </span>
       </span>
     </Link>
   );
