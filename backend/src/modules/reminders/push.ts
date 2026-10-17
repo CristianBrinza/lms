@@ -40,7 +40,10 @@ export function createPushSender(config: AppConfig['push']): PushSender | null {
         return 'ok';
       } catch (error) {
         const status = (error as { statusCode?: number }).statusCode;
-        if (status === 404 || status === 410) return 'gone';
+        // 404/410: the subscription expired. 403: Apple's answer when the subscription was made
+        // with another server key (VapidPkHashMismatch); it can never be delivered, so the device
+        // is forgotten and shows reminders off until it subscribes again with the current key.
+        if (status === 404 || status === 410 || status === 403) return 'gone';
         console.error('[push] send failed', status ?? (error as Error).message);
         return 'error';
       }
