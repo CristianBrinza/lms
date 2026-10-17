@@ -142,6 +142,7 @@ import {
   updateTrip,
 } from '../travel/travel';
 import type { TokenScope } from '../tokens';
+import { WATCHING_TOOLS } from '../watching/mcp';
 
 /**
  * The tools Claude gets over MCP. Each calls the same service the app's screens use, so the rules
@@ -1366,6 +1367,8 @@ export const TOOLS: Tool[] = [
     input: translatable(BagInput),
     run: async ({ ctx }, args) => addBag(ctx, args),
   }),
+  // ---------------------------------------------------------------- watching
+  ...WATCHING_TOOLS,
 ];
 
 /** JSON Schema for a tool's input: the zod schema, without the noise (uuid regexes, $schema). */

@@ -115,7 +115,15 @@ export function isLanDevOrigin(origin: string, appUrl: string): boolean {
   return url.protocol === 'http:' && url.port === port && privateHost.test(url.hostname);
 }
 
-/** 32 KB is plenty for every JSON body this API accepts. */
+/** A watch history brought over from TV Time or Trakt (POST /api/watching/import), one file at a time. */
+export const importBodyLimit = bodyLimit({
+  maxSize: 12 * 1024 * 1024,
+  onError: () => {
+    throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body too large');
+  },
+});
+
+/** 32 KB is plenty for every other JSON body this API accepts. */
 export const jsonBodyLimit = bodyLimit({
   maxSize: 32 * 1024,
   onError: () => {

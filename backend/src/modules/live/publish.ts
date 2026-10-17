@@ -24,6 +24,7 @@ export function areaOf(path: string): LiveArea | null {
   if (/^\/api\/food(\/|$)/.test(path)) return 'food';
   if (/^\/api\/training(\/|$)/.test(path)) return 'training';
   if (/^\/api\/travel(\/|$)/.test(path)) return 'travel';
+  if (/^\/api\/watching(\/|$)/.test(path)) return 'watching';
   if (/^\/api\/me\/reminders(\/|$)/.test(path)) return 'reminders';
   // Names, pictures, paydays and household seats: the profile, the admin's people screens.
   if (/^\/api\/me(\/avatar)?$/.test(path)) return 'people';
@@ -33,6 +34,7 @@ export function areaOf(path: string): LiveArea | null {
 
 /** The area of an MCP tool that wrote, by its name (tools are named for what they touch). */
 export function toolArea(name: string): LiveArea {
+  if (/^watching_/.test(name)) return 'watching';
   if (/trip|packing|gear|bag/.test(name)) return 'travel';
   if (/exercise|routine|equipment|workout|training|health|nutrition|energy|goal/.test(name))
     return 'training';

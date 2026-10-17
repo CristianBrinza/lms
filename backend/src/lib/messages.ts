@@ -531,6 +531,40 @@ export const MESSAGES: Record<string, Pair> = {
   'Unknown bag': { ro: 'Geantă necunoscută', ru: 'Неизвестная сумка' },
   'That gear isn’t yours': { ro: 'Accesoriul ăsta nu e al vostru', ru: 'Это не ваша техника' },
   'Unknown gear': { ro: 'Accesoriu necunoscut', ru: 'Неизвестная техника' },
+
+  // ------------------------------------------------------------ watching
+  'Watching needs its TMDB key': {
+    ro: 'Filmele și serialele au nevoie de cheia TMDB',
+    ru: 'Для кино и сериалов нужен ключ TMDB',
+  },
+  'TMDB isn’t answering right now. Try again in a moment.': {
+    ro: 'TMDB nu răspunde acum. Încearcă din nou peste puțin.',
+    ru: 'TMDB сейчас не отвечает. Попробуйте чуть позже.',
+  },
+  'That isn’t on TMDB': { ro: 'Asta nu e pe TMDB', ru: 'Этого нет на TMDB' },
+  'Use a title id like movie:603 or tv:1399': {
+    ro: 'Folosește un id ca movie:603 sau tv:1399',
+    ru: 'Используйте id вида movie:603 или tv:1399',
+  },
+  'That date is in the future': { ro: 'Data asta e în viitor', ru: 'Эта дата в будущем' },
+  'A film has no episodes': { ro: 'Un film nu are episoade', ru: 'У фильма нет серий' },
+  'Say which episode': { ro: 'Spune care episod', ru: 'Укажите серию' },
+  'That play isn’t there': { ro: 'Vizionarea asta nu există', ru: 'Такого просмотра нет' },
+  'That list isn’t there': { ro: 'Lista asta nu există', ru: 'Такого списка нет' },
+  'Only who made the list can change who sees it': {
+    ro: 'Doar cine a făcut lista poate schimba cine o vede',
+    ru: 'Только автор списка может менять, кто его видит',
+  },
+  'Only who made the list can delete it': {
+    ro: 'Doar cine a făcut lista o poate șterge',
+    ru: 'Удалить список может только его автор',
+  },
+  'That file can’t be read': { ro: 'Fișierul ăsta nu poate fi citit', ru: 'Этот файл не читается' },
+  'At most 120 days from the start': {
+    ro: 'Cel mult 120 de zile de la început',
+    ru: 'Не больше 120 дней от начала',
+  },
+  'The start is after the end': { ro: 'Începutul e după sfârșit', ru: 'Начало позже конца' },
 };
 
 // ---------------------------------------------------------------- words inside the patterns

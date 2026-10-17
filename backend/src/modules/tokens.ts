@@ -8,8 +8,8 @@ import { toUser, USER_COLUMNS, type User } from './users';
 /**
  * AI access keys. A key acts as the person who made it, with a narrower role:
  *
- * - `food:read` — the assistant can look (kitchen, recipes, lists, plan, training) but change nothing
- * - `food`      — the family assistant: reads and changes everything in Food and Training
+ * - `food:read` — the assistant can look (kitchen, recipes, lists, plan, training, watching) but change nothing
+ * - `food`      — the family assistant: reads and changes everything in Food, Training, Travel and Watching
  * - `admin`     — Food plus managing people's accounts; only admins can make one
  *
  * The key is shown once; only its SHA-256 is stored. Keys never reach sign-in, passwords,
@@ -147,6 +147,9 @@ export function tokenMayAccess(scope: TokenScope, method: string, path: string):
   if (path === '/api/training' || path.startsWith('/api/training/'))
     return scope === 'food:read' ? read : true;
   if (path === '/api/travel' || path.startsWith('/api/travel/'))
+    return scope === 'food:read' ? read : true;
+  // Watching: each person's films and series, the same as training.
+  if (path === '/api/watching' || path.startsWith('/api/watching/'))
     return scope === 'food:read' ? read : true;
   if (path.startsWith('/api/admin/')) return scope === 'admin';
   return false;

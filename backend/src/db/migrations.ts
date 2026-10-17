@@ -947,6 +947,132 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE products ADD COLUMN variant_names jsonb NOT NULL DEFAULT '{}';
     `,
   },
+  {
+    version: 34,
+    name: 'watching: films and series from TMDB, each person’s plays, lists and checks',
+    sql: `
+      -- TMDB's details, compact, per language as they are asked for ({ i18n: { en, ro, ru } }).
+      -- Never evicted while someone's library points at them; images stay on TMDB's CDN.
+      CREATE TABLE watch_titles (
+        id text PRIMARY KEY CHECK (id ~ '^(movie|tv):[0-9]+$'),
+        kind text NOT NULL CHECK (kind IN ('movie', 'tv')),
+        tmdb_id integer NOT NULL,
+        data jsonb NOT NULL,
+        fetched_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      -- One season's episodes, per show and season number.
+      CREATE TABLE watch_episodes_cache (
+        tmdb_id integer NOT NULL,
+        season integer NOT NULL,
+        data jsonb NOT NULL,
+        fetched_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (tmdb_id, season)
+      );
+
+      -- Everything else asked of TMDB (search, trending, discover, people, find, genres), with
+      -- its own expiry; expired rows are swept as new ones are written.
+      CREATE TABLE watch_tmdb_cache (
+        key text PRIMARY KEY,
+        data jsonb NOT NULL,
+        fetched_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL
+      );
+      CREATE INDEX watch_tmdb_cache_expires_idx ON watch_tmdb_cache (expires_at);
+
+      -- Each person's library: where they are with a title.
+      CREATE TABLE watch_list (
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        title_id text NOT NULL REFERENCES watch_titles (id),
+        status text NOT NULL CHECK (status IN ('watchlist', 'watching', 'rewatching', 'completed', 'paused', 'dropped')),
+        favorite boolean NOT NULL DEFAULT false,
+        rating smallint CHECK (rating BETWEEN 1 AND 10),
+        notes text NOT NULL DEFAULT '',
+        added_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, title_id)
+      );
+
+      -- One row per time something was watched; rewatching adds a row. A backfilled play may
+      -- know only its day, its month, or nothing: those stay out of per-day and per-hour charts.
+      CREATE TABLE watch_plays (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        title_id text NOT NULL REFERENCES watch_titles (id),
+        season integer,
+        episode integer,
+        watched_at timestamptz,
+        date_precision text NOT NULL DEFAULT 'exact' CHECK (date_precision IN ('exact', 'day', 'month', 'unknown')),
+        runtime_min integer NOT NULL DEFAULT 0,
+        source text NOT NULL DEFAULT 'app' CHECK (source IN ('app', 'ai', 'import')),
+        import_key text,
+        -- Watched together: one play per person, one group, shown and undone together.
+        group_id uuid,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        CHECK ((season IS NULL) = (episode IS NULL)),
+        CHECK ((watched_at IS NULL) = (date_precision = 'unknown'))
+      );
+      CREATE INDEX watch_plays_user_idx ON watch_plays (user_id, watched_at DESC);
+      CREATE INDEX watch_plays_title_idx ON watch_plays (user_id, title_id, season, episode);
+      CREATE INDEX watch_plays_group_idx ON watch_plays (group_id) WHERE group_id IS NOT NULL;
+      CREATE UNIQUE INDEX watch_plays_import_key ON watch_plays (user_id, import_key) WHERE import_key IS NOT NULL;
+
+      -- A person's rating, note and favourite for one episode.
+      CREATE TABLE watch_episode_marks (
+        user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        title_id text NOT NULL REFERENCES watch_titles (id),
+        season integer NOT NULL,
+        episode integer NOT NULL,
+        rating smallint CHECK (rating BETWEEN 1 AND 10),
+        note text NOT NULL DEFAULT '',
+        favorite boolean NOT NULL DEFAULT false,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, title_id, season, episode)
+      );
+
+      -- Where a title really is in Moldova, as Claude (or someone) checked it.
+      CREATE TABLE watch_availability (
+        id uuid PRIMARY KEY,
+        title_id text NOT NULL REFERENCES watch_titles (id),
+        provider text NOT NULL,
+        available boolean NOT NULL,
+        note text NOT NULL DEFAULT '',
+        checked_at timestamptz NOT NULL DEFAULT now(),
+        checked_by uuid REFERENCES users (id) ON DELETE SET NULL
+      );
+      CREATE UNIQUE INDEX watch_availability_provider_key ON watch_availability (title_id, lower(provider));
+
+      CREATE TABLE watch_settings (
+        user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+        hide_spoilers boolean NOT NULL DEFAULT false,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      -- Lists people make ("Movie night", "For Patricia"): their own, or the household's.
+      CREATE TABLE watch_collections (
+        id uuid PRIMARY KEY,
+        owner_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        household_id uuid REFERENCES households (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        translations jsonb NOT NULL DEFAULT '{}',
+        shared boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+      CREATE INDEX watch_collections_owner_idx ON watch_collections (owner_id);
+      CREATE INDEX watch_collections_household_idx ON watch_collections (household_id) WHERE shared;
+
+      CREATE TABLE watch_collection_items (
+        collection_id uuid NOT NULL REFERENCES watch_collections (id) ON DELETE CASCADE,
+        title_id text NOT NULL REFERENCES watch_titles (id),
+        position integer NOT NULL DEFAULT 0,
+        note text NOT NULL DEFAULT '',
+        added_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        added_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (collection_id, title_id)
+      );
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

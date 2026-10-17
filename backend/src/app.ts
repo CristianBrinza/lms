@@ -6,6 +6,7 @@ import { translateFields, translateMessage } from './lib/messages';
 import {
   apiSecurityHeaders,
   hostGuard,
+  importBodyLimit,
   jsonBodyLimit,
   noStore,
   originGuard,
@@ -16,6 +17,7 @@ import { authRoutes } from './modules/auth/routes';
 import { foodRoutes } from './modules/food/routes';
 import { trainingRoutes } from './modules/training/routes';
 import { travelRoutes } from './modules/travel/routes';
+import { watchingRoutes } from './modules/watching/routes';
 import { avatarRoutes } from './modules/profile';
 import { healthRoutes } from './modules/health';
 import { liveSync } from './modules/live/publish';
@@ -30,7 +32,11 @@ export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
 
   app.use('*', requestContext(deps), hostGuard(deps));
-  app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps), jsonBodyLimit);
+  app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps));
+  // A TV Time or Trakt export is bigger than any other body: that one route gets more room.
+  app.use('/api/*', (c, next) =>
+    c.req.path === '/api/watching/import' ? importBodyLimit(c, next) : jsonBodyLimit(c, next),
+  );
   // Every change that works is announced to the household's open apps (GET /api/events).
   app.use('/api/*', liveSync(deps));
 
@@ -45,6 +51,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/food', foodRoutes(deps));
   app.route('/api/training', trainingRoutes(deps));
   app.route('/api/travel', travelRoutes(deps));
+  app.route('/api/watching', watchingRoutes(deps));
   app.route('/api/users', avatarRoutes(deps));
   app.route(
     '/api/mcp',

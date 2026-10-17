@@ -21,7 +21,7 @@ import { inputSchema, scopeAllows, TOOLS, type ToolEnv } from './tools';
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const SERVER_VERSION = '1.0.0';
 
-export const INSTRUCTIONS = `LMS: this household's food — what is in the kitchen, recipes, shopping lists per store, the meal plan — everyone's home training, and the family's trips. The data is real and shared by the family: be accurate, careful and brief.
+export const INSTRUCTIONS = `LMS: this household's food — what is in the kitchen, recipes, shopping lists per store, the meal plan — everyone's home training, the family's trips, and the films and series each person watches. The data is real and shared by the family: be accurate, careful and brief.
 
 How it works
 - Items are counted in a base unit: pcs, g or ml. Amounts may be given in pcs, g, kg, ml, l, tsp, tbsp or cup; pieces convert through an item's piece size (a tomato ≈ 120 g).
@@ -48,6 +48,13 @@ How it works
 
 Travel (the household's trips)
 - travel_overview first: trips (upcoming first), bags and the packing list with its rules. plan_trip makes a trip and its checklist from those rules (national/international, kind, transport, days, who goes); overrides switch single items on or off for one trip; add_trip_item adds something for that trip only; add_packing_item teaches the list for all trips. Dates are local (YYYY-MM-DD), times HH:MM.
+
+Watching (films and series, each person's own; from TMDB)
+- Titles are "movie:<tmdb id>" or "tv:<tmdb id>"; find them with watching_search. watching_overview shows what someone is in the middle of, their watchlist and what airs soon; watching_title the details, progress and where to watch.
+- Plays: watching_mark_watched for a film or one episode, watching_mark_up_to for many (up to S3E5, a season, the whole show). Backfill with watchedAt as a day, a month ("2025-03") or "unknown" when they don't remember. people: who watched — several names means they watched together.
+- Before recommending a title, verify on the web that it is actually available in Moldova (MD) on that service — many lists claim Netflix or Prime titles that aren't offered here — then record what you found with watching_set_availability (provider, available, a note with how you checked). TMDB's where-to-watch for MD (or RO, flagged needsChecking) is a starting point, not proof.
+- Suggestions: watching_similar (for a title, or "because you watched" without one) and watching_discover (trending, or by genre/year/provider); skip what is already in their library, and respect their ratings. watching_add_to_list keeps ideas in a named list ("Movie night").
+- watching_stats for screen time and a year in review; watching_calendar for what airs when; watching_import brings small TV Time or Trakt export files over (big ones go through the app).
 
 Training (home workouts, each person's own)
 - training_overview first: whose (userId; default you), today's and next workouts, the week, streaks. People are the household's, with gender, age and height: "for Maria" means her userId. Each person has their own exercise library and routines (exercise ids differ per person; plan_workout maps another person's to theirs); the equipment is shared.

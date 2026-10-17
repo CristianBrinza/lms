@@ -69,6 +69,8 @@ const EnvSchema = z.object({
   VAPID_PUBLIC_KEY: optionalString,
   VAPID_PRIVATE_KEY: optionalString,
   VAPID_SUBJECT: optionalString,
+  /** TMDB (Watching): a v4 read access token or a v3 API key. Without it, Watching says so. */
+  TMDB_API_KEY: optionalString,
 });
 
 export interface AppConfig {
@@ -96,6 +98,8 @@ export interface AppConfig {
   rateLimits: boolean;
   passwordHashCost: 'standard' | 'fast';
   bootstrapAdmin: { email: string; password: string; name: string; surname: string } | null;
+  /** TMDB for Watching; null when no key is configured. */
+  tmdb: { apiKey: string } | null;
 }
 
 const PLACEHOLDER = /^(change[-_ ]?me|secret|password|test|example|placeholder|x+)$/i;
@@ -169,6 +173,7 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
     rateLimits: env.RATE_LIMITS,
     passwordHashCost: env.PASSWORD_HASH_COST,
     bootstrapAdmin: admin,
+    tmdb: env.TMDB_API_KEY ? { apiKey: env.TMDB_API_KEY } : null,
     push:
       env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY
         ? {
