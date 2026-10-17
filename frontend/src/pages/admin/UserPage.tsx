@@ -8,7 +8,7 @@ import {
 import { profileInput, profileValues } from '@/lib/profile';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useUser } from '@/app/auth';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -29,6 +29,7 @@ import {
   DeleteIcon,
   DevicesIcon,
   EmailIcon,
+  HouseIcon,
   LockOpenIcon,
   LockResetIcon,
 } from '@/components/ui/icons';
@@ -213,6 +214,7 @@ function Loaded({ person, isMe }: { person: AdminUser; isMe: boolean }) {
           <DetailsForm key={person.updatedAt} person={person} isMe={isMe} onSaved={refresh} />
           <AboutCard key={`about-${person.updatedAt}`} person={person} onSaved={refresh} />
           <PaydayCard key={`paydays-${person.updatedAt}`} person={person} onSaved={refresh} />
+          <HouseholdCard person={person} />
         </div>
       </div>
 
@@ -452,6 +454,37 @@ function PaydayCard({
           onSaved={onSaved}
         />
       </div>
+    </section>
+  );
+}
+
+/** Which household they're in; moving them happens on the Households screen. */
+function HouseholdCard({ person }: { person: AdminUser }) {
+  const t = useAdminT();
+  return (
+    <section
+      aria-labelledby="household"
+      className="mt-5 flex items-center gap-4 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70"
+    >
+      <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-butter-100 text-[1.5rem] text-ink-900">
+        <HouseIcon fontSize="inherit" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 id="household" className="text-h3 font-bold">
+          {t.household}
+        </h2>
+        <p className="truncate text-sm text-ink-600">
+          {person.kitchen
+            ? t.householdLine(person.kitchen.name, person.kitchen.members)
+            : t.noHousehold}
+        </p>
+      </div>
+      <Link
+        to="/admin/households"
+        className="press inline-flex h-10 shrink-0 items-center rounded-pill bg-lav-100 px-4 text-sm font-semibold text-ink-900 hover:bg-lav-200"
+      >
+        {t.manageHouseholds}
+      </Link>
     </section>
   );
 }

@@ -4,6 +4,7 @@ import type {
   ActivityEntry,
   AdminUser,
   DeviceSession,
+  Household,
   Gender,
   Role,
   User,
@@ -82,4 +83,12 @@ export const adminApi = {
     api.post<{ user: AdminUser }>(`/admin/users/${id}/sign-out`).then((r) => r.user),
   remove: (id: string) => api.delete<void>(`/admin/users/${id}`),
   activity: () => api.get<{ activity: ActivityEntry[] }>('/admin/activity').then((r) => r.activity),
+  households: () =>
+    api.get<{ households: Household[] }>('/admin/households').then((r) => r.households),
+  createHousehold: (name: string) =>
+    api.post<{ household: Household }>('/admin/households', { name }).then((r) => r.household),
+  renameHousehold: (id: string, name: string) => api.patch<unknown>(`/admin/households/${id}`, { name }),
+  /** Seats someone in a household; null gives them one of their own. */
+  setKitchen: (id: string, householdId: string | null) =>
+    api.put<{ user: AdminUser }>(`/admin/users/${id}/kitchen`, { householdId }).then((r) => r.user),
 };

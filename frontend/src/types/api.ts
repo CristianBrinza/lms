@@ -35,10 +35,19 @@ export type Activity = 'sedentary' | 'light' | 'moderate' | 'active' | 'very';
 
 export interface AdminUser extends User {
   isActive: boolean;
+  /** The household (kitchen) they share: food, the buy list, watching together. */
+  kitchen: { id: string; name: string; members: number } | null;
   lastLoginAt: string | null;
   lastSeenAt: string | null;
   activeSessions: number;
   updatedAt: string;
+}
+
+/** A household: the people who share one kitchen, buy list and family views. */
+export interface Household {
+  id: string;
+  name: string;
+  members: Array<{ id: string; name: string; surname: string }>;
 }
 
 export interface DeviceSession {

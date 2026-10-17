@@ -11,7 +11,7 @@ import {
   BlockIcon,
   GroupIcon,
   HistoryIcon,
-  PersonAddIcon,
+  HouseIcon, PersonAddIcon,
   PersonIcon,
   SearchIcon,
 } from '@/components/ui/icons';
@@ -65,7 +65,15 @@ export default function UsersPage() {
         title={t.people}
         back="/settings"
         actions={
-          <IconLink to="/admin/users/new" icon={PersonAddIcon} label={t.addPerson} variant="ink" />
+          <>
+            <IconLink
+              to="/admin/households"
+              icon={HouseIcon}
+              label={t.manageHouseholds}
+              variant="outline"
+            />
+            <IconLink to="/admin/users/new" icon={PersonAddIcon} label={t.addPerson} variant="ink" />
+          </>
         }
       />
 

@@ -59,6 +59,10 @@ const KitchenBody = z.object({
   householdId: z.uuid('Not a valid kitchen').nullable(),
 });
 
+const HouseholdBody = z.object({
+  name: z.string().trim().min(1, 'Name the household').max(60, 'Keep it under 60 characters'),
+});
+
 const ResetBody = z.object({
   password: newPasswordField.optional(),
   mustChangePassword: z.boolean().default(true),
@@ -311,6 +315,32 @@ export function adminRoutes(deps: AppDeps) {
         GROUP BY h.id ORDER BY h.created_at`,
     );
     return c.json({ households: rows });
+  });
+
+  /** A new household (family): its own kitchen, buy list and shared views, empty until people join. */
+  app.post('/households', async (c) => {
+    const { name } = await readJson(c, HouseholdBody);
+    const id = randomUUID();
+    await deps.db.query('INSERT INTO households (id, name) VALUES ($1, $2)', [id, name]);
+    await audit(deps, {
+      actorId: c.get('user').id,
+      action: 'household.created',
+      targetId: null,
+      ip: maskIp(c.get('ip')),
+      meta: { householdId: id, name },
+    });
+    return c.json({ household: { id, name, members: [] } }, 201);
+  });
+
+  app.patch('/households/:id', async (c) => {
+    const { name } = await readJson(c, HouseholdBody);
+    const id = c.req.param('id');
+    const { rowCount } = await deps.db.query(
+      'UPDATE households SET name = $2 WHERE id = $1::uuid',
+      [z.uuid().safeParse(id).success ? id : '00000000-0000-0000-0000-000000000000', name],
+    );
+    if (!rowCount) throw new AppError(404, 'NOT_FOUND', 'That kitchen was not found');
+    return c.json({ household: { id, name } });
   });
 
   app.put('/users/:id/kitchen', async (c) => {

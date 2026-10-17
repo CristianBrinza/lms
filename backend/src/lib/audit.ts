@@ -14,6 +14,7 @@ export type AuditAction =
   | 'user.signed_out'
   | 'user.deleted'
   | 'user.kitchen_changed'
+  | 'household.created'
   | 'key.created'
   | 'key.revoked';
 

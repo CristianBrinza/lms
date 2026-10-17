@@ -3,6 +3,36 @@ import type { Role } from '@/types/api';
 
 /** The admin console: people, one person, a new account, and the one-time password. */
 const en = {
+  // households
+  households: 'Households',
+  householdsIntro:
+    'A household is a family under one roof. Everyone in it shares the kitchen, shopping, the buy list, the house and trips, and sees what the others watched. Workouts and health stay each person’s own.',
+  newHousehold: 'New household',
+  renameHousehold: 'Rename the household',
+  rename: (name: string) => `Rename ${name}`,
+  householdName: 'Name',
+  householdPlaceholder: 'The Brinza family',
+  memberCount: (n: number) => plural(n, { one: '# person', other: '# people' }),
+  emptyHousehold: 'No one here yet. Add someone below.',
+  addToHousehold: 'Add someone',
+  addToNamed: (name: string) => `Add to ${name}`,
+  nowIn: (name: string) => `Now in ${name}`,
+  nobodyElse: 'Everyone is already here.',
+  moveTo: 'Move',
+  moveNamed: (name: string) => `Move ${name} to…`,
+  ownHousehold: 'A household of their own',
+  moveTitle: (name: string, to: string | null) =>
+    to ? `Move ${name} to ${to}?` : `Give ${name} a household of their own?`,
+  moveDescription: (name: string, from: string) =>
+    `${name} will see and change that household’s kitchen, shopping, buy list and trips from now on. What is in ${from || 'the old one'} stays there.`,
+  moveConfirm: 'Move',
+  moved: (name: string, to: string | null) =>
+    to ? `${name} is now in ${to}` : `${name} has a household of their own`,
+  household: 'Household',
+  householdLine: (name: string, n: number) =>
+    `${name} · ${plural(n, { one: '# person', other: '# people' })}`,
+  noHousehold: 'Not in a household yet (one is made on their first visit to Food).',
+  manageHouseholds: 'Households',
   // shared
   name: 'Name',
   surname: 'Surname',
@@ -132,6 +162,34 @@ const en = {
 };
 
 const ro: typeof en = {
+  // households
+  households: 'Gospodării',
+  householdsIntro:
+    'O gospodărie e o familie sub același acoperiș. Toți din ea împart bucătăria, cumpărăturile, lista de cumpărat, casa și călătoriile și văd ce au urmărit ceilalți. Antrenamentele și sănătatea rămân ale fiecăruia.',
+  newHousehold: 'Gospodărie nouă',
+  renameHousehold: 'Redenumește gospodăria',
+  rename: (name) => `Redenumește ${name}`,
+  householdName: 'Nume',
+  householdPlaceholder: 'Familia Brinza',
+  memberCount: (n) => plural(n, { one: '# persoană', few: '# persoane', other: '# de persoane' }),
+  emptyHousehold: 'Încă nimeni aici. Adaugă pe cineva mai jos.',
+  addToHousehold: 'Adaugă pe cineva',
+  addToNamed: (name) => `Adaugă în ${name}`,
+  nowIn: (name) => `Acum în ${name}`,
+  nobodyElse: 'Toți sunt deja aici.',
+  moveTo: 'Mută',
+  moveNamed: (name) => `Unde îl muți pe ${name}?`,
+  ownHousehold: 'O gospodărie proprie',
+  moveTitle: (name, to) => (to ? `Îl muți pe ${name} în ${to}?` : `${name} primește o gospodărie proprie?`),
+  moveDescription: (name, from) =>
+    `De acum ${name} vede și schimbă bucătăria, cumpărăturile, lista de cumpărat și călătoriile acelei gospodării. Ce e în ${from || 'cea veche'} rămâne acolo.`,
+  moveConfirm: 'Mută',
+  moved: (name, to) => (to ? `${name} e acum în ${to}` : `${name} are o gospodărie proprie`),
+  household: 'Gospodăria',
+  householdLine: (name, n) =>
+    `${name} · ${plural(n, { one: '# persoană', few: '# persoane', other: '# de persoane' })}`,
+  noHousehold: 'Încă fără gospodărie (se face la prima vizită în Mâncare).',
+  manageHouseholds: 'Gospodării',
   name: 'Prenume',
   surname: 'Nume',
   email: 'Email',
@@ -261,6 +319,35 @@ const ro: typeof en = {
 };
 
 const ru: typeof en = {
+  // households
+  households: 'Семьи',
+  householdsIntro:
+    'Семья — это люди под одной крышей. Все в ней делят кухню, покупки, список покупок, дом и поездки и видят, что смотрели другие. Тренировки и здоровье у каждого свои.',
+  newHousehold: 'Новая семья',
+  renameHousehold: 'Переименовать семью',
+  rename: (name) => `Переименовать ${name}`,
+  householdName: 'Название',
+  householdPlaceholder: 'Семья Бринза',
+  memberCount: (n) =>
+    plural(n, { one: '# человек', few: '# человека', many: '# человек', other: '# человека' }),
+  emptyHousehold: 'Пока никого. Добавьте кого-нибудь ниже.',
+  addToHousehold: 'Добавить человека',
+  addToNamed: (name) => `Добавить в ${name}`,
+  nowIn: (name) => `Сейчас в ${name}`,
+  nobodyElse: 'Все уже здесь.',
+  moveTo: 'Перенести',
+  moveNamed: (name) => `Куда перенести ${name}?`,
+  ownHousehold: 'Отдельная семья',
+  moveTitle: (name, to) => (to ? `Перенести ${name} в ${to}?` : `Дать ${name} отдельную семью?`),
+  moveDescription: (name, from) =>
+    `Теперь ${name} будет видеть и менять кухню, покупки, список покупок и поездки этой семьи. Всё, что было в ${from || 'старой'}, останется там.`,
+  moveConfirm: 'Перенести',
+  moved: (name, to) => (to ? `${name} теперь в ${to}` : `У ${name} теперь своя семья`),
+  household: 'Семья',
+  householdLine: (name, n) =>
+    `${name} · ${plural(n, { one: '# человек', few: '# человека', many: '# человек', other: '# человека' })}`,
+  noHousehold: 'Пока без семьи (создаётся при первом заходе в «Еду»).',
+  manageHouseholds: 'Семьи',
   name: 'Имя',
   surname: 'Фамилия',
   email: 'Эл. почта',
