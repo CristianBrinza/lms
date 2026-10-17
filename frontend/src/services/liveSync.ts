@@ -9,7 +9,15 @@ import { api } from './api/client';
  */
 
 export type LiveArea =
-  'food' | 'house' | 'training' | 'travel' | 'reminders' | 'people' | 'paydays' | 'other';
+  | 'food'
+  | 'house'
+  | 'training'
+  | 'travel'
+  | 'watching'
+  | 'reminders'
+  | 'people'
+  | 'paydays'
+  | 'other';
 
 export interface LiveEvent {
   area: LiveArea;
@@ -24,8 +32,9 @@ export interface LiveTarget {
   exact?: boolean;
 }
 
-// The prefixes of the query key factories (foodKeys, trainingKeys, travelKeys, paydaysQueryKey,
-// queryKeys), written out so the app shell doesn't pull every area's code into the first load.
+// The prefixes of the query key factories (foodKeys, trainingKeys, travelKeys, watchingKeys,
+// paydaysQueryKey, queryKeys), written out so the app shell does not pull every area into the first
+// load.
 // liveSync.test.ts keeps them in step with the factories.
 const FOOD: LiveTarget[] = [
   { queryKey: ['food'] },
@@ -45,6 +54,8 @@ const TARGETS: Record<Exclude<LiveArea, 'other'>, LiveTarget[]> = {
     { queryKey: ['food', 'shopping'] },
     { queryKey: ['food', 'overview'] },
   ],
+  // What each person watched, their lists and the household's Moldova availability checks.
+  watching: [{ queryKey: ['watching'] }],
   reminders: [{ queryKey: ['me', 'reminders'] }],
   people: [
     { queryKey: ['me'], exact: true },

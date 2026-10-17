@@ -4,6 +4,7 @@ import { foodKeys } from '@/food/api';
 import { paydaysQueryKey } from '@/pages/home/paydays';
 import { trainingKeys } from '@/training/api';
 import { travelKeys } from '@/travel/api';
+import { watchingKeys } from '@/watching/api';
 import { invalidateAreas, liveTargets } from './liveSync';
 import { queryKeys } from './queries';
 
@@ -23,6 +24,7 @@ describe('live sync: which queries an area’s change refetches', () => {
     expect(keysOf('house')).toEqual(keysOf('food'));
     expect(keysOf('training')).toEqual([trainingKeys.all]);
     expect(keysOf('travel')).toEqual([travelKeys.all, foodKeys.shopping, foodKeys.overview]);
+    expect(keysOf('watching')).toEqual([watchingKeys.all]);
     expect(keysOf('reminders')).toEqual([foodKeys.reminders]);
     expect(keysOf('paydays')).toEqual([paydaysQueryKey]);
     expect(keysOf('people')).toEqual([

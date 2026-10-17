@@ -78,6 +78,28 @@ const travelRoutes: RouteObject = {
   ],
 };
 
+/**
+ * Watching: shows and films from TMDB, each person's own. The fixed screens come before `:id`
+ * (a title, 'movie:603' / 'tv:1399').
+ */
+const watchingRoutes: RouteObject = {
+  path: 'watching',
+  children: [
+    { index: true, lazy: page(() => import('@/watching/pages/WatchingHomePage')) },
+    { path: 'search', lazy: page(() => import('@/watching/pages/SearchPage')) },
+    { path: 'library', lazy: page(() => import('@/watching/pages/LibraryPage')) },
+    { path: 'discover', lazy: page(() => import('@/watching/pages/DiscoverPage')) },
+    { path: 'calendar', lazy: page(() => import('@/watching/pages/CalendarPage')) },
+    { path: 'stats', lazy: page(() => import('@/watching/pages/StatsPage')) },
+    { path: 'import', lazy: page(() => import('@/watching/pages/ImportPage')) },
+    { path: 'lists', lazy: page(() => import('@/watching/pages/ListsPage')) },
+    { path: 'lists/:listId', lazy: page(() => import('@/watching/pages/ListPage')) },
+    { path: 'person/:personId', lazy: page(() => import('@/watching/pages/PersonPage')) },
+    { path: ':id', lazy: page(() => import('@/watching/pages/TitlePage')) },
+    { path: ':id/season/:n', lazy: page(() => import('@/watching/pages/SeasonPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -120,6 +142,7 @@ const routes: RouteObject[] = [
               trainingRoutes,
               houseRoutes,
               travelRoutes,
+              watchingRoutes,
               { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,
             ],
