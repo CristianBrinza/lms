@@ -31,7 +31,50 @@ const movie = (url: URL) => ({
   vote_average: 8.2,
   vote_count: 25000,
   imdb_id: 'tt0133093',
-  credits: { cast: [{ id: 6384, name: 'Keanu Reeves', character: 'Neo', profile_path: '/k.jpg' }] },
+  credits: {
+    cast: [{ id: 6384, name: 'Keanu Reeves', character: 'Neo', profile_path: '/k.jpg' }],
+    crew: [
+      { id: 9339, name: 'Lana Wachowski', job: 'Director', profile_path: null },
+      { id: 9339, name: 'Lana Wachowski', job: 'Writer', profile_path: null },
+      { id: 1, name: 'Grip Person', job: 'Grip', profile_path: null },
+      { id: 2, name: 'Don Davis', job: 'Original Music Composer', profile_path: null },
+    ],
+  },
+  belongs_to_collection: { id: 2344, name: 'The Matrix Collection' },
+  videos: {
+    results: [
+      { key: 'teaser00001', site: 'YouTube', type: 'Teaser', name: 'Teaser', iso_639_1: 'en' },
+      { key: 'vimeo000001', site: 'Vimeo', type: 'Trailer', name: 'Vimeo', iso_639_1: 'en' },
+      {
+        key: 'trailer0001',
+        site: 'YouTube',
+        type: 'Trailer',
+        name: 'Official Trailer',
+        iso_639_1: 'en',
+        official: true,
+      },
+    ],
+  },
+  keywords: { keywords: [{ id: 310, name: 'artificial intelligence' }] },
+  reviews: {
+    total_results: 1,
+    results: [
+      {
+        id: 'r1',
+        author: 'cinephile',
+        author_details: { rating: 9 },
+        content: `**Great.** ${'Words '.repeat(200)}`,
+        created_at: '2020-01-01T00:00:00Z',
+        url: 'https://tmdb/review/r1',
+      },
+    ],
+  },
+  release_dates: {
+    results: [
+      { iso_3166_1: 'US', release_dates: [{ certification: 'R', type: 3 }] },
+      { iso_3166_1: 'RO', release_dates: [{ certification: '', type: 3 }] },
+    ],
+  },
   external_ids: { imdb_id: 'tt0133093' },
   'watch/providers': {
     results: {
@@ -172,6 +215,15 @@ function fakeTmdb(): typeof fetch {
     let m: RegExpExecArray | null;
     if (path === '/movie/603') return json(movie(url));
     if (path === '/tv/1399') return json(ended());
+    if (path === '/collection/2344')
+      return json({
+        id: 2344,
+        name: 'The Matrix Collection',
+        parts: [
+          { id: 604, title: 'The Matrix Reloaded', release_date: '2003-05-15' },
+          { id: 603, title: 'The Matrix', release_date: '1999-03-30' },
+        ],
+      });
     if (path === '/tv/100') return json(returning());
     if ((m = /^\/tv\/(\d+)\/season\/(\d+)$/.exec(path)))
       return json(season(Number(m[1]), Number(m[2]), url));
@@ -528,7 +580,7 @@ describe('watching: plays, progress and the library', () => {
       favorite: true,
     });
     const s1 = (await b.get('/api/watching/titles/tv:1399/seasons/1')).body;
-    expect(s1.episodes[0].mine).toEqual({ rating: 10, note: 'Wow', favorite: true });
+    expect(s1.episodes[0].mine).toEqual({ rating: 10, note: 'Wow', favorite: true, reactions: [] });
     expect(s1.hideSpoilers).toBe(false);
 
     expect((await b.put('/api/watching/settings', { hideSpoilers: true })).body).toEqual({
@@ -840,5 +892,126 @@ describe('watching: keys, live sync and MCP', () => {
       await call('watching_mark_up_to', { titleId: 'tv:1399', season: 2, episode: 1 }),
     ).toMatchObject({ added: 4 });
     expect((await call('watching_stats', { from: '2000-01-01' })).total.plays).toBe(5);
+  });
+});
+
+describe('watching: who a play is for, and who has seen it', () => {
+  it('marks for the person viewed; the title lists everyone else at home, seen or not', async () => {
+    const { ana, ion } = await family();
+    // Viewing Ion: Ana marks two episodes for him alone.
+    const forIon = await ana.b.post('/api/watching/plays', {
+      titleId: 'tv:1399',
+      season: 1,
+      upTo: 2,
+      userIds: [ion.user.id],
+    });
+    expect(forIon.body.plays.map((p: any) => p.userId)).toEqual([ion.user.id, ion.user.id]);
+    expect(forIon.body.status).toBe('watching');
+    expect((await ana.b.get('/api/watching/titles/tv:1399')).body.mine.playCount).toBe(0);
+
+    // Ana looks at it as herself: Ion is listed with how far he is.
+    const asAna = (await ana.b.get('/api/watching/titles/tv:1399')).body;
+    expect(asAna.household).toEqual([
+      expect.objectContaining({
+        userId: ion.user.id,
+        name: 'Ion',
+        plays: 2,
+        progress: expect.objectContaining({
+          watched: 2,
+          aired: 6,
+          furthest: { season: 1, episode: 2 },
+          next: { season: 1, episode: 3 },
+        }),
+      }),
+    ]);
+    expect(asAna.members.map((m: any) => m.name)).toEqual(['Ana', 'Ion']);
+
+    // Viewing Ion: the line lists Ana, who hasn't watched it yet.
+    const asIon = (await ana.b.get(`/api/watching/titles/tv:1399?userId=${ion.user.id}`)).body;
+    expect(asIon.mine.playCount).toBe(2);
+    expect(asIon.household).toEqual([
+      expect.objectContaining({
+        userId: ana.user.id,
+        plays: 0,
+        status: null,
+        progress: expect.objectContaining({ watched: 0, furthest: null }),
+      }),
+    ]);
+    expect(asIon.members[0]).toMatchObject({ userId: ion.user.id, plays: 2 });
+
+    // A film: times and the last date, per person.
+    await ana.b.post('/api/watching/plays', { titleId: 'movie:603', watchedAt: '2024-05-01' });
+    await ana.b.post('/api/watching/plays', { titleId: 'movie:603', watchedAt: '2025-02-03' });
+    const film = (await ion.b.get('/api/watching/titles/movie:603')).body;
+    expect(film.household).toEqual([
+      expect.objectContaining({ name: 'Ana', plays: 2, status: 'completed', progress: null }),
+    ]);
+    expect(film.household[0].lastWatchedAt.slice(0, 10)).toBe('2025-02-03');
+
+    // Taking a title out of one other person's library leaves mine alone.
+    await ana.b.put('/api/watching/titles/movie:603/status', { favorite: true });
+    const cleared = await ana.b.delete(`/api/watching/titles/tv:1399/status?people=${ion.user.id}`);
+    expect(cleared.status).toBe(204);
+    expect((await ion.b.get('/api/watching/titles/tv:1399')).body.mine.status).toBeNull();
+    expect((await ana.b.get('/api/watching/titles/movie:603')).body.mine.favorite).toBe(true);
+  });
+
+  it('episode reactions, and what the others at home thought', async () => {
+    const { ana, ion } = await family();
+    const saved = await ana.b.put('/api/watching/titles/tv:1399/episodes/1/2', {
+      rating: 9,
+      reactions: ['wow', 'wow', 'tense'],
+      note: 'That ending',
+    });
+    expect(saved.body.episode).toMatchObject({ rating: 9, reactions: ['wow', 'tense'] });
+    expect(
+      (await ana.b.put('/api/watching/titles/tv:1399/episodes/1/2', { reactions: ['nope'] }))
+        .status,
+    ).toBe(400);
+
+    const own = (await ana.b.get('/api/watching/titles/tv:1399/seasons/1')).body;
+    expect(own.episodes[1].mine).toMatchObject({ rating: 9, reactions: ['wow', 'tense'] });
+    expect(own.episodes[1].others).toEqual([]);
+
+    const theirs = (await ion.b.get('/api/watching/titles/tv:1399/seasons/1')).body;
+    expect(theirs.episodes[1].mine).toBeNull();
+    expect(theirs.episodes[1].others).toEqual([
+      {
+        userId: ana.user.id,
+        rating: 9,
+        note: 'That ending',
+        favorite: false,
+        reactions: ['wow', 'tense'],
+      },
+    ]);
+  });
+});
+
+describe('watching: extras from TMDB', () => {
+  it('trailers, crew, age rating, keywords, reviews and the series, cached', async () => {
+    const { b } = await viewer();
+    await b.post('/api/watching/plays', { titleId: 'movie:603' });
+    const extras = (await b.get('/api/watching/titles/movie:603/extras')).body;
+    expect(extras.videos.map((v: any) => v.key)).toEqual(['trailer0001', 'teaser00001']);
+    expect(extras.crew).toEqual([
+      { id: 9339, name: 'Lana Wachowski', job: 'director', profilePath: null },
+      { id: 9339, name: 'Lana Wachowski', job: 'writer', profilePath: null },
+      { id: 2, name: 'Don Davis', job: 'music', profilePath: null },
+    ]);
+    expect(extras.certification).toEqual({ rating: 'R', region: 'US' });
+    expect(extras.keywords).toEqual([{ id: 310, name: 'artificial intelligence' }]);
+    expect(extras.reviews[0]).toMatchObject({ author: 'cinephile', rating: 9, long: true });
+    expect(extras.reviews[0].excerpt.startsWith('Great. Words')).toBe(true);
+    expect(extras.reviews[0].excerpt.length).toBeLessThanOrEqual(601);
+    expect(extras.collection).toMatchObject({ name: 'The Matrix Collection', seen: 1 });
+    expect(extras.collection.parts.map((p: any) => [p.id, p.seen])).toEqual([
+      ['movie:603', true],
+      ['movie:604', false],
+    ]);
+
+    const before = calls.length;
+    await b.get('/api/watching/titles/movie:603/extras');
+    expect(calls.length).toBe(before);
+    expect((await b.get('/api/watching/titles/movie:999/extras')).status).toBe(404);
   });
 });

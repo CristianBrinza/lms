@@ -1,9 +1,11 @@
-import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useUser } from '@/app/auth';
 import { toast } from '@/components/ui';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { watchingApi, watchingKeys, type EpisodeInput } from './api';
 import { watchingT } from './i18n';
+import type { WatchView } from './view';
 import type {
   Play,
   PlayInput,
@@ -22,8 +24,23 @@ import type {
 const PENDING = 'pending-';
 export const isPending = (play: Pick<Play, 'id'>) => play.id.startsWith(PENDING);
 
-/** Ticks the cached title and season before the server answers. */
-function addOptimistic(client: QueryClient, input: PlayInput) {
+/**
+ * Whether a cached title or season (its key ends in the view's query: '{}' for mine,
+ * '{"userId":…}' for someone else's) shows one of the people a play is for.
+ */
+export function cachedFor(viewPart: unknown, userIds: readonly string[] | undefined, meId: string) {
+  let viewed = meId;
+  try {
+    const parsed = JSON.parse(String(viewPart ?? '{}')) as { userId?: string };
+    if (parsed.userId) viewed = parsed.userId;
+  } catch {
+    return true;
+  }
+  return (userIds?.length ? userIds : [meId]).includes(viewed);
+}
+
+/** Ticks the cached title and season before the server answers (only the views it is for). */
+function addOptimistic(client: QueryClient, input: PlayInput, meId: string) {
   const now = new Date().toISOString();
   const single = input.season !== undefined && input.episode !== undefined;
   const wholeSeason = input.season !== undefined && input.all;
@@ -44,7 +61,10 @@ function addOptimistic(client: QueryClient, input: PlayInput) {
   });
   if (single || isMovie)
     client.setQueriesData<TitleResponse>(
-      { queryKey: ['watching', 'title', input.titleId] },
+      {
+        queryKey: ['watching', 'title', input.titleId],
+        predicate: (q) => cachedFor(q.queryKey[3], input.userIds, meId),
+      },
       (old) =>
         old && {
           ...old,
@@ -54,10 +74,14 @@ function addOptimistic(client: QueryClient, input: PlayInput) {
           },
         },
     );
-  const picked = input.season !== undefined && input.episodes?.length ? new Set(input.episodes) : null;
+  const picked =
+    input.season !== undefined && input.episodes?.length ? new Set(input.episodes) : null;
   if (input.season === undefined || !(single || wholeSeason || upTo || picked)) return;
   client.setQueriesData<SeasonResponse>(
-    { queryKey: ['watching', 'season', input.titleId, input.season] },
+    {
+      queryKey: ['watching', 'season', input.titleId, input.season],
+      predicate: (q) => cachedFor(q.queryKey[4], input.userIds, meId),
+    },
     (old) =>
       old && {
         ...old,
@@ -109,12 +133,13 @@ const failed = (error: unknown) =>
 /** Marks plays (one, or a bulk form), with Undo in the toast. */
 export function useAddPlays() {
   const client = useQueryClient();
+  const meId = useUser().id;
   return useMutation({
     mutationFn: async ({ input }: { input: PlayInput; message: string }) =>
       watchingApi.addPlay(input),
     onMutate: ({ input }) => {
       haptic('success');
-      addOptimistic(client, input);
+      addOptimistic(client, input, meId);
     },
     onSuccess: (result, { message }) => {
       const groupId = result.groupId;
@@ -198,6 +223,16 @@ export function useSetStatus() {
     },
     onError: failed,
     onSettled: () => refetch(client),
+  });
+}
+
+/** A title's extras (trailers, crew, series, reviews): after the page, never holding it up. */
+export function useExtras(id: string, view: WatchView) {
+  return useQuery({
+    queryKey: watchingKeys.extras(id, view),
+    queryFn: () => watchingApi.extras(id, view),
+    staleTime: 60 * 60_000,
+    retry: false,
   });
 }
 

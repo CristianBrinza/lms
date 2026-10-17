@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { Chips, IconLink } from '@/components/ui';
-import { SearchIcon } from '@/components/ui/icons';
+import { CloseIcon, SearchIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { watchingApi, watchingKeys } from '../api';
 import { ErrorCard, Section, WatchingScreen } from '../components/parts';
@@ -24,7 +24,10 @@ export default function DiscoverPage() {
   const kind: TitleKind = params.get('kind') === 'movie' ? 'movie' : 'tv';
   const genre = Number(params.get('genre')) || undefined;
   const provider = Number(params.get('provider')) || undefined;
-  const filtered = Boolean(genre || provider);
+  // A theme from a title's page ("time travel"): its id, and its name to show.
+  const keyword = Number(params.get('keyword')) || undefined;
+  const keywordName = params.get('name') ?? '';
+  const filtered = Boolean(genre || provider || keyword);
   const update = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(patch))
@@ -56,8 +59,8 @@ export default function DiscoverPage() {
     enabled: !filtered,
   });
   const results = useQuery({
-    queryKey: watchingKeys.discover({ kind, genre, provider }),
-    queryFn: () => watchingApi.discover({ kind, genre, provider }),
+    queryKey: watchingKeys.discover({ kind, genre, provider, keyword }),
+    queryFn: () => watchingApi.discover({ kind, genre, provider, keyword }),
     enabled: filtered,
     placeholderData: keepPreviousData,
     staleTime: LONG,
@@ -88,6 +91,19 @@ export default function DiscoverPage() {
         }
         options={(['tv', 'movie'] as const).map((value) => ({ value, label: t.kind[value] }))}
       />
+
+      {keyword ? (
+        <div className="mt-2 flex min-w-0">
+          <button
+            type="button"
+            onClick={() => update({ keyword: null, name: null })}
+            className="press inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 rounded-pill bg-ink-900 pl-3.5 pr-2.5 text-sm font-semibold text-white"
+          >
+            <span className="truncate">{t.extras.keywordTitle(keywordName || `#${keyword}`)}</span>
+            <CloseIcon fontSize="inherit" className="shrink-0 text-[1.1rem]" />
+          </button>
+        </div>
+      ) : null}
 
       {providers.data?.providers.length ? (
         <div

@@ -16,6 +16,7 @@ const en = {
     calendar: 'Calendar',
     stats: 'Stats',
   },
+  kindAll: 'All',
   kind: { all: 'All', tv: 'Shows', movie: 'Movies' } as Record<TitleKind | 'all', string>,
   kindOne: { tv: 'Show', movie: 'Film' } as Record<TitleKind, string>,
   status: {
@@ -93,6 +94,16 @@ const en = {
     watched: 'Watched',
     watchlist: 'Watchlist',
     added: (title: string) => `${title} is on your watchlist`,
+  },
+  plays: {
+    title: (name: string) => `Watches of ${name}`,
+    open: 'See every watch',
+    none: 'No watches yet.',
+    together: 'Watched together',
+    changeDate: 'Date',
+    remove: 'Delete this watch',
+    removed: 'Watch deleted',
+    saved: 'Date changed',
   },
   backfill: {
     title: (name: string) => `Watched ${name}`,
@@ -184,7 +195,9 @@ const en = {
     pickNone: 'None',
     cancel: 'Cancel',
     markPicked: (n: number) =>
-      n ? plural(n, { one: 'Mark # episode watched', other: 'Mark # episodes watched' }) : 'Pick episodes',
+      n
+        ? plural(n, { one: 'Mark # episode watched', other: 'Mark # episodes watched' })
+        : 'Pick episodes',
     upToHere: 'Watched up to here',
     upToDone: (code: string) => `Marked everything up to ${code}`,
   },
@@ -203,7 +216,10 @@ const en = {
       scary: 'Scary',
       meh: 'Meh',
       disliked: 'Not for me',
-    } as Record<'loved' | 'funny' | 'wow' | 'moving' | 'tense' | 'scary' | 'meh' | 'disliked', string>,
+    } as Record<
+      'loved' | 'funny' | 'wow' | 'moving' | 'tense' | 'scary' | 'meh' | 'disliked',
+      string
+    >,
     label: 'Your review',
     placeholder: 'What you liked, what you didn’t, a scene to remember…',
     save: 'Save review',
@@ -371,6 +387,53 @@ const en = {
     biography: 'Biography',
     as: (character: string) => `as ${character}`,
   },
+  seen: {
+    title: 'Who has seen it',
+    notYet: 'Not yet',
+    onList: 'On the watchlist',
+    all: 'Seen all of it',
+    caughtUp: 'All caught up',
+    upTo: (code: string, watched: number, aired: number) =>
+      `Up to ${code} · ${formatNumber(watched)} of ${formatNumber(aired)}`,
+    film: (times: string, date: string | null) =>
+      date ? `Watched ${times} · last ${date}` : `Watched ${times}`,
+    by: (n: number, of: number) => `Seen by ${formatNumber(n)} of ${formatNumber(of)} at home`,
+    nobody: 'Nobody at home has seen it yet',
+    willMark: (names: string) => `Marks it for ${names}`,
+    forWho: (names: string) => `For ${names}`,
+    theirTake: (name: string) => `${name}’s take`,
+    theirTakeHint: (name: string) => `Only ${name} can change it.`,
+    nothingYet: (name: string) => `${name} hasn’t rated or reviewed it yet.`,
+    atHome: 'At home',
+  },
+  extras: {
+    trailer: 'Trailer',
+    videos: 'Trailers and clips',
+    play: (name: string) => `Play ${name}`,
+    madeBy: 'Made by',
+    job: {
+      director: 'Director',
+      creator: 'Created by',
+      writer: 'Writing',
+      music: 'Music',
+      camera: 'Cinematography',
+    } as Record<'director' | 'creator' | 'writer' | 'music' | 'camera', string>,
+    rated: (rating: string, region: string) => `Age rating ${rating} (${region})`,
+    keywords: 'Themes',
+    keywordTitle: (name: string) => `About “${name}”`,
+    reviews: 'Reviews',
+    reviewsOnTmdb: (n: number) =>
+      plural(n, { one: '# review on TMDB', other: '# reviews on TMDB' }),
+    readOn: 'Read it all on TMDB',
+    collection: 'The series',
+    collectionSeen: (seen: number, total: number) =>
+      `${formatNumber(seen)} of ${formatNumber(total)} seen`,
+    seen: 'Seen',
+    toFinish: (time: string) => `${time} to finish`,
+    inAll: (time: string) => `${time} in all`,
+    inDays: (n: number) => plural(n, { one: 'in # day', other: 'in # days' }),
+    reaction: 'Your reaction',
+  },
 };
 
 const ro: typeof en = {
@@ -383,6 +446,7 @@ const ro: typeof en = {
     calendar: 'Calendar',
     stats: 'Statistici',
   },
+  kindAll: 'Toate',
   kind: { all: 'Toate', tv: 'Seriale', movie: 'Filme' },
   kindOne: { tv: 'Serial', movie: 'Film' },
   status: {
@@ -465,6 +529,16 @@ const ro: typeof en = {
     watched: 'Văzut',
     watchlist: 'De văzut',
     added: (title) => `${title} e pe lista de văzut`,
+  },
+  plays: {
+    title: (name) => `Vizionări: ${name}`,
+    open: 'Vezi toate vizionările',
+    none: 'Încă nicio vizionare.',
+    together: 'Văzut împreună',
+    changeDate: 'Data',
+    remove: 'Șterge vizionarea',
+    removed: 'Vizionare ștearsă',
+    saved: 'Data schimbată',
   },
   backfill: {
     title: (name) => `Văzut: ${name}`,
@@ -765,6 +839,58 @@ const ro: typeof en = {
     biography: 'Biografie',
     as: (character) => `în rolul ${character}`,
   },
+  seen: {
+    title: 'Cine l-a văzut',
+    notYet: 'Încă nu',
+    onList: 'Pe lista de văzut',
+    all: 'L-a văzut tot',
+    caughtUp: 'La zi',
+    upTo: (code: string, watched: number, aired: number) =>
+      `Până la ${code} · ${formatNumber(watched)} din ${formatNumber(aired)}`,
+    film: (times: string, date: string | null) =>
+      date ? `Văzut ${times} · ultima dată ${date}` : `Văzut ${times}`,
+    by: (n: number, of: number) => `Văzut de ${formatNumber(n)} din ${formatNumber(of)} acasă`,
+    nobody: 'Nimeni de acasă nu l-a văzut încă',
+    willMark: (names: string) => `Se marchează pentru ${names}`,
+    forWho: (names: string) => `Pentru ${names}`,
+    theirTake: (name: string) => `Părerea lui ${name}`,
+    theirTakeHint: (name: string) => `Doar ${name} o poate schimba.`,
+    nothingYet: (name: string) => `${name} nu i-a dat încă o notă sau o părere.`,
+    atHome: 'Acasă',
+  },
+  extras: {
+    trailer: 'Trailer',
+    videos: 'Trailere și clipuri',
+    play: (name: string) => `Pornește ${name}`,
+    madeBy: 'Realizat de',
+    job: {
+      director: 'Regie',
+      creator: 'Creat de',
+      writer: 'Scenariu',
+      music: 'Muzică',
+      camera: 'Imagine',
+    },
+    rated: (rating: string, region: string) => `Clasificare ${rating} (${region})`,
+    keywords: 'Teme',
+    keywordTitle: (name: string) => `Despre „${name}”`,
+    reviews: 'Recenzii',
+    reviewsOnTmdb: (n: number) =>
+      plural(n, {
+        one: '# recenzie pe TMDB',
+        few: '# recenzii pe TMDB',
+        other: '# de recenzii pe TMDB',
+      }),
+    readOn: 'Citește tot pe TMDB',
+    collection: 'Seria',
+    collectionSeen: (seen: number, total: number) =>
+      `${formatNumber(seen)} din ${formatNumber(total)} văzute`,
+    seen: 'Văzut',
+    toFinish: (time: string) => `${time} până la final`,
+    inAll: (time: string) => `${time} în total`,
+    inDays: (n: number) =>
+      plural(n, { one: 'peste # zi', few: 'peste # zile', other: 'peste # de zile' }),
+    reaction: 'Reacția ta',
+  },
 };
 
 const ru: typeof en = {
@@ -777,6 +903,7 @@ const ru: typeof en = {
     calendar: 'Календарь',
     stats: 'Статистика',
   },
+  kindAll: 'Всё',
   kind: { all: 'Все', tv: 'Сериалы', movie: 'Фильмы' },
   kindOne: { tv: 'Сериал', movie: 'Фильм' },
   status: {
@@ -871,6 +998,16 @@ const ru: typeof en = {
     watched: 'Смотрел',
     watchlist: 'Посмотреть',
     added: (title) => `${title} в списке «Посмотреть»`,
+  },
+  plays: {
+    title: (name) => `Просмотры: ${name}`,
+    open: 'Все просмотры',
+    none: 'Просмотров пока нет.',
+    together: 'Смотрели вместе',
+    changeDate: 'Дата',
+    remove: 'Удалить просмотр',
+    removed: 'Просмотр удалён',
+    saved: 'Дата изменена',
   },
   backfill: {
     title: (name) => `Просмотрено: ${name}`,
@@ -1183,6 +1320,64 @@ const ru: typeof en = {
     credits: 'Фильмы и сериалы',
     biography: 'Биография',
     as: (character) => `роль: ${character}`,
+  },
+  seen: {
+    title: 'Кто смотрел',
+    notYet: 'Ещё нет',
+    onList: 'В списке «Посмотреть»',
+    all: 'Посмотрел(а) всё',
+    caughtUp: 'Всё досмотрено',
+    upTo: (code: string, watched: number, aired: number) =>
+      `До ${code} · ${formatNumber(watched)} из ${formatNumber(aired)}`,
+    film: (times: string, date: string | null) =>
+      date ? `Смотрел(а) ${times} · последний раз ${date}` : `Смотрел(а) ${times}`,
+    by: (n: number, of: number) => `Смотрели ${formatNumber(n)} из ${formatNumber(of)} дома`,
+    nobody: 'Дома это ещё никто не смотрел',
+    willMark: (names: string) => `Отметится для: ${names}`,
+    forWho: (names: string) => `Для: ${names}`,
+    theirTake: (name: string) => `Мнение: ${name}`,
+    theirTakeHint: (name: string) => `Изменить его может только ${name}.`,
+    nothingYet: (name: string) => `${name} пока не оценил(а) и не написал(а) отзыв.`,
+    atHome: 'Дома',
+  },
+  extras: {
+    trailer: 'Трейлер',
+    videos: 'Трейлеры и ролики',
+    play: (name: string) => `Смотреть: ${name}`,
+    madeBy: 'Создатели',
+    job: {
+      director: 'Режиссёр',
+      creator: 'Создатели',
+      writer: 'Сценарий',
+      music: 'Музыка',
+      camera: 'Оператор',
+    },
+    rated: (rating: string, region: string) => `Возрастной рейтинг ${rating} (${region})`,
+    keywords: 'Темы',
+    keywordTitle: (name: string) => `Про «${name}»`,
+    reviews: 'Рецензии',
+    reviewsOnTmdb: (n: number) =>
+      plural(n, {
+        one: '# рецензия на TMDB',
+        few: '# рецензии на TMDB',
+        many: '# рецензий на TMDB',
+        other: '# рецензии на TMDB',
+      }),
+    readOn: 'Читать целиком на TMDB',
+    collection: 'Серия фильмов',
+    collectionSeen: (seen: number, total: number) =>
+      `Просмотрено ${formatNumber(seen)} из ${formatNumber(total)}`,
+    seen: 'Просмотрено',
+    toFinish: (time: string) => `${time} до конца`,
+    inAll: (time: string) => `${time} всего`,
+    inDays: (n: number) =>
+      plural(n, {
+        one: 'через # день',
+        few: 'через # дня',
+        many: 'через # дней',
+        other: 'через # дня',
+      }),
+    reaction: 'Ваша реакция',
   },
 };
 

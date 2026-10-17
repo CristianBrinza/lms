@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useId, useState } from 'react';
-import { Button, Chips, Sheet, Skeleton } from '@/components/ui';
+import { Avatar, Button, Chips, Sheet, Skeleton } from '@/components/ui';
+import { CheckIcon } from '@/components/ui/icons';
 import { localDate } from '@/food/format';
+import { formatList } from '@/i18n';
 import { cx } from '@/lib/cx';
+import { haptic } from '@/lib/haptics';
 import { watchingApi, watchingKeys } from '../api';
 import { monthName } from '../format';
 import { useAddPlays } from '../hooks';
+import { everyone, seenLabel, seenState } from '../household';
 import { useWatchingT } from '../i18n';
 import {
   backfillCount,
@@ -16,9 +20,8 @@ import {
   type BackfillScope,
   type WhenChoice,
 } from '../logic';
-import { useWho } from '../people';
-import type { PlayInput, TitleKind } from '../types';
-import { WhoPicker } from './parts';
+import { useHousehold, useMarkWho } from '../people';
+import type { MemberProgress, PlayInput, TitleKind } from '../types';
 
 type ScopeKind = BackfillScope['kind'];
 type WhenKind = WhenChoice['kind'];
@@ -59,16 +62,21 @@ function Form({
   const ids = useId();
   const today = localDate();
   const isShow = title.kind === 'tv';
+  const { who: initialWho, setWho, view, me, people } = useMarkWho(title.id);
+  // The title as the screen behind shows it: its seasons, and everyone's progress.
   const detail = useQuery({
-    queryKey: watchingKeys.title(title.id, { kind: 'me' }),
-    queryFn: () => watchingApi.title(title.id, { kind: 'me' }),
-    enabled: isShow,
+    queryKey: watchingKeys.title(title.id, view),
+    queryFn: () => watchingApi.title(title.id, view),
   });
   const seasons = realSeasons(detail.data?.title.seasons ?? []);
   const upcoming = detail.data?.title.nextEpisode;
+  const viewedId = view.kind === 'person' ? view.id : me.id;
+  const members = detail.data
+    ? everyone(detail.data, viewedId, people.find((p) => p.id === viewedId)?.name ?? me.name)
+    : null;
+  const ended = ['Ended', 'Canceled'].includes(detail.data?.title.status ?? '');
 
-  const { who: remembered, setWho } = useWho(title.id);
-  const [who, setLocalWho] = useState(remembered);
+  const [who, setLocalWho] = useState(initialWho);
   const [scope, setScope] = useState<ScopeKind>('show');
   const [season, setSeason] = useState<number | null>(null);
   const [episode, setEpisode] = useState(1);
@@ -180,7 +188,15 @@ function Form({
         </section>
       ) : null}
 
-      <WhoPicker value={who} onChange={setLocalWho} />
+      {people.length > 1 ? (
+        <WhoSeenPicker
+          value={who}
+          onChange={setLocalWho}
+          members={members}
+          kind={title.kind}
+          ended={ended}
+        />
+      ) : null}
 
       <section className="flex flex-col gap-2.5">
         <h3 className="text-[0.8125rem] font-semibold text-ink-700">{t.backfill.when}</h3>
@@ -251,5 +267,98 @@ function Form({
         {t.backfill.save}
       </Button>
     </div>
+  );
+}
+
+/**
+ * Who watched, with where each person already is: "Not yet", "Up to S2 E4 · 12 of 30",
+ * "Watched once · last 5 Oct". Ticked rows get the play; the line under them says so in words.
+ * Never empty: the last one ticked stays.
+ */
+export function WhoSeenPicker({
+  value,
+  onChange,
+  members,
+  kind,
+  ended,
+}: {
+  value: string[];
+  onChange: (ids: string[]) => void;
+  /** Everyone at home and their progress; null while it loads. */
+  members: MemberProgress[] | null;
+  kind: TitleKind;
+  ended: boolean;
+}) {
+  const t = useWatchingT();
+  const { me, people } = useHousehold();
+  const byId = new Map((members ?? []).map((m) => [m.userId, m]));
+  const nameOf = (id: string) =>
+    id === me.id ? t.common.you : (people.find((p) => p.id === id)?.name ?? '');
+  const chosen = people.filter((p) => value.includes(p.id)).map((p) => nameOf(p.id));
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-2 text-[0.8125rem] font-semibold text-ink-700">{t.who.picker}</legend>
+      <ul className="flex flex-col gap-1.5">
+        {people.map((p) => {
+          const on = value.includes(p.id);
+          const member = byId.get(p.id);
+          return (
+            <li key={p.id}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={on}
+                onClick={() => {
+                  if (on && value.length === 1) return;
+                  haptic('tap');
+                  onChange(on ? value.filter((id) => id !== p.id) : [...value, p.id]);
+                }}
+                className={cx(
+                  'press flex min-h-14 w-full items-center gap-3 rounded-2xl py-2 pl-2 pr-3 text-left transition-colors',
+                  on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-900 hover:bg-ink-100',
+                )}
+              >
+                <Avatar person={p} size="sm" className="size-9 ring-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[0.9375rem] font-semibold">
+                    {nameOf(p.id)}
+                  </span>
+                  <span
+                    className={cx(
+                      'tabular block truncate text-xs font-medium',
+                      on ? 'text-white/75' : 'text-ink-600',
+                    )}
+                  >
+                    {members ? (
+                      member ? (
+                        seenLabel(seenState(member, kind, ended))
+                      ) : (
+                        t.seen.notYet
+                      )
+                    ) : (
+                      <Skeleton className="mt-1 h-3 w-24 rounded" />
+                    )}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className={cx(
+                    'grid size-7 shrink-0 place-items-center rounded-full text-[1.05rem] transition-colors',
+                    on
+                      ? 'bg-white text-ink-900'
+                      : 'text-transparent ring-1 ring-inset ring-ink-300',
+                  )}
+                >
+                  <CheckIcon fontSize="inherit" />
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="mt-2 px-1 text-sm font-medium text-ink-700" aria-live="polite">
+        {t.seen.willMark(formatList(chosen))}
+      </p>
+    </fieldset>
   );
 }

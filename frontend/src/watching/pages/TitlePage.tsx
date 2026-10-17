@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { Button, IconButton, Sheet, Skeleton } from '@/components/ui';
+import { Avatar, Button, IconButton, Sheet, Skeleton } from '@/components/ui';
 import {
   ArrowOutIcon,
   BookmarkBorderIcon,
@@ -19,11 +19,22 @@ import {
   UndoIcon,
   type IconComponent,
 } from '@/components/ui/icons';
+import { formatList } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { haptic } from '@/lib/haptics';
 import { watchingApi, watchingKeys } from '../api';
 import { EpisodeList } from '../components/EpisodeList';
+import {
+  CertificationBadge,
+  CollectionSection,
+  CrewSection,
+  KeywordChips,
+  MakerLine,
+  ReviewsSection,
+  TrailerButton,
+} from '../components/Extras';
 import { MarkWatchedSheet } from '../components/MarkWatchedSheet';
+import { PlaysSheet } from '../components/PlaysSheet';
 import { Review } from '../components/Review';
 import {
   CheckMark,
@@ -37,7 +48,8 @@ import {
 import { ListPickerSheet } from '../components/pickers';
 import { Face, Poster, PosterRow } from '../components/Poster';
 import { airDay, formatMinutes, formatVote, watchedWhen } from '../format';
-import { isPending, useAddPlays, useRemovePlay, useSetStatus } from '../hooks';
+import { isPending, useAddPlays, useExtras, useRemovePlay, useSetStatus } from '../hooks';
+import { everyone, seenCount, seenLabel, seenState } from '../household';
 import { useWatchingT } from '../i18n';
 import { tmdbImage } from '../images';
 import {
@@ -48,8 +60,8 @@ import {
   showProgress,
   watchedSet as watchedSetOf,
 } from '../logic';
-import { useWatchView, useWho } from '../people';
-import type { Mine, TitleDetail, TitleResponse, WatchStatus } from '../types';
+import { useMarkWho, useWatchView } from '../people';
+import type { Mine, TitleDetail, TitleExtras, TitleResponse, WatchStatus } from '../types';
 import { watchedByAll } from '../view';
 
 /**
@@ -89,10 +101,13 @@ export default function TitlePage() {
 function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }) {
   const { title, mine } = data;
   const t = useWatchingT();
-  const { view } = useWatchView();
-  const { who: remembered } = useWho(title.id);
+  const { view, me, people } = useWatchView();
+  // Who a new play is for: the person viewed, the people together, else who watched it last.
+  const { who } = useMarkWho(title.id);
   const together = view.kind === 'together';
-  const who = together ? viewIds : remembered;
+  const viewedId = view.kind === 'person' ? view.id : me.id;
+  const viewedName = view.kind === 'person' ? people.find((p) => p.id === view.id)?.name : null;
+  const extras = useExtras(title.id, view).data;
   const isShow = title.kind === 'tv';
   const seasons = realSeasons(title.seasons);
   // Together: what everyone in the view watched (my plays and who sat with me); else the server's.
@@ -127,7 +142,7 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
             className="w-[8.5rem] shrink-0 rounded-[1.125rem] shadow-[var(--shadow-card)] md:w-full"
           />
           <div className="min-w-0 flex-1 md:hidden">
-            <Facts title={title} />
+            <Facts title={title} extras={extras} />
           </div>
         </div>
 
@@ -136,7 +151,7 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
             <h2 className="text-[1.75rem] font-bold leading-tight tracking-[-0.025em]">
               {title.title}
             </h2>
-            <Facts title={title} />
+            <Facts title={title} extras={extras} />
           </div>
 
           <ActionBar title={title} mine={mine} who={who} />
@@ -147,8 +162,17 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
                 share={progress.watched / progress.total}
                 label={t.title.progress(progress.watched, progress.total)}
               />
-              <p className="tabular mt-1.5 text-xs font-medium text-ink-500">
-                {t.title.progress(progress.watched, progress.total)}
+              <p className="tabular mt-1.5 truncate text-xs font-medium text-ink-500">
+                {[
+                  t.title.progress(progress.watched, progress.total),
+                  title.runtime && progress.total > progress.watched
+                    ? t.extras.toFinish(
+                        formatMinutes((progress.total - progress.watched) * title.runtime),
+                      )
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </p>
             </div>
           ) : null}
@@ -164,10 +188,10 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
               )}
             </p>
           ) : null}
-          <Household data={data} />
-          <Review title={title} mine={mine} />
+          <Household data={data} viewedId={viewedId} />
+          <Review title={title} mine={mine} owner={viewedName ?? null} />
 
-          {!isShow && moviePlays.length ? <MoviePlays mine={mine} /> : null}
+          {!isShow && moviePlays.length ? <MoviePlays mine={mine} name={title.title} /> : null}
 
           {title.tagline || title.overview ? (
             <Section title={t.title.about} className="mt-6">
@@ -179,6 +203,12 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
               <p className="max-w-prose text-[0.9375rem] leading-relaxed text-ink-700">
                 {title.overview}
               </p>
+              {extras?.videos.length ? (
+                <div className="mt-3">
+                  <TrailerButton videos={extras.videos} title={title.title} />
+                </div>
+              ) : null}
+              {extras ? <KeywordChips keywords={extras.keywords} kind={title.kind} /> : null}
               {title.imdbId ? (
                 <a
                   href={`https://www.imdb.com/title/${title.imdbId}/`}
@@ -210,7 +240,6 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
                   season={chosenSeason}
                   view={view}
                   viewIds={viewIds}
-                  who={who}
                 />
                 <Link
                   to={`/watching/${title.id}/season/${chosenSeason}`}
@@ -250,7 +279,10 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
             </Section>
           ) : null}
 
+          {extras ? <CrewSection crew={extras.crew} /> : null}
+          {extras?.collection ? <CollectionSection collection={extras.collection} /> : null}
           <WhereToWatch title={title} />
+          {extras ? <ReviewsSection extras={extras} /> : null}
           <Similar id={title.id} />
         </div>
       </div>
@@ -258,18 +290,26 @@ function TitleBody({ data, viewIds }: { data: TitleResponse; viewIds: string[] }
   );
 }
 
-function Facts({ title }: { title: TitleDetail }) {
+function Facts({ title, extras }: { title: TitleDetail; extras?: TitleExtras }) {
   const t = useWatchingT();
   const vote = formatVote(title.rating);
   const seasons = realSeasons(title.seasons).length;
+  const episodes = realSeasons(title.seasons).reduce((sum, s) => sum + s.episodeCount, 0);
   const line = [
     title.year,
     title.kind === 'movie' && title.runtime ? formatMinutes(title.runtime) : null,
     title.kind === 'tv' && seasons ? t.common.seasons(seasons) : null,
+    title.kind === 'tv' && title.runtime && episodes
+      ? t.extras.inAll(formatMinutes(episodes * title.runtime))
+      : null,
   ].filter(Boolean);
   return (
-    <div className="flex flex-col gap-1.5 md:mt-1">
-      <p className="tabular text-sm font-medium text-ink-600">{line.join(' · ')}</p>
+    <div className="flex min-w-0 flex-col gap-1.5 md:mt-1">
+      <p className="tabular flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-ink-600">
+        <CertificationBadge extras={extras} />
+        <span>{line.join(' · ')}</span>
+      </p>
+      <MakerLine crew={extras?.crew} />
       {title.genres.length ? (
         <ul className="flex flex-wrap gap-1">
           {title.genres.slice(0, 4).map((genre) => (
@@ -441,23 +481,66 @@ function ActionBar({ title, mine, who }: { title: TitleDetail; mine: Mine; who: 
   );
 }
 
-/** The others at home who have this title, and how far they are. */
-function Household({ data }: { data: TitleResponse }) {
+/**
+ * The others at home (not the person viewed), seen or not, and how far: "Patricia · Up to
+ * S2 E4 · 12 of 30", "Ana · Not yet"; above them, "Seen by 1 of 2 at home".
+ */
+function Household({ data, viewedId }: { data: TitleResponse; viewedId: string }) {
   const t = useWatchingT();
-  if (!data.household.length) return null;
+  const { me, people } = useWatchView();
+  if (people.length < 2) return null;
+  const kind = data.title.kind;
+  const ended = ['Ended', 'Canceled'].includes(data.title.status ?? '');
+  const viewedName = people.find((p) => p.id === viewedId)?.name ?? me.name;
+  const all = everyone(data, viewedId, viewedName);
+  const others = data.household.filter((m) => m.userId !== viewedId);
+  if (!others.length) return null;
+  const { seen, of } = seenCount(all, kind);
   return (
-    <ul className="mt-3 flex flex-wrap gap-1.5">
-      {data.household.map((h) => (
-        <li
-          key={h.userId}
-          className="rounded-pill bg-white px-3 py-1.5 text-xs font-semibold text-ink-700 shadow-[var(--shadow-xs)]"
-        >
-          {h.name}
-          {h.status ? ` · ${t.status[h.status]}` : ''}
-          {h.plays ? ` · ${t.common.plays(h.plays)}` : ''}
-        </li>
-      ))}
-    </ul>
+    <section
+      aria-label={t.seen.title}
+      className="mt-4 rounded-[1.25rem] bg-white px-4 py-3 shadow-[var(--shadow-xs)]"
+    >
+      <p className="tabular text-xs font-semibold text-ink-500">
+        {seen ? t.seen.by(seen, of) : t.seen.nobody}
+      </p>
+      <ul className="mt-2 flex flex-col gap-2">
+        {others.map((m) => {
+          const person = people.find((p) => p.id === m.userId);
+          const state = seenState(m, kind, ended);
+          return (
+            <li key={m.userId} className="flex min-w-0 items-center gap-2.5">
+              {person ? (
+                <Avatar person={person} size="sm" className="size-7 text-[0.6875rem] ring-0" />
+              ) : null}
+              <span className="min-w-0 flex-1 truncate text-sm">
+                <span className="font-semibold text-ink-900">
+                  {m.userId === me.id ? t.common.you : m.name}
+                </span>
+                <span
+                  className={cx('tabular', state.kind === 'none' ? 'text-ink-500' : 'text-ink-700')}
+                >
+                  {' · '}
+                  {seenLabel(state)}
+                </span>
+              </span>
+              {m.rating ? (
+                <span className="tabular inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold text-ink-700">
+                  <StarIcon fontSize="inherit" className="text-[0.95rem] text-butter-400" />
+                  {(m.rating / 2).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                </span>
+              ) : null}
+              {m.favorite ? (
+                <FavoriteIcon
+                  fontSize="inherit"
+                  className="shrink-0 text-[0.95rem] text-pink-800"
+                />
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -475,12 +558,23 @@ function UpNext({
 }) {
   const t = useWatchingT();
   const add = useAddPlays();
+  const { me, people } = useWatchView();
   const code = episodeCode(season, episode);
+  const forOthers = who.length !== 1 || who[0] !== me.id;
+  const names = people
+    .filter((p) => who.includes(p.id))
+    .map((p) => (p.id === me.id ? t.common.you : p.name));
   return (
     <div className="mt-4 flex items-center gap-3 rounded-[1.25rem] bg-white p-3 pl-4 shadow-[var(--shadow-card)]">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-ink-500">{t.nav.home}</p>
         <p className="tabular truncate text-[0.9375rem] font-bold">{code}</p>
+        {forOthers && names.length ? (
+          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs font-medium text-ink-600">
+            <PeopleStack ids={who} />
+            <span className="truncate">{t.seen.forWho(formatList(names))}</span>
+          </p>
+        ) : null}
       </div>
       <button
         type="button"
@@ -501,21 +595,28 @@ function UpNext({
 }
 
 /** A film's plays: how many times, when last, who; undo the last one. */
-function MoviePlays({ mine }: { mine: Mine }) {
+function MoviePlays({ mine, name }: { mine: Mine; name: string }) {
   const t = useWatchingT();
   const remove = useRemovePlay();
+  const [open, setOpen] = useState(false);
   const plays = mine.plays.filter((p) => p.season === null && !isPending(p));
   const last = latestPlay(plays, null, null);
   return (
     <div className="mt-4 flex items-center gap-3 rounded-[1.25rem] bg-white px-4 py-3 shadow-[var(--shadow-xs)]">
-      <div className="min-w-0 flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="press min-w-0 flex-1 text-left"
+        aria-label={t.plays.open}
+      >
         <p className="text-[0.9375rem] font-semibold">{t.title.watchedTimes(plays.length)}</p>
         {last ? (
           <p className="text-sm text-ink-600">
             {t.title.lastWatched(watchedWhen(last.watchedAt, last.precision))}
           </p>
         ) : null}
-      </div>
+        <p className="mt-0.5 text-xs font-semibold text-lav-700">{t.plays.open}</p>
+      </button>
       {last ? <PeopleStack ids={[last.userId, ...last.together]} /> : null}
       {last ? (
         <IconButton
@@ -526,6 +627,12 @@ function MoviePlays({ mine }: { mine: Mine }) {
           onClick={() => remove.mutate({ play: last, message: t.title.unwatchMovie })}
         />
       ) : null}
+      <PlaysSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title={t.plays.title(name)}
+        plays={plays}
+      />
     </div>
   );
 }

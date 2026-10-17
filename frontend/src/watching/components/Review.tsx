@@ -1,31 +1,92 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui';
+import { StarBorderIcon, StarHalfIcon, StarIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { haptic } from '@/lib/haptics';
 import { useSetStatus } from '../hooks';
 import { useWatchingT } from '../i18n';
 import { REACTIONS, type Mine, type Reaction, type TitleDetail } from '../types';
-import { RatingPicker } from './pickers';
-
-/** The face next to each reaction: one glance says which feeling it is. */
-const FACE: Record<Reaction, string> = {
-  loved: '😍',
-  funny: '😂',
-  wow: '😮',
-  moving: '😢',
-  tense: '😬',
-  scary: '😱',
-  meh: '😐',
-  disliked: '👎',
-};
-const MAX_REACTIONS = 3;
+import { FACE, MAX_REACTIONS } from '../reactions';
+import { RatingPicker, stars } from './pickers';
 
 /**
  * My take on a title, all in one card: stars in half steps, the heart, up to three reactions and
  * a written review. Each change saves at once (the review on Save); it's mine alone, even when we
  * watched it together.
  */
-export function Review({ title, mine }: { title: TitleDetail; mine: Mine }) {
+export function Review({
+  title,
+  mine,
+  owner = null,
+}: {
+  title: TitleDetail;
+  mine: Mine;
+  /** Someone else's take, looked at (their name): read only, it's theirs to change. */
+  owner?: string | null;
+}) {
+  return owner ? <TheirTake mine={mine} owner={owner} /> : <MyTake title={title} mine={mine} />;
+}
+
+/** Five stars, read only, in half steps. */
+export function StarsRow({ value, className }: { value: number; className?: string }) {
+  return (
+    <span className={cx('inline-flex items-center text-butter-400', className)}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        const Icon =
+          value >= star * 2 ? StarIcon : value === star * 2 - 1 ? StarHalfIcon : StarBorderIcon;
+        return <Icon key={star} fontSize="inherit" />;
+      })}
+    </span>
+  );
+}
+
+function TheirTake({ mine, owner }: { mine: Mine; owner: string }) {
+  const t = useWatchingT();
+  const reactions = mine.reactions ?? [];
+  const empty = !mine.rating && !reactions.length && !mine.notes;
+  return (
+    <section
+      id="your-take"
+      aria-labelledby="your-take-title"
+      className="mt-5 scroll-mt-20 rounded-[1.5rem] bg-white p-4 shadow-[var(--shadow-card)]"
+    >
+      <h2 id="your-take-title" className="text-[1.0625rem] font-bold tracking-[-0.01em]">
+        {t.seen.theirTake(owner)}
+      </h2>
+      <p className="mt-0.5 text-sm text-ink-600">
+        {empty ? t.seen.nothingYet(owner) : t.seen.theirTakeHint(owner)}
+      </p>
+      {mine.rating ? (
+        <p className="mt-3 flex items-center gap-2">
+          <StarsRow value={mine.rating} className="text-[1.75rem]" />
+          <span className="tabular text-[1.0625rem] font-bold">{stars(mine.rating)}</span>
+        </p>
+      ) : null}
+      {reactions.length ? (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {reactions.map((reaction) => (
+            <li
+              key={reaction}
+              className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-ink-50 pl-2.5 pr-3.5 text-sm font-semibold text-ink-700"
+            >
+              <span aria-hidden="true" className="text-[1.125rem] leading-none">
+                {FACE[reaction]}
+              </span>
+              {t.review.reaction[reaction]}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {mine.notes ? (
+        <p className="mt-3 whitespace-pre-line text-[0.9375rem] leading-relaxed text-ink-800">
+          {mine.notes}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function MyTake({ title, mine }: { title: TitleDetail; mine: Mine }) {
   const t = useWatchingT();
   const setStatus = useSetStatus();
   const [draft, setDraft] = useState(mine.notes);

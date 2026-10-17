@@ -7,7 +7,7 @@ import { EpisodeList } from '../components/EpisodeList';
 import { ErrorCard, ViewSwitcher, WatchingScreen } from '../components/parts';
 import { useWatchingT } from '../i18n';
 import { realSeasons } from '../logic';
-import { useWatchView, useWho } from '../people';
+import { useWatchView } from '../people';
 
 /** One season, full screen: its episodes with checks, the spoiler guard, the other seasons a tap away. */
 export default function SeasonPage() {
@@ -15,13 +15,11 @@ export default function SeasonPage() {
   const season = Number(n) || 0;
   const t = useWatchingT();
   const { view, ids } = useWatchView();
-  const { who: remembered } = useWho(id);
   const title = useQuery({
     queryKey: watchingKeys.title(id, view),
     queryFn: () => watchingApi.title(id, view),
   });
   const data = title.data;
-  const who = view.kind === 'together' ? ids : remembered;
 
   return (
     <WatchingScreen
@@ -67,7 +65,6 @@ export default function SeasonPage() {
             season={season}
             view={view}
             viewIds={ids}
-            who={who}
             withGuard
           />
         </>

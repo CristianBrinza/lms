@@ -161,11 +161,83 @@ export interface Mine {
   next: { season: number; episode: number } | null;
 }
 
+/** One person at home and this title: what they have of it, and how far they are. */
+export interface MemberProgress {
+  userId: string;
+  name: string;
+  status: WatchStatus | null;
+  favorite?: boolean;
+  rating?: number | null;
+  /** Every play: a film's viewings, a show's episodes. */
+  plays: number;
+  lastWatchedAt?: string | null;
+  /** Shows: aired episodes seen, the furthest seen, the next to watch. */
+  progress?: {
+    watched: number;
+    aired: number;
+    furthest: { season: number; episode: number } | null;
+    next: { season: number; episode: number } | null;
+  } | null;
+}
+
 export interface TitleResponse {
   title: TitleDetail;
   mine: Mine;
-  /** The others at home who have it, and how far. */
-  household: Array<{ userId: string; name: string; status: WatchStatus | null; plays: number }>;
+  /** Everyone else at home (not the person viewed), seen or not, and how far. */
+  household: MemberProgress[];
+  /** Everyone at home, the person viewed first. */
+  members?: MemberProgress[];
+}
+
+export interface Video {
+  key: string;
+  name: string;
+  type: string;
+}
+
+export interface CrewMember {
+  id: number;
+  name: string;
+  job: 'director' | 'creator' | 'writer' | 'music' | 'camera';
+  profilePath: string | null;
+}
+
+export interface ReviewExcerpt {
+  id: string;
+  author: string;
+  /** TMDB's 0–10, when the author gave one. */
+  rating: number | null;
+  excerpt: string;
+  long: boolean;
+  url: string;
+  createdAt: string;
+}
+
+/** A title's extras: trailers, who made it, age rating, keywords, reviews, its film series. */
+export interface TitleExtras {
+  videos: Video[];
+  crew: CrewMember[];
+  certification: { rating: string; region: string } | null;
+  keywords: Array<{ id: number; name: string }>;
+  reviews: ReviewExcerpt[];
+  reviewCount: number;
+  collection: {
+    id: number;
+    name: string;
+    posterPath: string | null;
+    backdropPath: string | null;
+    parts: Array<TitleCard & { seen: boolean }>;
+    seen: number;
+  } | null;
+}
+
+/** Someone else's take on an episode. */
+export interface EpisodeTake {
+  userId: string;
+  rating: number | null;
+  note: string;
+  favorite: boolean;
+  reactions: Reaction[];
 }
 
 export interface Episode {
@@ -183,7 +255,14 @@ export interface Episode {
   plays: Play[];
   /** Everyone at home who has watched it. */
   watchedBy: string[];
-  mine: { rating: number | null; note: string; favorite: boolean } | null;
+  mine: {
+    rating: number | null;
+    note: string;
+    favorite: boolean;
+    reactions?: Reaction[];
+  } | null;
+  /** The others at home who rated, reacted or wrote a line. */
+  others?: EpisodeTake[];
 }
 
 export interface SeasonResponse {

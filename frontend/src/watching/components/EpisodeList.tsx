@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, Chips, Sheet, Skeleton, Switch } from '@/components/ui';
+import { Avatar, Button, Chips, Sheet, Skeleton, Switch } from '@/components/ui';
 import {
   CheckIcon,
   CloseIcon,
@@ -18,13 +18,16 @@ import { airDay, formatMinutes, watchedWhen } from '../format';
 import { isPending, useAddPlays, useRemovePlay, useSetEpisode } from '../hooks';
 import { useWatchingT } from '../i18n';
 import { episodeCode, latestPlay, whenValue } from '../logic';
-import { useWho } from '../people';
+import { useHousehold, useMarkWho } from '../people';
 import { useSpoilerGuard } from '../spoilers';
-import type { Episode } from '../types';
+import { REACTIONS, type Episode, type Reaction } from '../types';
 import type { WatchView } from '../view';
 import { CheckMark, ErrorCard, PeopleStack, WhoPicker } from './parts';
+import { PlaysSheet } from './PlaysSheet';
 import { RatingPicker, stars } from './pickers';
 import { Still } from './Poster';
+import { FACE, MAX_REACTIONS } from '../reactions';
+import { StarsRow } from './Review';
 
 /**
  * A season's episodes with check marks: the round check ticks (or unticks) one, the row opens the
@@ -39,7 +42,6 @@ export function EpisodeList({
   season,
   view,
   viewIds,
-  who,
   withGuard,
 }: {
   titleId: string;
@@ -48,14 +50,15 @@ export function EpisodeList({
   view: WatchView;
   /** The people the view is about (together: all of them must have seen an episode). */
   viewIds: string[];
-  /** Who a new check is for. */
-  who: string[];
   /** Show the spoiler switch above the list (the season screen). */
   withGuard?: boolean;
 }) {
   const t = useWatchingT();
   const [guard, setGuard] = useSpoilerGuard();
-  const { setWho } = useWho(titleId);
+  // Who a new check is for: the person viewed, the people together, else who watched it last.
+  const { who, setWho } = useMarkWho(titleId);
+  const { people } = useHousehold();
+  const owner = view.kind === 'person' ? (people.find((p) => p.id === view.id)?.name ?? '') : null;
   const query = useQuery({
     queryKey: watchingKeys.season(titleId, season, view),
     queryFn: () => watchingApi.season(titleId, season, view),
@@ -130,12 +133,12 @@ export function EpisodeList({
               size="sm"
               variant="ghost"
               onClick={() =>
-                setPicked(
-                  picked.length === unseen.length ? [] : unseen.map((ep) => ep.n),
-                )
+                setPicked(picked.length === unseen.length ? [] : unseen.map((ep) => ep.n))
               }
             >
-              {picked.length === unseen.length && unseen.length ? t.season.pickNone : t.season.pickAll}
+              {picked.length === unseen.length && unseen.length
+                ? t.season.pickNone
+                : t.season.pickAll}
             </Button>
             <Button size="sm" variant="tint" icon={CloseIcon} onClick={stopPicking}>
               {t.season.cancel}
@@ -314,6 +317,7 @@ export function EpisodeList({
             episode={openEpisode}
             who={who}
             together={together}
+            owner={owner}
             hide={guard && !isSeen(openEpisode)}
             onDone={() => setOpen(null)}
           />
@@ -382,7 +386,7 @@ function PickedForm({
 }) {
   const t = useWatchingT();
   const today = localDate();
-  const { setWho } = useWho(titleId);
+  const { setWho } = useMarkWho(titleId);
   const [who, setLocalWho] = useState(initialWho);
   const [when, setWhen] = useState<'now' | 'date' | 'unknown'>('now');
   const [date, setDate] = useState(today);
@@ -433,7 +437,10 @@ function PickedForm({
                 season,
                 episodes: sorted,
                 userIds: who,
-                watchedAt: whenValue(when === 'date' ? { kind: 'date', date } : { kind: when }, today),
+                watchedAt: whenValue(
+                  when === 'date' ? { kind: 'date', date } : { kind: when },
+                  today,
+                ),
               },
               message: t.backfill.done(sorted.length),
             },
@@ -454,6 +461,7 @@ function EpisodeDetail({
   episode,
   who,
   together,
+  owner,
   hide,
   onDone,
 }: {
@@ -463,6 +471,8 @@ function EpisodeDetail({
   episode: Episode;
   who: string[];
   together: boolean;
+  /** Someone else's episode, looked at (their name): their rating and note, read only. */
+  owner: string | null;
   hide: boolean;
   onDone: () => void;
 }) {
@@ -470,6 +480,7 @@ function EpisodeDetail({
   const add = useAddPlays();
   const remove = useRemovePlay();
   const setEpisode = useSetEpisode();
+  const [playsOpen, setPlaysOpen] = useState(false);
   const [note, setNote] = useState(episode.mine?.note ?? '');
   const code = episodeCode(season, episode.n);
   const last = latestPlay(episode.plays, season, episode.n);
@@ -507,6 +518,19 @@ function EpisodeDetail({
           <p className="mt-0.5 text-sm text-ink-600">
             {dates.map((at) => watchedWhen(at)).join(' · ')}
           </p>
+          <button
+            type="button"
+            onClick={() => setPlaysOpen(true)}
+            className="mt-1 text-xs font-semibold text-lav-700 hover:underline"
+          >
+            {t.plays.open}
+          </button>
+          <PlaysSheet
+            open={playsOpen}
+            onClose={() => setPlaysOpen(false)}
+            title={`${code} · ${titleName}`}
+            plays={episode.plays.filter((p) => p.season === season && p.episode === episode.n)}
+          />
         </div>
       ) : null}
 
@@ -556,41 +580,192 @@ function EpisodeDetail({
               {t.season.removeLast}
             </Button>
           ) : null}
-          <Button
-            size="sm"
-            variant="tint"
-            icon={episode.mine?.favorite ? FavoriteIcon : FavoriteBorderIcon}
-            aria-pressed={!!episode.mine?.favorite}
-            onClick={() => save({ favorite: !episode.mine?.favorite })}
-          >
-            {t.season.favorite}
-          </Button>
+          {owner === null ? (
+            <Button
+              size="sm"
+              variant="tint"
+              icon={episode.mine?.favorite ? FavoriteIcon : FavoriteBorderIcon}
+              aria-pressed={!!episode.mine?.favorite}
+              onClick={() => save({ favorite: !episode.mine?.favorite })}
+            >
+              {t.season.favorite}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
-      <section className="flex flex-col gap-2">
-        <h4 className="text-[0.8125rem] font-semibold text-ink-700">{t.title.yourRating}</h4>
-        <RatingPicker
-          label={t.title.yourRating}
-          value={episode.mine?.rating ?? null}
-          onChange={(rating) => save({ rating })}
-        />
-      </section>
-
-      <label className="flex flex-col gap-2">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">{t.season.note}</span>
-        <textarea
-          value={note}
-          maxLength={500}
-          rows={2}
-          placeholder={t.season.notePlaceholder}
-          onChange={(e) => setNote(e.target.value)}
-          onBlur={() => {
-            if (note.trim() !== (episode.mine?.note ?? '')) save({ note: note.trim() });
+      {owner !== null ? (
+        <EpisodeTake
+          name={owner}
+          take={{
+            rating: episode.mine?.rating ?? null,
+            note: episode.mine?.note ?? '',
+            reactions: episode.mine?.reactions ?? [],
           }}
-          className="w-full resize-none rounded-2xl bg-ink-50 px-4 py-3 text-[0.9375rem] outline-none focus:bg-white focus:ring-2 focus:ring-ink-900"
+          heading
         />
-      </label>
+      ) : (
+        <>
+          <section className="flex flex-col gap-2">
+            <h4 className="text-[0.8125rem] font-semibold text-ink-700">{t.title.yourRating}</h4>
+            <RatingPicker
+              label={t.title.yourRating}
+              value={episode.mine?.rating ?? null}
+              onChange={(rating) => save({ rating })}
+            />
+          </section>
+
+          <EpisodeReactions
+            value={episode.mine?.reactions ?? []}
+            onChange={(reactions) => save({ reactions })}
+          />
+
+          <label className="flex flex-col gap-2">
+            <span className="text-[0.8125rem] font-semibold text-ink-700">{t.season.note}</span>
+            <textarea
+              value={note}
+              maxLength={500}
+              rows={2}
+              placeholder={t.season.notePlaceholder}
+              onChange={(e) => setNote(e.target.value)}
+              onBlur={() => {
+                if (note.trim() !== (episode.mine?.note ?? '')) save({ note: note.trim() });
+              }}
+              className="w-full resize-none rounded-2xl bg-ink-50 px-4 py-3 text-[0.9375rem] outline-none focus:bg-white focus:ring-2 focus:ring-ink-900"
+            />
+          </label>
+        </>
+      )}
+
+      <OthersTakes others={episode.others ?? []} />
     </div>
+  );
+}
+
+/** Up to three feelings about an episode, like the ones on a title. */
+function EpisodeReactions({
+  value,
+  onChange,
+}: {
+  value: Reaction[];
+  onChange: (value: Reaction[]) => void;
+}) {
+  const t = useWatchingT();
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-2 flex w-full items-baseline justify-between gap-2 text-[0.8125rem] font-semibold text-ink-700">
+        {t.extras.reaction}
+        <span className="tabular text-xs font-medium text-ink-500">
+          {t.review.upTo(value.length, MAX_REACTIONS)}
+        </span>
+      </legend>
+      <div className="flex flex-wrap gap-1.5">
+        {REACTIONS.map((reaction) => {
+          const on = value.includes(reaction);
+          const full = !on && value.length >= MAX_REACTIONS;
+          return (
+            <button
+              key={reaction}
+              type="button"
+              aria-pressed={on}
+              disabled={full}
+              onClick={() => {
+                haptic('tap');
+                onChange(on ? value.filter((r) => r !== reaction) : [...value, reaction]);
+              }}
+              className={cx(
+                'press inline-flex h-9 items-center gap-1.5 rounded-pill pl-2 pr-3 text-[0.8125rem] font-semibold transition-colors',
+                on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+                full && 'opacity-40',
+              )}
+            >
+              <span aria-hidden="true" className="text-[1rem] leading-none">
+                {FACE[reaction]}
+              </span>
+              {t.review.reaction[reaction]}
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+/** One person's take on an episode, read only: stars, faces, their line. */
+function EpisodeTake({
+  name,
+  take,
+  heading,
+}: {
+  name: string;
+  take: { rating: number | null; note: string; reactions: Reaction[] };
+  heading?: boolean;
+}) {
+  const t = useWatchingT();
+  const empty = !take.rating && !take.note && !take.reactions.length;
+  return (
+    <div className="min-w-0">
+      {heading ? (
+        <h4 className="text-[0.8125rem] font-semibold text-ink-700">{t.seen.theirTake(name)}</h4>
+      ) : null}
+      {empty ? (
+        <p className="text-sm text-ink-600">{t.seen.nothingYet(name)}</p>
+      ) : (
+        <>
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {take.rating ? (
+              <>
+                <StarsRow value={take.rating} className="text-[1.1rem]" />
+                <span className="tabular text-sm font-semibold">{stars(take.rating)}</span>
+              </>
+            ) : null}
+            {take.reactions.map((r) => (
+              <span key={r} className="text-sm text-ink-700">
+                <span aria-hidden="true">{FACE[r]}</span> {t.review.reaction[r]}
+              </span>
+            ))}
+          </p>
+          {take.note ? <p className="mt-1 text-sm text-ink-700">{take.note}</p> : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** What the others at home thought of this episode. */
+function OthersTakes({ others }: { others: NonNullable<Episode['others']> }) {
+  const t = useWatchingT();
+  const { me, people } = useHousehold();
+  if (!others.length) return null;
+  return (
+    <section className="flex flex-col gap-2.5 border-t border-ink-100 pt-3">
+      <h4 className="text-[0.8125rem] font-semibold text-ink-700">{t.seen.atHome}</h4>
+      <ul className="flex flex-col gap-3">
+        {others.map((o) => {
+          const person = people.find((p) => p.id === o.userId);
+          const name = o.userId === me.id ? t.common.you : (person?.name ?? '');
+          return (
+            <li key={o.userId} className="flex items-start gap-2.5">
+              {person ? (
+                <Avatar
+                  person={person}
+                  size="sm"
+                  className="mt-0.5 size-7 text-[0.6875rem] ring-0"
+                />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1 text-sm font-semibold">
+                  {name}
+                  {o.favorite ? (
+                    <FavoriteIcon fontSize="inherit" className="text-pink-800" />
+                  ) : null}
+                </p>
+                <EpisodeTake name={name} take={o} />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

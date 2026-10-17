@@ -1,0 +1,46 @@
+/*
+ * Watching's own motion: the check on a "Continue watching" card pops and throws a few dots.
+ * Nothing moves when the reader asks for reduced motion.
+ */
+
+@keyframes watch-check-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.22);
+  }
+  70% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes watch-burst-dot {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-1.9rem) scale(0.4);
+  }
+}
+
+.watch-check-pop {
+  animation: watch-check-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.watch-burst > span {
+  opacity: 0;
+  animation: watch-burst-dot 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-check-pop,
+  .watch-burst > span {
+    animation: none;
+  }
+}

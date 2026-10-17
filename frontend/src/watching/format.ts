@@ -94,5 +94,12 @@ export function airDay(day: string | null, today = localDate()): string {
   return relativeDay(day.slice(0, 10), today);
 }
 
+/** Whole days from today to a date: 0 today, 1 tomorrow, negative in the past. */
+export function daysUntil(day: string, today = localDate()): number {
+  return Math.round(
+    (Date.parse(`${day.slice(0, 10)}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000,
+  );
+}
+
 /** "Ana and Ion together". */
 export const togetherNames = (names: string[]) => watchingT().who.names(formatList(names));

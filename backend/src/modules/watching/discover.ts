@@ -84,6 +84,7 @@ export async function discover(
     genre?: number;
     year?: number;
     provider?: number;
+    keyword?: number;
     region?: 'MD' | 'RO';
     sort?: 'popular' | 'rating' | 'newest';
     page?: number;
@@ -98,6 +99,7 @@ export async function discover(
     page: query.page ?? 1,
     sort_by: sort === 'newest' ? SORTS.newest[kind] : SORTS[sort],
     with_genres: query.genre,
+    with_keywords: query.keyword,
     [kind === 'movie' ? 'primary_release_year' : 'first_air_date_year']: query.year,
     with_watch_providers: query.provider,
     watch_region: query.provider ? region : undefined,

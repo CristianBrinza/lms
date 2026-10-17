@@ -9,7 +9,7 @@ import { ErrorCard, WatchingScreen } from '../components/parts';
 import { Poster } from '../components/Poster';
 import { useSetStatus } from '../hooks';
 import { useWatchingT } from '../i18n';
-import { useWho } from '../people';
+import { useMarkWho } from '../people';
 import type { TitleCard, TitleKind } from '../types';
 
 type Kind = TitleKind | 'all';
@@ -106,7 +106,7 @@ export default function SearchPage() {
 function ResultRow({ result, onWatched }: { result: TitleCard; onWatched: () => void }) {
   const t = useWatchingT();
   const status = useSetStatus();
-  const { who } = useWho(result.id);
+  const { who } = useMarkWho(result.id);
   const [added, setAdded] = useState(result.status === 'watchlist');
   return (
     <article className="flex h-full gap-3 rounded-[1.25rem] bg-white p-2.5 shadow-[var(--shadow-xs)]">

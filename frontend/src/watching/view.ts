@@ -76,6 +76,19 @@ export function toggleInView(
   return only === meId ? { kind: 'me' } : { kind: 'person', id: only };
 }
 
+/**
+ * Who a new play is for, before anyone changes it: the person being viewed, the people viewed
+ * together, else (my own view, everyone's) who watched this title last time.
+ */
+export function defaultWho(view: WatchView, remembered: readonly string[]): string[] {
+  if (view.kind === 'person') return [view.id];
+  if (view.kind === 'together') return [...view.ids];
+  return [...remembered];
+}
+
+/** Whether a who-choice made in this view becomes the remembered default (only my own views). */
+export const remembersWho = (view: WatchView) => view.kind === 'me' || view.kind === 'household';
+
 /** Who watched a play: its owner and whoever watched it with them in the same sitting. */
 export const playPeople = (play: Pick<Play, 'userId' | 'together'>) => [
   play.userId,

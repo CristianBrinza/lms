@@ -39,6 +39,11 @@ const userIdsField = z
 
 const int = (min: number, max: number) => z.number().int().min(min).max(max);
 
+export const PlayPatch = z.object({
+  watchedAt: watchedAtField,
+  together: z.boolean().optional(),
+});
+
 export const PlayInput = z.object({
   titleId: titleIdField,
   season: int(0, 500).optional().describe('Season number (episodes only; 0 is specials)'),
@@ -97,6 +102,7 @@ export const EpisodeMarkInput = z.object({
   rating: int(1, 10).nullable().optional(),
   note: z.string().trim().max(500).optional(),
   favorite: z.boolean().optional(),
+  reactions: z.array(z.enum(REACTIONS)).max(3).optional(),
 });
 
 export const SettingsInput = z.object({ hideSpoilers: z.boolean() });
@@ -192,6 +198,7 @@ export const DiscoverQuery = z.object({
   genre: numberParam(1, 1_000_000),
   year: numberParam(1870, 2200),
   provider: numberParam(1, 1_000_000),
+  keyword: numberParam(1, 100_000_000),
   region: z.enum(['MD', 'RO']).optional(),
   sort: z.enum(['popular', 'rating', 'newest']).optional(),
   page: numberParam(1, 50),

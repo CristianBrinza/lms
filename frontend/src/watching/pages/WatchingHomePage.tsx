@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { ButtonLink, Chips, IconLink, Skeleton } from '@/components/ui';
 import { ListIcon, SearchIcon, UploadIcon } from '@/components/ui/icons';
@@ -15,13 +15,14 @@ import {
   WatchingScreen,
 } from '../components/parts';
 import { Poster, PosterRow, Still } from '../components/Poster';
-import { airDay, formatMinutes } from '../format';
+import { airDay, daysUntil, formatMinutes } from '../format';
 import { useAddPlays } from '../hooks';
 import { useWatchingT } from '../i18n';
 import { episodeCode } from '../logic';
-import { rememberedWho, useWatchView } from '../people';
+import { useMarkWho, useWatchView } from '../people';
 import { useSpoilerGuard } from '../spoilers';
 import type { ContinueItem, PlayLine, TitleKind, UpcomingItem } from '../types';
+import '../watching.css';
 
 /**
  * Watching's front door, phone first: what to watch next with one tap to tick it off, what's on
@@ -29,25 +30,22 @@ import type { ContinueItem, PlayLine, TitleKind, UpcomingItem } from '../types';
  */
 export default function WatchingHomePage() {
   const t = useWatchingT();
-  const { view, ids, me, people } = useWatchView();
-  const [tab, setTab] = useState<TitleKind>('tv');
+  const { view } = useWatchView();
+  const [tab, setTab] = useState<TitleKind | 'all'>('all');
   const home = useQuery({
     queryKey: watchingKeys.home(view),
     queryFn: () => watchingApi.home(view),
   });
   const data = home.data;
 
-  const startWatching = data?.startWatching.filter((x) => x.kind === tab) ?? [];
-  const recent = data?.recent.filter((x) => x.title.kind === tab) ?? [];
+  const startWatching = data?.startWatching.filter((x) => tab === 'all' || x.kind === tab) ?? [];
+  const recent = data?.recent.filter((x) => tab === 'all' || x.title.kind === tab) ?? [];
   const empty =
     data &&
     !data.continueWatching.length &&
     !data.startWatching.length &&
     !data.recent.length &&
     !data.upcoming.length;
-  const known = new Set(people.map((p) => p.id));
-  const whoFor = (titleId: string) =>
-    view.kind === 'together' ? ids : rememberedWho(titleId, me.id, known);
 
   return (
     <WatchingScreen
@@ -80,7 +78,10 @@ export default function WatchingHomePage() {
         dense
         value={tab}
         onChange={setTab}
-        options={(['tv', 'movie'] as const).map((value) => ({ value, label: t.kind[value] }))}
+        options={[
+          { value: 'all' as const, label: t.kindAll },
+          ...(['tv', 'movie'] as const).map((value) => ({ value, label: t.kind[value] })),
+        ]}
       />
 
       <div className="mt-4">
@@ -90,7 +91,7 @@ export default function WatchingHomePage() {
           <ErrorCard error={home.error} onRetry={() => void home.refetch()} />
         ) : empty ? (
           <EmptyHome />
-        ) : tab === 'tv' ? (
+        ) : tab !== 'movie' ? (
           <>
             {data!.continueWatching.length ? (
               <Section title={t.home.continue}>
@@ -100,7 +101,7 @@ export default function WatchingHomePage() {
                       key={item.title.id}
                       className="w-[85%] max-w-[22rem] shrink-0 snap-start md:w-auto md:max-w-none"
                     >
-                      <ContinueCard item={item} who={whoFor(item.title.id)} />
+                      <ContinueCard item={item} />
                     </li>
                   ))}
                 </ul>
@@ -158,11 +159,14 @@ function SeeAll({ to }: { to: string }) {
  * The next episode of a show: its still, the show, which episode, how much is left, and one round
  * check to tick it off (for whoever watches it, remembered per show).
  */
-function ContinueCard({ item, who }: { item: ContinueItem; who: string[] }) {
+function ContinueCard({ item }: { item: ContinueItem }) {
   const t = useWatchingT();
   const [guard] = useSpoilerGuard();
   const add = useAddPlays();
+  // The person viewed, the people together, else whoever watches this show.
+  const { who } = useMarkWho(item.title.id);
   const [ticked, setTicked] = useState(false);
+  const [burst, setBurst] = useState(0);
   const code = episodeCode(item.next.season, item.next.episode);
   const leftLine = [
     item.left > 0 ? t.home.left(item.left) : t.home.caughtUp,
@@ -202,6 +206,7 @@ function ContinueCard({ item, who }: { item: ContinueItem; who: string[] }) {
           disabled={ticked || add.isPending}
           onClick={() => {
             setTicked(true);
+            setBurst((n) => n + 1);
             add.mutate(
               {
                 input: {
@@ -215,12 +220,31 @@ function ContinueCard({ item, who }: { item: ContinueItem; who: string[] }) {
               { onSettled: () => setTicked(false) },
             );
           }}
-          className="press -mr-0.5 shrink-0 rounded-full"
+          className="press relative -mr-0.5 shrink-0 rounded-full"
         >
-          <CheckMark on={ticked} className="size-11" />
+          <CheckMark on={ticked} className={cx('size-11', ticked && 'watch-check-pop')} />
+          {burst ? <CheckBurst key={burst} /> : null}
         </button>
       </div>
     </article>
+  );
+}
+
+/** Eight dots flying out of the check, once; nothing when motion is reduced (see CSS). */
+function CheckBurst() {
+  return (
+    <span aria-hidden="true" className="watch-burst pointer-events-none absolute inset-0">
+      {Array.from({ length: 8 }, (_, i) => (
+        <span
+          key={i}
+          style={{ '--angle': `${i * 45}deg` } as CSSProperties}
+          className={cx(
+            'absolute left-1/2 top-1/2 size-1.5 rounded-full',
+            i % 2 ? 'bg-butter-400' : 'bg-pink-400',
+          )}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -228,6 +252,7 @@ function UpcomingRow({ item }: { item: UpcomingItem }) {
   const t = useWatchingT();
   const [guard] = useSpoilerGuard();
   const ep = item.episode;
+  const days = daysUntil(item.airDate);
   return (
     <Link
       to={ep ? `/watching/${item.title.id}/season/${ep.season}` : `/watching/${item.title.id}`}
@@ -253,8 +278,20 @@ function UpcomingRow({ item }: { item: UpcomingItem }) {
           )}
         </span>
       </span>
-      <span className="shrink-0 rounded-pill bg-pink-100 px-2.5 py-1 text-xs font-bold text-pink-800">
-        {airDay(item.airDate) || t.season.notAired}
+      <span className="flex shrink-0 flex-col items-end gap-0.5">
+        <span
+          className={cx(
+            'rounded-pill px-2.5 py-1 text-xs font-bold',
+            days <= 1 ? 'bg-ink-900 text-white' : 'bg-pink-100 text-pink-800',
+          )}
+        >
+          {airDay(item.airDate) || t.season.notAired}
+        </span>
+        {days > 1 && days <= 60 ? (
+          <span className="tabular text-[0.6875rem] font-semibold text-ink-500">
+            {t.extras.inDays(days)}
+          </span>
+        ) : null}
       </span>
     </Link>
   );

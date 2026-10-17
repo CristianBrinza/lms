@@ -13,6 +13,7 @@ import type {
   Reaction,
   SeasonResponse,
   TitleCard,
+  TitleExtras,
   TitleKind,
   TitleResponse,
   WatchingConfig,
@@ -43,6 +44,7 @@ export interface DiscoverParams {
   kind: TitleKind;
   genre?: number;
   provider?: number;
+  keyword?: number;
   page?: number;
 }
 
@@ -57,6 +59,8 @@ export const watchingKeys = {
   season: (id: string, n: number, view: WatchView) =>
     ['watching', 'season', id, n, JSON.stringify(titleQuery(view))] as const,
   similar: (id: string) => ['watching', 'similar', id] as const,
+  extras: (id: string, view: WatchView) =>
+    ['watching', 'extras', id, JSON.stringify(titleQuery(view))] as const,
   stats: (view: WatchView, from: string, to: string) =>
     ['watching', 'stats', viewKey(view), from, to] as const,
   year: (view: WatchView, year: number) => ['watching', 'year', viewKey(view), year] as const,
@@ -81,6 +85,7 @@ export interface EpisodeInput {
   rating?: number | null;
   note?: string;
   favorite?: boolean;
+  reactions?: Reaction[];
 }
 
 export const watchingApi = {
@@ -96,6 +101,8 @@ export const watchingApi = {
   season: (id: string, n: number, view: WatchView) =>
     api.get<SeasonResponse>(`${t(id)}/seasons/${n}${query(titleQuery(view))}`),
   similar: (id: string) => api.get<{ results: TitleCard[] }>(`${t(id)}/similar`),
+  extras: (id: string, view: WatchView) =>
+    api.get<TitleExtras>(`${t(id)}/extras${query(titleQuery(view))}`),
   setStatus: (
     id: string,
     body: {
@@ -109,13 +116,16 @@ export const watchingApi = {
   ) => api.put<unknown>(`${t(id)}/status`, body),
   clearStatus: (id: string, userIds?: string[]) =>
     api.delete<void>(
-      `${t(id)}/status${query({ people: userIds && userIds.length > 1 ? userIds.join(',') : undefined })}`,
+      // Whoever it is for, one person or several (nobody named: the caller).
+      `${t(id)}/status${query({ people: userIds?.length ? userIds.join(',') : undefined })}`,
     ),
   setEpisode: (id: string, season: number, episode: number, body: EpisodeInput) =>
     api.put<unknown>(`${t(id)}/episodes/${season}/${episode}`, body),
   addPlay: (body: PlayInput) => api.post<PlaysResponse>('/watching/plays', body),
   removePlay: (id: string, together = false) =>
     api.delete<unknown>(`/watching/plays/${enc(id)}${together ? '?together=true' : ''}`),
+  updatePlay: (id: string, body: { watchedAt: string; together?: boolean }) =>
+    api.patch<unknown>(`/watching/plays/${enc(id)}`, body),
   removeGroup: (groupId: string) => api.delete<unknown>(`/watching/plays/groups/${enc(groupId)}`),
   stats: (view: WatchView, from: string, to: string) =>
     api.get<WatchingStats>(`/watching/stats${query({ from, to, ...viewQuery(view) })}`),
@@ -154,6 +164,7 @@ export const watchingApi = {
         kind: params.kind,
         genre: params.genre,
         provider: params.provider,
+        keyword: params.keyword,
         region: params.provider ? 'MD' : undefined,
         page: params.page,
       })}`,

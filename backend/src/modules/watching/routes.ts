@@ -18,6 +18,7 @@ import {
   search,
   trending,
 } from './discover';
+import { titleExtras } from './extras';
 import { calendar, home, library } from './home';
 import { importHistory } from './import';
 import {
@@ -38,6 +39,7 @@ import {
   removeAvailability,
   removeGroup,
   removePlay,
+  updatePlay,
   saveSettings,
   seasonView,
   setAvailability,
@@ -57,6 +59,7 @@ import {
   ListPatch,
   PeopleQuery,
   PlayInput,
+  PlayPatch,
   RangeQuery,
   SearchQuery,
   SettingsInput,
@@ -170,6 +173,12 @@ export function watchingRoutes(deps: AppDeps) {
     const [userId] = q.userId ? await peopleOf(w, { userId: q.userId }) : [undefined];
     return c.json(await titleView(w, titleParam(c), { userId, refresh: Boolean(q.refresh) }));
   });
+  app.get('/titles/:id/extras', async (c) => {
+    const q = readQuery(c, z.object({ userId: idField.optional() }));
+    const w = watch(c);
+    const [userId] = q.userId ? await peopleOf(w, { userId: q.userId }) : [undefined];
+    return c.json(await titleExtras(w, titleParam(c), userId));
+  });
   app.get('/titles/:id/similar', async (c) =>
     c.json(await related(watch(c), titleParam(c), 'similar')),
   );
@@ -208,6 +217,9 @@ export function watchingRoutes(deps: AppDeps) {
   );
   app.delete('/plays/groups/:groupId', async (c) =>
     c.json(await removeGroup(watch(c), c.req.param('groupId'))),
+  );
+  app.patch('/plays/:id', async (c) =>
+    c.json(await updatePlay(watch(c), c.req.param('id'), await readJson(c, PlayPatch))),
   );
   app.delete('/plays/:id', async (c) =>
     c.json(await removePlay(watch(c), c.req.param('id'), c.req.query('together') === 'true')),

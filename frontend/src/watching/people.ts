@@ -4,7 +4,7 @@ import { useUser } from '@/app/auth';
 import { storage } from '@/lib/storage';
 import { trainingApi, trainingKeys } from '@/training/api';
 import type { Person } from '@/training/types';
-import { viewIds, type WatchView } from './view';
+import { defaultWho, remembersWho, viewIds, viewKey, type WatchView } from './view';
 
 /**
  * Who Watching is about. Two choices, both remembered on this device:
@@ -89,7 +89,10 @@ export function useWatchView(): {
 
 // ---------------------------------------------------------------- who watched
 
-let whoSnapshot = storage.get(WHO_KEY) ?? '';
+/** Bumped on every change, so each screen re-reads who (a title's own choice included). */
+let whoSnapshot = 0;
+/** Choices made while looking at someone else (or several of us): kept for this visit only. */
+const sessionWho = new Map<string, string[]>();
 
 /** Who watched this title last time (or, new to the title, my last choice); me by default. */
 export function rememberedWho(titleId: string | null, meId: string, known: Set<string>): string[] {
@@ -103,7 +106,7 @@ export function rememberedWho(titleId: string | null, meId: string, known: Set<s
 /** Keeps who watched, for this title and as the next default. */
 export function rememberWho(titleId: string | null, ids: string[]) {
   storage.setJson(WHO_KEY, ids);
-  whoSnapshot = JSON.stringify(ids);
+  whoSnapshot++;
   if (titleId) {
     const byTitle = storage.getJson<Record<string, string[]>>(WHO_BY_TITLE_KEY) ?? {};
     delete byTitle[titleId];
@@ -129,6 +132,44 @@ export function useWho(titleId: string | null): {
   return {
     who: rememberedWho(titleId, me.id, known),
     setWho: (ids) => rememberWho(titleId, ids),
+    people,
+    me,
+  };
+}
+
+/**
+ * Who a new play of this title is for, on the screen being looked at:
+ *
+ * - looking at someone else: them (I'm marking what Patricia watched);
+ * - several of us together: all of us;
+ * - my own view or everyone's: who watched this title last time (or my last choice).
+ *
+ * Changing it in my own view is remembered; in someone else's view it holds for this visit
+ * only, so it never leaks into my own defaults.
+ */
+export function useMarkWho(titleId: string | null): {
+  who: string[];
+  setWho: (ids: string[]) => void;
+  view: WatchView;
+  people: Person[];
+  me: Person;
+} {
+  const { view, me, people } = useWatchView();
+  useSyncExternalStore(subscribe, () => whoSnapshot);
+  const known = new Set(people.map((p) => p.id));
+  const key = `${titleId ?? ''}|${viewKey(view)}`;
+  const base = defaultWho(view, rememberedWho(titleId, me.id, known));
+  const own = remembersWho(view) ? undefined : sessionWho.get(key);
+  return {
+    who: own?.length ? own : base,
+    setWho: (ids) => {
+      if (!ids.length) return;
+      if (remembersWho(view)) return rememberWho(titleId, ids);
+      sessionWho.set(key, ids);
+      whoSnapshot++;
+      notify();
+    },
+    view,
     people,
     me,
   };

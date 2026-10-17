@@ -266,7 +266,9 @@ async function targetsOf(
   if (input.season !== undefined && input.episodes?.length) {
     const season = input.season;
     return {
-      targets: [...new Set(input.episodes)].sort((a, b) => a - b).map((n) => ({ season, episode: n })),
+      targets: [...new Set(input.episodes)]
+        .sort((a, b) => a - b)
+        .map((n) => ({ season, episode: n })),
       bulk: true,
     };
   }
@@ -368,7 +370,8 @@ export async function addPlays(w: Watch, input: PlayInput) {
           (o) => o.userId !== play.userId && o.season === play.season && o.episode === play.episode,
         )
         .map((o) => o.userId);
-    const [row] = await listRows(ctx.db, [me(w)], [title.id]);
+    // The status of whoever the plays are for: the caller when included, else the first person.
+    const [row] = await listRows(ctx.db, [people.includes(me(w)) ? me(w) : people[0]!], [title.id]);
     return {
       plays: added,
       added: added.length,
@@ -399,6 +402,38 @@ export async function removePlay(w: Watch, id: string, together = false) {
       : [id],
   );
   return { removed: removed.map((r) => r.id) };
+}
+
+/**
+ * When a play happened, changed afterwards: a day, a month, an exact moment or "unknown". together:
+ * the same change for everyone who watched it in that sitting.
+ */
+export async function updatePlay(
+  w: Watch,
+  id: string,
+  input: { watchedAt: string; together?: boolean },
+) {
+  if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'That play isn’t there');
+  const { rows } = await w.ctx.db.query<PlayRow>(
+    `SELECT p.* FROM watch_plays p JOIN users u ON u.id = p.user_id
+      WHERE p.id = $1 AND (p.user_id = $2 OR u.household_id = $3)`,
+    [id, me(w), w.ctx.actor.householdId],
+  );
+  const play = rows[0];
+  if (!play) throw new AppError(404, 'NOT_FOUND', 'That play isn’t there');
+  const { at, precision } = whenOf(input.watchedAt, w.ctx.now);
+  const { rows: changed } = await w.ctx.db.query<{ id: string }>(
+    input.together && play.group_id
+      ? `UPDATE watch_plays p SET watched_at = $1, precision = $2 FROM users u
+          WHERE u.id = p.user_id AND u.household_id = $5 AND p.group_id = $3
+            AND p.season IS NOT DISTINCT FROM $4::int AND p.episode IS NOT DISTINCT FROM $6::int
+          RETURNING p.id`
+      : 'UPDATE watch_plays SET watched_at = $1, precision = $2 WHERE id = $3 RETURNING id',
+    input.together && play.group_id
+      ? [at, precision, play.group_id, play.season, w.ctx.actor.householdId, play.episode]
+      : [at, precision, id],
+  );
+  return { changed: changed.map((r) => r.id) };
 }
 
 /** Undo one "mark watched" (a bulk mark, or watching together): every play it added. */
@@ -565,10 +600,11 @@ export async function titleView(
   const title = await getTitle(w.deps, id, w.locale, { refresh: options.refresh });
   const data = title.data;
   const text = textOf(data, w.locale);
-  const [mine, checkedList, household] = await Promise.all([
-    mineOf(w, options.userId ?? me(w), title),
+  const viewed = options.userId ?? me(w);
+  const [mine, checkedList, members] = await Promise.all([
+    mineOf(w, viewed, title),
     availabilityOf(w.ctx.db, id),
-    householdOn(w, id),
+    membersOn(w, title, viewed),
   ]);
   return {
     title: {
@@ -608,27 +644,97 @@ export async function titleView(
       fetchedAt: title.fetchedAt.toISOString(),
     },
     mine,
-    household,
+    /** Everyone else at home (not the person viewed), watched or not, and how far. */
+    household: members.filter((m) => m.userId !== viewed),
+    /** Everyone at home, the person viewed included: who has seen it, before marking it. */
+    members,
   };
 }
 
-/** The family members who have this title in their library, and how far they are. */
-async function householdOn(w: Watch, id: string) {
+export interface MemberProgress {
+  userId: string;
+  name: string;
+  status: Status | null;
+  favorite: boolean;
+  rating: number | null;
+  /** Every play of the title (a film's viewings, a show's episodes). */
+  plays: number;
+  lastWatchedAt: string | null;
+  /** Shows: aired episodes seen, the furthest one seen and the next one to watch. */
+  progress: {
+    watched: number;
+    aired: number;
+    furthest: { season: number; episode: number } | null;
+    next: { season: number; episode: number } | null;
+  } | null;
+}
+
+/** The furthest regular episode someone has a play of (S2 E4), from their counts. */
+export function furthestOf(
+  counts: Counts,
+  userId: string,
+  titleId: string,
+): { season: number; episode: number } | null {
+  let best: { season: number; episode: number } | null = null;
+  for (const [key, plays] of counts.get(userId)?.get(titleId) ?? []) {
+    if (key === 'movie' || !plays) continue;
+    const [season, episode] = key.split(':').map(Number) as [number, number];
+    if (season < 1) continue;
+    if (!best || season > best.season || (season === best.season && episode > best.episode))
+      best = { season, episode };
+  }
+  return best;
+}
+
+/** Every family member, with what they have of this title and how far they are. */
+async function membersOn(w: Watch, title: StoredTitle, viewed: string) {
   const { rows } = await w.ctx.db.query<{
     user_id: string;
     name: string;
     status: Status | null;
+    favorite: boolean | null;
+    rating: number | null;
     plays: number;
+    last: Date | null;
   }>(
-    `SELECT u.id AS user_id, u.name, l.status,
-            (SELECT count(*)::int FROM watch_plays p WHERE p.user_id = u.id AND p.title_id = $2) AS plays
+    `SELECT u.id AS user_id, u.name, l.status, l.favorite, l.rating,
+            (SELECT count(*)::int FROM watch_plays p WHERE p.user_id = u.id AND p.title_id = $2) AS plays,
+            (SELECT max(p.watched_at) FROM watch_plays p WHERE p.user_id = u.id AND p.title_id = $2) AS last
        FROM users u LEFT JOIN watch_list l ON l.user_id = u.id AND l.title_id = $2
-      WHERE u.household_id = $1 AND u.is_active AND u.id <> $3`,
-    [w.ctx.actor.householdId, id, me(w)],
+      WHERE (u.household_id = $1 AND u.is_active) OR u.id = $3
+      ORDER BY u.id = $3 DESC, u.created_at`,
+    [w.ctx.actor.householdId, title.id, viewed],
   );
-  return rows
-    .filter((row) => row.status || row.plays)
-    .map((row) => ({ userId: row.user_id, name: row.name, status: row.status, plays: row.plays }));
+  const counts =
+    title.kind === 'tv'
+      ? await playCounts(
+          w.ctx.db,
+          rows.map((r) => r.user_id),
+          [title.id],
+        )
+      : null;
+  return rows.map((row): MemberProgress => {
+    let progress: MemberProgress['progress'] = null;
+    if (counts) {
+      const p = progressOf(title.data, counts, [row.user_id], title.id);
+      progress = {
+        watched: p.watched,
+        aired: p.aired,
+        furthest: furthestOf(counts, row.user_id, title.id),
+        next: p.next,
+      };
+    }
+    return {
+      userId: row.user_id,
+      name: row.name,
+      status: row.status,
+      favorite: row.favorite ?? false,
+      rating: row.rating,
+      plays: row.plays,
+      lastWatchedAt: row.last?.toISOString() ?? null,
+      progress,
+    };
+  });
 }
 
 export async function seasonView(w: Watch, id: string, n: number, userId?: string) {
@@ -639,15 +745,26 @@ export async function seasonView(w: Watch, id: string, n: number, userId?: strin
     getSeason(w.deps, tmdbId, n, w.locale),
     getTitle(w.deps, id, w.locale),
   ]);
-  const [{ rows: plays }, { rows: marks }, { rows: family }, settings] = await Promise.all([
+  const [{ rows: plays }, { rows: allMarks }, { rows: family }, settings] = await Promise.all([
     w.ctx.db.query<PlayRow>(
       `SELECT ${PLAY_COLUMNS} FROM watch_plays p WHERE p.user_id = $1 AND p.title_id = $2 AND p.season = $3
         ORDER BY p.watched_at NULLS FIRST, p.created_at`,
       [person, id, n],
     ),
-    w.ctx.db.query<{ episode: number; rating: number | null; note: string; favorite: boolean }>(
-      'SELECT episode, rating, note, favorite FROM watch_episode_marks WHERE user_id = $1 AND title_id = $2 AND season = $3',
-      [person, id, n],
+    // Everyone's take on these episodes at home: the viewed person's own, and the others'.
+    w.ctx.db.query<{
+      user_id: string;
+      episode: number;
+      rating: number | null;
+      note: string;
+      favorite: boolean;
+      reactions: string[];
+    }>(
+      `SELECT m.user_id, m.episode, m.rating, m.note, m.favorite, m.reactions FROM watch_episode_marks m
+         JOIN users u ON u.id = m.user_id
+        WHERE (m.user_id = $1 OR (u.household_id = $4 AND u.is_active)) AND m.title_id = $2 AND m.season = $3
+        ORDER BY m.updated_at DESC`,
+      [person, id, n, w.ctx.actor.householdId],
     ),
     w.ctx.db.query<{ episode: number; users: string[] }>(
       `SELECT p.episode, array_agg(DISTINCT p.user_id) AS users FROM watch_plays p JOIN users u ON u.id = p.user_id
@@ -657,7 +774,14 @@ export async function seasonView(w: Watch, id: string, n: number, userId?: strin
     getSettings(w, person),
   ]);
   const today = localDate(w.ctx.now);
+  const marks = allMarks.filter((m) => m.user_id === person);
   const markOf = new Map(marks.map((m) => [m.episode, m]));
+  const othersOf = new Map<number, typeof allMarks>();
+  for (const m of allMarks) {
+    if (m.user_id === person || (!m.rating && !m.note && !m.favorite && !m.reactions.length))
+      continue;
+    othersOf.set(m.episode, [...(othersOf.get(m.episode) ?? []), m]);
+  }
   const byFamily = new Map(family.map((f) => [f.episode, f.users]));
   const text = textOf(title.data, w.locale);
   const ownText = season.i18n[w.locale] ?? season.i18n.en;
@@ -685,7 +809,22 @@ export async function seasonView(w: Watch, id: string, n: number, userId?: strin
         watched: own.map((p) => p.watchedAt),
         plays: own,
         watchedBy: byFamily.get(e.n) ?? [],
-        mine: mark ? { rating: mark.rating, note: mark.note, favorite: mark.favorite } : null,
+        mine: mark
+          ? {
+              rating: mark.rating,
+              note: mark.note,
+              favorite: mark.favorite,
+              reactions: mark.reactions,
+            }
+          : null,
+        /** What the others at home thought of it: rating, reactions, a line. */
+        others: (othersOf.get(e.n) ?? []).map((m) => ({
+          userId: m.user_id,
+          rating: m.rating,
+          note: m.note,
+          favorite: m.favorite,
+          reactions: m.reactions,
+        })),
       };
     }),
   };
@@ -698,22 +837,24 @@ export async function setEpisodeMark(
   id: string,
   season: number,
   episode: number,
-  input: { rating?: number | null; note?: string; favorite?: boolean },
+  input: { rating?: number | null; note?: string; favorite?: boolean; reactions?: string[] },
 ) {
   await getTitle(w.deps, id, w.locale);
   const { rows } = await w.ctx.db.query<{
     rating: number | null;
     note: string;
     favorite: boolean;
+    reactions: string[];
   }>(
-    `INSERT INTO watch_episode_marks (user_id, title_id, season, episode, rating, note, favorite, updated_at)
-     VALUES ($1, $2, $3, $4, $5, coalesce($6, ''), coalesce($7, false), $8)
+    `INSERT INTO watch_episode_marks (user_id, title_id, season, episode, rating, note, favorite, reactions, updated_at)
+     VALUES ($1, $2, $3, $4, $5, coalesce($6, ''), coalesce($7, false), coalesce($10::text[], '{}'), $8)
      ON CONFLICT (user_id, title_id, season, episode) DO UPDATE SET
        rating = CASE WHEN $9 THEN $5 ELSE watch_episode_marks.rating END,
        note = coalesce($6, watch_episode_marks.note),
        favorite = coalesce($7, watch_episode_marks.favorite),
+       reactions = coalesce($10::text[], watch_episode_marks.reactions),
        updated_at = $8
-     RETURNING rating, note, favorite`,
+     RETURNING rating, note, favorite, reactions`,
     [
       me(w),
       id,
@@ -724,6 +865,7 @@ export async function setEpisodeMark(
       input.favorite ?? null,
       w.ctx.now,
       input.rating !== undefined,
+      input.reactions ? [...new Set(input.reactions)].slice(0, 3) : null,
     ],
   );
   return { episode: { titleId: id, season, episode, ...rows[0]! } };
