@@ -70,6 +70,8 @@ async function main() {
     console.info(`[api] ${signal} received, shutting down`);
     clearInterval(cleanupTimer);
     clearInterval(reminderTimer);
+    // Open event streams would hold the server open; ending them makes the apps reconnect.
+    deps.live.closeAll();
     server.close();
     await db.close().catch(() => undefined);
     process.exit(0);

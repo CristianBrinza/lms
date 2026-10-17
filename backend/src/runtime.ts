@@ -4,6 +4,7 @@ import type { AppDeps } from './context';
 import type { Database } from './db';
 import { migrate } from './db/migrations';
 import { createPasswordHasher } from './lib/password';
+import { LiveHub } from './modules/live/hub';
 import { createPushSender, type PushSender } from './modules/reminders/push';
 import { ensureBootstrapAdmin } from './modules/users';
 
@@ -20,6 +21,7 @@ export function createDeps(
     now: runtime.now ?? (() => new Date()),
     clientIp: runtime.clientIp,
     push: runtime.push === undefined ? createPushSender(config.push) : runtime.push,
+    live: new LiveHub(),
   };
 }
 

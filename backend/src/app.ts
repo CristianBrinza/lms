@@ -18,6 +18,8 @@ import { trainingRoutes } from './modules/training/routes';
 import { travelRoutes } from './modules/travel/routes';
 import { avatarRoutes } from './modules/profile';
 import { healthRoutes } from './modules/health';
+import { liveSync } from './modules/live/publish';
+import { liveRoutes } from './modules/live/routes';
 import { mcpRoutes } from './modules/mcp/server';
 import { meRoutes } from './modules/me/routes';
 import { oauthMetadataRoutes, oauthRoutes } from './modules/oauth';
@@ -29,11 +31,14 @@ export function createApp(deps: AppDeps) {
 
   app.use('*', requestContext(deps), hostGuard(deps));
   app.use('/api/*', apiSecurityHeaders(deps), noStore, originGuard(deps), jsonBodyLimit);
+  // Every change that works is announced to the household's open apps (GET /api/events).
+  app.use('/api/*', liveSync(deps));
 
   app.route('/', oauthMetadataRoutes(deps));
   app.route('/api', healthRoutes(deps));
   app.route('/api/oauth', oauthRoutes(deps));
   app.route('/api/auth', authRoutes(deps));
+  app.route('/api/events', liveRoutes(deps));
   app.route('/api/me', reminderRoutes(deps));
   app.route('/api/me', meRoutes(deps));
   app.route('/api/admin', adminRoutes(deps));
