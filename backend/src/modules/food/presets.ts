@@ -510,10 +510,8 @@ const OPENED: Record<string, number> = {
 /** Kept by level rather than weighed: everything in Spices & sauces, plus these. */
 const BY_LEVEL = new Set([
   'Jam',
-  'Tomato paste',
   'Tea',
   'Instant coffee',
-  'Peanut butter',
   'Chocolate spread',
 ]);
 
@@ -2234,7 +2232,9 @@ export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
     : {}),
   ...(EXTRA[preset.name] ?? {}),
   ...(OPENED[preset.name] ? { openedDays: OPENED[preset.name] } : {}),
-  ...(preset.category === 'spices' ||
+  // Bottles (oils, sauces, vinegar, essences) are counted in ml, so recipes take off what they use;
+  // dry spices by the jar stay full / low / out.
+  ...((preset.category === 'spices' && preset.unit !== 'ml') ||
   BY_LEVEL.has(preset.name) ||
   (areaOf(preset.category) === 'house' && preset.unit === 'ml')
     ? { track: 'level' as const }
@@ -2323,15 +2323,15 @@ const GUESSES: Array<{ match: RegExp; preset: Omit<Preset, 'name'> }> = [
   },
   {
     match: /\b(sauce|ketchup|dressing|sos|соус)/,
-    preset: { icon: 'sauce', category: 'spices', unit: 'ml', location: 'fridge', track: 'level' },
+    preset: { icon: 'sauce', category: 'spices', unit: 'ml', location: 'fridge' },
   },
   {
     match: /\b(oil|ulei|масло)\b/,
-    preset: { icon: 'oil', category: 'pantry', unit: 'ml', location: 'pantry', track: 'level' },
+    preset: { icon: 'oil', category: 'pantry', unit: 'ml', location: 'pantry' },
   },
   {
     match: /\b(vinegar|otet|уксус)/,
-    preset: { icon: 'sauce', category: 'spices', unit: 'ml', location: 'pantry', track: 'level' },
+    preset: { icon: 'sauce', category: 'spices', unit: 'ml', location: 'pantry' },
   },
   {
     match: /\b(juice|suc|сок|nectar)\b/,

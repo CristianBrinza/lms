@@ -133,8 +133,10 @@ describe('food: kept by level, frozen, guessed', () => {
       variant: 'Absolut',
     });
     expect((await b.get('/api/food/guess?name=Tomatoes')).body.match).toBeNull();
-    const created = (await b.post('/api/food/stock', { name: 'Pumpkin seed oil', quantity: 1 }))
-      .body.product;
-    expect(created).toMatchObject({ icon: 'oil', trackMode: 'level' });
+    // A bottle is counted in ml, so recipes take off what they use.
+    const created = (
+      await b.post('/api/food/stock', { name: 'Pumpkin seed oil', quantity: 500, unit: 'ml' })
+    ).body.product;
+    expect(created).toMatchObject({ icon: 'oil', unit: 'ml', trackMode: 'exact' });
   });
 });
