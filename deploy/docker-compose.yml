@@ -81,6 +81,10 @@ services:
       TRUST_PROXY: tunnel
       # The kitchen's local time: today, best-before dates, meal times and reminders.
       TZ: ${TZ:-Europe/Chisinau}
+      # The admin's backup download and restore work here (and keep a safety export before a restore).
+      BACKUP_DIR: /backups
+    volumes:
+      - ./backups:/backups
     depends_on:
       postgres:
         condition: service_healthy

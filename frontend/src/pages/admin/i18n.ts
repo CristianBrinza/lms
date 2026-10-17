@@ -3,6 +3,25 @@ import type { Role } from '@/types/api';
 
 /** The admin console: people, one person, a new account, and the one-time password. */
 const en = {
+  // backups
+  backups: 'Backups',
+  downloadTitle: 'Download a backup',
+  downloadBody:
+    'A fresh copy of the whole database: every kitchen, account, list and history. Keep it somewhere safe; it holds everyone’s data.',
+  downloadButton: 'Download backup',
+  backupReady: (name: string) => `${name} downloaded`,
+  backupFailed: 'The backup didn’t work',
+  restoreTitle: 'Restore from a backup',
+  restoreBody:
+    'Puts a downloaded backup (.dump) back, replacing everything that’s here now. A copy of the current data is saved first on the server, and a wrong file changes nothing.',
+  chooseBackup: 'Choose a backup file',
+  restoreConfirmTitle: 'Replace all the data?',
+  restoreWarning: (name: string, kb: number) =>
+    `Everything in LMS will become what's in ${name} (${kb} KB): every account, kitchen and history. Changes since it was made are lost (the server keeps a copy of today's data first). Everyone may need to sign in again.`,
+  yourPassword: 'Your password',
+  typeRestore: 'Type RESTORE to confirm',
+  restoreButton: 'Restore',
+  restored: 'Restored. Reloading…',
   // households
   households: 'Households',
   householdsIntro:
@@ -162,6 +181,25 @@ const en = {
 };
 
 const ro: typeof en = {
+  // backups
+  backups: 'Copii de rezervă',
+  downloadTitle: 'Descarcă o copie',
+  downloadBody:
+    'O copie proaspătă a întregii baze de date: fiecare bucătărie, cont, listă și istoric. Păstreaz-o undeva sigur; conține datele tuturor.',
+  downloadButton: 'Descarcă copia',
+  backupReady: (name) => `${name} descărcat`,
+  backupFailed: 'Copia n-a mers',
+  restoreTitle: 'Restaurează dintr-o copie',
+  restoreBody:
+    'Pune înapoi o copie descărcată (.dump), înlocuind tot ce e acum. Datele de acum se salvează întâi pe server, iar un fișier greșit nu schimbă nimic.',
+  chooseBackup: 'Alege fișierul copiei',
+  restoreConfirmTitle: 'Înlocuiești toate datele?',
+  restoreWarning: (name, kb) =>
+    `Tot din LMS devine ce e în ${name} (${kb} KB): fiecare cont, bucătărie și istoric. Ce s-a schimbat de atunci se pierde (serverul păstrează întâi o copie a datelor de azi). Poate fi nevoie ca toți să intre din nou în cont.`,
+  yourPassword: 'Parola ta',
+  typeRestore: 'Scrie RESTORE ca să confirmi',
+  restoreButton: 'Restaurează',
+  restored: 'Restaurat. Se reîncarcă…',
   // households
   households: 'Gospodării',
   householdsIntro:
@@ -319,6 +357,25 @@ const ro: typeof en = {
 };
 
 const ru: typeof en = {
+  // backups
+  backups: 'Резервные копии',
+  downloadTitle: 'Скачать копию',
+  downloadBody:
+    'Свежая копия всей базы: все кухни, аккаунты, списки и история. Храните её в надёжном месте — в ней данные всех.',
+  downloadButton: 'Скачать копию',
+  backupReady: (name) => `${name} скачан`,
+  backupFailed: 'Копия не получилась',
+  restoreTitle: 'Восстановить из копии',
+  restoreBody:
+    'Возвращает скачанную копию (.dump), заменяя всё, что есть сейчас. Текущие данные сначала сохраняются на сервере, а неверный файл ничего не меняет.',
+  chooseBackup: 'Выбрать файл копии',
+  restoreConfirmTitle: 'Заменить все данные?',
+  restoreWarning: (name, kb) =>
+    `Всё в LMS станет как в ${name} (${kb} КБ): все аккаунты, кухни и история. Изменения после неё пропадут (сервер сначала сохранит копию сегодняшних данных). Возможно, всем придётся войти заново.`,
+  yourPassword: 'Ваш пароль',
+  typeRestore: 'Введите RESTORE для подтверждения',
+  restoreButton: 'Восстановить',
+  restored: 'Восстановлено. Перезагрузка…',
   // households
   households: 'Семьи',
   householdsIntro:

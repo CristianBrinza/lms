@@ -15,6 +15,8 @@ export type AuditAction =
   | 'user.deleted'
   | 'user.kitchen_changed'
   | 'household.created'
+  | 'backup.downloaded'
+  | 'backup.restored'
   | 'key.created'
   | 'key.revoked';
 
