@@ -260,9 +260,17 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
               {t.readyToCook}
             </span>
           ) : (
-            <span className="inline-flex h-6 items-center rounded-pill bg-peach-100 px-2 text-xs font-semibold text-peach-800">
-              {t.missing(availability.missing.length)}
-            </span>
+            <>
+              <span className="inline-flex h-6 items-center rounded-pill bg-peach-100 px-2 text-xs font-semibold text-peach-800">
+                {t.missing(availability.missing.length)}
+              </span>
+              {/* What the kitchen already has for it: the same type, plain on the card. */}
+              {availability.have ? (
+                <span className="inline-flex h-6 items-center px-1 text-xs font-semibold text-ink-900">
+                  {t.inKitchen(availability.have)}
+                </span>
+              ) : null}
+            </>
           )}
           {availability.useSoon ? (
             <span

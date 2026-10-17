@@ -25,6 +25,7 @@ const en = {
   kcalAbout: (kcal: string) => `~${kcal} kcal`,
   readyToCook: 'Ready to cook',
   missing: (count: number) => `${count} missing`,
+  inKitchen: (count: number) => `${count} in the kitchen`,
   usesSoon: 'Uses food that expires soon',
   emptyTitle: 'No recipes yet',
   emptyText:
@@ -210,6 +211,7 @@ const ro: typeof en = {
   kcalAbout: (kcal) => `~${kcal} kcal`,
   readyToCook: 'Gata de gătit',
   missing: (count) => (count === 1 ? 'Lipsește 1' : `Lipsesc ${count}`),
+  inKitchen: (count) => (count === 1 ? '1 în bucătărie' : `${count} în bucătărie`),
   usesSoon: 'Folosește alimente care expiră curând',
   emptyTitle: 'Încă nu ai rețete',
   emptyText:
@@ -388,6 +390,7 @@ const ru: typeof en = {
   kcalAbout: (kcal) => `~${kcal} ккал`,
   readyToCook: 'Можно готовить',
   missing: (count) => `Не хватает ${count}`,
+  inKitchen: (count) => `${count} есть на кухне`,
   usesSoon: 'Использует продукты, которые скоро испортятся',
   emptyTitle: 'Рецептов пока нет',
   emptyText:
