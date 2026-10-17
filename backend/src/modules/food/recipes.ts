@@ -23,6 +23,7 @@ import {
   type IngredientLine,
   type StockInfo,
 } from './ingredients';
+import { checkIcon } from './icons';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import { withoutField } from './products';
@@ -190,6 +191,7 @@ export async function getRecipe(ctx: FoodCtx, id: string, servings?: number): Pr
 }
 
 export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Recipe> {
+  await checkIcon(ctx, input.icon);
   const id = randomUUID();
   await ctx.tx(async (tx) => {
     const ingredients = await resolveIngredients(tx, input.ingredients ?? []);
@@ -230,6 +232,7 @@ export async function updateRecipe(
   patch: Partial<RecipeInput>,
 ): Promise<Recipe> {
   const current = await getRecipe(ctx, id);
+  await checkIcon(ctx, patch.icon);
   // A field rewritten in its own language: its old translations no longer fit, unless given anew.
   let base = current.translations;
   for (const field of ['title', 'description', 'notes', 'steps'] as const) {

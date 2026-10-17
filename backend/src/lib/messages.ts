@@ -261,6 +261,29 @@ export const MESSAGES: Record<string, Pair> = {
     ro: 'Alege o pictogramă din set',
     ru: 'Выберите значок из набора',
   },
+  // the kitchen's own icons
+  'Icon not found': { ro: 'Pictograma nu a fost găsită', ru: 'Значок не найден' },
+  'This kitchen has no such icon; create it first': {
+    ro: 'Bucătăria nu are această pictogramă; creeaz-o mai întâi',
+    ru: 'В этой кухне нет такого значка; сначала создайте его',
+  },
+  'Send the drawing as svg or as shapes': {
+    ro: 'Trimite desenul ca svg sau ca forme',
+    ru: 'Отправьте рисунок как svg или как фигуры',
+  },
+  'Send svg or shapes': { ro: 'Trimite svg sau forme', ru: 'Отправьте svg или фигуры' },
+  'Icon keys look like custom:toast-bread': {
+    ro: 'Cheile pictogramelor arată așa: custom:toast-bread',
+    ru: 'Ключ значка выглядит так: custom:toast-bread',
+  },
+  'Keep the icon key under 64 characters': {
+    ro: 'Cheia pictogramei trebuie să aibă sub 64 de caractere',
+    ru: 'Ключ значка должен быть короче 64 символов',
+  },
+  'Keep the drawing under 20 KB': {
+    ro: 'Desenul trebuie să aibă sub 20 KB',
+    ru: 'Рисунок должен быть меньше 20 КБ',
+  },
   'That price is too large': { ro: 'Prețul e prea mare', ru: 'Слишком высокая цена' },
   'Price can’t be negative': {
     ro: 'Prețul nu poate fi negativ',
@@ -566,6 +589,12 @@ type Pattern = { match: RegExp; ro: (m: string[]) => string; ru: (m: string[]) =
 
 /** Messages with names, amounts or limits in them. The first that matches wins. */
 export const PATTERNS: Pattern[] = [
+  // food: the kitchen's own icons (the reason stays as written: it names SVG parts)
+  {
+    match: /^This drawing can’t be used: (.+)$/,
+    ro: (m) => `Desenul nu poate fi folosit: ${m[1]}`,
+    ru: (m) => `Этот рисунок нельзя использовать: ${m[1]}`,
+  },
   // food: items and stock
   {
     match: /^(.+) is already in your kitchen$/,

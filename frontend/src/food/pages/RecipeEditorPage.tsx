@@ -22,7 +22,10 @@ import { foodApi, foodKeys, kitchenwareApi } from '../api';
 import { useCatalog, useProductSearch } from '../catalog';
 import { parseAmount, unitsFor } from '../format';
 import { FOOD_ICON_KEYS } from '../icons/art';
+import { isCustomIcon, useCustomIcons } from '../icons/custom';
 import { FoodIcon } from '../icons/FoodIcon';
+import { IconGroupLabel } from '../icons/IconGroupLabel';
+import { useIconsT } from '../icons/icons.i18n';
 import { useRecipesT } from '../recipes.i18n';
 import type { Recipe, RecipeInput, ToolNeedInput, Unit } from '../types';
 
@@ -164,6 +167,8 @@ function Editor({ initial }: { initial?: Recipe }) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [icon, setIcon] = useState(initial?.icon ?? 'pot');
   const [allIcons, setAllIcons] = useState(false);
+  const groups = useIconsT();
+  const customIcons = useCustomIcons();
   const [description, setDescription] = useState(initial?.description ?? '');
   const [servings, setServings] = useState(initial?.servings ?? 2);
   const [prep, setPrep] = useState(initial?.prepMinutes ? String(initial.prepMinutes) : '');
@@ -307,7 +312,7 @@ function Editor({ initial }: { initial?: Recipe }) {
 
   const iconChoices = allIcons
     ? FOOD_ICON_KEYS
-    : DISHES.includes(icon)
+    : DISHES.includes(icon) || isCustomIcon(icon)
       ? DISHES
       : [icon, ...DISHES];
 
@@ -345,24 +350,33 @@ function Editor({ initial }: { initial?: Recipe }) {
                 allIcons && 'max-h-60 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-10',
               )}
             >
-              {iconChoices.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={icon === key}
-                  aria-label={key.replace('-', ' ')}
-                  onClick={() => setIcon(key)}
-                  className={cx(
-                    'press grid aspect-square place-items-center rounded-xl transition-colors',
-                    icon === key
-                      ? 'bg-butter-100 shadow-[inset_0_0_0_2px_var(--color-ink-900)]'
-                      : 'hover:bg-ink-50',
-                  )}
-                >
-                  <FoodIcon name={key} className="size-8" />
-                </button>
-              ))}
+              {customIcons.length > 0 && <IconGroupLabel>{groups.yours}</IconGroupLabel>}
+              {[
+                ...customIcons.map((custom) => ({ key: custom.key, label: tr(custom, 'name') })),
+                ...(customIcons.length ? [null] : []),
+                ...iconChoices.map((key) => ({ key, label: key.replace(/-/g, ' ') })),
+              ].map((choice) =>
+                choice === null ? (
+                  <IconGroupLabel key="built-in">{groups.builtIn}</IconGroupLabel>
+                ) : (
+                  <button
+                    key={choice.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={icon === choice.key}
+                    aria-label={choice.label}
+                    onClick={() => setIcon(choice.key)}
+                    className={cx(
+                      'press grid aspect-square place-items-center rounded-xl transition-colors',
+                      icon === choice.key
+                        ? 'bg-butter-100 shadow-[inset_0_0_0_2px_var(--color-ink-900)]'
+                        : 'hover:bg-ink-50',
+                    )}
+                  >
+                    <FoodIcon name={choice.key} className="size-8" />
+                  </button>
+                ),
+              )}
             </div>
             <button
               type="button"

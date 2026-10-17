@@ -11,8 +11,11 @@ import { foodApi, foodKeys } from '../api';
 import { LocationPicker } from '../components/LocationPicker';
 import { CATEGORY_LABEL, CATEGORY_ORDER, parseAmount, unitWord } from '../format';
 import { FOOD_ICON_KEYS } from '../icons/art';
+import { useCustomIcons } from '../icons/custom';
 import { FoodIcon } from '../icons/FoodIcon';
+import { useIconsT } from '../icons/icons.i18n';
 import { iconLabel } from '../icons/registry';
+import { IconGroupLabel } from '../icons/IconGroupLabel';
 import type { BaseUnit, Category, Location, StockedProduct } from '../types';
 import { kitchenT } from './kitchen.i18n';
 
@@ -36,6 +39,8 @@ export function EditItemSheet({
   onRemoved: () => void;
 }) {
   const t = kitchenT().edit;
+  const groups = useIconsT();
+  const customIcons = useCustomIcons();
   const queryClient = useQueryClient();
   const stores = useQuery({
     queryKey: [...foodKeys.all, 'stores'],
@@ -162,24 +167,34 @@ export function EditItemSheet({
               aria-label={t.icon}
               className="grid max-h-56 grid-cols-6 gap-1.5 overflow-y-auto rounded-2xl bg-ink-50 p-2 sm:grid-cols-8"
             >
-              {FOOD_ICON_KEYS.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={icon === key}
-                  aria-label={iconLabel(key)}
-                  onClick={() => setIcon(key)}
-                  className={cx(
-                    'press grid aspect-square place-items-center rounded-xl transition-colors',
-                    icon === key
-                      ? 'bg-white shadow-[inset_0_0_0_2px_var(--color-ink-900)]'
-                      : 'hover:bg-white',
-                  )}
-                >
-                  <FoodIcon name={key} className="size-8" />
-                </button>
-              ))}
+              {customIcons.length > 0 && <IconGroupLabel>{groups.yours}</IconGroupLabel>}
+              {[
+                ...customIcons.map((custom) => ({ key: custom.key, label: tr(custom, 'name') })),
+                ...(customIcons.length ? [null] : []),
+                ...FOOD_ICON_KEYS.map((key) => ({ key, label: iconLabel(key) })),
+              ].map((choice) =>
+                choice === null ? (
+                  <IconGroupLabel key="built-in">{groups.builtIn}</IconGroupLabel>
+                ) : (
+                  <button
+                    key={choice.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={icon === choice.key}
+                    aria-label={choice.label}
+                    title={choice.label}
+                    onClick={() => setIcon(choice.key)}
+                    className={cx(
+                      'press grid aspect-square place-items-center rounded-xl transition-colors',
+                      icon === choice.key
+                        ? 'bg-white shadow-[inset_0_0_0_2px_var(--color-ink-900)]'
+                        : 'hover:bg-white',
+                    )}
+                  >
+                    <FoodIcon name={choice.key} className="size-8" />
+                  </button>
+                ),
+              )}
             </div>
           </fieldset>
 

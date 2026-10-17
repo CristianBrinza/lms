@@ -1,4 +1,5 @@
 import { presetLocalNames } from './catalog-i18n';
+import type { CustomIconKey } from './icons';
 import type { BaseUnit } from './units';
 
 /**
@@ -375,7 +376,8 @@ export const FOOD_ICONS = [
   'box',
   'basket',
 ] as const;
-export type FoodIcon = (typeof FOOD_ICONS)[number];
+/** A built-in icon, or one of the household’s own (custom:…, see icons.ts). */
+export type FoodIcon = (typeof FOOD_ICONS)[number] | CustomIconKey;
 
 export interface Preset {
   name: string;

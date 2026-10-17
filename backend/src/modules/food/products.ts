@@ -11,6 +11,7 @@ import {
   variantForms,
   variantsTranslations,
 } from './catalog-i18n';
+import { checkIcon } from './icons';
 import type { FoodCtx } from './kitchen';
 import {
   findPreset,
@@ -316,6 +317,7 @@ async function insertProduct(
   ctx: FoodCtx,
   input: ProductInput & { unit: BaseUnit },
 ): Promise<Product> {
+  await checkIcon(ctx, input.icon);
   const preset = presetOrGuess(input.name);
   const mode = modeOf(input) ?? preset?.track ?? 'exact';
   const { rows } = await ctx.db.query<ProductRow>(
@@ -632,6 +634,7 @@ export async function updateProduct(
   patch: Partial<ProductInput>,
 ): Promise<Product> {
   const product = await findProduct(ctx, id, { lock: true });
+  await checkIcon(ctx, patch.icon);
   checkPiece({
     unit: patch.unit ?? product.unit,
     pieceSize: patch.pieceSize,

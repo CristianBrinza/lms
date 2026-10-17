@@ -3,6 +3,7 @@ import { AppError } from '../../lib/errors';
 import { LOCALES, mergeTranslations, type Translations } from '../../lib/i18n';
 import { isUuid } from '../users';
 import { combine, fieldIn, onlyFields, toolLocalNames, toolTranslations } from './catalog-i18n';
+import { checkIcon, type CustomIconKey } from './icons';
 import type { FoodCtx } from './kitchen';
 import { normalizeName, sameName } from './presets';
 import type { ToolInput, ToolNeedInput, WashInput } from './schemas';
@@ -96,7 +97,8 @@ export const TOOL_ICONS = [
   'muffin-cups',
   'paper-cup',
 ] as const;
-export type ToolIcon = (typeof TOOL_ICONS)[number];
+/** A built-in kitchenware icon, or one of the household’s own (custom:…, see icons.ts). */
+export type ToolIcon = (typeof TOOL_ICONS)[number] | CustomIconKey;
 
 interface ToolPreset {
   name: string;
@@ -445,6 +447,7 @@ export async function refreshToolsFromCatalog(ctx: FoodCtx): Promise<number> {
 }
 
 export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string }): Promise<Tool> {
+  await checkIcon(ctx, input.icon);
   await settle(ctx);
   if (input.id) {
     const tool = await findTool(ctx, input.id, true);

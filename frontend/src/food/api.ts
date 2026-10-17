@@ -1,5 +1,6 @@
 import type { Translations } from '@/i18n';
 import { api, query } from '@/services/api/client';
+import type { CustomIcon } from './icons/custom';
 import type {
   AccessKey,
   Category,
@@ -45,6 +46,8 @@ export const foodKeys = {
   all: ['food'] as const,
   overview: ['food', 'overview'] as const,
   presets: ['food', 'presets'] as const,
+  /** The kitchen's own icons (custom:…), one list for every icon on screen. */
+  icons: ['food', 'icons'] as const,
   kitchen: ['food', 'kitchen'] as const,
   product: (id: string) => ['food', 'product', id] as const,
   products: (q: string) => ['food', 'products', q] as const,
@@ -127,6 +130,7 @@ export interface CheckoutLine {
 export const foodApi = {
   overview: (today: string) => api.get<FoodOverview>(`/food/overview${query({ today })}`),
   presets: () => api.get<{ presets: Preset[] }>('/food/presets').then((r) => r.presets),
+  icons: () => api.get<{ icons: CustomIcon[] }>('/food/icons').then((r) => r.icons),
 
   kitchen: () => api.get<{ products: StockedProduct[] }>('/food/kitchen').then((r) => r.products),
   products: (q = '') =>

@@ -20,7 +20,9 @@ import {
   type Meal,
   ateNow,
 } from '../food/meals';
-import { archiveTool, listTools, markDirty, saveTool, wash } from '../food/kitchenware';
+import { IconInput, listIcons, saveIcon } from '../food/icons';
+import { archiveTool, listTools, markDirty, saveTool, TOOL_ICONS, wash } from '../food/kitchenware';
+import { FOOD_ICONS } from '../food/presets';
 import { overview } from '../food/overview';
 import { planNeeds } from '../food/plan';
 import { createProduct, listProducts, updateProduct } from '../food/products';
@@ -307,6 +309,33 @@ const meal = (m: Meal) => ({
 
 // ---------------------------------------------------------------- the tools
 
+/** create_icon's description: the house style, so new drawings sit with the built-in ones. */
+const CREATE_ICON = `Draw a new icon for this kitchen and get its key (custom:…), usable at once: save_item, save_recipe or save_kitchenware with icon: "custom:…". The flow: if no built-in icon fits the item (list_icons), create one, then save the item with that key. One icon per kind of thing: Coca-Cola Zero gets its black can, not the generic can. Passing an existing key redraws that icon; name it in English with translations (en, ro, ru).
+
+House style (match the built-in icons exactly):
+- One <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="var(--color-ink-900, #1d1d24)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">. Every shape inherits that ink outline: never set an outline colour, only stroke="none" for a shape without one.
+- Allowed tags: path, circle, ellipse, rect, line, polyline, polygon, g. Attributes: d, cx, cy, r, rx, ry, x, y, width, height, x1, y1, x2, y2, points, transform (translate, rotate, scale, matrix), fill, stroke, stroke-width, stroke-linecap, stroke-linejoin, stroke-dasharray, opacity, fill-rule. Colours are hex, none or currentColor. No text, gradients, filters, style, class, id, images or links. At most 60 shapes and 20 KB.
+- Composition: one object, upright or slightly tilted, centred, spanning about x 8 to 40 and y 6 to 42, with about 4 units of air on every side. A bold silhouette that reads at 32 px: what makes it that thing (the bottle's shape, the can's colour, the label band), not a photo. Typically 3 to 12 shapes.
+- Strokes: 2.2 for the main outline, 1.8 for parts sitting on it (lids, caps, labels, leaves), 1.3 to 1.6 for small details (seeds, crumbs, highlights). Shapes are drawn in order, back to front.
+- Fills: flat, from the palette, no shading. Colour bands without an outline use stroke="none". Palette: white #ffffff, cream #fff6e0, yellow #f6d47a, gold #f0c44f, mustard #e0ab2f, orange #f6a04d, peach #f4cfac, tan #e2b06f, brown #b87a4b, chocolate #7a4a2e, red #f0705f, brand red #e2433a, meat #df7b70, fat #f8dcd2, pink #f7a8c8, pale pink #fde3f1, beet #a8325e, wine #8c2440, purple #9b72c4, lavender #dcdcfa, periwinkle #a2a3ee, sky #a6e2f1, ice #dcf3f9, glass #eef9fc, mint #bfeedd, lime #a5d36a, green #8fcf7a, leaf #69b86b, dark green #4f9a5a, blue #3f6cc6, navy #2e4f9e, grey #dedee6, steel #c8c8d3, lid #efeff4, iron #4a4a58, black (cans, bottles) #2f2f38.
+- Brands: the real packaging colours and shape, without lettering or logos; a stripe or wave suggests the label.
+
+Example, an apple:
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="var(--color-ink-900, #1d1d24)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M24 17.5c-3.5-3-12.5-2.5-14 6-1.5 9 4.5 18.5 10 18.5 1.8 0 2.8-1 4-1s2.2 1 4 1c5.5 0 11.5-9.5 10-18.5-1.5-8.5-10.5-9-14-6z" fill="#f0705f"/>
+  <path d="M24 17.5c0-3.5.8-6 2.5-8"/>
+  <path d="M26.4 12.2c2-3 5.5-4 9-3-1.5 3-5 4.5-9 3z" fill="#69b86b" stroke-width="1.8"/>
+</svg>
+
+Example, a black can of cola zero:
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="var(--color-ink-900, #1d1d24)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M15.5 12.5l1.8-3.5h13.4l1.8 3.5v24l-1.8 3.5H17.3l-1.8-3.5z" fill="#2f2f38"/>
+  <path d="M15.6 24.5c3.2-3.4 6.6-3.4 9.6-.8 2.8 2.4 5 2.4 7.2.8v3.4c-2.2 1.6-4.4 1.6-7.2-.8-3-2.6-6.4-2.6-9.6.8z" fill="#e2433a" stroke-width="1.6"/>
+  <path d="M15.5 12.5l1.8-3.5h13.4l1.8 3.5z" fill="#efeff4" stroke-width="1.8"/>
+  <path d="M15.5 36.5h17l-1.8 3.5H17.3z" fill="#c8c8d3" stroke-width="1.8"/>
+  <path d="M21.5 9.5l1-2.5h4" stroke-width="1.8"/>
+</svg>`;
+
 const batch = <T extends z.ZodType>(item: T, max = 50) =>
   z.object({ items: z.array(item).min(1).max(max) });
 
@@ -556,7 +585,7 @@ export const TOOLS: Tool[] = [
     name: 'save_item',
     title: 'Create or change an item',
     description:
-      'Create a catalog item, or change one (productId): icon, category, unit, piece size, place, shelf life, frozen/thawed days, running-low amount, usual store, and trackMode (exact amounts, level = full/low/out for spices and sauces, none = always there).',
+      'Create a catalog item, or change one (productId): icon (a built-in key, or a custom:… key from create_icon), category, unit, piece size, place, shelf life, frozen/thawed days, running-low amount, usual store, and trackMode (exact amounts, level = full/low/out for spices and sauces, none = always there).',
     access: 'write',
     input: ProductInput.partial().and(
       z.object({ productId: idField.optional(), ...translationsField }),
@@ -568,6 +597,38 @@ export const TOOLS: Tool[] = [
           fields: { name: 'Required' },
         });
       return createProduct(ctx, input as z.infer<typeof ProductInput>);
+    },
+  }),
+  tool({
+    name: 'list_icons',
+    title: 'Icons',
+    description:
+      'The drawings items, recipes and kitchenware can have: the built-in keys (items: food, drinks and house things; kitchenware) and this kitchen’s own (custom:…, made with create_icon). Check here before drawing a new one.',
+    access: 'read',
+    input: z.object({}),
+    run: async ({ ctx }) => ({
+      builtIn: { items: FOOD_ICONS, kitchenware: TOOL_ICONS },
+      custom: (await listIcons(ctx)).map((icon) => ({
+        key: icon.key,
+        name: icon.name,
+        ...withTranslations(icon),
+      })),
+    }),
+  }),
+  tool({
+    name: 'create_icon',
+    title: 'Draw a new icon',
+    description: CREATE_ICON,
+    access: 'write',
+    input: IconInput,
+    run: async ({ ctx }, input) => {
+      const { icon, created } = await saveIcon(ctx, input);
+      return {
+        key: icon.key,
+        name: icon.name,
+        shapes: icon.shapes.length,
+        ...(created ? {} : { redrawn: true }),
+      };
     },
   }),
   tool({

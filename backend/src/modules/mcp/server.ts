@@ -6,6 +6,7 @@ import { enforceRateLimits } from '../../lib/rate-limit';
 import { bearerToken } from '../../middleware/auth';
 import { ensureKitchen, foodCtx } from '../food/kitchen';
 import { localDate } from '../food/stock';
+import { publishChange, toolArea } from '../live/publish';
 import { authenticateToken, type TokenScope } from '../tokens';
 import { inputSchema, scopeAllows, TOOLS, type ToolEnv } from './tools';
 
@@ -25,6 +26,7 @@ export const INSTRUCTIONS = `LMS: this household's food — what is in the kitch
 How it works
 - Items are counted in a base unit: pcs, g or ml. Amounts may be given in pcs, g, kg, ml, l, tsp, tbsp or cup; pieces convert through an item's piece size (a tomato ≈ 120 g).
 - Names resolve loosely ("tomato" = Tomatoes; Romanian and Russian shop names work too). An unknown name creates a new item, so reuse the names you see in list_stock / find_items.
+- Icons: every item, recipe and piece of kitchenware has its own drawing, one per kind (Coca-Cola Zero is a black can). After add_stock or save_item with a new kind of thing, check list_icons; if no built-in icon fits, draw one with create_icon (it is usable at once) and set it with save_item (icon: "custom:…"). Reuse the kitchen's own icons before drawing another.
 - Items have their own units too (a jar of pickles = 12, a cake = 8 pieces, a can of Coca-Cola = 330 ml); when one holds a different amount this time, pass each (a jar of 14: quantity 1, unit "jar", each 14).
 - Types (variant): "apple juice" is Juice, type Apple; "Coca-Cola Zero" is Coca-Cola, type Zero; "Borjomi" is Mineral water, type Borjomi. A new type is remembered the first time it is used, so name new drinks, juices or flavours freely.
 - Packages: a jar, bottle, loaf or can says what it holds. add_stock with packages: [{ count, size, sizeUnit }] makes one lot per size (one 1 l bottle and two of 0.5 l; ice cubes in a pack of 3 and one of 4). Bread counts in slices, a loaf being its package.
@@ -203,6 +205,7 @@ export function mcpRoutes(deps: AppDeps, getApp: () => Hono<AppEnv>) {
     for (const message of messages) {
       const reply = await dispatch(message as JsonRpcRequest, auth.scope, env);
       if (reply) replies.push(reply);
+      announceWrite(deps, message as JsonRpcRequest, reply, auth.user.id, kitchen.id);
     }
     if (!replies.length) return c.body(null, 202);
     return c.json(Array.isArray(body) ? replies : replies[0]);
@@ -333,6 +336,27 @@ async function dispatch(message: JsonRpcRequest, scope: TokenScope, env: ToolEnv
     default:
       return fail(id, -32601, `Method not found: ${method}`);
   }
+}
+
+/**
+ * Live sync for what Claude changed: a tool that writes and worked is announced to the
+ * household, like a change made in the app. (Tools that go through the API are announced there
+ * too; the app folds the two into one refresh.)
+ */
+function announceWrite(
+  deps: AppDeps,
+  message: JsonRpcRequest,
+  reply: unknown,
+  userId: string,
+  householdId: string,
+): void {
+  if (message?.method !== 'tools/call') return;
+  const name = String(message.params?.name ?? '');
+  const tool = TOOLS.find((t) => t.name === name);
+  if (!tool || tool.access === 'read') return;
+  const result = (reply as { result?: { isError?: boolean } } | null)?.result;
+  if (!result || result.isError) return;
+  publishChange(deps, { area: toolArea(name), path: `/api/mcp/${name}`, userId, householdId });
 }
 
 const toolError = (text: string) => ({ content: [{ type: 'text', text }], isError: true });

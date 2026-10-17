@@ -4,6 +4,7 @@ import { AppError } from '../../lib/errors';
 import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { z } from 'zod';
+import { deleteIcon, IconInput, listIcons, saveIcon } from './icons';
 import { foodCtx, requireKitchen } from './kitchen';
 import {
   addMealPart,
@@ -151,6 +152,17 @@ export function foodRoutes(deps: AppDeps) {
       locations: LOCATIONS,
     }),
   );
+
+  // The kitchen's own icons (custom:…): drawings added at run time, stored as checked shapes.
+  app.get('/icons', async (c) => c.json({ icons: await listIcons(ctx(c)) }));
+  app.post('/icons', async (c) => {
+    const { icon, created } = await saveIcon(ctx(c), await readJson(c, IconInput));
+    return c.json({ icon }, created ? 201 : 200);
+  });
+  app.delete('/icons/:key', async (c) => {
+    await deleteIcon(ctx(c), c.req.param('key'));
+    return c.body(null, 204);
+  });
 
   // What a name the catalog doesn't know probably is ("Smoked salt" → a spice, kept by level).
   app.get('/guess', async (c) => {

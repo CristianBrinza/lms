@@ -919,6 +919,25 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE users ADD COLUMN advance_day smallint CHECK (advance_day BETWEEN 1 AND 31);
     `,
   },
+  {
+    version: 32,
+    name: 'custom icons: each household’s own drawings for its items, as data',
+    sql: `
+      -- Drawn at run time (by Claude, through the API or MCP) so a new item gets its own picture
+      -- with no release. shapes is a checked list of SVG shapes (modules/food/icons.ts), never markup.
+      CREATE TABLE custom_icons (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        household_id uuid NOT NULL REFERENCES households (id) ON DELETE CASCADE,
+        key text NOT NULL CHECK (key ~ '^custom:[a-z0-9]+(-[a-z0-9]+)*$'),
+        name text NOT NULL,
+        translations jsonb NOT NULL DEFAULT '{}',
+        shapes jsonb NOT NULL,
+        created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (household_id, key)
+      );
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

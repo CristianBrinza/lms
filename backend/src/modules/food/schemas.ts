@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Translations } from '../../lib/i18n';
 import { NutritionInput } from './nutrition';
+import { customIconKey } from './icons';
 import { TOOL_ICONS, TOOL_KINDS } from './kitchenware';
 import { CATEGORIES, FOOD_ICONS, LEVELS, LOCATIONS, TRACK_MODES } from './presets';
 import { BASE_UNITS, UNITS } from './units';
@@ -40,7 +41,10 @@ export const unitField = z
 export const baseUnitField = z.enum(BASE_UNITS, { error: 'Count it in pcs, g or ml' });
 export const locationField = z.enum(LOCATIONS, { error: 'Fridge, freezer, pantry or other' });
 export const categoryField = z.enum(CATEGORIES, { error: 'Pick a category' });
-export const iconField = z.enum(FOOD_ICONS, { error: 'Pick an icon from the set' });
+/** A built-in icon key, or one of the kitchen’s own drawings (custom:…, made with create_icon). */
+export const iconField = z.union([z.enum(FOOD_ICONS), customIconKey], {
+  error: 'Pick an icon from the set',
+});
 export const priceField = z
   .number()
   .min(0, 'Price can’t be negative')
@@ -436,7 +440,9 @@ export type IngredientInput = z.infer<typeof IngredientInput>;
 
 export const ToolInput = z.object({
   name: z.string().trim().min(1, 'Name it').max(60).optional(),
-  icon: z.enum(TOOL_ICONS, { error: 'Pick an icon from the set' }).optional(),
+  icon: z
+    .union([z.enum(TOOL_ICONS), customIconKey], { error: 'Pick an icon from the set' })
+    .optional(),
   kind: z
     .enum(TOOL_KINDS)
     .optional()
