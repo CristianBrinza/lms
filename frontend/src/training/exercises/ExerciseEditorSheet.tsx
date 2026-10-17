@@ -1,10 +1,19 @@
 import { TagsInput } from '../components/TagsInput';
 import { usePerson } from '../person';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { Button, IconButton, Sheet, Switch, TextField, toast } from '@/components/ui';
-import { AddIcon, CheckIcon, CloseIcon, DeleteIcon } from '@/components/ui/icons';
+import {
+  AddIcon,
+  CheckIcon,
+  CloseIcon,
+  DeleteIcon,
+  ExpandMoreIcon,
+  LanguageIcon,
+} from '@/components/ui/icons';
 import { Stepper } from '@/food/kitchenware/Stepper';
+import { getLocale, LOCALE_NAMES, LOCALES, tr, type Locale, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -14,33 +23,22 @@ import {
   CATEGORY_ORDER,
   distance,
   duration,
+  IMPACT_LABEL,
   LEVEL_LABEL,
+  MEASURE_LABEL,
   MUSCLE_LABEL,
   MUSCLE_ORDER,
 } from '../format';
 import { EquipmentIcon, EXERCISE_ICON_KEYS, ExerciseIcon } from '../icons/TrainingIcon';
 import type { Exercise, ExerciseCategory, Measure, Muscle } from '../types';
+import { useExerciseEditorT } from './ExerciseEditorSheet.i18n';
 
-const MEASURE_LABEL: Record<Measure, string> = { reps: 'Reps', time: 'Time', distance: 'Distance' };
 const MAX_STEPS = 10;
 const MAX_MAIN = 6;
 const MAX_HELPERS = 8;
 
-/** Common ways, per kind, to tap in rather than type. */
-const WAY_SUGGESTIONS: Record<ExerciseCategory, string[]> = {
-  strength: [
-    'Wide grip',
-    'Close grip',
-    'Single arm',
-    'Single leg',
-    'Slow down, 3 s',
-    'Pause at the bottom',
-  ],
-  core: ['Knees bent', 'Legs straight', 'Arms straight', 'With a twist'],
-  cardio: ['Easy', 'Intervals', 'Fast'],
-  mobility: ['Seated', 'Standing', 'Lying'],
-  stretch: ['Seated', 'Standing', 'Lying'],
-};
+/** Steps in another language, as typed: one per line. */
+type StepsText = Partial<Record<Locale, string>>;
 
 interface Draft {
   name: string;
@@ -61,6 +59,9 @@ interface Draft {
   steps: string[];
   note: string;
   variants: string[];
+  /** name and note in the other languages (and steps, merged in from stepsText on save). */
+  translations: Translations;
+  stepsText: StepsText;
 }
 
 const blank = (): Draft => ({
@@ -82,7 +83,18 @@ const blank = (): Draft => ({
   steps: [''],
   note: '',
   variants: [],
+  translations: {},
+  stepsText: {},
 });
+
+const stepsTextOf = (translations: Translations): StepsText => {
+  const text: StepsText = {};
+  for (const locale of LOCALES) {
+    const steps = translations[locale]?.steps;
+    if (Array.isArray(steps)) text[locale] = steps.map(String).join('\n');
+  }
+  return text;
+};
 
 const fromExercise = (e: Exercise): Draft => ({
   name: e.name,
@@ -103,7 +115,26 @@ const fromExercise = (e: Exercise): Draft => ({
   steps: e.steps.length ? e.steps : [''],
   note: e.note,
   variants: e.variants,
+  translations: e.translations ?? {},
+  stepsText: stepsTextOf(e.translations ?? {}),
 });
+
+/** One `translations` for the API: the name and note fields, with each language's steps. */
+function translationsOf(d: Draft): Translations {
+  const next: Translations = { ...d.translations };
+  for (const locale of LOCALES) {
+    const text = d.stepsText[locale];
+    if (locale === getLocale() || text === undefined) continue;
+    const steps = text
+      .split('\n')
+      .map((line) => line.trim().slice(0, 300))
+      .filter(Boolean)
+      .slice(0, MAX_STEPS);
+    // An emptied language goes as [] (like TranslationFields' ''), so the server clears it.
+    next[locale] = { ...(next[locale] ?? {}), steps };
+  }
+  return next;
+}
 
 /**
  * Creating an exercise, or changing one. The household's own exercises change entirely; the
@@ -122,6 +153,7 @@ export function ExerciseEditorSheet({
   exercise: Exercise | null;
   onSaved?: (exercise: Exercise) => void;
 }) {
+  const t = useExerciseEditorT();
   const queryClient = useQueryClient();
   const { personId } = usePerson();
   const equipment = useQuery({
@@ -157,6 +189,7 @@ export function ExerciseEditorSheet({
   const save = useMutation({
     mutationFn: () => {
       const steps = draft.steps.map((s) => s.trim()).filter(Boolean);
+      const translations = translationsOf(draft);
       if (exercise && catalog)
         return trainingApi.updateExercise(exercise.id, {
           ...targets(draft),
@@ -164,6 +197,7 @@ export function ExerciseEditorSheet({
           steps,
           note: draft.note.trim(),
           variants: draft.variants,
+          translations,
         });
       const body: ExerciseInput = {
         name: draft.name.trim(),
@@ -182,6 +216,7 @@ export function ExerciseEditorSheet({
         steps,
         note: draft.note.trim(),
         variants: draft.variants,
+        translations,
       };
       return exercise
         ? trainingApi.updateExercise(exercise.id, body)
@@ -189,7 +224,7 @@ export function ExerciseEditorSheet({
     },
     onSuccess: (saved) => {
       haptic('success');
-      toast.success(exercise ? `${saved.name} saved` : `${saved.name} added to the library`);
+      toast.success(exercise ? t.saved(tr(saved, 'name')) : t.added(tr(saved, 'name')));
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
       onSaved?.(saved);
       onClose();
@@ -241,6 +276,11 @@ export function ExerciseEditorSheet({
     setPicking(null);
   };
   const presetOf = (kind: string) => presets.find((p) => p.kind === kind);
+  const kindName = (kind: string) => {
+    const preset = presetOf(kind);
+    return preset ? tr(preset, 'name') : kind.replace(/_/g, ' ');
+  };
+  const pictureName = (key: string) => t.pictures[key] ?? key.replace(/-/g, ' ');
 
   const iconKeys: readonly string[] =
     draft.icon && !EXERCISE_ICON_KEYS.includes(draft.icon)
@@ -250,7 +290,7 @@ export function ExerciseEditorSheet({
   const targetStepper =
     draft.measure === 'reps' ? (
       <Stepper
-        label={draft.unilateral ? 'Reps each side' : 'Reps'}
+        label={draft.unilateral ? t.repsEachSide : MEASURE_LABEL.reps}
         value={draft.reps}
         onChange={(v) => set('reps', v)}
         min={1}
@@ -258,7 +298,7 @@ export function ExerciseEditorSheet({
       />
     ) : draft.measure === 'time' ? (
       <Stepper
-        label={draft.unilateral ? 'Time each side' : 'Time'}
+        label={draft.unilateral ? t.timeEachSide : MEASURE_LABEL.time}
         value={draft.seconds}
         onChange={(v) => set('seconds', v)}
         min={5}
@@ -268,7 +308,7 @@ export function ExerciseEditorSheet({
       />
     ) : (
       <Stepper
-        label="Distance"
+        label={MEASURE_LABEL.distance}
         value={draft.distance}
         onChange={(v) => set('distance', v)}
         min={100}
@@ -282,10 +322,8 @@ export function ExerciseEditorSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={exercise ? `Edit ${exercise.name}` : 'New exercise'}
-      description={
-        catalog ? 'A built-in exercise: change its target, rest, steps and note.' : undefined
-      }
+      title={exercise ? t.editTitle(tr(exercise, 'name')) : t.newTitle}
+      description={catalog ? t.catalogHint : undefined}
       size="lg"
       footer={
         <div className="flex flex-col gap-2">
@@ -296,7 +334,7 @@ export function ExerciseEditorSheet({
             loading={save.isPending}
             disabled={!catalog && !draft.name.trim()}
           >
-            {exercise ? 'Save' : 'Add to the library'}
+            {exercise ? t.save : t.addToLibrary}
           </Button>
         </div>
       }
@@ -313,8 +351,8 @@ export function ExerciseEditorSheet({
             {!catalog ? (
               <>
                 <TextField
-                  label="Name"
-                  placeholder="Wall sit, towel row…"
+                  label={t.name}
+                  placeholder={t.namePlaceholder}
                   value={draft.name}
                   onChange={(event) => set('name', event.target.value)}
                   error={fields.name}
@@ -322,13 +360,13 @@ export function ExerciseEditorSheet({
                   autoFocus={!exercise}
                 />
                 <Choice
-                  label="Kind"
+                  label={t.kind}
                   value={draft.category}
                   options={CATEGORY_ORDER.map((c) => [c, CATEGORY_LABEL[c]] as const)}
                   onChange={(v) => set('category', v)}
                 />
                 <Choice
-                  label="Counted in"
+                  label={t.countedIn}
                   value={draft.measure}
                   options={(['reps', 'time', 'distance'] as const).map(
                     (m) => [m, MEASURE_LABEL[m]] as const,
@@ -339,32 +377,32 @@ export function ExerciseEditorSheet({
                   <Switch
                     checked={draft.weighted}
                     onChange={(v) => set('weighted', v)}
-                    label="With a weight"
-                    hint="Dumbbells, a kettlebell, a backpack"
+                    label={t.weighted}
+                    hint={t.weightedHint}
                   />
                   <Switch
                     checked={draft.unilateral}
                     onChange={(v) => set('unilateral', v)}
-                    label="One side at a time"
-                    hint="Left, then right"
+                    label={t.unilateral}
+                    hint={t.unilateralHint}
                   />
                 </div>
               </>
             ) : null}
-            <Field label="Usual set">{targetStepper}</Field>
+            <Field label={t.usualSet}>{targetStepper}</Field>
             <Stepper
-              label="Rest after a set"
+              label={t.rest}
               value={draft.rest}
               onChange={(v) => set('rest', v)}
               min={0}
               max={600}
               step={15}
-              format={(v) => (v ? duration(v) : 'None')}
+              format={(v) => (v ? duration(v) : t.noRest)}
             />
             {!catalog ? (
               <>
                 <Choice
-                  label="Level"
+                  label={t.level}
                   value={String(draft.level) as '1' | '2' | '3'}
                   options={(['1', '2', '3'] as const).map(
                     (l) => [l, LEVEL_LABEL[Number(l)]!] as const,
@@ -372,11 +410,11 @@ export function ExerciseEditorSheet({
                   onChange={(v) => set('level', Number(v))}
                 />
                 <Choice
-                  label="Noise"
+                  label={t.noise}
                   value={draft.impact}
                   options={[
-                    ['low', 'Low impact'],
-                    ['high', 'High impact (jumps)'],
+                    ['low', IMPACT_LABEL.low],
+                    ['high', t.highImpact],
                   ]}
                   onChange={(v) => set('impact', v)}
                 />
@@ -386,7 +424,7 @@ export function ExerciseEditorSheet({
 
           {!catalog ? (
             <div className="flex flex-col gap-4">
-              <Field label={`Works most · ${draft.muscles.length}/${MAX_MAIN}`}>
+              <Field label={t.worksMost(draft.muscles.length, MAX_MAIN)}>
                 <MuscleChips
                   chosen={draft.muscles}
                   other={draft.secondary}
@@ -394,7 +432,7 @@ export function ExerciseEditorSheet({
                   tone="ink"
                 />
               </Field>
-              <Field label="Helps">
+              <Field label={t.helps}>
                 <MuscleChips
                   chosen={draft.secondary}
                   other={draft.muscles}
@@ -403,16 +441,16 @@ export function ExerciseEditorSheet({
                 />
               </Field>
 
-              <Field label="Equipment needed">
+              <Field label={t.equipment}>
                 <div className="flex flex-col gap-2">
                   {!draft.equipment.length ? (
-                    <p className="text-sm text-ink-600">No equipment needed.</p>
+                    <p className="text-sm text-ink-600">{t.noEquipment}</p>
                   ) : null}
                   {draft.equipment.map((alt, index) => (
                     <div key={index}>
                       {index > 0 ? (
                         <p className="mb-1.5 pl-1 text-xs font-bold uppercase tracking-wide text-ink-400">
-                          or
+                          {t.or}
                         </p>
                       ) : null}
                       <div className="rounded-2xl bg-ink-50 p-2">
@@ -420,18 +458,18 @@ export function ExerciseEditorSheet({
                           {alt.map((kind) => (
                             <span
                               key={kind}
-                              className="inline-flex h-10 items-center gap-1.5 rounded-pill bg-white pl-1 pr-1 text-sm font-semibold shadow-[var(--shadow-xs)]"
+                              className="inline-flex h-10 min-w-0 max-w-full items-center gap-1.5 rounded-pill bg-white pl-1 pr-1 text-sm font-semibold shadow-[var(--shadow-xs)]"
                             >
                               <EquipmentIcon
                                 name={presetOf(kind)?.icon ?? kind}
-                                className="size-7"
+                                className="size-7 shrink-0"
                               />
-                              {presetOf(kind)?.name ?? kind.replace(/_/g, ' ')}
+                              <span className="min-w-0 truncate">{kindName(kind)}</span>
                               <button
                                 type="button"
                                 onClick={() => toggleKind(index, kind)}
-                                aria-label={`Remove ${presetOf(kind)?.name ?? kind}`}
-                                className="press grid size-8 place-items-center rounded-full text-base text-ink-500 hover:bg-ink-100"
+                                aria-label={t.remove(kindName(kind))}
+                                className="press grid size-8 shrink-0 place-items-center rounded-full text-base text-ink-500 hover:bg-ink-100"
                               >
                                 <CloseIcon fontSize="inherit" />
                               </button>
@@ -448,11 +486,11 @@ export function ExerciseEditorSheet({
                             ) : (
                               <AddIcon fontSize="inherit" />
                             )}
-                            {picking === index ? 'Done' : alt.length ? 'Together with' : 'Pick'}
+                            {picking === index ? t.done : alt.length ? t.togetherWith : t.pick}
                           </button>
                           <IconButton
                             icon={DeleteIcon}
-                            label="Remove this option"
+                            label={t.removeOption}
                             size="sm"
                             variant="ghost"
                             className="ml-auto"
@@ -477,7 +515,7 @@ export function ExerciseEditorSheet({
                                     )}
                                   >
                                     <EquipmentIcon name={preset.icon} className="size-7 shrink-0" />
-                                    <span className="min-w-0 truncate">{preset.name}</span>
+                                    <span className="min-w-0 truncate">{tr(preset, 'name')}</span>
                                   </button>
                                 </li>
                               );
@@ -495,16 +533,16 @@ export function ExerciseEditorSheet({
                       className="self-start"
                       onClick={addAlternative}
                     >
-                      {draft.equipment.length ? 'Or instead…' : 'Needs equipment'}
+                      {draft.equipment.length ? t.orInstead : t.needsEquipment}
                     </Button>
                   ) : null}
                 </div>
               </Field>
 
-              <Field label="Picture">
+              <Field label={t.picture}>
                 <div
                   role="radiogroup"
-                  aria-label="Picture"
+                  aria-label={t.picture}
                   className="grid max-h-[11rem] grid-cols-6 gap-1 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-8 md:grid-cols-6"
                 >
                   {iconKeys.map((key) => (
@@ -513,8 +551,8 @@ export function ExerciseEditorSheet({
                       type="button"
                       role="radio"
                       aria-checked={key === draft.icon}
-                      aria-label={key.replace(/-/g, ' ')}
-                      title={key.replace(/-/g, ' ')}
+                      aria-label={pictureName(key)}
+                      title={pictureName(key)}
                       onClick={() => set('icon', key)}
                       className={cx(
                         'press grid aspect-square min-h-11 place-items-center rounded-xl transition-colors',
@@ -527,17 +565,13 @@ export function ExerciseEditorSheet({
                     </button>
                   ))}
                 </div>
-                {!draft.icon ? (
-                  <p className="mt-1.5 text-xs text-ink-500">
-                    None picked: one is chosen from its kind.
-                  </p>
-                ) : null}
+                {!draft.icon ? <p className="mt-1.5 text-xs text-ink-500">{t.noPicture}</p> : null}
               </Field>
             </div>
           ) : null}
         </div>
 
-        <Field label="Steps">
+        <Field label={t.steps}>
           <ol className="flex flex-col gap-2">
             {draft.steps.map((step, i) => (
               <li key={i} className="flex items-center gap-2">
@@ -545,11 +579,11 @@ export function ExerciseEditorSheet({
                   {i + 1}
                 </span>
                 <TextField
-                  label={`Step ${i + 1}`}
+                  label={t.step(i + 1)}
                   hideLabel
                   dense
                   className="flex-1"
-                  placeholder={i === 0 ? 'Feet under the hips, back straight…' : 'Then…'}
+                  placeholder={i === 0 ? t.firstStep : t.nextStep}
                   value={step}
                   maxLength={300}
                   onChange={(event) =>
@@ -561,7 +595,7 @@ export function ExerciseEditorSheet({
                 />
                 <IconButton
                   icon={CloseIcon}
-                  label={`Remove step ${i + 1}`}
+                  label={t.removeStep(i + 1)}
                   size="sm"
                   variant="ghost"
                   disabled={draft.steps.length === 1 && !step}
@@ -583,33 +617,49 @@ export function ExerciseEditorSheet({
               className="mt-1.5"
               onClick={() => set('steps', [...draft.steps, ''])}
             >
-              Add a step
+              {t.addStep}
             </Button>
           ) : null}
         </Field>
 
-        <Field label="Ways to do it">
+        <Field label={t.ways}>
           <TagsInput
-            label="Ways to do it"
+            label={t.ways}
             value={draft.variants}
             onChange={(variants) => set('variants', variants)}
-            placeholder="Wide grip, single leg, arms straight…"
-            suggestions={WAY_SUGGESTIONS[draft.category]}
+            placeholder={t.waysPlaceholder}
+            suggestions={t.waySuggestions[draft.category]}
           />
-          <p className="mt-1.5 text-xs text-ink-500">
-            Picked when planning or doing it, and kept with each set. Bands and the bar’s grips come
-            from the equipment.
-          </p>
+          <p className="mt-1.5 text-xs text-ink-500">{t.waysHint}</p>
         </Field>
 
         <TextField
-          label="Note"
-          placeholder="Optional"
+          label={t.note}
+          placeholder={t.optional}
           value={draft.note}
           onChange={(event) => set('note', event.target.value)}
           error={fields.note}
           maxLength={500}
         />
+
+        <div className="flex flex-col gap-3">
+          <TranslationFields
+            key={`fields-${loadedFor ?? ''}`}
+            fields={[
+              ...(!catalog ? [{ key: 'name', label: t.name, maxLength: 80 }] : []),
+              { key: 'note', label: t.note, multiline: true, maxLength: 500 },
+            ]}
+            value={draft.translations}
+            onChange={(translations) => set('translations', translations)}
+          />
+          <StepsTranslations
+            key={`steps-${loadedFor ?? ''}`}
+            value={draft.stepsText}
+            onChange={(locale, text) =>
+              setDraft((d) => ({ ...d, stepsText: { ...d.stepsText, [locale]: text } }))
+            }
+          />
+        </div>
       </form>
     </Sheet>
   );
@@ -622,6 +672,68 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     <div>
       <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{label}</p>
       {children}
+    </div>
+  );
+}
+
+const AREA =
+  'min-h-20 w-full resize-y rounded-[1.125rem] bg-ink-50 px-4 py-3 text-base outline-none placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]';
+
+/**
+ * The steps in the app's other languages, folded away like TranslationFields: one step per line,
+ * empty lines dropped on save.
+ */
+function StepsTranslations({
+  value,
+  onChange,
+}: {
+  value: StepsText;
+  onChange: (locale: Locale, text: string) => void;
+}) {
+  const t = useExerciseEditorT();
+  const id = useId();
+  const others = LOCALES.filter((locale) => locale !== getLocale());
+  const filled = others.filter((locale) => value[locale]?.trim()).length;
+  const [open, setOpen] = useState(filled > 0);
+
+  return (
+    <div className="rounded-[1.25rem] bg-ink-50/60">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((was) => !was)}
+        className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-[0.9375rem] font-semibold text-ink-800"
+      >
+        <LanguageIcon fontSize="inherit" className="text-[1.25rem] text-ink-500" />
+        <span className="flex-1">{t.stepsTranslations.toggle}</span>
+        {filled ? (
+          <span className="text-sm font-medium text-ink-500">
+            {t.stepsTranslations.filled(filled)}
+          </span>
+        ) : null}
+        <ExpandMoreIcon
+          fontSize="inherit"
+          className={cx('text-[1.25rem] text-ink-500 transition-transform', open && 'rotate-180')}
+        />
+      </button>
+      {open ? (
+        <div id={id} className="flex flex-col gap-5 px-4 pb-4">
+          {others.map((locale) => (
+            <label key={locale} lang={locale} className="flex flex-col gap-2">
+              <span className="text-sm font-bold text-ink-900">{LOCALE_NAMES[locale]}</span>
+              <textarea
+                aria-label={`${t.steps} · ${LOCALE_NAMES[locale]}`}
+                rows={4}
+                value={value[locale] ?? ''}
+                onChange={(event) => onChange(locale, event.target.value)}
+                className={AREA}
+              />
+            </label>
+          ))}
+          <p className="text-sm text-ink-500">{t.stepsTranslations.hint}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

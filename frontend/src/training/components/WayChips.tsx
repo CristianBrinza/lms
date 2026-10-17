@@ -1,5 +1,7 @@
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { kg } from '../format';
+import { useTrainingT } from '../i18n';
 import type { ExerciseOption } from '../types';
 
 /**
@@ -10,7 +12,7 @@ export function WayChips({
   options,
   value,
   onChange,
-  label = 'How',
+  label,
   tone = 'light',
 }: {
   options: ExerciseOption[];
@@ -19,6 +21,7 @@ export function WayChips({
   label?: string;
   tone?: 'light' | 'dark';
 }) {
+  const t = useTrainingT();
   if (!options.length) return null;
   const chip = (active: boolean) =>
     cx(
@@ -32,7 +35,7 @@ export function WayChips({
           : 'bg-white text-ink-800 ring-1 ring-inset ring-ink-200 hover:bg-lav-50',
     );
   return (
-    <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+    <div role="radiogroup" aria-label={label ?? t.how} className="flex flex-wrap gap-1.5">
       <button
         type="button"
         role="radio"
@@ -40,7 +43,7 @@ export function WayChips({
         className={chip(!value)}
         onClick={() => onChange(undefined, null)}
       >
-        Any
+        {t.any}
       </button>
       {options.map((o) => (
         <button
@@ -48,11 +51,13 @@ export function WayChips({
           type="button"
           role="radio"
           aria-checked={value === o.name}
-          title={o.equipment ? `${o.equipment}: ${o.name}` : o.name}
+          title={
+            o.equipment ? t.wayOf(tr(o, 'equipment') ?? o.equipment, tr(o, 'name')) : tr(o, 'name')
+          }
           className={chip(value === o.name)}
           onClick={() => onChange(o.name, o)}
         >
-          {o.name}
+          {tr(o, 'name')}
           {o.kg !== null ? <span className="tabular ml-1 opacity-70">{kg(o.kg)}</span> : null}
         </button>
       ))}

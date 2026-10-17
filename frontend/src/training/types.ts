@@ -1,3 +1,5 @@
+import type { Translations } from '@/i18n';
+
 /** The shapes /api/training answers with (see backend/src/modules/training). */
 
 export type Muscle =
@@ -46,6 +48,8 @@ export interface ExerciseOption {
   kg: number | null;
   from: 'exercise' | 'equipment';
   equipment?: string;
+  /** name and equipment in the other languages. */
+  translations?: Translations;
 }
 
 export interface EquipmentPreset {
@@ -57,6 +61,8 @@ export interface EquipmentPreset {
   weights?: number[];
   note?: string;
   pieces?: Piece[];
+  /** The name (and note) in each language. */
+  translations?: Translations;
 }
 
 export interface Equipment {
@@ -70,6 +76,8 @@ export interface Equipment {
   count: number;
   note: string;
   variants: Piece[];
+  /** name and note in the other languages (tr(equipment, 'name')). */
+  translations?: Translations;
 }
 
 export interface Exercise {
@@ -99,6 +107,8 @@ export interface Exercise {
   /** Its own ways: grips, stances, positions. */
   variants: string[];
   archived: boolean;
+  /** name, steps and note in the other languages (tr(exercise, 'steps')). */
+  translations?: Translations;
 }
 
 export interface LibraryExercise extends Exercise {
@@ -171,6 +181,8 @@ export interface TrainingSet {
   effort: number | null;
   note: string;
   variant: string;
+  /** exercise and variant in the other languages (tr(set, 'exercise')). */
+  translations?: Translations;
 }
 
 export interface WorkoutSummary {
@@ -192,8 +204,10 @@ export interface WorkoutSummary {
   setsPlanned: number;
   setsDone: number;
   estimatedSeconds: number;
-  exercises: Array<{ id: string; name: string; icon: string }>;
+  exercises: Array<{ id: string; name: string; icon: string; translations?: Translations }>;
   missing: string[];
+  /** title in the other languages (tr(workout, 'title')). */
+  translations?: Translations;
 }
 
 export interface Workout extends WorkoutSummary {
@@ -212,9 +226,17 @@ export interface Routine {
   items: WorkoutItem[];
   rounds: number;
   roundRest: number;
-  exercises: Array<{ id: string; name: string; icon: string; available: boolean }>;
+  exercises: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    available: boolean;
+    translations?: Translations;
+  }>;
   estimatedSeconds: number;
   updatedAt: string;
+  /** name and note in the other languages. */
+  translations?: Translations;
 }
 
 export interface DayActivity {
@@ -256,6 +278,7 @@ export interface Stats {
     reps: number;
     seconds: number;
     distance: number;
+    translations?: Translations;
   }>;
   streak: Streak;
 }
@@ -270,6 +293,7 @@ export interface Pin {
   reps: number | null;
   seconds: number | null;
   today: number;
+  translations?: Translations;
 }
 
 export interface TrainingOverview {
@@ -305,7 +329,8 @@ export interface Generated {
   rounds: number;
   roundRest: number;
   estimatedSeconds: number;
-  exercises: Array<{ id: string; name: string; icon: string }>;
+  exercises: Array<{ id: string; name: string; icon: string; translations?: Translations }>;
+  translations?: Translations;
 }
 
 export interface SetInput {

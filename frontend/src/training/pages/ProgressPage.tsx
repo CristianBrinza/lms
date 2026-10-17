@@ -5,26 +5,23 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, ButtonLink, Chips, Skeleton } from '@/components/ui';
 import { ChevronRightIcon, FireIcon } from '@/components/ui/icons';
-import { addDays, dayAndMonth, localDate, weekdayShort, weekStart } from '@/food/format';
+import { addDays, localDate, weekStart } from '@/food/format';
+import { formatList, formatNumber, getLocale, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { trainingApi, trainingKeys } from '../api';
 import { weeklyTotals } from '../components/chartData';
 import { BarChart, HeatMap } from '../components/charts';
+import { dayMonth as dayAndMonth, weekday as weekdayShort } from '../components/charts.i18n';
 import { PersonSwitcher } from '../components/PersonSwitcher';
 import { distance, duration, MUSCLE_LABEL, MUSCLE_ORDER } from '../format';
+import { trainingT } from '../i18n';
 import { ExerciseIcon } from '../icons/TrainingIcon';
 import { usePerson } from '../person';
 import type { DayActivity, Muscle, Stats } from '../types';
+import { progressT, useProgressT } from './ProgressPage.i18n';
 
 type Range = 'week' | 'month' | 'quarter' | 'year';
-
-const RANGE_LABEL: Record<Range, string> = {
-  week: 'This week',
-  month: 'Last 30 days',
-  quarter: 'Last 3 months',
-  year: 'Last 12 months',
-};
 
 /**
  * Worth some attention: under two sets this week and under a quarter of the busiest muscle's (so a
@@ -32,15 +29,16 @@ const RANGE_LABEL: Record<Range, string> = {
  */
 const neglectedBelow = (max: number) => Math.min(2, max * 0.25);
 
-const minutes = (value: number) => (value > 0 ? duration(value * 60) : '0 min');
+const minutes = (value: number) => (value > 0 ? duration(value * 60) : progressT().minutesOnly(0));
 /** For the small tiles: 203 → "3h 23m", 45 → "45 min". */
 const shortMinutes = (value: number) => {
-  if (value < 60) return `${Math.max(0, Math.round(value))} min`;
+  const t = progressT();
+  if (value < 60) return t.minutesOnly(Math.max(0, Math.round(value)));
   const h = Math.floor(value / 60);
   const m = Math.round(value % 60);
-  return h >= 10 || !m ? `${h} h` : `${h}h ${m}m`;
+  return h >= 10 || !m ? t.hoursOnly(h) : t.hoursMinutes(h, m);
 };
-const sets = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
+const sets = (value: number) => formatNumber(value, { maximumFractionDigits: 1 });
 
 /**
  * How the chosen person's training adds up: totals for a range, streaks, a calendar of days
@@ -48,6 +46,8 @@ const sets = (value: number) => (Number.isInteger(value) ? String(value) : value
  * Phones: one column; tablets and up: two.
  */
 export default function ProgressPage() {
+  const t = useProgressT();
+  const RANGE_LABEL = t.range.long;
   const { personId, person, people, isMe } = usePerson();
   const [range, setRange] = useState<Range>('month');
   const today = localDate();
@@ -82,10 +82,10 @@ export default function ProgressPage() {
       <PageHeader
         compact
         back="/training"
-        title="Progress"
+        title={t.title}
         subtitle={
           people.length > 1 && person
-            ? `${isMe ? 'You' : person.name} · ${RANGE_LABEL[range].toLowerCase()}`
+            ? `${isMe ? t.you : person.name} · ${t.range.inline[range]}`
             : RANGE_LABEL[range]
         }
       />
@@ -93,27 +93,25 @@ export default function ProgressPage() {
       <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-5 lg:px-8">
         <PersonSwitcher />
         <Chips
-          label="Range"
+          label={t.range.label}
           tone="sheet"
           dense
           value={range}
           onChange={setRange}
-          options={[
-            { value: 'week', label: 'Week' },
-            { value: 'month', label: 'Month' },
-            { value: 'quarter', label: '3 months' },
-            { value: 'year', label: 'Year' },
-          ]}
+          options={(['week', 'month', 'quarter', 'year'] as const).map((value) => ({
+            value,
+            label: t.range.chip[value],
+          }))}
         />
       </div>
 
       <div className="gutter-x mt-3 md:px-5 lg:px-8">
         {error ? (
           <div className="mb-3 rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load the progress</p>
+            <p className="font-semibold text-danger-700">{t.loadFailed}</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(error)}</p>
             <Button size="sm" variant="tint" className="mt-3" onClick={retry}>
-              Try again
+              {t.tryAgain}
             </Button>
           </div>
         ) : null}
@@ -124,12 +122,10 @@ export default function ProgressPage() {
             {ranged.data && !ranged.data.totals.activeDays ? (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-butter-100 px-3.5 py-3">
                 <p className="text-sm font-medium text-ink-800">
-                  {isMe
-                    ? 'Nothing logged here yet.'
-                    : `${person?.name ?? 'They'} logged nothing here yet.`}
+                  {isMe ? t.nothingMine : t.nothingTheirs(person?.name ?? null)}
                 </p>
                 <ButtonLink to="/training" size="sm" variant="primary">
-                  Start a workout
+                  {t.startWorkout}
                 </ButtonLink>
               </div>
             ) : null}
@@ -138,7 +134,7 @@ export default function ProgressPage() {
 
         <div className="flex flex-col gap-3 md:grid md:grid-cols-2 md:items-start md:gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-6">
           <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-            <Card title="Streaks">
+            <Card title={t.card.streaks}>
               {(ranged.data ?? calendar.data) ? (
                 <Streaks stats={(ranged.data ?? calendar.data)!} />
               ) : (
@@ -146,7 +142,7 @@ export default function ProgressPage() {
               )}
             </Card>
 
-            <Card title="Days trained" aside={RANGE_LABEL[range === 'year' ? 'year' : 'quarter']}>
+            <Card title={t.card.days} aside={RANGE_LABEL[range === 'year' ? 'year' : 'quarter']}>
               {calendar.data ? (
                 <Calendar stats={calendar.data} from={calendarFrom} today={today} />
               ) : (
@@ -154,13 +150,10 @@ export default function ProgressPage() {
               )}
             </Card>
 
-            <Card
-              title="Minutes per week"
-              aside={RANGE_LABEL[range === 'year' ? 'year' : 'quarter']}
-            >
+            <Card title={t.card.minutes} aside={RANGE_LABEL[range === 'year' ? 'year' : 'quarter']}>
               {calendar.data ? (
                 <BarChart
-                  label="Minutes trained per week"
+                  label={t.minutesChart}
                   format={minutes}
                   bars={weeklyTotals(
                     calendar.data.days.map((d) => ({ day: d.day, value: d.minutes })),
@@ -169,7 +162,7 @@ export default function ProgressPage() {
                   ).map((w) => ({
                     key: w.week,
                     label: dayAndMonth(w.week),
-                    title: `Week of ${dayAndMonth(w.week)}`,
+                    title: t.weekOf(dayAndMonth(w.week)),
                     value: w.value,
                     current: w.week === thisWeek,
                   }))}
@@ -181,7 +174,7 @@ export default function ProgressPage() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-3 md:gap-4">
-            <Card title="This week’s muscles" aside="1 set main · ½ helper">
+            <Card title={t.card.muscles} aside={t.card.musclesAside}>
               {week.data ? (
                 <Muscles muscles={week.data.muscles} />
               ) : (
@@ -189,7 +182,7 @@ export default function ProgressPage() {
               )}
             </Card>
 
-            <Card title="Done most" aside={RANGE_LABEL[range]}>
+            <Card title={t.card.top} aside={RANGE_LABEL[range]}>
               {ranged.data ? (
                 <TopExercises top={ranged.data.top} />
               ) : (
@@ -232,32 +225,34 @@ function TilesSkeleton() {
 }
 
 function Totals({ stats }: { stats: Stats }) {
+  const words = useProgressT().tile;
   const t = stats.totals;
-  const tiles: Array<{ label: string; value: string; strong?: boolean }> = [
+  const tiles: Array<{ key: string; label: string; value: string; strong?: boolean }> = [
     {
-      label: t.activeDays === 1 ? 'day trained' : 'days trained',
-      value: String(t.activeDays),
+      key: 'days',
+      label: words.daysTrained(t.activeDays),
+      value: formatNumber(t.activeDays),
       strong: true,
     },
-    { label: t.workouts === 1 ? 'workout' : 'workouts', value: String(t.workouts) },
-    { label: 'trained', value: shortMinutes(t.minutes) },
-    { label: 'sets', value: String(t.sets) },
-    { label: 'reps', value: String(t.reps) },
-    { label: 'distance', value: t.distance ? distance(t.distance) : '—' },
+    { key: 'workouts', label: words.workouts(t.workouts), value: formatNumber(t.workouts) },
+    { key: 'minutes', label: words.trained, value: shortMinutes(t.minutes) },
+    { key: 'sets', label: words.sets, value: formatNumber(t.sets) },
+    { key: 'reps', label: words.reps, value: formatNumber(t.reps) },
+    { key: 'distance', label: words.distance, value: t.distance ? distance(t.distance) : '—' },
   ];
   return (
     <dl className="grid grid-cols-3 gap-2 lg:grid-cols-6">
       {tiles.map((tile) => (
         <div
-          key={tile.label}
+          key={tile.key}
           className={cx(
-            'flex min-w-0 flex-col-reverse rounded-2xl px-3 py-2.5',
+            'flex min-w-0 flex-col-reverse justify-end rounded-2xl px-3 py-2.5',
             tile.strong ? 'bg-ink-900 text-white' : 'bg-ink-50',
           )}
         >
           <dt
             className={cx(
-              'truncate text-xs font-semibold',
+              'text-xs font-semibold [overflow-wrap:break-word]',
               tile.strong ? 'text-white/70' : 'text-ink-600',
             )}
           >
@@ -274,16 +269,15 @@ function Totals({ stats }: { stats: Stats }) {
 
 function Streaks({ stats }: { stats: Stats }) {
   const { current, best, weeks } = stats.streak;
+  const words = useProgressT().streak;
   const tiles = [
     {
       key: 'now',
       value: current,
-      label: current
-        ? `${current === 1 ? 'day' : 'days'} in a row now`
-        : 'Train today to start a streak',
+      label: current ? words.now(current) : words.start,
     },
-    { key: 'best', value: best, label: `${best === 1 ? 'day' : 'days'}, the best run` },
-    { key: 'weeks', value: weeks, label: `${weeks === 1 ? 'week' : 'weeks'} in a row` },
+    { key: 'best', value: best, label: words.best(best) },
+    { key: 'weeks', value: weeks, label: words.weeks(weeks) },
   ];
   return (
     <dl className="grid grid-cols-3 gap-2">
@@ -295,9 +289,11 @@ function Streaks({ stats }: { stats: Stats }) {
             i === 0 && current ? 'bg-peach-100' : 'bg-ink-50',
           )}
         >
-          <dt className="mt-0.5 text-xs font-semibold leading-snug text-ink-600">{tile.label}</dt>
+          <dt className="mt-0.5 text-xs font-semibold leading-snug text-ink-600 [overflow-wrap:break-word]">
+            {tile.label}
+          </dt>
           <dd className="tabular flex items-center gap-1 text-[1.25rem] font-bold leading-tight tracking-[-0.02em] sm:text-[1.375rem]">
-            {tile.value}
+            {formatNumber(tile.value)}
             {i === 0 ? (
               <FireIcon
                 fontSize="inherit"
@@ -315,6 +311,7 @@ function Streaks({ stats }: { stats: Stats }) {
 function Calendar({ stats, from, today }: { stats: Stats; from: string; today: string }) {
   const byDay = new Map<string, DayActivity>(stats.days.map((d) => [d.day, d]));
   const values = new Map(stats.days.map((d) => [d.day, d.sets || d.minutes]));
+  const t = useProgressT();
   return (
     <HeatMap
       from={from}
@@ -324,32 +321,35 @@ function Calendar({ stats, from, today }: { stats: Stats; from: string; today: s
       describe={(day) => {
         const d = byDay.get(day);
         const when = `${weekdayShort(day)} ${dayAndMonth(day)}`;
-        if (!d) return `${when}: rest`;
-        return `${when}: ${d.sets} ${d.sets === 1 ? 'set' : 'sets'}${d.minutes ? ` · ${minutes(d.minutes)}` : ''}`;
+        if (!d) return t.rest(when);
+        return `${when}: ${trainingT().sets(d.sets)}${d.minutes ? ` · ${minutes(d.minutes)}` : ''}`;
       }}
     />
   );
 }
 
 function Muscles({ muscles }: { muscles: Partial<Record<Muscle, number>> }) {
+  const t = useProgressT().muscles;
   const max = Math.max(0, ...MUSCLE_ORDER.map((m) => muscles[m] ?? 0));
   if (!max)
-    return (
-      <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">
-        Nothing yet this week. Each set counts 1 for the muscle it works most and ½ for each helper.
-      </p>
-    );
+    return <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">{t.empty}</p>;
   const neglected = MUSCLE_ORDER.filter((m) => (muscles[m] ?? 0) < neglectedBelow(max));
   return (
     <div>
-      <ul className="flex flex-col gap-1.5" aria-label="Sets per muscle this week">
+      <ul className="flex flex-col gap-1.5" aria-label={t.list}>
         {MUSCLE_ORDER.map((m) => {
           const value = muscles[m] ?? 0;
           const low = neglected.includes(m);
           return (
             <li
               key={m}
-              className="grid grid-cols-[5.5rem_minmax(0,1fr)_2.25rem] items-center gap-2"
+              className={cx(
+                'grid items-center gap-2',
+                // Romanian and Russian muscle names run longer ("Ischiogambieri", "Бицепс бедра").
+                getLocale() === 'en'
+                  ? 'grid-cols-[5.5rem_minmax(0,1fr)_2.25rem]'
+                  : 'grid-cols-[7rem_minmax(0,1fr)_2.25rem]',
+              )}
             >
               <span
                 className={cx(
@@ -377,8 +377,8 @@ function Muscles({ muscles }: { muscles: Partial<Record<Muscle, number>> }) {
               <span className="tabular text-right text-[0.8125rem] font-bold">
                 {value ? sets(value) : '—'}
                 <span className="sr-only">
-                  {value === 1 ? ' set' : ' sets'}
-                  {low ? ', could use more' : ''}
+                  {t.sets(value)}
+                  {low ? t.low : ''}
                 </span>
               </span>
             </li>
@@ -387,7 +387,7 @@ function Muscles({ muscles }: { muscles: Partial<Record<Muscle, number>> }) {
       </ul>
       {neglected.length ? (
         <p className="mt-3 rounded-2xl bg-peach-100 px-3.5 py-2.5 text-[0.8125rem] font-medium text-peach-800">
-          Could use more: {neglected.map((m) => MUSCLE_LABEL[m]).join(', ')}
+          {t.needMore(formatList(neglected.map((m) => MUSCLE_LABEL[m])))}
         </p>
       ) : null}
     </div>
@@ -395,12 +395,10 @@ function Muscles({ muscles }: { muscles: Partial<Record<Muscle, number>> }) {
 }
 
 function TopExercises({ top }: { top: Stats['top'] }) {
+  const t = useProgressT();
+  const words = trainingT();
   if (!top.length)
-    return (
-      <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">
-        No exercises logged in this range.
-      </p>
-    );
+    return <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">{t.topEmpty}</p>;
   return (
     <ol className="-mx-1.5 flex flex-col">
       {top.map((e, i) => (
@@ -416,11 +414,11 @@ function TopExercises({ top }: { top: Stats['top'] }) {
               <ExerciseIcon name={e.icon} className="size-9" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.9375rem] font-semibold">{e.name}</span>
+              <span className="block truncate text-[0.9375rem] font-semibold">{tr(e, 'name')}</span>
               <span className="tabular block truncate text-[0.8125rem] text-ink-600">
                 {[
-                  `${e.sets} ${e.sets === 1 ? 'set' : 'sets'}`,
-                  e.reps ? `${e.reps} reps` : null,
+                  words.sets(e.sets),
+                  e.reps ? words.reps(e.reps) : null,
                   e.seconds ? duration(e.seconds) : null,
                   e.distance ? distance(e.distance) : null,
                 ]

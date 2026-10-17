@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { intlLocale } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { STORAGE_KEYS, storage } from '@/lib/storage';
 
@@ -128,7 +129,8 @@ export function say(text: string) {
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-GB';
+    // The app's language: en-GB, ro-MD or ru-RU (a phone without that voice picks its nearest).
+    utterance.lang = intlLocale();
     utterance.rate = 1.02;
     window.speechSynthesis.speak(utterance);
   } catch {

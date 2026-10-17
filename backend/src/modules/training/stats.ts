@@ -1,9 +1,12 @@
+import type { Translations } from '../../lib/i18n';
 import type { FoodCtx as Ctx } from '../food/kitchen';
 import { localDate } from '../food/stock';
+import { nameTranslations } from './i18n';
 import { findExercise, listEquipment, pinsOf, type Exercise } from './library';
 import {
   e1rm,
   listWorkouts,
+  setTranslations,
   setsOn,
   trainingPeople,
   type TrainingSet,
@@ -48,6 +51,8 @@ export interface Stats {
     reps: number;
     seconds: number;
     distance: number;
+    /** The exercise's name in other languages: { ro: { name }, ru: … }. */
+    translations: Translations;
   }>;
   streak: { current: number; best: number; weeks: number };
 }
@@ -85,12 +90,13 @@ export async function stats(
       reps: number;
       seconds: number;
       distance: number;
+      translations: Translations | null;
     }>(
-      `SELECT s.exercise_id, e.name, e.icon, count(*)::int AS sets, coalesce(sum(s.reps), 0)::int AS reps, coalesce(sum(s.seconds), 0)::int AS seconds,
+      `SELECT s.exercise_id, e.name, e.icon, e.translations, count(*)::int AS sets, coalesce(sum(s.reps), 0)::int AS reps, coalesce(sum(s.seconds), 0)::int AS seconds,
               coalesce(sum(s.distance), 0)::int AS distance
          FROM training_sets s JOIN training_exercises e ON e.id = s.exercise_id
         WHERE s.household_id = $1 AND s.user_id = $2 AND s.day BETWEEN $3 AND $4
-        GROUP BY s.exercise_id, e.name, e.icon ORDER BY count(*) DESC, e.name LIMIT 8`,
+        GROUP BY s.exercise_id, e.name, e.icon, e.translations ORDER BY count(*) DESC, e.name LIMIT 8`,
       [ctx.actor.householdId, userId, from, to],
     ),
     streaks(ctx, userId, today),
@@ -135,6 +141,7 @@ export async function stats(
       reps: row.reps,
       seconds: row.seconds,
       distance: row.distance,
+      translations: nameTranslations(row.translations),
     })),
     streak,
   };
@@ -236,6 +243,7 @@ export async function exerciseHistory(ctx: Ctx, exerciseId: string): Promise<Exe
     effort: row.effort,
     note: row.note,
     variant: row.variant,
+    translations: setTranslations(row.variant, exercise),
   }));
   const bests: ExerciseHistory['bests'] = {
     reps: null,
@@ -323,6 +331,8 @@ export interface TrainingOverview {
     reps: number | null;
     seconds: number | null;
     today: number;
+    /** The exercise's name in other languages: { ro: { name }, ru: … }. */
+    translations: Translations;
   }>;
   /** Sets logged today, newest first (to undo a mis-tap). */
   loggedToday: TrainingSet[];
@@ -399,13 +409,14 @@ async function pinnedToday(
     reps: number | null;
     seconds: number | null;
     today: number;
+    translations: Translations | null;
   }>(
-    `SELECT e.id, e.name, e.icon, e.measure, e.weighted, e.unilateral, e.reps, e.seconds,
+    `SELECT e.id, e.name, e.icon, e.measure, e.weighted, e.unilateral, e.reps, e.seconds, e.translations,
             coalesce((SELECT CASE WHEN e.measure = 'time' THEN sum(s.seconds) ELSE sum(s.reps) END FROM training_sets s
                        WHERE s.user_id = $2 AND s.exercise_id = e.id AND s.day = $3), 0)::int AS today
        FROM training_pins p JOIN training_exercises e ON e.id = p.exercise_id
       WHERE p.user_id = $2 AND e.household_id = $1 AND e.archived_at IS NULL ORDER BY p.created_at`,
     [ctx.actor.householdId, userId, today],
   );
-  return rows;
+  return rows.map((row) => ({ ...row, translations: nameTranslations(row.translations) }));
 }

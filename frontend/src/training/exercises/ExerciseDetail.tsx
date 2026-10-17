@@ -10,7 +10,7 @@ import {
   VisibilityIcon,
   VisibilityOffIcon,
 } from '@/components/ui/icons';
-import { dayAndMonth, relativeDay, localDate } from '@/food/format';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -29,9 +29,11 @@ import {
   setLabel,
   target,
 } from '../format';
+import { trainingT } from '../i18n';
 import { EquipmentIcon, ExerciseIcon } from '../icons/TrainingIcon';
 import { usePerson } from '../person';
 import type { Equipment, EquipmentPreset, ExerciseHistory, LibraryExercise } from '../types';
+import { dayLabel, shortDate, useExerciseDetailT } from './ExerciseDetail.i18n';
 import { ExerciseEditorSheet } from './ExerciseEditorSheet';
 
 /**
@@ -53,11 +55,12 @@ export function ExerciseSheet({
     queryFn: () => trainingApi.exercise(exerciseId!, personId),
     enabled: Boolean(exerciseId),
   });
+  const t = useExerciseDetailT();
   return (
     <Sheet
       open={Boolean(exerciseId)}
       onClose={onClose}
-      title={detail.data?.exercise.name ?? 'Exercise'}
+      title={detail.data ? tr(detail.data.exercise, 'name') : t.exercise}
       size="lg"
     >
       {exerciseId ? <ExerciseDetail exerciseId={exerciseId} /> : null}
@@ -78,14 +81,22 @@ export function ExercisePanel({
     queryKey: trainingKeys.exercise(exerciseId, personId),
     queryFn: () => trainingApi.exercise(exerciseId, personId),
   });
+  const t = useExerciseDetailT();
+  const name = detail.data ? tr(detail.data.exercise, 'name') : null;
   return (
     <section
-      aria-label={detail.data?.exercise.name ?? 'Exercise'}
+      aria-label={name ?? t.exercise}
       className="animate-fade-in rounded-[1.75rem] bg-white p-5 shadow-[var(--shadow-card)]"
     >
       <header className="mb-4 flex items-start justify-between gap-3">
-        <h2 className="min-w-0 text-h2 font-bold">{detail.data?.exercise.name ?? ' '}</h2>
-        <IconButton icon={CloseIcon} label="Close" size="sm" variant="outline" onClick={onClose} />
+        <h2 className="min-w-0 text-h2 font-bold">{name ?? ' '}</h2>
+        <IconButton
+          icon={CloseIcon}
+          label={t.close}
+          size="sm"
+          variant="outline"
+          onClick={onClose}
+        />
       </header>
       <ExerciseDetail exerciseId={exerciseId} />
     </section>
@@ -93,6 +104,8 @@ export function ExercisePanel({
 }
 
 export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
+  const t = useExerciseDetailT();
+  const words = trainingT();
   const queryClient = useQueryClient();
   const { personId, person, isMe } = usePerson();
   const detail = useQuery({
@@ -118,8 +131,8 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
       );
     },
     onSuccess: (_, pinned) =>
-      toast.success(pinned ? 'Pinned' : 'Unpinned', {
-        description: pinned ? 'Kept at hand for quick logging' : undefined,
+      toast.success(pinned ? t.pinned : t.unpinned, {
+        description: pinned ? t.keptAtHand : undefined,
       }),
     onError: (error) => toast.error(errorMessage(error)),
     onSettled: refresh,
@@ -130,11 +143,11 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
     onSuccess: (saved, archived) => {
       haptic('success');
       refresh();
-      toast.success(archived ? `${saved.name} hidden` : `${saved.name} is back`, {
-        description: archived ? 'It leaves the library and generated workouts' : undefined,
+      toast.success(archived ? t.hiddenToast(tr(saved, 'name')) : t.backToast(tr(saved, 'name')), {
+        description: archived ? t.hiddenHint : undefined,
         action: archived
           ? {
-              label: 'Undo',
+              label: t.undo,
               onClick: () =>
                 void trainingApi.updateExercise(exerciseId, { archived: false }).then(refresh),
             }
@@ -163,10 +176,10 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
   if (detail.error)
     return (
       <div className="rounded-2xl bg-danger-50 p-4">
-        <p className="font-semibold text-danger-700">Couldn’t load this exercise</p>
+        <p className="font-semibold text-danger-700">{t.loadError}</p>
         <p className="mt-1 text-sm text-ink-600">{errorMessage(detail.error)}</p>
         <Button size="sm" variant="tint" className="mt-3" onClick={() => void detail.refetch()}>
-          Try again
+          {t.tryAgain}
         </Button>
       </div>
     );
@@ -175,7 +188,10 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
   const presets = equipment.data?.presets ?? [];
   const owned = equipment.data?.equipment ?? [];
   const pinned = pin.isPending && pin.variables !== undefined ? pin.variables : exercise.pinned;
-  const whose = isMe ? 'Your' : `${person?.name ?? 'Their'}’s`;
+  const name = tr(exercise, 'name');
+  const steps = tr(exercise, 'steps');
+  const note = tr(exercise, 'note');
+  const bestsTitle = isMe ? t.yourBests : t.theirBests(person?.name ?? null);
 
   return (
     <div className="flex flex-col gap-5">
@@ -191,7 +207,7 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
               <LevelDots level={exercise.level} />
               {LEVEL_LABEL[exercise.level] ?? ''}
             </Pill>
-            {exercise.archived ? <Pill tone="muted">Hidden</Pill> : null}
+            {exercise.archived ? <Pill tone="muted">{t.hidden}</Pill> : null}
           </div>
           <p
             className={cx(
@@ -199,17 +215,15 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
               exercise.impact === 'high' ? 'text-peach-800' : 'text-mint-800',
             )}
           >
-            {exercise.impact === 'high'
-              ? 'High impact: jumps and landings'
-              : 'Low impact: no jumping'}
+            {exercise.impact === 'high' ? t.highImpact : t.lowImpact}
           </p>
           <p className="tabular text-sm text-ink-600">
             {target(exercise, exercise.measure)}
-            {exercise.unilateral ? ' each side' : ''}
-            {exercise.rest ? ` · rest ${duration(exercise.rest)}` : ''}
+            {exercise.unilateral ? ` ${words.eachSide}` : ''}
+            {exercise.rest ? ` · ${t.rest(duration(exercise.rest))}` : ''}
           </p>
           {!exercise.available ? (
-            <p className="text-sm font-semibold text-peach-800">Not possible with what’s at home</p>
+            <p className="text-sm font-semibold text-peach-800">{t.notAtHome}</p>
           ) : null}
         </div>
       </div>
@@ -217,17 +231,13 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
       {/* What to do with it. */}
       <div className="grid grid-cols-2 gap-2">
         <Button size="md" icon={AddIcon} onClick={() => setLogging(true)} className="col-span-2">
-          Log a set
+          {t.logSet}
         </Button>
         <button
           type="button"
           aria-pressed={pinned}
           onClick={() => pin.mutate(!pinned)}
-          title={
-            pinned
-              ? 'Kept at hand for quick logging. Tap to unpin'
-              : 'Keep at hand for quick logging'
-          }
+          title={pinned ? t.pinnedHint : t.pinHint}
           className={cx(
             'press inline-flex h-12 min-w-0 items-center justify-center gap-2 whitespace-nowrap rounded-pill px-4 text-[0.9375rem] font-semibold transition-colors',
             pinned
@@ -239,25 +249,25 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
             fontSize="inherit"
             className={cx('text-[1.3rem]', !pinned && 'text-ink-500')}
           />
-          {pinned ? 'Pinned' : 'Pin'}
+          <span className="truncate">{pinned ? t.pinned : t.pin}</span>
         </button>
         <Button
           size="md"
           variant="outline"
           icon={EditIcon}
-          aria-label={`Edit ${exercise.name}`}
+          aria-label={t.editName(name)}
           onClick={() => setEditing(true)}
         >
-          Edit
+          {t.edit}
         </Button>
       </div>
       {!isMe ? (
         <p className="-mt-3 text-[0.8125rem] font-medium text-ink-500">
-          Pins, bests and sets are {person?.name ?? 'their'}’s.
+          {t.whoseNote(person?.name ?? null)}
         </p>
       ) : null}
 
-      <Section title="Muscles">
+      <Section title={t.muscles}>
         <div className="flex flex-wrap gap-1.5">
           {exercise.muscles.map((m) => (
             <Pill key={m} tone="ink">
@@ -270,17 +280,15 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
             </Pill>
           ))}
           {!exercise.muscles.length && !exercise.secondary.length ? (
-            <span className="text-sm text-ink-600">Not set</span>
+            <span className="text-sm text-ink-600">{t.notSet}</span>
           ) : null}
         </div>
         {exercise.secondary.length && exercise.muscles.length ? (
-          <p className="mt-1.5 text-xs font-medium text-ink-500">
-            Dark: works it most · light: helps
-          </p>
+          <p className="mt-1.5 text-xs font-medium text-ink-500">{t.musclesKey}</p>
         ) : null}
       </Section>
 
-      <Section title="Equipment">
+      <Section title={t.equipment}>
         <EquipmentNeeds
           needs={exercise.equipment}
           uses={exercise.uses}
@@ -290,7 +298,7 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
       </Section>
 
       {exercise.weights.length ? (
-        <Section title="Weights at home">
+        <Section title={t.weightsAtHome}>
           <div className="flex flex-wrap gap-1.5">
             {exercise.weights.map((w) => (
               <Pill key={w.kg} tone="butter">
@@ -303,15 +311,15 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
       ) : null}
 
       {exercise.options.length ? (
-        <Section title="Ways to do it">
+        <Section title={t.waysToDoIt}>
           <ul className="flex flex-wrap gap-1.5">
             {exercise.options.map((o) => (
               <li
                 key={`${o.from}-${o.name}`}
                 className="inline-flex h-9 items-center gap-1 rounded-pill bg-lav-100 px-3 text-sm font-semibold text-ink-900"
               >
-                {o.name}
-                {o.kg !== null ? <span className="tabular text-lav-800">· {o.kg} kg</span> : null}
+                {tr(o, 'name')}
+                {o.kg !== null ? <span className="tabular text-lav-800">· {kg(o.kg)}</span> : null}
                 {o.equipment ? (
                   <span className="text-xs font-medium text-lav-800">({o.equipment})</span>
                 ) : null}
@@ -320,10 +328,10 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
           </ul>
         </Section>
       ) : null}
-      {exercise.steps.length ? (
-        <Section title="How to do it">
+      {steps.length ? (
+        <Section title={t.howToDoIt}>
           <ol className="flex flex-col gap-2.5">
-            {exercise.steps.map((step, i) => (
+            {steps.map((step, i) => (
               <li key={i} className="flex gap-3 text-[0.9375rem] leading-snug text-ink-800">
                 <span className="tabular grid size-6 shrink-0 place-items-center rounded-full bg-lav-100 text-xs font-bold text-lav-800">
                   {i + 1}
@@ -335,29 +343,29 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
         </Section>
       ) : null}
 
-      {exercise.note ? (
-        <p className="rounded-2xl bg-butter-50 px-4 py-3 text-sm text-ink-800">{exercise.note}</p>
+      {note ? (
+        <p className="rounded-2xl bg-butter-50 px-4 py-3 text-sm text-ink-800">{note}</p>
       ) : null}
 
-      <Section title={`${whose} bests`}>
+      <Section title={bestsTitle}>
         <Bests bests={bests} />
       </Section>
 
       {days.length > 1 ? (
-        <Section title="Over time">
+        <Section title={t.overTime}>
           <Progress days={days} measure={exercise.measure} />
         </Section>
       ) : null}
 
       {days.length ? (
-        <Section title="Recent days">
+        <Section title={t.recentDays}>
           <ul className="flex flex-col divide-y divide-ink-100 rounded-2xl bg-ink-50 px-3.5">
             {days.slice(0, 6).map((d) => (
               <li key={d.day} className="py-2.5">
                 <p className="text-sm font-semibold text-ink-800">
-                  {relativeDay(d.day, localDate())}
+                  {dayLabel(d.day)}
                   <span className="tabular ml-1.5 font-medium text-ink-500">
-                    {d.sets.length} {d.sets.length === 1 ? 'set' : 'sets'}
+                    {words.sets(d.sets.length)}
                   </span>
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1">
@@ -366,11 +374,11 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
                       key={s.id}
                       className="tabular inline-flex h-7 items-center rounded-pill bg-white px-2.5 text-xs font-semibold text-ink-800 shadow-[var(--shadow-xs)]"
                     >
-                      {s.side ? (
-                        <span className="mr-1 text-ink-500">{s.side === 'left' ? 'L' : 'R'}</span>
-                      ) : null}
+                      {s.side ? <span className="mr-1 text-ink-500">{t.side[s.side]}</span> : null}
                       {setLabel(s)}
-                      {s.variant ? <span className="ml-1 text-ink-500">· {s.variant}</span> : null}
+                      {s.variant ? (
+                        <span className="ml-1 text-ink-500">· {tr(s, 'variant')}</span>
+                      ) : null}
                     </span>
                   ))}
                 </div>
@@ -388,7 +396,7 @@ export function ExerciseDetail({ exerciseId }: { exerciseId: string }) {
           loading={archive.isPending}
           onClick={() => archive.mutate(!exercise.archived)}
         >
-          {exercise.archived ? 'Show again' : 'Hide from the library'}
+          {exercise.archived ? t.showAgain : t.hide}
         </Button>
       </div>
 
@@ -459,9 +467,15 @@ function EquipmentNeeds({
   presets: EquipmentPreset[];
   owned: Equipment[];
 }) {
-  if (!needs.length) return <p className="text-[0.9375rem] text-ink-700">No equipment needed.</p>;
+  const t = useExerciseDetailT();
+  if (!needs.length) return <p className="text-[0.9375rem] text-ink-700">{t.noEquipment}</p>;
   const have = new Set(owned.filter((item) => item.count > 0).map((item) => item.kind));
   const preset = (kind: string) => presets.find((p) => p.kind === kind);
+  /** The catalog's name for a kind, in the current language. */
+  const equipmentName = (kind: string) => {
+    const known = preset(kind);
+    return known ? tr(known, 'name') : kind.replace(/_/g, ' ');
+  };
   const usesKey = uses?.join('+');
   return (
     <ul className="flex flex-col gap-1.5">
@@ -471,7 +485,7 @@ function EquipmentNeeds({
           <li key={option.join('+')}>
             {i > 0 ? (
               <p className="mb-1.5 pl-1 text-xs font-bold uppercase tracking-wide text-ink-400">
-                or
+                {t.or}
               </p>
             ) : null}
             <div
@@ -493,7 +507,7 @@ function EquipmentNeeds({
                         have.has(kind) ? 'text-ink-900' : 'text-ink-600',
                       )}
                     >
-                      {preset(kind)?.name ?? kind.replace(/_/g, ' ')}
+                      {equipmentName(kind)}
                     </span>
                   </span>
                 ))}
@@ -501,10 +515,10 @@ function EquipmentNeeds({
               {ready ? (
                 <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-mint-800">
                   <CheckCircleIcon fontSize="inherit" className="text-base" />
-                  At home
+                  {t.atHome}
                 </span>
               ) : (
-                <span className="shrink-0 text-xs font-semibold text-ink-500">Not at home</span>
+                <span className="shrink-0 text-xs font-semibold text-ink-500">{t.notHome}</span>
               )}
             </div>
           </li>
@@ -515,30 +529,31 @@ function EquipmentNeeds({
 }
 
 function Bests({ bests }: { bests: ExerciseHistory['bests'] }) {
+  const t = useExerciseDetailT();
   const tiles: Array<{ key: keyof typeof RECORD_LABEL; value: string; detail: string }> = [];
   if (bests.reps)
     tiles.push({
       key: 'reps',
-      value: `${bests.reps.value} reps`,
-      detail: dayAndMonth(bests.reps.day),
+      value: trainingT().reps(bests.reps.value),
+      detail: shortDate(bests.reps.day),
     });
   if (bests.weight)
     tiles.push({
       key: 'weight',
       value: kg(bests.weight.value),
-      detail: `${bests.weight.reps ? `× ${bests.weight.reps} · ` : ''}${dayAndMonth(bests.weight.day)}`,
+      detail: `${bests.weight.reps ? `× ${bests.weight.reps} · ` : ''}${shortDate(bests.weight.day)}`,
     });
   if (bests.e1rm)
     tiles.push({
       key: 'e1rm',
       value: `≈ ${kg(bests.e1rm.value)}`,
-      detail: `one rep, estimated · ${dayAndMonth(bests.e1rm.day)}`,
+      detail: `${t.oneRepEstimated} · ${shortDate(bests.e1rm.day)}`,
     });
   if (bests.seconds)
     tiles.push({
       key: 'seconds',
       value: duration(bests.seconds.value),
-      detail: dayAndMonth(bests.seconds.day),
+      detail: shortDate(bests.seconds.day),
     });
   if (bests.distance)
     tiles.push({
@@ -546,17 +561,13 @@ function Bests({ bests }: { bests: ExerciseHistory['bests'] }) {
       value: distance(bests.distance.value),
       detail: [
         bests.distance.seconds ? pace(bests.distance.value, bests.distance.seconds) : '',
-        dayAndMonth(bests.distance.day),
+        shortDate(bests.distance.day),
       ]
         .filter(Boolean)
         .join(' · '),
     });
   if (!tiles.length)
-    return (
-      <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">
-        No sets yet. Log one and the bests start here.
-      </p>
-    );
+    return <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">{t.noSets}</p>;
   return (
     <dl className="grid grid-cols-2 gap-2">
       {tiles.map((tile) => (
@@ -579,6 +590,7 @@ function Progress({
   days: ExerciseHistory['days'];
   measure: LibraryExercise['measure'];
 }) {
+  const t = useExerciseDetailT();
   const weighted = measure === 'reps' && days.some((d) => d.sets.some((s) => s.weight));
   const points = [...days]
     .reverse()
@@ -586,12 +598,12 @@ function Progress({
     .map((d) => ({ day: d.day, value: d.best }));
   const [label, format] =
     measure === 'time'
-      ? ['Longest set per day', (v: number) => duration(v)]
+      ? [t.chart.time, (v: number) => duration(v)]
       : measure === 'distance'
-        ? ['Furthest per day', (v: number) => distance(v)]
+        ? [t.chart.distance, (v: number) => distance(v)]
         : weighted
-          ? ['Strongest set per day, as an estimated one-rep weight', (v: number) => kg(v)]
-          : ['Most reps in a set per day', (v: number) => `${Math.round(v)} reps`];
+          ? [t.chart.weight, (v: number) => kg(v)]
+          : [t.chart.reps, (v: number) => trainingT().reps(Math.round(v))];
   return (
     <div className="rounded-2xl bg-ink-50 p-3.5">
       <LineChart points={points} format={format} label={label} />

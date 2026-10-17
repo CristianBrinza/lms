@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, IconButton, Sheet, Skeleton, TextField, toast } from '@/components/ui';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/icons';
 import { dayLong, localDate, relativeDay, relativeDayInline } from '@/food/format';
 import { Stepper } from '@/food/kitchenware/Stepper';
+import { formatNumber, intlLocale, tr, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -32,11 +34,13 @@ import {
   plan,
   setLabel,
   STATUS_LABEL,
+  wayName,
 } from '../format';
+import { useTrainingT } from '../i18n';
 import { ExerciseIcon } from '../icons/TrainingIcon';
 import type { Block, LibraryExercise, Workout, WorkoutItem, WorkoutItemView } from '../types';
+import { useWorkoutT } from './WorkoutPage.i18n';
 
-const FEELING = ['', 'Very hard', 'Hard', 'OK', 'Good', 'Great'] as const;
 const BLOCKS: Block[] = ['warmup', 'main', 'cooldown'];
 
 type Draft = { items: WorkoutItemView[]; rounds: number; roundRest: number };
@@ -50,6 +54,7 @@ export default function WorkoutPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const t = useWorkoutT();
   const workout = useQuery({
     queryKey: trainingKeys.workout(id),
     queryFn: () => trainingApi.workout(id),
@@ -87,7 +92,7 @@ export default function WorkoutPage() {
     onSuccess: (next) => {
       haptic('tap');
       refresh(next);
-      toast.success(next.status === 'skipped' ? 'Skipped' : 'Planned again');
+      toast.success(next.status === 'skipped' ? t.toast.skipped : t.toast.plannedAgain);
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -137,7 +142,7 @@ export default function WorkoutPage() {
         },
       ],
     }));
-    toast.success(`${exercise.name} added`);
+    toast.success(t.toast.added(tr(exercise, 'name')));
   };
 
   const play = async () => {
@@ -159,7 +164,7 @@ export default function WorkoutPage() {
       <PageHeader
         compact
         back={data ? `/training/plan?day=${data.date}` : '/training/plan'}
-        title={data?.title ?? 'Workout'}
+        title={data ? tr(data, 'title') : t.workout}
         subtitle={
           data
             ? `${relativeDay(data.date)}${data.time ? ` · ${data.time}` : ''} · ${data.person}`
@@ -175,7 +180,7 @@ export default function WorkoutPage() {
       ) : workout.error || !data || !current ? (
         <div className="gutter-x mt-3 md:px-5 lg:px-8">
           <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load this workout</p>
+            <p className="font-semibold text-danger-700">{t.loadError}</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(workout.error)}</p>
             <Button
               size="sm"
@@ -183,7 +188,7 @@ export default function WorkoutPage() {
               className="mt-3"
               onClick={() => void workout.refetch()}
             >
-              Try again
+              {t.tryAgain}
             </Button>
           </div>
         </div>
@@ -199,7 +204,7 @@ export default function WorkoutPage() {
             {data.missing.length ? (
               <p className="flex items-start gap-2 rounded-2xl bg-peach-100 px-4 py-3 text-sm text-ink-800">
                 <WarningIcon fontSize="inherit" className="mt-0.5 shrink-0 text-[1.1rem]" />
-                Some exercises need equipment that isn’t at home. Swap them, or add the equipment.
+                {t.missing}
               </p>
             ) : null}
 
@@ -212,7 +217,7 @@ export default function WorkoutPage() {
                   {BLOCK_LABEL[group.block]}
                   {group.block === 'main' && current.rounds > 1 ? (
                     <span className="text-sm font-semibold text-ink-500">
-                      × {current.rounds} rounds · {duration(current.roundRest)} between
+                      {t.roundsBetween(current.rounds, duration(current.roundRest))}
                     </span>
                   ) : null}
                 </h2>
@@ -236,7 +241,7 @@ export default function WorkoutPage() {
                     />
                   ))}
                   {!group.items.length ? (
-                    <li className="px-4 py-5 text-sm text-ink-600">No exercises yet.</li>
+                    <li className="px-4 py-5 text-sm text-ink-600">{t.noExercises}</li>
                   ) : null}
                 </ol>
               </section>
@@ -245,11 +250,11 @@ export default function WorkoutPage() {
             {editable ? (
               <div className="flex flex-col gap-3">
                 <Button variant="soft" icon={AddIcon} onClick={() => setPicking(true)}>
-                  Add an exercise
+                  {t.addExercise}
                 </Button>
                 <div className="grid gap-2 rounded-[1.25rem] bg-white p-3 shadow-[var(--shadow-card)] sm:grid-cols-2">
                   <Stepper
-                    label="Rounds"
+                    label={t.rounds}
                     value={current.rounds}
                     min={1}
                     max={20}
@@ -257,18 +262,16 @@ export default function WorkoutPage() {
                   />
                   {current.rounds > 1 ? (
                     <Stepper
-                      label="Between rounds"
+                      label={t.betweenRounds}
                       value={current.roundRest}
                       min={0}
                       max={600}
                       step={15}
-                      format={(v) => (v ? duration(v) : 'none')}
+                      format={(v) => (v ? duration(v) : t.none)}
                       onChange={(roundRest) => change((d) => ({ ...d, roundRest }))}
                     />
                   ) : (
-                    <p className="self-center px-2 text-sm text-ink-600">
-                      More than one round makes a circuit: every exercise once, then again.
-                    </p>
+                    <p className="self-center px-2 text-sm text-ink-600">{t.circuitHint}</p>
                   )}
                 </div>
               </div>
@@ -284,20 +287,20 @@ export default function WorkoutPage() {
           </div>
 
           <aside className="flex flex-col gap-2 lg:sticky lg:top-4">
-            <h2 className="px-1 text-[0.9375rem] font-bold">This workout</h2>
+            <h2 className="px-1 text-[0.9375rem] font-bold">{t.thisWorkout}</h2>
             <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
               <Button
                 variant="soft"
                 onClick={() => setSheet('move')}
                 disabled={data.status === 'done'}
               >
-                Move to another day
+                {t.action.move}
               </Button>
               <Button variant="soft" icon={ContentCopyIcon} onClick={() => setSheet('copy')}>
-                Copy to a day
+                {t.action.copy}
               </Button>
               <Button variant="soft" onClick={() => setSheet('routine')}>
-                Save as a routine
+                {t.action.routine}
               </Button>
               {data.status === 'skipped' || data.status === 'done' ? (
                 <Button
@@ -305,7 +308,7 @@ export default function WorkoutPage() {
                   loading={status.isPending}
                   onClick={() => status.mutate('planned')}
                 >
-                  {data.status === 'done' ? 'Reopen' : 'Plan it again'}
+                  {data.status === 'done' ? t.action.reopen : t.action.planAgain}
                 </Button>
               ) : (
                 <Button
@@ -313,7 +316,7 @@ export default function WorkoutPage() {
                   loading={status.isPending}
                   onClick={() => status.mutate('skipped')}
                 >
-                  Skip it
+                  {t.action.skip}
                 </Button>
               )}
               <Button
@@ -322,7 +325,7 @@ export default function WorkoutPage() {
                 className="text-danger-700"
                 onClick={() => setSheet('delete')}
               >
-                Delete
+                {t.action.delete}
               </Button>
             </div>
           </aside>
@@ -332,14 +335,14 @@ export default function WorkoutPage() {
       {dirty && current ? (
         <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.75rem)] z-30 flex justify-center px-4 md:bottom-6">
           <div className="flex w-full max-w-md items-center gap-2 rounded-full bg-ink-900 p-1.5 pl-5 text-white shadow-[var(--shadow-tile)]">
-            <span className="flex-1 text-sm font-semibold">Unsaved changes</span>
+            <span className="min-w-0 flex-1 text-sm leading-tight font-semibold">{t.unsaved}</span>
             <Button
               size="sm"
               variant="ghost"
               className="text-white hover:bg-white/10"
               onClick={() => setDraft(null)}
             >
-              Undo
+              {t.undo}
             </Button>
             <Button
               size="sm"
@@ -347,7 +350,7 @@ export default function WorkoutPage() {
               loading={save.isPending}
               onClick={() => save.mutate(current)}
             >
-              Save
+              {t.save}
             </Button>
           </div>
         </div>
@@ -375,7 +378,10 @@ function StatusCard({
   onPlay: () => void;
   saving: boolean;
 }) {
+  const t = useWorkoutT();
+  const tt = useTrainingT();
   const done = workout.status === 'done';
+  const kcal = `${formatNumber(workout.kcal)} ${tt.unit.kcal}`;
   const sets = draft.items.reduce(
     (sum, i) =>
       sum +
@@ -398,22 +404,27 @@ function StatusCard({
           </p>
           <p className="mt-0.5 text-[1.375rem] font-bold leading-tight tracking-[-0.02em]">
             {done
-              ? `${workout.durationSeconds ? duration(workout.durationSeconds) : ''}${workout.durationSeconds ? ' · ' : ''}${workout.setsDone} sets · ${workout.kcal} kcal`
+              ? `${workout.durationSeconds ? duration(workout.durationSeconds) : ''}${workout.durationSeconds ? ' · ' : ''}${tt.sets(workout.setsDone)} · ${kcal}`
               : workout.status === 'active'
-                ? `${workout.setsDone} of ${sets} sets`
-                : `${draft.items.length} exercises · ${sets} sets`}
+                ? t.status.setsOf(workout.setsDone, sets)
+                : `${tt.exercises(draft.items.length)} · ${tt.sets(sets)}`}
           </p>
           <p className={cx('text-sm', done ? 'text-ink-700' : 'text-white/70')}>
             {done
               ? [
-                  workout.feeling ? FEELING[workout.feeling] : null,
+                  workout.feeling ? t.status.feeling[workout.feeling] : null,
                   workout.finishedAt
-                    ? `finished ${new Date(workout.finishedAt).toTimeString().slice(0, 5)}`
+                    ? t.status.finished(
+                        new Intl.DateTimeFormat(intlLocale(), {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        }).format(new Date(workout.finishedAt)),
+                      )
                     : null,
                 ]
                   .filter(Boolean)
                   .join(' · ')
-              : `About ${duration(workout.estimatedSeconds)} · ~${workout.kcal} kcal · ${dayLong(workout.date)}`}
+              : t.status.about(duration(workout.estimatedSeconds), kcal, dayLong(workout.date))}
           </p>
           {workout.note ? (
             <p className={cx('mt-1 text-sm italic', done ? 'text-ink-700' : 'text-white/80')}>
@@ -428,7 +439,7 @@ function StatusCard({
             type="button"
             onClick={onPlay}
             disabled={!draft.items.length || saving || workout.status === 'skipped'}
-            aria-label={workout.status === 'active' ? 'Continue the workout' : 'Start the workout'}
+            aria-label={workout.status === 'active' ? t.status.continue : t.status.start}
             className="press grid size-16 shrink-0 place-items-center rounded-full bg-butter-300 text-[2.25rem] text-ink-900 shadow-[0_8px_16px_-8px_rgb(0_0_0/0.55)] disabled:opacity-40"
           >
             <PlayIcon fontSize="inherit" />
@@ -437,7 +448,7 @@ function StatusCard({
       </div>
       {!done && workout.date !== localDate() && workout.status === 'planned' ? (
         <p className="mt-2 text-xs text-white/60">
-          Planned for {relativeDayInline(workout.date)}; you can still start it now.
+          {t.status.plannedFor(relativeDayInline(workout.date))}
         </p>
       ) : null}
     </section>
@@ -467,7 +478,10 @@ function ItemRow({
   onMove: (by: -1 | 1) => void;
   onRemove: () => void;
 }) {
+  const t = useWorkoutT();
+  const tt = useTrainingT();
   const e = item.exercise;
+  const name = tr(e, 'name');
   const chip = (active: boolean) =>
     cx(
       'press h-10 min-w-10 rounded-full px-3 text-sm font-semibold tabular transition-colors',
@@ -487,35 +501,37 @@ function ItemRow({
           <ExerciseIcon name={e.icon} className="size-11" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.9375rem] font-semibold">{e.name}</span>
+          <span className="block truncate text-[0.9375rem] font-semibold">{name}</span>
           <span className="block text-sm text-ink-700">
             {plan(item, e)}
-            {item.variant ? ` · ${item.variant}` : ''}
-            {item.rest ? <span className="text-ink-500"> · rest {duration(item.rest)}</span> : null}
+            {item.variant ? ` · ${wayName(item.exercise, item.variant)}` : ''}
+            {item.rest ? (
+              <span className="text-ink-500"> · {t.item.rest(duration(item.rest))}</span>
+            ) : null}
           </span>
           {item.suggest ? (
             <span className="block truncate text-xs text-lav-800">{item.suggest.text}</span>
           ) : item.last ? (
             <span className="block truncate text-xs text-ink-500">
-              Last time: {item.last.sets.map(setLabel).join(', ')}
+              {t.item.lastTime(item.last.sets.map(setLabel).join(', '))}
             </span>
           ) : null}
           {!e.available ? (
             <span className="block text-xs font-semibold text-danger-700">
-              Needs equipment that isn’t at home
+              {t.item.needsEquipment}
             </span>
           ) : null}
         </span>
         {done ? (
           <span className="tabular shrink-0 rounded-full bg-mint-100 px-2.5 py-1 text-xs font-bold text-mint-800">
-            {done} done
+            {t.item.done(done)}
           </span>
         ) : null}
       </button>
       {expanded && editable ? (
         <div className="flex flex-col gap-2 border-t border-ink-100 bg-ink-50/50 p-3">
           <Stepper
-            label="Sets"
+            label={t.item.sets}
             value={item.sets}
             min={1}
             max={20}
@@ -523,7 +539,7 @@ function ItemRow({
           />
           {e.measure === 'reps' ? (
             <Stepper
-              label={e.unilateral ? 'Reps each side' : 'Reps'}
+              label={e.unilateral ? t.item.repsEachSide : tt.measure.reps}
               value={item.reps ?? 10}
               min={1}
               max={500}
@@ -531,7 +547,7 @@ function ItemRow({
             />
           ) : e.measure === 'time' ? (
             <Stepper
-              label={e.unilateral ? 'Each side' : 'Time'}
+              label={e.unilateral ? t.item.eachSide : tt.measure.time}
               value={item.seconds ?? 30}
               min={5}
               max={3600}
@@ -541,7 +557,7 @@ function ItemRow({
             />
           ) : (
             <Stepper
-              label="Distance"
+              label={tt.measure.distance}
               value={item.distance ?? 1000}
               min={100}
               max={100_000}
@@ -551,17 +567,17 @@ function ItemRow({
             />
           )}
           <Stepper
-            label="Rest after each set"
+            label={t.item.restAfter}
             value={item.rest}
             min={0}
             max={600}
             step={15}
-            format={(v) => (v ? clock(v) : 'none')}
+            format={(v) => (v ? clock(v) : t.none)}
             onChange={(rest) => onChange({ rest })}
           />
           {e.options.length ? (
             <div className="rounded-[1.125rem] bg-ink-50 p-3">
-              <p className="mb-2 text-[0.9375rem] font-semibold text-ink-800">How</p>
+              <p className="mb-2 text-[0.9375rem] font-semibold text-ink-800">{tt.how}</p>
               <WayChips
                 options={e.options}
                 value={item.variant}
@@ -576,14 +592,14 @@ function ItemRow({
           ) : null}
           {e.weighted && e.weights.length ? (
             <div className="rounded-[1.125rem] bg-ink-50 p-3">
-              <p className="mb-2 text-[0.9375rem] font-semibold text-ink-800">Weight</p>
+              <p className="mb-2 text-[0.9375rem] font-semibold text-ink-800">{t.item.weight}</p>
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
                   className={chip(!item.weight)}
                   onClick={() => onChange({ weight: null })}
                 >
-                  None
+                  {t.item.noWeight}
                 </button>
                 {e.weights.map((w) => (
                   <button
@@ -614,7 +630,7 @@ function ItemRow({
             <span className="ml-auto flex gap-1">
               <IconButton
                 icon={ArrowUpIcon}
-                label="Move up"
+                label={t.item.moveUp}
                 size="sm"
                 variant="outline"
                 disabled={index === 0}
@@ -622,7 +638,7 @@ function ItemRow({
               />
               <IconButton
                 icon={ArrowDownIcon}
-                label="Move down"
+                label={t.item.moveDown}
                 size="sm"
                 variant="outline"
                 disabled={index === count - 1}
@@ -630,7 +646,7 @@ function ItemRow({
               />
               <IconButton
                 icon={CloseIcon}
-                label={`Remove ${e.name}`}
+                label={t.item.remove(name)}
                 size="sm"
                 variant="outline"
                 onClick={onRemove}
@@ -652,13 +668,14 @@ function DoneSets({
   onRemove: (id: string) => void;
   removing: boolean;
 }) {
+  const t = useWorkoutT();
   const byExercise = new Map<string, typeof workout.sets>();
   for (const s of workout.sets)
-    byExercise.set(s.exercise, [...(byExercise.get(s.exercise) ?? []), s]);
+    byExercise.set(tr(s, 'exercise'), [...(byExercise.get(tr(s, 'exercise')) ?? []), s]);
   return (
     <section aria-labelledby="done-sets">
       <h2 id="done-sets" className="mb-1.5 px-1 text-[0.9375rem] font-bold">
-        What was done
+        {t.done.title}
       </h2>
       <ul className="divide-y divide-ink-100 overflow-hidden rounded-[1.25rem] bg-white shadow-[var(--shadow-card)]">
         {[...byExercise].map(([name, sets]) => (
@@ -673,15 +690,15 @@ function DoneSets({
                     className="flex items-center gap-1 rounded-full bg-ink-50 py-1 pr-1 pl-3 text-sm"
                   >
                     <span className="tabular">
-                      {s.side ? `${s.side === 'left' ? 'L' : 'R'} ` : ''}
+                      {s.side ? `${s.side === 'left' ? t.done.left : t.done.right} ` : ''}
                       {setLabel(s)}
-                      {s.variant ? ` · ${s.variant}` : ''}
+                      {s.variant ? ` · ${tr(s, 'variant')}` : ''}
                     </span>
                     <button
                       type="button"
                       disabled={removing}
                       onClick={() => onRemove(s.id)}
-                      aria-label={`Remove the set ${setLabel(s)}`}
+                      aria-label={t.done.remove(setLabel(s))}
                       className="press grid size-7 place-items-center rounded-full text-ink-500 hover:bg-ink-100 hover:text-ink-900"
                     >
                       <CloseIcon fontSize="inherit" className="text-[1rem]" />
@@ -708,15 +725,18 @@ function WorkoutSheets({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const t = useWorkoutT();
   const [day, setDay] = useState(workout.date);
-  const [name, setName] = useState(workout.title);
+  const [name, setName] = useState(tr(workout, 'title'));
+  const [translations, setTranslations] = useState<Translations>({});
   // Each time a sheet opens it starts from the workout as it is.
   const [shown, setShown] = useState(sheet);
   if (shown !== sheet) {
     setShown(sheet);
     if (sheet) {
       setDay(sheet === 'copy' ? localDate() : workout.date);
-      setName(workout.title);
+      setName(tr(workout, 'title'));
+      setTranslations({});
     }
   }
   const done = (message: string) => {
@@ -730,10 +750,10 @@ function WorkoutSheets({
       if (sheet === 'move')
         return trainingApi
           .updateWorkout(workout.id, { date: day })
-          .then(() => done(`Moved to ${relativeDayInline(day)}`));
+          .then(() => done(t.toast.movedTo(relativeDayInline(day))));
       if (sheet === 'copy')
         return trainingApi.copyWorkout(workout.id, { date: day }).then((copy) => {
-          done(`Copied to ${relativeDayInline(day)}`);
+          done(t.toast.copiedTo(relativeDayInline(day)));
           navigate(`/training/workouts/${copy.id}`);
         });
       if (sheet === 'routine')
@@ -745,39 +765,34 @@ function WorkoutSheets({
             items: workout.items.map(({ exercise: _e, last: _l, suggest: _s, ...item }) => item),
             rounds: workout.rounds,
             roundRest: workout.roundRest,
+            translations,
           })
-          .then(() => done('Saved as a routine: plan it again from the Plan'));
+          .then(() => done(t.toast.savedRoutine));
       if (sheet === 'delete')
         return trainingApi.removeWorkout(workout.id).then(() => {
-          done('Workout deleted');
+          done(t.toast.deleted);
           navigate(`/training/plan?day=${workout.date}`, { replace: true });
         });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
-  const titles = {
-    move: 'Move to another day',
-    copy: 'Copy to a day',
-    routine: 'Save as a routine',
-    delete: 'Delete this workout?',
-  } as const;
   return (
     <Sheet
       open={sheet !== null}
       onClose={onClose}
-      title={sheet ? titles[sheet] : ''}
+      title={sheet ? t.sheet[sheet] : ''}
       description={
         sheet === 'delete'
           ? workout.setsDone
-            ? `Its ${workout.setsDone} logged sets go too.`
-            : 'Nothing was logged in it.'
+            ? t.sheet.deleteSets(workout.setsDone)
+            : t.sheet.nothingLogged
           : undefined
       }
     >
       <div className="flex flex-col gap-3">
         {sheet === 'move' || sheet === 'copy' ? (
-          <label className="flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-3">
-            <span className="font-semibold">Day</span>
+          <label className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3">
+            <span className="font-semibold">{t.sheet.day}</span>
             <input
               type="date"
               value={day}
@@ -786,12 +801,19 @@ function WorkoutSheets({
             />
           </label>
         ) : sheet === 'routine' ? (
-          <TextField
-            label="Name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={80}
-          />
+          <>
+            <TextField
+              label={t.sheet.name}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={80}
+            />
+            <TranslationFields
+              fields={[{ key: 'name', label: t.sheet.name, maxLength: 80 }]}
+              value={translations}
+              onChange={setTranslations}
+            />
+          </>
         ) : null}
         <Button
           size="lg"
@@ -801,12 +823,12 @@ function WorkoutSheets({
           onClick={() => act.mutate()}
         >
           {sheet === 'delete'
-            ? 'Delete'
+            ? t.sheet.doDelete
             : sheet === 'routine'
-              ? 'Save'
+              ? t.sheet.doSave
               : sheet === 'copy'
-                ? 'Copy'
-                : 'Move'}
+                ? t.sheet.doCopy
+                : t.sheet.doMove}
         </Button>
       </div>
     </Sheet>

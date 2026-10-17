@@ -3,16 +3,19 @@ import { useMemo, useState } from 'react';
 import { Button, Sheet, Skeleton, toast } from '@/components/ui';
 import { ArrowBackIcon, SearchIcon } from '@/components/ui/icons';
 import { addDays, localDate } from '@/food/format';
+import { intlLocale, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { Stepper } from '@/food/kitchenware/Stepper';
 import { trainingApi, trainingKeys } from '../api';
 import { distance as formatDistance, duration, kg, RECORD_LABEL, setLabel } from '../format';
+import { useTrainingT } from '../i18n';
 import { ExerciseIcon } from '../icons/TrainingIcon';
 import { WayChips } from './WayChips';
 import { usePerson } from '../person';
 import type { LibraryExercise, SetInput } from '../types';
+import { useQuickLogT } from './QuickLogSheet.i18n';
 
 type When = 'now' | 'earlier' | 'day';
 
@@ -33,6 +36,7 @@ export function QuickLogSheet({
   onClose: () => void;
   exerciseId?: string | null;
 }) {
+  const t = useQuickLogT();
   const { personId, person, isMe } = usePerson();
   const exercises = useQuery({
     queryKey: trainingKeys.exercises(personId),
@@ -52,15 +56,15 @@ export function QuickLogSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={exercise ? exercise.name : 'Log a set'}
+      title={exercise ? tr(exercise, 'name') : t.title}
       description={
         exercise
           ? isMe
-            ? 'Done just now, or earlier.'
-            : `For ${person?.name ?? 'them'}.`
+            ? t.doneNow
+            : t.forPerson(person?.name)
           : isMe
-            ? 'What did you just do?'
-            : `What did ${person?.name ?? 'they'} do?`
+            ? t.whatDidYouDo
+            : t.whatDidTheyDo(person?.name)
       }
     >
       {exercises.isPending ? (
@@ -78,7 +82,7 @@ export function QuickLogSheet({
             className="mt-2"
             onClick={() => void exercises.refetch()}
           >
-            Try again
+            {t.tryAgain}
           </Button>
         </div>
       ) : exercise ? (
@@ -103,17 +107,26 @@ function Picker({
   exercises: LibraryExercise[];
   onPick: (id: string) => void;
 }) {
+  const t = useQuickLogT();
   const [search, setSearch] = useState('');
   const q = search.trim().toLowerCase();
   const pinned = exercises.filter((e) => e.pinned);
-  const list = useMemo(
-    () =>
-      exercises
-        .filter((e) => !q || e.name.toLowerCase().includes(q))
-        .sort((a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name))
-        .slice(0, q ? 40 : 24),
-    [exercises, q],
-  );
+  const list = useMemo(() => {
+    const locale = intlLocale();
+    // Searched and sorted by the name people see; what was written still matches too.
+    return exercises
+      .map((e) => ({ exercise: e, name: tr(e, 'name') }))
+      .filter(
+        ({ exercise, name }) =>
+          !q || name.toLowerCase().includes(q) || exercise.name.toLowerCase().includes(q),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.exercise.available) - Number(a.exercise.available) ||
+          a.name.localeCompare(b.name, locale),
+      )
+      .slice(0, q ? 40 : 24);
+  }, [exercises, q]);
   return (
     <div className="flex flex-col gap-4">
       {pinned.length && !q ? (
@@ -123,26 +136,28 @@ function Picker({
               key={e.id}
               type="button"
               onClick={() => onPick(e.id)}
-              className="press flex flex-col items-center gap-1 rounded-2xl bg-butter-100 p-3 text-center transition-colors hover:bg-butter-200"
+              className="press flex min-w-0 flex-col items-center gap-1 rounded-2xl bg-butter-100 p-3 text-center transition-colors hover:bg-butter-200"
             >
               <ExerciseIcon name={e.icon} className="size-12" />
-              <span className="text-sm font-semibold leading-tight">{e.name}</span>
+              <span className="max-w-full text-sm font-semibold leading-tight [overflow-wrap:anywhere]">
+                {tr(e, 'name')}
+              </span>
             </button>
           ))}
         </div>
       ) : null}
       <label className="flex h-12 items-center gap-2 rounded-2xl bg-ink-50 px-4 focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
         <SearchIcon fontSize="inherit" className="text-[1.25rem] text-ink-500" />
-        <span className="sr-only">Find an exercise</span>
+        <span className="sr-only">{t.findExercise}</span>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Push-ups, plank, run…"
+          placeholder={t.searchPlaceholder}
           className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-400"
         />
       </label>
       <ul className="flex flex-col gap-1">
-        {list.map((e) => (
+        {list.map(({ exercise: e, name }) => (
           <li key={e.id}>
             <button
               type="button"
@@ -153,19 +168,15 @@ function Picker({
                 <ExerciseIcon name={e.icon} className="size-9" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-semibold">{e.name}</span>
+                <span className="block truncate font-semibold">{name}</span>
                 {!e.available ? (
-                  <span className="block text-xs text-ink-500">Needs equipment you don’t have</span>
+                  <span className="block text-xs text-ink-500">{t.needsEquipment}</span>
                 ) : null}
               </span>
             </button>
           </li>
         ))}
-        {!list.length ? (
-          <li className="px-2 py-4 text-sm text-ink-600">
-            Nothing called that. Add it under Exercises.
-          </li>
-        ) : null}
+        {!list.length ? <li className="px-2 py-4 text-sm text-ink-600">{t.nothingFound}</li> : null}
       </ul>
     </div>
   );
@@ -182,6 +193,8 @@ function Amount({
   onBack: (() => void) | null;
   onDone: () => void;
 }) {
+  const t = useQuickLogT();
+  const words = useTrainingT();
   const queryClient = useQueryClient();
   const today = localDate();
   const [reps, setReps] = useState(exercise.reps ?? 10);
@@ -225,14 +238,14 @@ function Amount({
     onSuccess: ({ set, records }) => {
       haptic(records.length ? 'success' : 'tap');
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
-      toast.success(`${exercise.name}: ${setLabel(set)}`, {
+      toast.success(`${tr(exercise, 'name')}: ${setLabel(set)}`, {
         description: records.length
-          ? `New best · ${records.map((r) => RECORD_LABEL[r]).join(', ')}`
+          ? words.newBest(records.map((r) => RECORD_LABEL[r]).join(', '))
           : when === 'now'
-            ? 'Logged just now'
+            ? t.loggedNow
             : undefined,
         action: {
-          label: 'Undo',
+          label: t.undo,
           onClick: () =>
             void trainingApi
               .removeSet(set.id)
@@ -257,8 +270,8 @@ function Amount({
           <button
             type="button"
             onClick={onBack}
-            aria-label="Pick another exercise"
-            className="press grid size-11 place-items-center rounded-full bg-ink-50 text-[1.25rem]"
+            aria-label={t.pickAnother}
+            className="press grid size-11 shrink-0 place-items-center rounded-full bg-ink-50 text-[1.25rem]"
           >
             <ArrowBackIcon fontSize="inherit" />
           </button>
@@ -266,20 +279,20 @@ function Amount({
         <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-butter-100">
           <ExerciseIcon name={exercise.icon} className="size-12" />
         </span>
-        <p className="text-sm text-ink-600">
-          {exercise.unilateral ? 'Count one side; do the other the same. ' : ''}
+        <p className="min-w-0 text-sm text-ink-600">
+          {exercise.unilateral ? t.oneSide : ''}
           {exercise.measure === 'reps'
-            ? 'How many?'
+            ? t.howMany
             : exercise.measure === 'time'
-              ? 'How long?'
-              : 'How far, and in how long?'}
+              ? t.howLong
+              : t.howFar}
         </p>
       </div>
 
       {exercise.measure === 'reps' ? (
         <>
-          <Stepper label="Reps" value={reps} min={1} max={1000} onChange={setReps} />
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick amounts">
+          <Stepper label={words.measure.reps} value={reps} min={1} max={1000} onChange={setReps} />
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t.quickAmounts}>
             {REP_CHIPS.map((n) => (
               <button key={n} type="button" className={chip(reps === n)} onClick={() => setReps(n)}>
                 {n}
@@ -290,7 +303,7 @@ function Amount({
       ) : exercise.measure === 'time' ? (
         <>
           <Stepper
-            label="Time"
+            label={words.measure.time}
             value={seconds}
             min={5}
             max={3600}
@@ -298,7 +311,7 @@ function Amount({
             format={duration}
             onChange={setSeconds}
           />
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick times">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t.quickTimes}>
             {SECOND_CHIPS.map((n) => (
               <button
                 key={n}
@@ -313,23 +326,23 @@ function Amount({
         </>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex flex-col gap-1 rounded-2xl bg-ink-50 p-3">
-            <span className="text-xs font-semibold text-ink-600">Distance, km</span>
+          <label className="flex min-w-0 flex-col gap-1 rounded-2xl bg-ink-50 p-3">
+            <span className="text-xs font-semibold text-ink-600">{t.distanceKm}</span>
             <input
               inputMode="decimal"
               value={km}
               onChange={(event) => setKm(event.target.value)}
-              className="tabular bg-transparent text-xl font-bold outline-none"
+              className="tabular min-w-0 bg-transparent text-xl font-bold outline-none"
             />
           </label>
-          <label className="flex flex-col gap-1 rounded-2xl bg-ink-50 p-3">
-            <span className="text-xs font-semibold text-ink-600">Time, min (optional)</span>
+          <label className="flex min-w-0 flex-col gap-1 rounded-2xl bg-ink-50 p-3">
+            <span className="text-xs font-semibold text-ink-600">{t.timeMin}</span>
             <input
               inputMode="decimal"
               value={minutes}
               onChange={(event) => setMinutes(event.target.value)}
               placeholder="—"
-              className="tabular bg-transparent text-xl font-bold outline-none"
+              className="tabular min-w-0 bg-transparent text-xl font-bold outline-none"
             />
           </label>
         </div>
@@ -337,7 +350,7 @@ function Amount({
 
       {exercise.options.length ? (
         <fieldset>
-          <legend className="mb-1.5 text-sm font-semibold text-ink-700">How</legend>
+          <legend className="mb-1.5 text-sm font-semibold text-ink-700">{words.how}</legend>
           <WayChips
             options={exercise.options}
             value={variant}
@@ -351,10 +364,10 @@ function Amount({
 
       {exercise.weighted && exercise.weights.length ? (
         <fieldset>
-          <legend className="mb-1.5 text-sm font-semibold text-ink-700">Weight</legend>
+          <legend className="mb-1.5 text-sm font-semibold text-ink-700">{t.weight}</legend>
           <div className="flex flex-wrap gap-1.5">
             <button type="button" className={chip(weight === null)} onClick={() => setWeight(null)}>
-              None
+              {t.none}
             </button>
             {exercise.weights.map((w) => (
               <button
@@ -362,7 +375,7 @@ function Amount({
                 type="button"
                 className={chip(weight === w.kg)}
                 onClick={() => setWeight(w.kg)}
-                aria-label={`${kg(w.kg)}${w.pair ? ', a pair' : ', one'}`}
+                aria-label={`${kg(w.kg)}${w.pair ? t.aPair : t.one}`}
               >
                 {kg(w.kg)}
                 {w.pair ? <span className="ml-1 text-xs opacity-70">×2</span> : null}
@@ -373,25 +386,25 @@ function Amount({
       ) : null}
 
       <fieldset>
-        <legend className="mb-1.5 text-sm font-semibold text-ink-700">When</legend>
+        <legend className="mb-1.5 text-sm font-semibold text-ink-700">{t.when}</legend>
         <div className="flex flex-wrap gap-1.5">
           <button type="button" className={chip(when === 'now')} onClick={() => setWhen('now')}>
-            Just now
+            {t.justNow}
           </button>
           <button
             type="button"
             className={chip(when === 'earlier')}
             onClick={() => setWhen('earlier')}
           >
-            Earlier today
+            {t.earlierToday}
           </button>
           <button type="button" className={chip(when === 'day')} onClick={() => setWhen('day')}>
-            Another day
+            {t.anotherDay}
           </button>
         </div>
         {when === 'earlier' ? (
-          <label className="mt-2 flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5">
-            <span className="text-sm font-semibold">At</span>
+          <label className="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-2.5">
+            <span className="text-sm font-semibold">{t.at}</span>
             <input
               type="time"
               value={time}
@@ -401,8 +414,8 @@ function Amount({
             />
           </label>
         ) : when === 'day' ? (
-          <label className="mt-2 flex items-center justify-between rounded-2xl bg-ink-50 px-4 py-2.5">
-            <span className="text-sm font-semibold">On</span>
+          <label className="mt-2 flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-2.5">
+            <span className="text-sm font-semibold">{t.on}</span>
             <input
               type="date"
               value={day}
@@ -419,16 +432,17 @@ function Amount({
         loading={log.isPending}
         onClick={() => {
           const input = body();
-          if (!input) return toast.error('Enter how far');
+          if (!input) return toast.error(t.enterDistance);
           log.mutate(input);
         }}
       >
-        Log{' '}
-        {exercise.measure === 'reps'
-          ? `${reps} ${reps === 1 ? 'rep' : 'reps'}`
-          : exercise.measure === 'time'
-            ? duration(seconds)
-            : formatDistance(Math.round(Number(km.replace(',', '.')) * 1000) || 0)}
+        {t.log(
+          exercise.measure === 'reps'
+            ? words.reps(reps)
+            : exercise.measure === 'time'
+              ? duration(seconds)
+              : formatDistance(Math.round(Number(km.replace(',', '.')) * 1000) || 0),
+        )}
       </Button>
     </div>
   );

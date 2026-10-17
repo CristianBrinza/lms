@@ -3,14 +3,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, Sheet, Switch, toast } from '@/components/ui';
 import { dayAndMonth, localDate, relativeDayInline } from '@/food/format';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { trainingApi, trainingKeys } from '../api';
-import { duration, FOCUS_LABEL, LEVEL_LABEL } from '../format';
+import { BLOCK_LABEL, duration, FOCUS_LABEL, kg, LEVEL_LABEL } from '../format';
+import { useTrainingT } from '../i18n';
 import { ExerciseIcon } from '../icons/TrainingIcon';
 import { usePerson } from '../person';
 import type { Focus, Generated } from '../types';
+import { useGenerateT } from './GenerateSheet.i18n';
 
 const MINUTES = [10, 20, 30, 45];
 const FOCUSES = Object.keys(FOCUS_LABEL) as Focus[];
@@ -30,6 +33,8 @@ export function GenerateSheet({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const t = useGenerateT();
+  const tt = useTrainingT();
   const { personId, person, isMe } = usePerson();
   const [minutes, setMinutes] = useState(20);
   const [focus, setFocus] = useState<Focus>('full');
@@ -73,8 +78,8 @@ export function GenerateSheet({
       onClose();
       if (start) navigate(`/training/workouts/${workout.id}/play`);
       else
-        toast.success(`Planned for ${relativeDayInline(date)}`, {
-          description: workout.title,
+        toast.success(t.plannedFor(relativeDayInline(date)), {
+          description: tr(workout, 'title'),
         });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -94,17 +99,20 @@ export function GenerateSheet({
         setResult(null);
         onClose();
       }}
-      title="Make up a workout"
-      description={`From what’s at home${isMe ? '' : `, for ${person?.name ?? 'them'}`} · ${isToday ? 'today' : dayAndMonth(date)}`}
+      title={t.title}
+      description={t.description(
+        isMe ? null : (person?.name ?? t.them),
+        isToday ? t.today : dayAndMonth(date),
+      )}
     >
       {result ? (
         <div className="flex flex-col gap-4">
           <div className="rounded-2xl bg-butter-100 px-4 py-3">
-            <p className="font-bold">{result.title}</p>
+            <p className="font-bold">{tr(result, 'title')}</p>
             <p className="text-sm text-butter-800">
-              About {duration(result.estimatedSeconds)}
-              {result.rounds > 1 ? ` · ${result.rounds} rounds` : ''} · {result.items.length}{' '}
-              exercises
+              {t.about(duration(result.estimatedSeconds))}
+              {result.rounds > 1 ? ` · ${tt.rounds(result.rounds)}` : ''} ·{' '}
+              {tt.exercises(result.items.length)}
             </p>
           </div>
           <ol className="flex flex-col gap-1.5">
@@ -119,14 +127,12 @@ export function GenerateSheet({
                     <ExerciseIcon name={e.icon} className="size-9" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{e.name}</span>
+                    <span className="block truncate font-semibold">{tr(e, 'name')}</span>
                     <span className="block text-xs text-ink-600">
-                      {item.block && item.block !== 'main'
-                        ? `${item.block === 'warmup' ? 'Warm-up' : 'Cool-down'} · `
-                        : ''}
+                      {item.block && item.block !== 'main' ? `${BLOCK_LABEL[item.block]} · ` : ''}
                       {item.sets > 1 ? `${item.sets} × ` : ''}
-                      {item.reps ? `${item.reps} reps` : item.seconds ? duration(item.seconds) : ''}
-                      {item.weight ? ` · ${item.weight} kg` : ''}
+                      {item.reps ? tt.reps(item.reps) : item.seconds ? duration(item.seconds) : ''}
+                      {item.weight ? ` · ${kg(item.weight)}` : ''}
                     </span>
                   </span>
                 </li>
@@ -135,7 +141,7 @@ export function GenerateSheet({
           </ol>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="soft" loading={make.isPending} onClick={() => make.mutate()}>
-              Try another
+              {t.tryAnother}
             </Button>
             <Button
               variant="tint"
@@ -143,7 +149,7 @@ export function GenerateSheet({
               disabled={plan.isPending}
               onClick={() => plan.mutate(false)}
             >
-              Plan it
+              {t.planIt}
             </Button>
           </div>
           {isToday ? (
@@ -153,14 +159,14 @@ export function GenerateSheet({
               disabled={plan.isPending}
               onClick={() => plan.mutate(true)}
             >
-              Start now
+              {t.startNow}
             </Button>
           ) : null}
         </div>
       ) : (
         <div className="flex flex-col gap-4">
           <fieldset>
-            <legend className="mb-1.5 text-sm font-semibold text-ink-700">How long</legend>
+            <legend className="mb-1.5 text-sm font-semibold text-ink-700">{t.howLong}</legend>
             <div className="flex flex-wrap gap-1.5">
               {MINUTES.map((m) => (
                 <button
@@ -170,13 +176,13 @@ export function GenerateSheet({
                   className={chip(minutes === m)}
                   onClick={() => setMinutes(m)}
                 >
-                  {m} min
+                  {m} {tt.unit.min}
                 </button>
               ))}
             </div>
           </fieldset>
           <fieldset>
-            <legend className="mb-1.5 text-sm font-semibold text-ink-700">What for</legend>
+            <legend className="mb-1.5 text-sm font-semibold text-ink-700">{t.whatFor}</legend>
             <div className="flex flex-wrap gap-1.5">
               {FOCUSES.map((f) => (
                 <button
@@ -192,7 +198,7 @@ export function GenerateSheet({
             </div>
           </fieldset>
           <fieldset>
-            <legend className="mb-1.5 text-sm font-semibold text-ink-700">How hard</legend>
+            <legend className="mb-1.5 text-sm font-semibold text-ink-700">{t.howHard}</legend>
             <div className="flex flex-wrap gap-1.5">
               {[1, 2, 3].map((l) => (
                 <button
@@ -211,20 +217,20 @@ export function GenerateSheet({
             <Switch
               checked={quiet}
               onChange={setQuiet}
-              label="Quiet"
-              hint="Leaves out jumping exercises"
+              label={t.quiet}
+              hint={t.quietHint}
               className="py-3"
             />
             <Switch
               checked={circuit}
               onChange={setCircuit}
-              label="Circuit"
-              hint="Rounds through every exercise instead of sets in a row"
+              label={t.circuit}
+              hint={t.circuitHint}
               className="py-3"
             />
           </div>
           <Button size="lg" loading={make.isPending} onClick={() => make.mutate()}>
-            Create workout
+            {t.create}
           </Button>
         </div>
       )}

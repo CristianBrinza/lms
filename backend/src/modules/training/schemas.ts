@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Translations } from '../../lib/i18n';
 import { dateField, idField, timeField } from '../food/schemas';
 import { CATEGORIES, EQUIPMENT_KINDS, MEASURES, MUSCLES } from './catalog';
 
@@ -46,6 +47,9 @@ export const EquipmentInput = z.object({
     .max(30)
     .optional()
     .describe('Its pieces: each band with its resistance in kg, each grip of the bar'),
+  translations: Translations.optional().describe(
+    'Its name, note and pieces in other languages: { "ro": { "name": "…", "note": "…", "variants": ["…", one per piece, in order] }, "ru": { … } }',
+  ),
 });
 export type EquipmentInput = z.infer<typeof EquipmentInput>;
 export const EquipmentPatch = EquipmentInput.omit({ kind: true }).partial();
@@ -81,6 +85,9 @@ export const ExerciseInput = z.object({
     .max(20)
     .optional()
     .describe('Ways to do it: grips, stances, positions'),
+  translations: Translations.optional().describe(
+    'Its name, steps, note and ways in other languages: { "ro": { "name": "…", "steps": ["…"], "note": "…", "variants": ["…", one per way, in order] }, "ru": { … } }',
+  ),
 });
 export type ExerciseInput = z.infer<typeof ExerciseInput>;
 export const ExerciseCreate = ExerciseInput.extend({ userId: userField });
@@ -135,6 +142,9 @@ export const RoutineInput = z.object({
   items: itemsField.min(1, 'Add an exercise'),
   rounds: roundsField.optional(),
   roundRest: roundRestField.optional(),
+  translations: Translations.optional().describe(
+    'Its name and note in other languages: { "ro": { "name": "…", "note": "…" }, "ru": { … } }',
+  ),
 });
 export type RoutineInput = z.infer<typeof RoutineInput>;
 export const RoutinePatch = RoutineInput.omit({ userId: true })

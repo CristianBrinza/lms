@@ -1,3 +1,6 @@
+import { formatNumber } from '@/i18n';
+import { trainingT } from '../i18n';
+
 /** Equipment weights: reading what was typed, and how a set of weights reads back. */
 
 const MAX_KG = 500;
@@ -32,17 +35,19 @@ export const addWeights = (current: number[], more: number[]) => sortWeights([..
 export const removeWeight = (current: number[], kg: number) =>
   current.filter((value) => value !== kg);
 
-const number = (kg: number) => String(kg);
+const number = (kg: number) => formatNumber(kg, { maximumFractionDigits: 2 });
 
 /** [2, 4, 8] in pairs → "2 · 4 · 8 kg, pairs"; [12] → "12 kg"; [] → "". */
 export function weightsLabel(weights: number[], pairs: boolean): string {
   if (!weights.length) return '';
-  const list = `${weights.map(number).join(' · ')} kg`;
-  return pairs ? `${list}, ${weights.length === 1 ? 'a pair' : 'pairs'}` : list;
+  const t = trainingT();
+  const list = `${weights.map(number).join(' · ')} ${t.unit.kg}`;
+  return pairs ? `${list}, ${t.pairs(weights.length)}` : list;
 }
 
 /** How many of a thing there are: 0 → "Not at home right now". */
 export function countLabel(count: number): string {
-  if (count <= 0) return 'Not at home right now';
-  return count === 1 ? 'One' : `${count} of them`;
+  const { count: words } = trainingT();
+  if (count <= 0) return words.none;
+  return count === 1 ? words.one : words.many(count);
 }

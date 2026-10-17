@@ -1,10 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import { LOCALES, mergeTranslations, type Locale, type Translations } from '../../lib/i18n';
 import type { FoodCtx as Ctx } from '../food/kitchen';
 import { kitchenPeople } from '../food/restrictions';
 import { setKcal, workoutKcal } from './energy';
 import { localDate } from '../food/stock';
 import { isUuid } from '../users';
+import {
+  distanceText,
+  generatedTitleTranslations,
+  kgText,
+  lastTimeText,
+  nameTranslations,
+  rebaseTranslations,
+  secondsText,
+  WORKOUT,
+} from './i18n';
 import {
   describeExercise,
   exercisesById,
@@ -15,6 +26,7 @@ import {
   type Equipment,
   type Exercise,
   type LibraryExercise,
+  variantTranslations,
 } from './library';
 import type {
   FinishInput,
@@ -80,6 +92,8 @@ export interface TrainingSet {
   note: string;
   /** Grip, stance or band. */
   variant: string;
+  /** The exercise's name and the way it was done in other languages: { ro: { exercise, variant }, ru: … }. */
+  translations: Translations;
 }
 
 interface SetRow {
@@ -103,10 +117,13 @@ interface SetRow {
   effort: number | null;
   note: string;
   variant: string;
+  exercise_variants: string[];
+  exercise_translations: Translations | null;
 }
 
 const SET_SELECT = `SELECT s.id, s.user_id, s.exercise_id, e.name AS exercise, e.icon, s.workout_id, s.item_index, s.round, s.set_number, s.side,
-       s.reps, s.weight, s.seconds, s.distance, s.performed_at, to_char(s.day, 'YYYY-MM-DD') AS day, s.time_known, s.effort, s.note, s.variant
+       s.reps, s.weight, s.seconds, s.distance, s.performed_at, to_char(s.day, 'YYYY-MM-DD') AS day, s.time_known, s.effort, s.note, s.variant,
+       e.variants AS exercise_variants, e.translations AS exercise_translations
   FROM training_sets s JOIN training_exercises e ON e.id = s.exercise_id`;
 
 const toSet = (row: SetRow): TrainingSet => ({
@@ -130,7 +147,29 @@ const toSet = (row: SetRow): TrainingSet => ({
   effort: row.effort,
   note: row.note,
   variant: row.variant,
+  translations: setTranslations(row.variant, {
+    variants: row.exercise_variants,
+    translations: row.exercise_translations ?? {},
+  }),
 });
+
+/** A set's words in other languages: its exercise's name, and the way it was done. */
+export function setTranslations(
+  variant: string,
+  exercise: Pick<Exercise, 'variants' | 'translations'>,
+): Translations {
+  const out: Translations = {};
+  const name = nameTranslations(exercise.translations);
+  const way = variantTranslations(variant, exercise);
+  for (const locale of LOCALES) {
+    const entry = {
+      ...(name[locale]?.name ? { exercise: name[locale]!.name } : {}),
+      ...way[locale],
+    };
+    if (Object.keys(entry).length) out[locale] = entry;
+  }
+  return out;
+}
 
 /** A personal best one set can set. */
 export type RecordKind = 'reps' | 'weight' | 'e1rm' | 'seconds' | 'distance';
@@ -417,6 +456,7 @@ export function suggest(
   item: WorkoutItem,
   exercise: LibraryExercise,
   last: LastTime | undefined,
+  locale: Locale = 'en',
 ): Suggestion | null {
   if (!last?.sets.length) return null;
   // Warm-ups, cool-downs and stretches are for the body, not for records.
@@ -439,18 +479,22 @@ export function suggest(
         return {
           weight: heavier.kg,
           reps: item.reps,
-          text: `Last time ${reps.join(', ')}${weight ? ` at ${weight} kg` : ''} · next: ${heavier.kg} kg`,
+          text: lastTimeText(locale, {
+            list: reps.join(', '),
+            weight,
+            next: kgText(heavier.kg, locale),
+          }),
         };
       return {
         reps: worst + 1,
         ...(weight ? { weight } : {}),
-        text: `Last time ${reps.join(', ')} · next: ${worst + 1}`,
+        text: lastTimeText(locale, { list: reps.join(', '), next: String(worst + 1) }),
       };
     }
     return {
       reps: worst,
       ...(weight ? { weight } : {}),
-      text: `Last time ${reps.join(', ')}`,
+      text: lastTimeText(locale, { list: reps.join(', ') }),
     };
   }
   if (exercise.measure === 'time' && item.seconds) {
@@ -458,7 +502,10 @@ export function suggest(
     if (worst >= item.seconds)
       return {
         seconds: worst + 5,
-        text: `Last time ${sets.map((x) => `${x.seconds ?? 0} s`).join(', ')} · next: ${worst + 5} s`,
+        text: lastTimeText(locale, {
+          list: sets.map((x) => secondsText(x.seconds ?? 0, locale)).join(', '),
+          next: secondsText(worst + 5, locale),
+        }),
       };
     return null;
   }
@@ -468,9 +515,7 @@ export function suggest(
     return best
       ? {
           distance: best,
-          text: time
-            ? `Last time ${(best / 1000).toFixed(1)} km in ${Math.round(time / 60)} min`
-            : `Last time ${(best / 1000).toFixed(1)} km`,
+          text: lastTimeText(locale, { list: distanceText(best, time, locale) }),
         }
       : null;
   }
@@ -488,9 +533,17 @@ export interface Routine {
   items: WorkoutItem[];
   rounds: number;
   roundRest: number;
-  exercises: Array<{ id: string; name: string; icon: string; available: boolean }>;
+  exercises: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    available: boolean;
+    translations: Translations;
+  }>;
   estimatedSeconds: number;
   updatedAt: string;
+  /** { ro: { name, note }, ru: … } */
+  translations: Translations;
 }
 
 interface RoutineRow {
@@ -502,6 +555,7 @@ interface RoutineRow {
   rounds: number;
   round_rest: number;
   updated_at: Date;
+  translations: Translations | null;
 }
 
 async function describeRoutines(ctx: Ctx, rows: RoutineRow[]): Promise<Routine[]> {
@@ -528,14 +582,16 @@ async function describeRoutines(ctx: Ctx, rows: RoutineRow[]): Promise<Routine[]
         name: e.name,
         icon: e.icon,
         available: e.available,
+        translations: nameTranslations(e.translations),
       })),
       estimatedSeconds: estimate(row.items, row.rounds, row.round_rest, exercises),
       updatedAt: row.updated_at.toISOString(),
+      translations: row.translations ?? {},
     };
   });
 }
 
-const ROUTINE_COLUMNS = 'id, user_id, name, note, items, rounds, round_rest, updated_at';
+const ROUTINE_COLUMNS = 'id, user_id, name, note, items, rounds, round_rest, updated_at, translations';
 
 /** One person's saved programs (everyone's with null). */
 export async function listRoutines(ctx: Ctx, userId: string | null): Promise<Routine[]> {
@@ -560,8 +616,8 @@ export async function createRoutine(ctx: Ctx, input: RoutineInput): Promise<Rout
   const userId = await personId(ctx, input.userId);
   const { items } = await ownItems(ctx, userId, input.items);
   const { rows } = await ctx.db.query<RoutineRow>(
-    `INSERT INTO training_routines (id, household_id, user_id, name, note, items, rounds, round_rest, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10) RETURNING ${ROUTINE_COLUMNS}`,
+    `INSERT INTO training_routines (id, household_id, user_id, name, note, items, rounds, round_rest, created_by, created_at, updated_at, translations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11) RETURNING ${ROUTINE_COLUMNS}`,
     [
       randomUUID(),
       ctx.actor.householdId,
@@ -573,6 +629,7 @@ export async function createRoutine(ctx: Ctx, input: RoutineInput): Promise<Rout
       input.roundRest ?? 60,
       ctx.actor.userId,
       ctx.now,
+      JSON.stringify(mergeTranslations({}, input.translations)),
     ],
   );
   return (await describeRoutines(ctx, rows))[0]!;
@@ -583,18 +640,29 @@ export async function updateRoutine(ctx: Ctx, id: string, patch: RoutinePatch): 
   const items = patch.items
     ? (await ownItems(ctx, current.user_id, patch.items)).items
     : current.items;
+  const name = patch.name ?? current.name;
+  const note = patch.note ?? current.note;
+  const translations = mergeTranslations(
+    rebaseTranslations(
+      current.translations,
+      { name: current.name, note: current.note },
+      { name, note },
+    ),
+    patch.translations,
+  );
   const { rows } = await ctx.db.query<RoutineRow>(
-    `UPDATE training_routines SET name = $3, note = $4, items = $5, rounds = $6, round_rest = $7, updated_at = $8
+    `UPDATE training_routines SET name = $3, note = $4, items = $5, rounds = $6, round_rest = $7, updated_at = $8, translations = $9
       WHERE id = $1 AND household_id = $2 RETURNING ${ROUTINE_COLUMNS}`,
     [
       id,
       ctx.actor.householdId,
-      patch.name ?? current.name,
-      patch.note ?? current.note,
+      name,
+      note,
       JSON.stringify(items),
       patch.rounds ?? current.rounds,
       patch.roundRest ?? current.round_rest,
       ctx.now,
+      JSON.stringify(translations),
     ],
   );
   return (await describeRoutines(ctx, rows))[0]!;
@@ -639,9 +707,14 @@ export interface WorkoutSummary {
   setsPlanned: number;
   setsDone: number;
   estimatedSeconds: number;
-  exercises: Array<{ id: string; name: string; icon: string }>;
+  exercises: Array<{ id: string; name: string; icon: string; translations: Translations }>;
   /** Equipment it needs that the household doesn't have. */
   missing: string[];
+  /**
+   * The title in other languages, when it is one the app made: from its exercises' names, its
+   * routine's name, or a made-up workout's ("Full body · 20 min"). { ro: { title }, ru: … }
+   */
+  translations: Translations;
 }
 
 export interface Workout extends WorkoutSummary {
@@ -671,12 +744,15 @@ interface WorkoutRow {
   feeling: number | null;
   note: string;
   sets_done: number;
+  routine_name: string | null;
+  routine_translations: Translations | null;
 }
 
 const WORKOUT_SELECT = `SELECT w.id, w.user_id, u.name AS person, to_char(w.date, 'YYYY-MM-DD') AS date, w.time, w.title, w.routine_id, w.items, w.rounds,
        w.round_rest, w.status, w.started_at, w.finished_at, w.duration_seconds, w.feeling, w.note,
-       (SELECT count(*)::int FROM training_sets s WHERE s.workout_id = w.id) AS sets_done
-  FROM training_workouts w JOIN users u ON u.id = w.user_id`;
+       (SELECT count(*)::int FROM training_sets s WHERE s.workout_id = w.id) AS sets_done,
+       r.name AS routine_name, r.translations AS routine_translations
+  FROM training_workouts w JOIN users u ON u.id = w.user_id LEFT JOIN training_routines r ON r.id = w.routine_id`;
 
 /** About how long a list takes: each set's work (reps at ~3 s, both sides for one-sided moves) plus its rest. */
 export function estimate(
@@ -746,9 +822,36 @@ function summarize(
     exercises: row.items
       .map((item) => exercises.get(item.exerciseId))
       .filter((e): e is Exercise => Boolean(e))
-      .map((e) => ({ id: e.id, name: e.name, icon: e.icon })),
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        icon: e.icon,
+        translations: nameTranslations(e.translations),
+      })),
     missing: [...missing],
+    translations: titleTranslations(row, exercises),
   };
+}
+
+/** A workout's title in other languages, when the app made it (see WorkoutSummary.translations). */
+function titleTranslations(row: WorkoutRow, exercises: Map<string, Exercise>): Translations {
+  if (row.routine_name !== null && row.title === row.routine_name) {
+    const out: Translations = {};
+    for (const locale of LOCALES) {
+      const name = row.routine_translations?.[locale]?.name;
+      if (typeof name === 'string' && name) out[locale] = { title: name };
+    }
+    return out;
+  }
+  const generated = generatedTitleTranslations(row.title);
+  if (generated) return generated;
+  if (row.title === titleFor(row.items, exercises)) {
+    const out: Translations = {};
+    for (const locale of LOCALES)
+      if (locale !== 'en') out[locale] = { title: titleFor(row.items, exercises, locale) };
+    return out;
+  }
+  return {};
 }
 
 async function exercisesOf(ctx: Ctx, rows: WorkoutRow[]): Promise<Map<string, Exercise>> {
@@ -821,7 +924,7 @@ async function lockWorkout(ctx: Ctx, id: string): Promise<WorkoutRow> {
   return rows[0];
 }
 
-export async function getWorkout(ctx: Ctx, id: string): Promise<Workout> {
+export async function getWorkout(ctx: Ctx, id: string, locale: Locale = 'en'): Promise<Workout> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Workout not found');
   const { rows } = await ctx.db.query<WorkoutRow>(
     `${WORKOUT_SELECT} WHERE w.id = $1 AND w.household_id = $2`,
@@ -845,7 +948,7 @@ export async function getWorkout(ctx: Ctx, id: string): Promise<Workout> {
         rest: item.rest ?? exercise.rest,
         exercise,
         last: last.get(item.exerciseId) ?? null,
-        suggest: suggest(item, exercise, last.get(item.exerciseId)),
+        suggest: suggest(item, exercise, last.get(item.exerciseId), locale),
       };
     });
   const done = sets.rows.map(toSet);
@@ -875,15 +978,28 @@ function withDefaults(items: WorkoutItem[], exercises: Map<string, Exercise>): W
   });
 }
 
-function titleFor(items: WorkoutItem[], exercises: Map<string, Exercise>): string {
+/** A workout named after its first exercises: "Push-ups, Plank +1". */
+function titleFor(
+  items: WorkoutItem[],
+  exercises: Map<string, Exercise>,
+  locale: Locale = 'en',
+): string {
   const names = items
-    .map((item) => exercises.get(item.exerciseId)?.name)
+    .map((item) => {
+      const e = exercises.get(item.exerciseId);
+      const name = e?.translations[locale]?.name;
+      return locale !== 'en' && typeof name === 'string' && name ? name : e?.name;
+    })
     .filter(Boolean) as string[];
-  if (!names.length) return 'Workout';
+  if (!names.length) return WORKOUT[locale];
   return names.length <= 2 ? names.join(' + ') : `${names[0]}, ${names[1]} +${names.length - 2}`;
 }
 
-export async function createWorkout(ctx: Ctx, input: WorkoutInput): Promise<Workout> {
+export async function createWorkout(
+  ctx: Ctx,
+  input: WorkoutInput,
+  locale: Locale = 'en',
+): Promise<Workout> {
   const userId = await personId(ctx, input.userId);
   let items = input.items ?? [];
   let rounds = input.rounds;
@@ -925,10 +1041,15 @@ export async function createWorkout(ctx: Ctx, input: WorkoutInput): Promise<Work
       ctx.now,
     ],
   );
-  return getWorkout(ctx, id);
+  return getWorkout(ctx, id, locale);
 }
 
-export async function updateWorkout(ctx: Ctx, id: string, patch: WorkoutPatch): Promise<Workout> {
+export async function updateWorkout(
+  ctx: Ctx,
+  id: string,
+  patch: WorkoutPatch,
+  locale: Locale = 'en',
+): Promise<Workout> {
   await ctx.tx(async (tx) => {
     const current = await lockWorkout(tx, id);
     let items = current.items;
@@ -973,10 +1094,10 @@ export async function updateWorkout(ctx: Ctx, id: string, patch: WorkoutPatch): 
       ],
     );
   });
-  return getWorkout(ctx, id);
+  return getWorkout(ctx, id, locale);
 }
 
-export async function startWorkout(ctx: Ctx, id: string): Promise<Workout> {
+export async function startWorkout(ctx: Ctx, id: string, locale: Locale = 'en'): Promise<Workout> {
   await ctx.tx(async (tx) => {
     const current = await lockWorkout(tx, id);
     if (current.status === 'done') throw new AppError(409, 'DONE', 'That workout is already done');
@@ -985,10 +1106,15 @@ export async function startWorkout(ctx: Ctx, id: string): Promise<Workout> {
       [id, tx.now],
     );
   });
-  return getWorkout(ctx, id);
+  return getWorkout(ctx, id, locale);
 }
 
-export async function finishWorkout(ctx: Ctx, id: string, input: FinishInput): Promise<Workout> {
+export async function finishWorkout(
+  ctx: Ctx,
+  id: string,
+  input: FinishInput,
+  locale: Locale = 'en',
+): Promise<Workout> {
   await ctx.tx(async (tx) => {
     const current = await lockWorkout(tx, id);
     if (current.status === 'done') throw new AppError(409, 'DONE', 'That workout is already done');
@@ -1003,7 +1129,7 @@ export async function finishWorkout(ctx: Ctx, id: string, input: FinishInput): P
       [id, started, tx.now, duration, input.feeling ?? current.feeling, input.note ?? current.note],
     );
   });
-  return getWorkout(ctx, id);
+  return getWorkout(ctx, id, locale);
 }
 
 export async function removeWorkout(ctx: Ctx, id: string): Promise<void> {
@@ -1021,16 +1147,21 @@ export async function copyWorkout(
   ctx: Ctx,
   id: string,
   target: { date: string; userId?: string },
+  locale: Locale = 'en',
 ): Promise<Workout> {
   const source = await getWorkout(ctx, id);
-  return createWorkout(ctx, {
+  return createWorkout(
+    ctx,
+    {
     userId: target.userId ?? source.userId,
     date: target.date,
     time: source.time,
     title: source.title,
-    items: source.items.map(({ exercise: _e, last: _l, suggest: _s, ...item }) => item),
-    rounds: source.rounds,
-    roundRest: source.roundRest,
-    note: source.note,
-  });
+      items: source.items.map(({ exercise: _e, last: _l, suggest: _s, ...item }) => item),
+      rounds: source.rounds,
+      roundRest: source.roundRest,
+      note: source.note,
+    },
+    locale,
+  );
 }

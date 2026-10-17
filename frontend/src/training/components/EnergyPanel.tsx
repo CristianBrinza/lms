@@ -1,12 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Skeleton } from '@/components/ui';
-import { addDays, weekdayShort } from '@/food/format';
+import { addDays } from '@/food/format';
 import { cx } from '@/lib/cx';
 import { trainingApi, trainingKeys } from '../api';
+import { trainingT } from '../i18n';
 import type { EnergyDay, EnergySummary } from '../types';
+import { weekday, wholeNumber } from './charts.i18n';
+import { useEnergyT } from './EnergyPanel.i18n';
 
-const kcal = (n: number) => `${Math.round(n).toLocaleString('en').replace(/,/g, ' ')} kcal`;
+/** "1 850 kcal", "1 850 ккал". */
+const kcal = (n: number) => `${wholeNumber(n)} ${trainingT().unit.kcal}`;
 
 /**
  * Energy in and out for one person: today eaten against the goal's target, what the day burned
@@ -14,6 +18,7 @@ const kcal = (n: number) => `${Math.round(n).toLocaleString('en').replace(/,/g, 
  * the formulas are named, not hidden.
  */
 export function EnergyPanel({ personId, today }: { personId: string; today: string }) {
+  const t = useEnergyT();
   const from = addDays(today, -6);
   const energy = useQuery({
     queryKey: trainingKeys.energy(personId, from, today),
@@ -26,7 +31,7 @@ export function EnergyPanel({ personId, today }: { personId: string; today: stri
   return (
     <section aria-labelledby="energy" className="flex flex-col gap-3">
       <h2 id="energy" className="sr-only">
-        Energy
+        {t.heading}
       </h2>
       <Today e={e} day={day} />
       <Macros e={e} day={day} />
@@ -52,9 +57,9 @@ export function EnergyPanel({ personId, today }: { personId: string; today: stri
       ) : null}
       {e.person.bmr === null ? (
         <p className="rounded-2xl bg-white px-4 py-3 text-sm text-ink-700 shadow-[var(--shadow-card)]">
-          Rest energy is a rough guess until the profile has height, birth date and sex.{' '}
+          {t.noProfile}{' '}
           <Link to="/profile" className="font-semibold text-lav-800 underline">
-            Add them
+            {t.addThem}
           </Link>
         </p>
       ) : null}
@@ -67,11 +72,12 @@ function Today({ e, day }: { e: EnergySummary; day: EnergyDay | null }) {
   const target = e.target.kcal;
   const share = Math.min(1, eaten / Math.max(1, target));
   const over = eaten > target;
+  const t = useEnergyT();
   return (
     <div className="rounded-[1.5rem] bg-ink-900 p-4 text-white shadow-[var(--shadow-tile)] sm:p-5">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold text-white/70">Eaten today</p>
-        <p className="text-sm text-white/70">Target {kcal(target)}</p>
+        <p className="min-w-0 text-sm font-semibold text-white/70">{t.eatenToday}</p>
+        <p className="text-right text-sm text-white/70">{t.target(kcal(target))}</p>
       </div>
       <p className="tabular mt-1 text-[2.25rem] font-bold leading-none tracking-[-0.03em]">
         {kcal(eaten)}
@@ -82,7 +88,7 @@ function Today({ e, day }: { e: EnergySummary; day: EnergyDay | null }) {
         aria-valuemin={0}
         aria-valuemax={target}
         aria-valuenow={eaten}
-        aria-label="Eaten of target"
+        aria-label={t.eatenOfTarget}
       >
         <div
           className={cx('h-full rounded-full', over ? 'bg-peach-200' : 'bg-butter-300')}
@@ -90,58 +96,61 @@ function Today({ e, day }: { e: EnergySummary; day: EnergyDay | null }) {
         />
       </div>
       <p className="mt-2 text-sm text-white/70">
-        {over ? `${kcal(eaten - target)} over` : `${kcal(target - eaten)} left`} · {e.target.why}
+        {over ? t.over(kcal(eaten - target)) : t.left(kcal(target - eaten))} · {e.target.why}
       </p>
       {day ? (
         <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-white/10 pt-3 text-sm">
-          <div>
-            <dt className="text-white/60">At rest</dt>
+          <div className="min-w-0">
+            <dt className="truncate text-white/60">{t.burned.resting}</dt>
             <dd className="tabular font-semibold">{kcal(day.burned.resting)}</dd>
           </div>
-          <div>
-            <dt className="text-white/60">Moving</dt>
+          <div className="min-w-0">
+            <dt className="truncate text-white/60">{t.burned.active}</dt>
             <dd className="tabular font-semibold">{kcal(day.burned.active)}</dd>
           </div>
-          <div>
-            <dt className="text-white/60">Training</dt>
+          <div className="min-w-0">
+            <dt className="truncate text-white/60">{t.burned.training}</dt>
             <dd className="tabular font-semibold">{kcal(day.burned.training)}</dd>
           </div>
         </dl>
       ) : null}
       <p className="mt-2 text-xs text-white/50">
-        {day?.burned.source === 'phone'
-          ? 'Rest and moving from the phone; training from the sets logged here.'
-          : 'Rest by Mifflin–St Jeor, moving by your usual day, training by the Compendium of Physical Activities.'}
-        {e.burn.measured !== null
-          ? ` Measured from meals and weight: ${kcal(e.burn.measured)} a day.`
-          : ''}
+        {day?.burned.source === 'phone' ? t.source.phone : t.source.estimate}
+        {e.burn.measured !== null ? t.measured(kcal(e.burn.measured)) : ''}
       </p>
     </div>
   );
 }
 
 function Macros({ e, day }: { e: EnergySummary; day: EnergyDay | null }) {
-  const rows: Array<[string, number, number]> = [
-    ['Protein', day?.eaten?.protein ?? 0, e.target.protein],
-    ['Fat', day?.eaten?.fat ?? 0, e.target.fat],
-    ['Carbs', day?.eaten?.carbs ?? 0, e.target.carbs],
+  const t = useEnergyT();
+  const rows: Array<['protein' | 'fat' | 'carbs', number, number]> = [
+    ['protein', day?.eaten?.protein ?? 0, e.target.protein],
+    ['fat', day?.eaten?.fat ?? 0, e.target.fat],
+    ['carbs', day?.eaten?.carbs ?? 0, e.target.carbs],
   ];
   return (
     <div className="grid grid-cols-3 gap-2">
-      {rows.map(([label, value, target]) => (
-        <div key={label} className="rounded-[1.25rem] bg-white p-3 shadow-[var(--shadow-card)]">
-          <p className="text-xs font-semibold text-ink-600">{label}</p>
+      {rows.map(([macro, value, target]) => (
+        <div
+          key={macro}
+          className="min-w-0 rounded-[1.25rem] bg-white p-3 shadow-[var(--shadow-card)]"
+        >
+          <p className="truncate text-xs font-semibold text-ink-600">{t.macro[macro]}</p>
           <p className="tabular mt-0.5 text-lg font-bold">
             {Math.round(value)}
-            <span className="text-sm font-semibold text-ink-500"> / {target} g</span>
+            <span className="text-sm font-semibold text-ink-500">
+              {' '}
+              / {target} {t.gram}
+            </span>
           </p>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-100">
             <div
               className={cx(
                 'h-full rounded-full',
-                label === 'Protein'
+                macro === 'protein'
                   ? 'bg-lav-500'
-                  : label === 'Fat'
+                  : macro === 'fat'
                     ? 'bg-butter-400'
                     : 'bg-cyan-400',
               )}
@@ -155,29 +164,31 @@ function Macros({ e, day }: { e: EnergySummary; day: EnergyDay | null }) {
 }
 
 function Week({ days, today }: { days: EnergyDay[]; today: string }) {
+  const t = useEnergyT();
   const max = Math.max(1, ...days.flatMap((d) => [d.eaten?.kcal ?? 0, d.burned.total]));
   return (
     <div className="rounded-[1.5rem] bg-white p-4 shadow-[var(--shadow-card)]">
-      <div className="flex items-baseline justify-between">
-        <p className="text-[1.0625rem] font-bold">This week</p>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-[1.0625rem] font-bold">{t.week}</p>
         <p className="flex gap-3 text-xs text-ink-600">
           <span className="flex items-center gap-1">
-            <span className="size-2 rounded-full bg-butter-400" /> eaten
+            <span className="size-2 rounded-full bg-butter-400" /> {t.eaten}
           </span>
           <span className="flex items-center gap-1">
-            <span className="size-2 rounded-full bg-ink-300" /> burned
+            <span className="size-2 rounded-full bg-ink-300" /> {t.burnedLegend}
           </span>
         </p>
       </div>
-      <ol
-        className="mt-3 grid grid-cols-7 items-end gap-1.5"
-        aria-label="Eaten and burned each day"
-      >
+      <ol className="mt-3 grid grid-cols-7 items-end gap-1.5" aria-label={t.weekLabel}>
         {days.map((d) => (
           <li
             key={d.day}
             className="flex flex-col items-center gap-1"
-            aria-label={`${weekdayShort(d.day)}: eaten ${d.eaten ? kcal(d.eaten.kcal) : 'not logged'}, burned ${kcal(d.burned.total)}`}
+            aria-label={t.dayLabel(
+              weekday(d.day),
+              d.eaten ? kcal(d.eaten.kcal) : null,
+              kcal(d.burned.total),
+            )}
           >
             <div className="flex h-24 items-end gap-0.5">
               <div
@@ -195,7 +206,7 @@ function Week({ days, today }: { days: EnergyDay[]; today: string }) {
                 d.day === today ? 'text-ink-900' : 'text-ink-500',
               )}
             >
-              {weekdayShort(d.day).slice(0, 2)}
+              {weekday(d.day).slice(0, 2)}
             </span>
             <span
               className={cx(
@@ -207,7 +218,7 @@ function Week({ days, today }: { days: EnergyDay[]; today: string }) {
                     : 'text-peach-800',
               )}
             >
-              {d.balance === null ? '—' : `${d.balance > 0 ? '+' : ''}${d.balance}`}
+              {d.balance === null ? '—' : `${d.balance > 0 ? '+' : ''}${wholeNumber(d.balance)}`}
             </span>
           </li>
         ))}

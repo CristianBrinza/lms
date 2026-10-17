@@ -3,17 +3,14 @@ import { Button, TextField } from '@/components/ui';
 import { AddIcon, CloseIcon } from '@/components/ui/icons';
 import { haptic } from '@/lib/haptics';
 import { kg } from '../format';
+import { trainingT } from '../i18n';
 import type { Piece } from '../types';
+import { equipmentT, useEquipmentT } from './equipment.i18n';
 
 /** What the pieces of a kind are called: a set of bands, the grips of a bar. */
 function piecesLabel(kind: string): { title: string; hint: string; name: string; withKg: boolean } {
-  if (kind === 'bands')
-    return {
-      title: 'Bands',
-      hint: 'Each band with its resistance: choosing one in a set counts it as the weight.',
-      name: 'Colour or name',
-      withKg: true,
-    };
+  const { pieces } = equipmentT();
+  if (kind === 'bands') return { ...pieces.bands, withKg: true };
   if (
     kind === 'pullup_bar' ||
     kind === 'dip_bars' ||
@@ -21,18 +18,8 @@ function piecesLabel(kind: string): { title: string; hint: string; name: string;
     kind === 'suspension' ||
     kind === 'parallettes'
   )
-    return {
-      title: 'Grips and positions',
-      hint: 'What this one allows: picked for each set of pull-ups, rows, hangs.',
-      name: 'Wide grip, parallel handles…',
-      withKg: false,
-    };
-  return {
-    title: 'Parts and settings',
-    hint: 'Anything chosen per set: levels, attachments, positions.',
-    name: 'Name',
-    withKg: true,
-  };
+    return { ...pieces.grips, withKg: false };
+  return { ...pieces.parts, withKg: true };
 }
 
 /**
@@ -50,6 +37,8 @@ export function PiecesEditor({
   onChange: (value: Piece[]) => void;
   suggestions?: Piece[];
 }) {
+  const t = useEquipmentT();
+  const unitKg = trainingT().unit.kg;
   const [name, setName] = useState('');
   const [weight, setWeight] = useState('');
   const label = piecesLabel(kind);
@@ -76,7 +65,7 @@ export function PiecesEditor({
               {p.kg !== null ? <span className="tabular text-lav-800">· {kg(p.kg)}</span> : null}
               <button
                 type="button"
-                aria-label={`Remove ${p.name}`}
+                aria-label={t.removeWhat(p.name)}
                 onClick={() => onChange(value.filter((x) => x.name !== p.name))}
                 className="press grid size-8 place-items-center rounded-full text-base text-ink-700 hover:bg-lav-200"
               >
@@ -105,7 +94,7 @@ export function PiecesEditor({
           label={label.title}
           hideLabel
           dense
-          className="flex-1"
+          className="min-w-0 flex-1"
           placeholder={label.name}
           value={name}
           maxLength={40}
@@ -113,12 +102,12 @@ export function PiecesEditor({
         />
         {label.withKg ? (
           <TextField
-            label="kg"
+            label={unitKg}
             hideLabel
             dense
-            className="w-20"
+            className="w-20 shrink-0"
             inputMode="decimal"
-            placeholder="kg"
+            placeholder={unitKg}
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
           />
@@ -129,9 +118,9 @@ export function PiecesEditor({
           variant="tint"
           icon={AddIcon}
           disabled={!name.trim()}
-          className="h-11"
+          className="h-11 shrink-0"
         >
-          Add
+          {t.add}
         </Button>
       </form>
       {left.length ? (

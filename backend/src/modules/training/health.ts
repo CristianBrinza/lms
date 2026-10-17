@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { AppDeps } from '../../context';
 import { AppError } from '../../lib/errors';
+import type { Locale } from '../../lib/i18n';
 import { ensureKitchen, foodCtx, type FoodCtx as Ctx } from '../food/kitchen';
 import type { User } from '../users';
 import { dateField, idField } from '../food/schemas';
 import { localDate } from '../food/stock';
+import { healthText, num, unit } from './i18n';
 import { syncCatalog } from './library';
 import { addDays } from './stats';
 import { personId } from './workouts';
@@ -187,7 +189,9 @@ async function exerciseForWorkout(
 export async function importHealth(
   ctx: Ctx,
   input: HealthImport,
+  locale: Locale = 'en',
 ): Promise<{ days: number; values: number; workouts: number }> {
+  const t = healthText[locale];
   const userId = await personId(ctx, input.userId);
   const days: DayInput[] = [...(input.days ?? [])];
   const flat = dayValues(input);
@@ -247,7 +251,8 @@ export async function importHealth(
               : null,
           start,
           localDate(start),
-          `From ${input.source === 'apple' ? 'Apple Health' : input.source === 'google' ? 'Health Connect' : 'the app'}${energy ? ` · ${energy} kcal` : ''}`,
+          // A note on the set, written once in the language of whoever sends it.
+          `${t.from(input.source === 'apple' ? 'Apple Health' : input.source === 'google' ? 'Health Connect' : t.app)}${energy ? ` · ${energy} ${unit(locale).kcal}` : ''}`,
           tx.actor.via,
           tx.actor.userId,
           tx.now,
@@ -301,6 +306,7 @@ export async function healthSummary(
   userId: string,
   from: string,
   to: string,
+  locale: Locale = 'en',
 ): Promise<HealthSummary> {
   // A day with values from more than one source keeps one: the phone's, over what was typed.
   const { rows } = await ctx.db.query<{ day: string; kind: HealthKind; value: string }>(
@@ -346,7 +352,7 @@ export async function healthSummary(
     week,
     latest,
     lastSync: Object.fromEntries(sync.rows.map((r) => [r.source, r.at.toISOString()])),
-    insights: insights(days, week, to),
+    insights: insights(days, week, to, locale),
   };
 }
 
@@ -355,7 +361,9 @@ export function insights(
   days: HealthDay[],
   week: HealthSummary['week'],
   to: string,
+  locale: Locale = 'en',
 ): HealthSummary['insights'] {
+  const t = healthText[locale];
   const out: HealthSummary['insights'] = [];
   const pct = (now: number, before: number) => Math.round(((now - before) / before) * 100);
   const steps = week.steps;
@@ -364,24 +372,20 @@ export function insights(
     if (Math.abs(change) >= 10)
       out.push({
         tone: change > 0 ? 'good' : 'watch',
-        text: `Steps ${change > 0 ? 'up' : 'down'} ${Math.abs(change)}% on the week before (${Math.round(steps.now).toLocaleString('en')} a day)`,
+        text: t.steps(change > 0, Math.abs(change), num(Math.round(steps.now), locale)),
       });
   }
   const lastWeek = days.filter((d) => d.day > addDays(to, -7));
   const nights = lastWeek.filter((d) => d.values.sleep !== undefined);
   const short = nights.filter((d) => d.values.sleep! < 7 * 60).length;
   if (nights.length >= 3 && short >= Math.ceil(nights.length / 2))
-    out.push({
-      tone: 'watch',
-      text: `Under 7 hours’ sleep on ${short} of the last ${nights.length} nights`,
-    });
-  else if (nights.length >= 3 && short === 0)
-    out.push({ tone: 'good', text: `7 hours or more every night this week` });
+    out.push({ tone: 'watch', text: t.shortSleep(short, nights.length) });
+  else if (nights.length >= 3 && short === 0) out.push({ tone: 'good', text: t.goodSleep });
   const rhr = week.restingHeartRate;
   if (rhr?.now && rhr.before && Math.abs(rhr.now - rhr.before) >= 3) {
     out.push({
       tone: rhr.now < rhr.before ? 'good' : 'watch',
-      text: `Resting heart rate ${rhr.now < rhr.before ? 'down' : 'up'} ${Math.round(Math.abs(rhr.now - rhr.before))} bpm on the week before`,
+      text: t.restingHeart(rhr.now < rhr.before, Math.round(Math.abs(rhr.now - rhr.before))),
     });
   }
   const weights = days.filter((d) => d.values.weight !== undefined);
@@ -392,12 +396,15 @@ export function insights(
     if (Math.abs(change) >= 0.5)
       out.push({
         tone: 'info',
-        text: `Weight ${change > 0 ? '+' : '−'}${Math.abs(change)} kg since ${first.day.slice(8)}.${first.day.slice(5, 7)}`,
+        text: t.weight(
+          `${change > 0 ? '+' : '−'}${num(Math.abs(change), locale, { max: 1 })}`,
+          `${first.day.slice(8)}.${first.day.slice(5, 7)}`,
+        ),
       });
   }
   const active = lastWeek.filter((d) => (d.values.steps ?? 0) >= 8000).length;
   if (lastWeek.length >= 5 && active >= 5)
-    out.push({ tone: 'good', text: `8,000 steps or more on ${active} of the last 7 days` });
+    out.push({ tone: 'good', text: t.activeDays(num(8000, locale), active) });
   return out;
 }
 

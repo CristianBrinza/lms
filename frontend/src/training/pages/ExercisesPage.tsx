@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, Chips, IconButton, Skeleton, TextField, toast } from '@/components/ui';
 import { AddIcon, HomeIcon, SearchIcon, VisibilityIcon } from '@/components/ui/icons';
+import { formatList, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -15,9 +16,11 @@ import { PersonSwitcher } from '../components/PersonSwitcher';
 import { ExerciseEditorSheet } from '../exercises/ExerciseEditorSheet';
 import { ExercisePanel, ExerciseSheet, LevelDots } from '../exercises/ExerciseDetail';
 import { CATEGORY_LABEL, CATEGORY_ORDER, LEVEL_LABEL, MUSCLE_LABEL, MUSCLE_ORDER } from '../format';
+import { trainingT } from '../i18n';
 import { ExerciseIcon } from '../icons/TrainingIcon';
 import { usePerson } from '../person';
 import type { EquipmentPreset, ExerciseCategory, LibraryExercise, Muscle } from '../types';
+import { useExercisesT } from './ExercisesPage.i18n';
 
 type Category = 'all' | ExerciseCategory;
 type MuscleFilter = 'any' | Muscle;
@@ -36,6 +39,7 @@ const fold = (text: string) =>
  * on a tablet. `?exercise=<id>` opens one directly.
  */
 export default function ExercisesPage() {
+  const t = useExercisesT();
   const [params, setParams] = useSearchParams();
   const { personId } = usePerson();
   const wide = useWide();
@@ -77,7 +81,12 @@ export default function ExercisesPage() {
   const narrowed = source
     .filter((e) => hidden || !atHome || e.available)
     .filter((e) => muscle === 'any' || e.muscles.includes(muscle) || e.secondary.includes(muscle))
-    .filter((e) => !query.trim() || fold(e.name).includes(fold(query)));
+    .filter(
+      (e) =>
+        !query.trim() ||
+        fold(tr(e, 'name')).includes(fold(query)) ||
+        fold(e.name).includes(fold(query)),
+    );
   const counts: Record<Category, number> = {
     all: 0,
     strength: 0,
@@ -105,12 +114,12 @@ export default function ExercisesPage() {
       <PageHeader
         compact
         back="/training"
-        title={hidden ? 'Hidden exercises' : 'Exercises'}
-        subtitle={list.data ? `${available} of ${all.length} possible at home` : ' '}
+        title={hidden ? t.hiddenTitle : t.title}
+        subtitle={list.data ? t.possibleAtHome(available, all.length) : ' '}
         actions={
           <IconButton
             icon={AddIcon}
-            label="New exercise"
+            label={t.newExercise}
             variant="ink"
             size="sm"
             onClick={() => setCreating(true)}
@@ -123,12 +132,12 @@ export default function ExercisesPage() {
           <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-0">
             <PersonSwitcher />
             <TextField
-              label="Search exercises"
+              label={t.search}
               hideLabel
               dense
               icon={SearchIcon}
               surface="raised"
-              placeholder="Search exercises"
+              placeholder={t.search}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -149,18 +158,18 @@ export default function ExercisesPage() {
                   )}
                 >
                   <HomeIcon fontSize="inherit" className="text-[1.1rem]" />
-                  Can do at home
+                  {t.canDoAtHome}
                 </button>
               ) : null}
               <Chips
-                label="Kind"
+                label={t.kind}
                 tone="sheet"
                 dense
                 className="min-w-0 flex-1"
                 value={category}
                 onChange={setCategory}
                 options={[
-                  { value: 'all' as const, label: 'All', count: counts.all },
+                  { value: 'all' as const, label: t.all, count: counts.all },
                   ...CATEGORY_ORDER.filter((c) => counts[c] || c === category).map((c) => ({
                     value: c,
                     label: CATEGORY_LABEL[c],
@@ -181,7 +190,7 @@ export default function ExercisesPage() {
               </div>
             ) : list.error || (hidden && archived.error) ? (
               <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-                <p className="font-semibold text-danger-700">Couldn’t load the exercises</p>
+                <p className="font-semibold text-danger-700">{t.loadError}</p>
                 <p className="mt-1 text-sm text-ink-600">
                   {errorMessage(list.error ?? archived.error)}
                 </p>
@@ -191,7 +200,7 @@ export default function ExercisesPage() {
                   className="mt-3"
                   onClick={() => void (hidden ? archived.refetch() : list.refetch())}
                 >
-                  Try again
+                  {t.tryAgain}
                 </Button>
               </div>
             ) : !shown.length ? (
@@ -212,7 +221,7 @@ export default function ExercisesPage() {
               <div className="2xl:columns-2 2xl:gap-6">
                 {pinned.length ? (
                   <Group
-                    title="Pinned"
+                    title={t.pinned}
                     pin
                     items={pinned}
                     presets={presets}
@@ -243,11 +252,11 @@ export default function ExercisesPage() {
                   icon={VisibilityIcon}
                   onClick={() => setHidden((v) => !v)}
                 >
-                  {hidden ? 'Back to the library' : 'Hidden exercises'}
+                  {hidden ? t.backToLibrary : t.hiddenTitle}
                 </Button>
                 {!hidden && atHome && all.length > available ? (
                   <Button variant="ghost" size="sm" onClick={() => setAtHome(false)}>
-                    Show all {all.length}
+                    {t.showAllCount(all.length)}
                   </Button>
                 ) : null}
               </div>
@@ -266,11 +275,8 @@ export default function ExercisesPage() {
                   <ExerciseIcon name="squat" className="size-16" />
                   <ExerciseIcon name="plank" className="size-20" />
                 </div>
-                <p className="mt-3 text-[1.0625rem] font-bold">Tap an exercise</p>
-                <p className="mt-1 max-w-xs text-sm text-ink-600">
-                  How to do it, what it works and needs, the bests so far, and a quick way to log a
-                  set.
-                </p>
+                <p className="mt-3 text-[1.0625rem] font-bold">{t.tapAnExercise}</p>
+                <p className="mt-1 max-w-xs text-sm text-ink-600">{t.tapHint}</p>
               </div>
             )}
           </aside>
@@ -293,11 +299,11 @@ export default function ExercisesPage() {
 
 // ---------------------------------------------------------------- filters
 
-const BODY: Array<{ label: string; muscles: Muscle[] }> = [
-  { label: 'Upper', muscles: ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms'] },
-  { label: 'Middle', muscles: ['core', 'obliques', 'hips'] },
-  { label: 'Legs', muscles: ['glutes', 'quads', 'hamstrings', 'calves'] },
-  { label: 'Heart', muscles: ['heart'] },
+const BODY: Array<{ part: 'upper' | 'middle' | 'legs' | 'heart'; muscles: Muscle[] }> = [
+  { part: 'upper', muscles: ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms'] },
+  { part: 'middle', muscles: ['core', 'obliques', 'hips'] },
+  { part: 'legs', muscles: ['glutes', 'quads', 'hamstrings', 'calves'] },
+  { part: 'heart', muscles: ['heart'] },
 ];
 
 /** "Any muscle" or one: a row of pills, grouped upper / middle / legs so the eye finds them. */
@@ -308,6 +314,7 @@ function MusclePicker({
   value: MuscleFilter;
   onChange: (value: MuscleFilter) => void;
 }) {
+  const t = useExercisesT();
   const pill = (active: boolean) =>
     cx(
       'press inline-flex h-8 shrink-0 items-center rounded-pill px-3 text-[0.8125rem] font-semibold transition-colors',
@@ -316,7 +323,7 @@ function MusclePicker({
   return (
     <div
       role="radiogroup"
-      aria-label="Muscle"
+      aria-label={t.muscle}
       className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]"
     >
       <button
@@ -326,15 +333,15 @@ function MusclePicker({
         onClick={() => onChange('any')}
         className={pill(value === 'any')}
       >
-        Any muscle
+        {t.anyMuscle}
       </button>
       {BODY.map((part) => (
-        <span key={part.label} className="flex shrink-0 items-center gap-1.5">
+        <span key={part.part} className="flex shrink-0 items-center gap-1.5">
           <span
             aria-hidden="true"
             className="ml-1 text-[0.6875rem] font-bold uppercase tracking-wide text-ink-400"
           >
-            {part.label}
+            {t.body[part.part]}
           </span>
           {part.muscles
             .filter((m) => MUSCLE_ORDER.includes(m))
@@ -398,12 +405,20 @@ function Group({
   );
 }
 
-/** "Pull-up bar", "Bench or Chair", "Dumbbells + Bench". */
-function needsLine(needs: string[][], presets: EquipmentPreset[]): string {
-  const name = (kind: string) =>
-    presets.find((p) => p.kind === kind)?.name ?? kind.replace(/_/g, ' ');
-  const options = needs.map((alt) => alt.map(name).join(' + '));
-  return options.length > 2 ? `${options.slice(0, 2).join(' or ')} or more` : options.join(' or ');
+/** "Pull-up bar", "Bench or Chair", "Dumbbells + Bench", in the current language. */
+function needsLine(
+  needs: string[][],
+  presets: EquipmentPreset[],
+  t: ReturnType<typeof useExercisesT>,
+): string {
+  const name = (kind: string) => {
+    const preset = presets.find((p) => p.kind === kind);
+    return preset ? tr(preset, 'name') : kind.replace(/_/g, ' ');
+  };
+  const options = needs.map((alt) => alt.map(name).join(trainingT().equipmentJoin));
+  return options.length > 2
+    ? t.needsMore(options[0]!, options[1]!)
+    : formatList(options, 'disjunction');
 }
 
 function ExerciseRow({
@@ -419,6 +434,8 @@ function ExerciseRow({
   onOpen: () => void;
   selected: boolean;
 }) {
+  const t = useExercisesT();
+  const name = tr(exercise, 'name');
   const queryClient = useQueryClient();
   const pin = useMutation({
     mutationFn: (pinned: boolean) => trainingApi.pin(exercise.id, pinned, personId),
@@ -461,14 +478,14 @@ function ExerciseRow({
               !exercise.available && 'text-ink-700',
             )}
           >
-            {exercise.name}
+            {name}
           </span>
           <span className="block truncate text-[0.8125rem] text-ink-600">
             {muscles.join(' · ') || CATEGORY_LABEL[exercise.category]}
           </span>
           {!exercise.available ? (
             <span className="block truncate text-xs font-semibold text-peach-800">
-              needs: {needsLine(exercise.equipment, presets)}
+              {t.needs(needsLine(exercise.equipment, presets, t))}
             </span>
           ) : null}
         </span>
@@ -479,15 +496,15 @@ function ExerciseRow({
           <LevelDots level={exercise.level} />
           <span className="sr-only">{LEVEL_LABEL[exercise.level]}</span>
           {exercise.impact === 'high' ? (
-            <span className="text-[0.6875rem] font-semibold text-peach-800">Jumps</span>
+            <span className="text-[0.6875rem] font-semibold text-peach-800">{t.jumps}</span>
           ) : null}
         </span>
       </button>
       <button
         type="button"
         aria-pressed={exercise.pinned}
-        aria-label={`${exercise.pinned ? 'Unpin' : 'Pin'} ${exercise.name}`}
-        title={exercise.pinned ? 'Pinned: kept at hand for quick logging' : 'Pin for quick logging'}
+        aria-label={exercise.pinned ? t.unpin(name) : t.pin(name)}
+        title={exercise.pinned ? t.pinnedHint : t.pinHint}
         onClick={() => pin.mutate(!exercise.pinned)}
         disabled={pin.isPending}
         className={cx(
@@ -520,37 +537,36 @@ function NothingFound({
   onClear: () => void;
   onCreate: () => void;
 }) {
+  const t = useExercisesT();
   if (hidden && !filtered)
     return (
       <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
-        Nothing hidden. Hiding an exercise keeps it out of the library and generated workouts.
+        {t.nothingHidden}
       </p>
     );
   return (
     <div className="flex flex-col items-center rounded-3xl bg-white px-6 py-8 text-center shadow-[var(--shadow-card)]">
       <ExerciseIcon name="hamstring-stretch" className="size-16" />
       <p className="mt-3 text-[1.0625rem] font-bold">
-        {query.trim() ? `No “${query.trim()}”` : 'No exercises match'}
+        {query.trim() ? t.noQuery(query.trim()) : t.noMatch}
       </p>
       <p className="mt-1 max-w-xs text-sm text-ink-600">
-        {atHome && !hidden
-          ? 'Only what the equipment at home allows is shown.'
-          : 'Try fewer filters.'}
+        {atHome && !hidden ? t.onlyAtHome : t.fewerFilters}
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">
         {atHome && !hidden ? (
           <Button size="sm" variant="tint" onClick={onShowAll}>
-            Show all exercises
+            {t.showAll}
           </Button>
         ) : null}
         {filtered ? (
           <Button size="sm" variant="ghost" onClick={onClear}>
-            Clear filters
+            {t.clearFilters}
           </Button>
         ) : null}
         {!hidden ? (
           <Button size="sm" icon={AddIcon} onClick={onCreate}>
-            New exercise
+            {t.newExercise}
           </Button>
         ) : null}
       </div>

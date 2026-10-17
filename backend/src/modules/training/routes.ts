@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import type { AppDeps, AppEnv } from '../../context';
+import { requestLocale } from '../../lib/i18n';
 import { readJson, readQuery } from '../../lib/validation';
 import { requireAuth } from '../../middleware/auth';
 import { foodCtx, requireKitchen } from '../food/kitchen';
@@ -70,6 +71,8 @@ export function trainingRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
   app.use('*', requireAuth(deps), requireKitchen(deps));
   const ctx = (c: Context<AppEnv>) => foodCtx(deps, c.get('actor'));
+  // What the server writes for people (hints, titles, insights) comes in their language.
+  const lang = (c: Context<AppEnv>) => requestLocale(c);
 
   app.get('/overview', async (c) => {
     const query = readQuery(c, PersonQuery.extend({ today: dateField.optional() }));
@@ -187,14 +190,19 @@ export function trainingRoutes(deps: AppDeps) {
     });
   });
   app.post('/workouts', async (c) =>
-    c.json({ workout: await createWorkout(ctx(c), await readJson(c, WorkoutInput)) }, 201),
+    c.json({ workout: await createWorkout(ctx(c), await readJson(c, WorkoutInput), lang(c)) }, 201),
   );
   app.get('/workouts/:id', async (c) =>
-    c.json({ workout: await getWorkout(ctx(c), c.req.param('id')) }),
+    c.json({ workout: await getWorkout(ctx(c), c.req.param('id'), lang(c)) }),
   );
   app.patch('/workouts/:id', async (c) =>
     c.json({
-      workout: await updateWorkout(ctx(c), c.req.param('id'), await readJson(c, WorkoutPatch)),
+      workout: await updateWorkout(
+        ctx(c),
+        c.req.param('id'),
+        await readJson(c, WorkoutPatch),
+        lang(c),
+      ),
     }),
   );
   app.delete('/workouts/:id', async (c) => {
@@ -202,16 +210,21 @@ export function trainingRoutes(deps: AppDeps) {
     return c.body(null, 204);
   });
   app.post('/workouts/:id/start', async (c) =>
-    c.json({ workout: await startWorkout(ctx(c), c.req.param('id')) }),
+    c.json({ workout: await startWorkout(ctx(c), c.req.param('id'), lang(c)) }),
   );
   app.post('/workouts/:id/finish', async (c) =>
     c.json({
-      workout: await finishWorkout(ctx(c), c.req.param('id'), await readJson(c, FinishInput)),
+      workout: await finishWorkout(
+        ctx(c),
+        c.req.param('id'),
+        await readJson(c, FinishInput),
+        lang(c),
+      ),
     }),
   );
   app.post('/workouts/:id/copy', async (c) => {
     const body = await readJson(c, z.object({ date: dateField, userId: idField.optional() }));
-    return c.json({ workout: await copyWorkout(ctx(c), c.req.param('id'), body) }, 201);
+    return c.json({ workout: await copyWorkout(ctx(c), c.req.param('id'), body, lang(c)) }, 201);
   });
   app.post('/workouts/:id/sets', async (c) =>
     c.json(await logSet(ctx(c), await readJson(c, SetInput), c.req.param('id')), 201),
@@ -251,7 +264,7 @@ export function trainingRoutes(deps: AppDeps) {
     const query = readQuery(c, RangeQuery.extend({ today: dateField.optional() }));
     const userId = await personId(ctx(c), query.userId);
     return c.json({
-      energy: await energySummary(ctx(c), userId, query.from, query.to, query.today),
+      energy: await energySummary(ctx(c), userId, query.from, query.to, query.today, lang(c)),
     });
   });
   // Today's numbers, flat, for the phone's Shortcut to write into Apple Health.
@@ -274,18 +287,22 @@ export function trainingRoutes(deps: AppDeps) {
 
   // Health data the phone sends (an iOS Shortcut, the Android companion) or typed in.
   app.post('/health', async (c) =>
-    c.json(await importHealth(ctx(c), await readJson(c, HealthImport))),
+    c.json(await importHealth(ctx(c), await readJson(c, HealthImport), lang(c))),
   );
   app.get('/health', async (c) => {
     const query = readQuery(c, HealthQuery);
     const userId = await personId(ctx(c), query.userId);
-    return c.json({ health: await healthSummary(ctx(c), userId, query.from, query.to) });
+    return c.json({
+      health: await healthSummary(ctx(c), userId, query.from, query.to, lang(c)),
+    });
   });
 
   app.post('/generate', async (c) => {
     const input = await readJson(c, GenerateInput);
     const userId = await personId(ctx(c), input.userId);
-    return c.json({ workout: await generateWorkout(ctx(c), userId, input) });
+    return c.json({
+      workout: await generateWorkout(ctx(c), userId, input, Math.random, lang(c)),
+    });
   });
 
   return app;

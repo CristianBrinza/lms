@@ -22,6 +22,7 @@ import {
   relativeDayInline,
   weekdayShort,
 } from '@/food/format';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { trainingApi, trainingKeys } from '../api';
@@ -30,8 +31,10 @@ import { PersonSwitcher } from '../components/PersonSwitcher';
 import { QuickLogSheet } from '../components/QuickLogSheet';
 import { distance, duration, setLabel } from '../format';
 import { EquipmentIcon, ExerciseIcon } from '../icons/TrainingIcon';
+import { useTrainingT } from '../i18n';
 import { usePerson } from '../person';
 import type { Pin, TrainingOverview, WorkoutSummary } from '../types';
+import { useTrainingHomeT } from './TrainingHomePage.i18n';
 
 /**
  * Training's front door, for whoever is chosen: today's workout with one big Start, the exercises
@@ -51,18 +54,19 @@ export default function TrainingHomePage() {
   });
   const [making, setMaking] = useState(false);
   const data = overview.data;
+  const t = useTrainingHomeT();
 
   return (
     <Screen tone="field">
       <PageHeader
         compact
         back="/home"
-        title="Training"
-        subtitle={isMe ? 'Home workouts' : `${person?.name ?? ''}’s training`}
+        title={t.title}
+        subtitle={isMe ? t.subtitleMe : t.subtitleOf(person?.name ?? '')}
         actions={
           <IconButton
             icon={AddIcon}
-            label="Log a set"
+            label={t.logSet}
             variant="ink"
             size="sm"
             onClick={() => setLogging({ open: true, exerciseId: null })}
@@ -79,7 +83,7 @@ export default function TrainingHomePage() {
       ) : overview.error || !data ? (
         <div className="gutter-x mt-3 md:px-5 lg:px-8">
           <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load training</p>
+            <p className="font-semibold text-danger-700">{t.loadFailed}</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(overview.error)}</p>
             <Button
               size="sm"
@@ -87,7 +91,7 @@ export default function TrainingHomePage() {
               className="mt-3"
               onClick={() => void overview.refetch()}
             >
-              Try again
+              {t.tryAgain}
             </Button>
           </div>
         </div>
@@ -123,6 +127,7 @@ export default function TrainingHomePage() {
 
 function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => void }) {
   const navigate = useNavigate();
+  const t = useTrainingHomeT();
   const todays = data.todays.filter((w) => w.status !== 'skipped');
   return (
     <section
@@ -131,10 +136,10 @@ function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => voi
     >
       <div className="flex items-center justify-between gap-3">
         <h2 id="today" className="text-[1.125rem] font-bold tracking-[-0.02em]">
-          Today
+          {t.today}
         </h2>
         <span className="text-sm text-white/70">
-          {relativeDay(data.today) === 'Today' ? dayAndMonth(data.today) : relativeDay(data.today)}
+          {data.today === localDate() ? dayAndMonth(data.today) : relativeDay(data.today)}
         </span>
       </div>
       {todays.length ? (
@@ -151,23 +156,23 @@ function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => voi
       ) : (
         <div className="mt-3">
           <p className="text-[1.375rem] font-bold leading-tight tracking-[-0.02em]">
-            Nothing planned
+            {t.nothingPlanned}
           </p>
           <p className="mt-1 text-sm text-white/70">
             {data.next
-              ? `Next: ${data.next.title}, ${relativeDayInline(data.next.date)}.`
-              : 'Make one up from what’s at home, or plan the week.'}
+              ? t.nextFull(tr(data.next, 'title'), relativeDayInline(data.next.date))
+              : t.makeHint}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="accent" icon={SparkleIcon} onClick={onMake}>
-              Make one up
+              {t.makeOne}
             </Button>
             <ButtonLink
               to="/training/plan"
               variant="ghost"
               className="bg-white/10 text-white hover:bg-white/15"
             >
-              Plan
+              {t.plan}
             </ButtonLink>
           </div>
         </div>
@@ -177,7 +182,9 @@ function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => voi
           to={`/training/workouts/${data.next.id}`}
           className="mt-3 flex items-center gap-2 text-sm text-white/70 hover:text-white"
         >
-          Next: {data.next.title}, {relativeDayInline(data.next.date)}
+          <span className="min-w-0 truncate">
+            {t.next(tr(data.next, 'title'), relativeDayInline(data.next.date))}
+          </span>
           <ChevronRightIcon fontSize="inherit" className="text-[1.1rem]" />
         </Link>
       ) : null}
@@ -187,6 +194,8 @@ function TodayCard({ data, onMake }: { data: TrainingOverview; onMake: () => voi
 
 function TodayWorkout({ workout, onPlay }: { workout: WorkoutSummary; onPlay: () => void }) {
   const done = workout.status === 'done';
+  const t = useTrainingHomeT();
+  const words = useTrainingT();
   return (
     <div className="flex items-center gap-3 rounded-[1.25rem] bg-white/8 p-3">
       <Link
@@ -197,16 +206,23 @@ function TodayWorkout({ workout, onPlay }: { workout: WorkoutSummary; onPlay: ()
           <ExerciseIcon name={workout.exercises[0]?.icon ?? 'squat'} className="size-11" />
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-[1.0625rem] font-bold">{workout.title}</span>
+          <span className="block truncate text-[1.0625rem] font-bold">{tr(workout, 'title')}</span>
           <span className="block text-sm text-white/70">
             {done
-              ? `Done${workout.durationSeconds ? ` · ${duration(workout.durationSeconds)}` : ''} · ${workout.setsDone} sets`
+              ? t.doneLine(
+                  workout.durationSeconds ? duration(workout.durationSeconds) : '',
+                  words.sets(workout.setsDone),
+                )
               : workout.status === 'active'
-                ? `${workout.setsDone} of ${workout.setsPlanned} sets done`
-                : `${workout.exercises.length} exercises · about ${duration(workout.estimatedSeconds)}${workout.time ? ` · ${workout.time}` : ''}`}
+                ? t.activeLine(workout.setsDone, workout.setsPlanned)
+                : t.plannedLine(
+                    words.exercises(workout.exercises.length),
+                    duration(workout.estimatedSeconds),
+                    workout.time,
+                  )}
           </span>
           {workout.missing.length && !done ? (
-            <span className="block text-xs text-peach-200">Needs equipment that isn’t at home</span>
+            <span className="block text-xs text-peach-200">{t.needsEquipment}</span>
           ) : null}
         </span>
       </Link>
@@ -214,14 +230,16 @@ function TodayWorkout({ workout, onPlay }: { workout: WorkoutSummary; onPlay: ()
         <CheckCircleIcon
           fontSize="inherit"
           className="shrink-0 text-[2rem] text-mint-200"
-          aria-label="Done"
+          aria-label={t.done}
         />
       ) : (
         <button
           type="button"
           onClick={onPlay}
           aria-label={
-            workout.status === 'active' ? `Continue ${workout.title}` : `Start ${workout.title}`
+            workout.status === 'active'
+              ? t.continueWorkout(tr(workout, 'title'))
+              : t.startWorkout(tr(workout, 'title'))
           }
           className="press grid size-14 shrink-0 place-items-center rounded-full bg-butter-300 text-[2rem] text-ink-900 shadow-[0_8px_16px_-8px_rgb(0_0_0/0.55)]"
         >
@@ -235,6 +253,7 @@ function TodayWorkout({ workout, onPlay }: { workout: WorkoutSummary; onPlay: ()
 // ---------------------------------------------------------------- a set in passing
 
 function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | null) => void }) {
+  const t = useTrainingHomeT();
   return (
     <section
       aria-labelledby="quick"
@@ -242,13 +261,13 @@ function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | n
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="quick" className="text-[1.0625rem] font-bold">
-          Log a set
+          {t.logSet}
         </h2>
         <Link
           to="/training/exercises"
-          className="text-sm font-semibold text-ink-600 hover:text-ink-900"
+          className="shrink-0 text-sm font-semibold text-ink-600 hover:text-ink-900"
         >
-          Pin more
+          {t.pinMore}
         </Link>
       </div>
       {pins.length ? (
@@ -261,11 +280,13 @@ function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | n
               className="press flex w-[6.5rem] shrink-0 flex-col items-center gap-1 rounded-2xl bg-butter-100 px-2 py-3 text-center transition-colors hover:bg-butter-200"
             >
               <ExerciseIcon name={pin.icon} className="size-11" />
-              <span className="line-clamp-2 text-sm font-semibold leading-tight">{pin.name}</span>
+              <span className="line-clamp-2 text-sm font-semibold leading-tight">
+                {tr(pin, 'name')}
+              </span>
               <span className="tabular text-xs text-butter-800">
                 {pin.today
-                  ? `${pin.measure === 'time' ? duration(pin.today) : pin.today} today`
-                  : 'Tap to log'}
+                  ? t.pinToday(pin.measure === 'time' ? duration(pin.today) : String(pin.today))
+                  : t.tapToLog}
               </span>
             </button>
           ))}
@@ -275,16 +296,14 @@ function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | n
             className="press flex w-[6.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl bg-ink-50 px-2 py-3 text-center text-ink-700 hover:bg-ink-100"
           >
             <AddIcon fontSize="inherit" className="text-[1.75rem]" />
-            <span className="text-sm font-semibold">Something else</span>
+            <span className="text-sm font-semibold">{t.somethingElse}</span>
           </button>
         </div>
       ) : (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-ink-600">
-            Pin the exercises you do often to log a set in one tap.
-          </p>
+          <p className="text-sm text-ink-600">{t.pinHint}</p>
           <Button size="sm" variant="tint" icon={AddIcon} onClick={() => onLog(null)}>
-            Log a set
+            {t.logSet}
           </Button>
         </div>
       )}
@@ -295,6 +314,8 @@ function QuickLog({ pins, onLog }: { pins: Pin[]; onLog: (exerciseId: string | n
 // ---------------------------------------------------------------- the week
 
 function Week({ data }: { data: TrainingOverview }) {
+  const t = useTrainingHomeT();
+  const words = useTrainingT();
   return (
     <section
       aria-labelledby="week"
@@ -302,10 +323,10 @@ function Week({ data }: { data: TrainingOverview }) {
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="week" className="text-[1.0625rem] font-bold">
-          This week
+          {t.thisWeek}
         </h2>
         <Link to="/training/plan" className="text-sm font-semibold text-ink-600 hover:text-ink-900">
-          Plan
+          {t.plan}
         </Link>
       </div>
       <ol className="mt-3 grid grid-cols-7 gap-1">
@@ -318,7 +339,7 @@ function Week({ data }: { data: TrainingOverview }) {
             <li key={d.day}>
               <Link
                 to={`/training/plan?day=${d.day}`}
-                aria-label={`${relativeDay(d.day)}: ${done ? 'trained' : planned ? 'planned' : past ? 'rest' : 'nothing yet'}`}
+                aria-label={`${relativeDay(d.day)}: ${done ? t.dayState.trained : planned ? t.dayState.planned : past ? t.dayState.rest : t.dayState.nothing}`}
                 className={cx(
                   'press flex flex-col items-center gap-1.5 rounded-2xl py-2 transition-colors hover:bg-ink-50',
                   isToday && 'bg-lav-100',
@@ -341,12 +362,8 @@ function Week({ data }: { data: TrainingOverview }) {
                 >
                   {done ? <CheckIcon /> : Number(d.day.slice(8))}
                 </span>
-                <span className="tabular h-4 text-[0.6875rem] text-ink-500">
-                  {d.minutes
-                    ? `${d.minutes}′`
-                    : d.sets
-                      ? `${d.sets} ${d.sets === 1 ? 'set' : 'sets'}`
-                      : ''}
+                <span className="tabular h-4 max-w-full truncate text-[0.6875rem] text-ink-500">
+                  {d.minutes ? `${d.minutes}′` : d.sets ? words.sets(d.sets) : ''}
                 </span>
               </Link>
             </li>
@@ -361,8 +378,9 @@ const CheckIcon = () => <CheckCircleIcon fontSize="inherit" className="text-[1.2
 
 function StreakCard({ data }: { data: TrainingOverview }) {
   const t = data.totals;
+  const words = useTrainingHomeT();
   return (
-    <section aria-label="This week in numbers" className="grid grid-cols-2 gap-2.5">
+    <section aria-label={words.inNumbers} className="grid grid-cols-2 gap-2.5">
       <div className="flex flex-col justify-between rounded-[1.5rem] bg-butter-300 p-4 shadow-[0_18px_34px_-22px_rgb(110_80_0/0.7)]">
         <FireIcon fontSize="inherit" className="text-[1.75rem]" />
         <div className="mt-3">
@@ -370,11 +388,10 @@ function StreakCard({ data }: { data: TrainingOverview }) {
             {data.streak.current}
           </p>
           <p className="mt-1 text-sm font-semibold text-butter-800">
-            {data.streak.current === 1 ? 'day in a row' : 'days in a row'}
+            {words.daysInRow(data.streak.current)}
           </p>
           <p className="text-xs text-butter-800">
-            Best {data.streak.best} · {data.streak.weeks}{' '}
-            {data.streak.weeks === 1 ? 'week' : 'weeks'} running
+            {words.bestRunning(data.streak.best, data.streak.weeks)}
           </p>
         </div>
       </div>
@@ -385,20 +402,20 @@ function StreakCard({ data }: { data: TrainingOverview }) {
         <InsightsIcon fontSize="inherit" className="text-[1.75rem]" />
         <dl className="mt-3 grid gap-0.5 text-sm">
           <div className="flex justify-between gap-2">
-            <dt className="text-cyan-800">Workouts</dt>
+            <dt className="min-w-0 truncate text-cyan-800">{words.workouts}</dt>
             <dd className="tabular font-bold">{t.workouts}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-cyan-800">Minutes</dt>
+            <dt className="min-w-0 truncate text-cyan-800">{words.minutes}</dt>
             <dd className="tabular font-bold">{t.minutes}</dd>
           </div>
           <div className="flex justify-between gap-2">
-            <dt className="text-cyan-800">Sets</dt>
+            <dt className="min-w-0 truncate text-cyan-800">{words.sets}</dt>
             <dd className="tabular font-bold">{t.sets}</dd>
           </div>
           {t.distance ? (
             <div className="flex justify-between gap-2">
-              <dt className="text-cyan-800">Distance</dt>
+              <dt className="min-w-0 truncate text-cyan-800">{words.distance}</dt>
               <dd className="tabular font-bold">{distance(t.distance)}</dd>
             </div>
           ) : null}
@@ -409,43 +426,42 @@ function StreakCard({ data }: { data: TrainingOverview }) {
 }
 
 function Sections({ equipment }: { equipment: number }) {
+  const t = useTrainingHomeT();
   const rows = [
     {
       to: '/training/plan',
-      title: 'Plan',
-      detail: 'Days, workouts, saved routines',
+      title: t.plan,
+      detail: t.sections.planDetail,
       icon: <CalendarIcon fontSize="inherit" className="text-[1.6rem]" />,
     },
     {
       to: '/training/exercises',
-      title: 'Exercises',
-      detail: 'What you can do at home',
+      title: t.sections.exercises,
+      detail: t.sections.exercisesDetail,
       icon: <ExerciseIcon name="push-up" className="size-9" />,
     },
     {
       to: '/training/equipment',
-      title: 'Equipment',
-      detail: equipment
-        ? `${equipment} ${equipment === 1 ? 'thing' : 'things'} at home`
-        : 'Say what you have at home',
+      title: t.sections.equipment,
+      detail: equipment ? t.sections.equipmentCount(equipment) : t.sections.equipmentNone,
       icon: <EquipmentIcon name="dumbbells" className="size-9" />,
     },
     {
       to: '/training/health',
-      title: 'Health and energy',
-      detail: 'Eaten, burned, steps, sleep, weight',
+      title: t.sections.health,
+      detail: t.sections.healthDetail,
       icon: <FireIcon fontSize="inherit" className="text-[1.6rem]" />,
     },
     {
       to: '/training/progress',
-      title: 'Progress',
-      detail: 'Bests, streaks, muscles',
+      title: t.sections.progress,
+      detail: t.sections.progressDetail,
       icon: <InsightsIcon fontSize="inherit" className="text-[1.6rem]" />,
     },
   ];
   return (
     <nav
-      aria-label="Training"
+      aria-label={t.title}
       className="overflow-hidden rounded-[1.5rem] bg-white shadow-[var(--shadow-card)]"
     >
       <ul className="divide-y divide-ink-100">
@@ -474,10 +490,11 @@ function Sections({ equipment }: { equipment: number }) {
 
 function LoggedToday({ data }: { data: TrainingOverview }) {
   const queryClient = useQueryClient();
+  const t = useTrainingHomeT();
   const remove = useMutation({
     mutationFn: (id: string) => trainingApi.removeSet(id),
     onSuccess: () => {
-      toast.success('Set removed');
+      toast.success(t.setRemoved);
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -490,22 +507,24 @@ function LoggedToday({ data }: { data: TrainingOverview }) {
       className="rounded-[1.5rem] bg-white p-4 shadow-[var(--shadow-card)]"
     >
       <h2 id="logged" className="text-[1.0625rem] font-bold">
-        Logged today
+        {t.loggedToday}
       </h2>
       <ul className="mt-2 flex flex-col">
         {loose.slice(0, 8).map((s) => (
           <li key={s.id} className="flex items-center gap-3 py-1.5">
             <ExerciseIcon name={s.icon} className="size-8" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.9375rem] font-semibold">{s.exercise}</span>
+              <span className="block truncate text-[0.9375rem] font-semibold">
+                {tr(s, 'exercise')}
+              </span>
               <span className="block text-xs text-ink-600">
                 {setLabel(s)} ·{' '}
-                {s.timeKnown ? new Date(s.performedAt).toTimeString().slice(0, 5) : 'today'}
+                {s.timeKnown ? new Date(s.performedAt).toTimeString().slice(0, 5) : t.todayLower}
               </span>
             </span>
             <IconButton
               icon={CloseIcon}
-              label={`Remove ${s.exercise}, ${setLabel(s)}`}
+              label={t.removeSet(tr(s, 'exercise'), setLabel(s))}
               size="sm"
               variant="ghost"
               disabled={remove.isPending}

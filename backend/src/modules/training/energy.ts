@@ -1,9 +1,11 @@
+import type { Locale } from '../../lib/i18n';
 import type { FoodCtx as Ctx } from '../food/kitchen';
 import { addNutrients, nutrientsIn, roundNutrients, type Nutrients } from '../food/nutrition';
 import { productsByIds } from '../food/products';
 import { localDate } from '../food/stock';
 import { age } from '../profile';
 import { CATEGORY_MET, EXERCISE_ENERGY, REST_MET, runningMet, walkingMet } from './energy-data';
+import { energyText, num } from './i18n';
 import { addDays } from './stats';
 
 /**
@@ -334,7 +336,9 @@ export async function energySummary(
   from: string,
   to: string,
   today = localDate(ctx.now),
+  locale: Locale = 'en',
 ): Promise<EnergySummary> {
+  const t = energyText[locale];
   const person = await personOf(ctx, userId, to);
   const kg = kgOf(person);
   const rest = bmr(person);
@@ -408,14 +412,14 @@ export async function energySummary(
   const rate = person.goalRate ?? (person.goal === 'gain' ? 0.25 : 0.5);
   const floor = Math.max(rest ?? 0, person.gender === 'male' ? 1500 : 1200);
   let kcal = burn;
-  let why = 'Keeping weight: about what a day burns';
+  let why = t.keep;
   if (person.goal === 'lose') {
     kcal = Math.max(floor, Math.round(burn - (rate * KCAL_PER_KG) / 7));
-    why = `Losing ${rate} kg a week: ${Math.round((rate * KCAL_PER_KG) / 7)} kcal under what a day burns${kcal === floor ? ', held at a safe minimum' : ''}`;
+    why = t.lose(num(rate, locale), Math.round((rate * KCAL_PER_KG) / 7), kcal === floor);
   } else if (person.goal === 'gain') {
     kcal = Math.round(burn + (rate * KCAL_PER_KG) / 7);
-    why = `Gaining ${rate} kg a week: ${Math.round((rate * KCAL_PER_KG) / 7)} kcal over what a day burns`;
-  } else if (!person.goal) why = 'No goal set: about what a day burns';
+    why = t.gain(num(rate, locale), Math.round((rate * KCAL_PER_KG) / 7));
+  } else if (!person.goal) why = t.noGoal;
   const weekWorkouts = await ctx.db.query<{ count: number }>(
     `SELECT count(*)::int AS count FROM training_workouts WHERE user_id = $1 AND status = 'done' AND date > $2::date - 7`,
     [userId, today],
@@ -431,7 +435,7 @@ export async function energySummary(
     days: shown,
     burn: { estimated, measured },
     target: { kcal, protein, fat, carbs, why },
-    insights: energyInsights(shown, { kcal, protein }, today, person, measured),
+    insights: energyInsights(shown, { kcal, protein }, today, person, measured, locale),
   };
 }
 
@@ -441,20 +445,22 @@ function energyInsights(
   today: string,
   person: Person,
   measured: number | null,
+  locale: Locale,
 ): EnergySummary['insights'] {
+  const t = energyText[locale];
   const out: EnergySummary['insights'] = [];
   const day = days.find((d) => d.day === today);
   if (day?.eaten) {
     const left = target.kcal - day.eaten.kcal;
     out.push(
       left >= 0
-        ? { tone: 'info', text: `${left} kcal left today of ${target.kcal}` }
-        : { tone: 'watch', text: `${-left} kcal over today’s ${target.kcal}` },
+        ? { tone: 'info', text: t.left(left, target.kcal) }
+        : { tone: 'watch', text: t.over(-left, target.kcal) },
     );
     if (day.eaten.protein < target.protein * 0.6 && day.meals >= 2)
       out.push({
         tone: 'watch',
-        text: `Protein ${Math.round(day.eaten.protein)} of ${target.protein} g so far`,
+        text: t.protein(Math.round(day.eaten.protein), target.protein),
       });
   }
   const week = days.filter(
@@ -462,22 +468,10 @@ function energyInsights(
   );
   if (week.length >= 4) {
     const avg = Math.round(week.reduce((s, d) => s + d.balance!, 0) / week.length);
-    const wanted =
-      person.goal === 'lose' ? 'a deficit' : person.goal === 'gain' ? 'a surplus' : 'balance';
-    out.push({
-      tone: 'info',
-      text: `This week: ${avg < 0 ? `${-avg} kcal a day under` : `${avg} kcal a day over`} what was burned (aiming for ${wanted})`,
-    });
+    const goal = person.goal === 'lose' ? 'lose' : person.goal === 'gain' ? 'gain' : 'keep';
+    out.push({ tone: 'info', text: t.week(Math.abs(avg), avg < 0, goal) });
   }
-  if (person.weight === null)
-    out.push({
-      tone: 'watch',
-      text: 'No weight yet: numbers use 70 kg. Add today’s weight below.',
-    });
-  if (measured !== null)
-    out.push({
-      tone: 'good',
-      text: `Measured from your meals and weight: a day burns about ${measured} kcal`,
-    });
+  if (person.weight === null) out.push({ tone: 'watch', text: t.noWeight });
+  if (measured !== null) out.push({ tone: 'good', text: t.measured(measured) });
   return out;
 }

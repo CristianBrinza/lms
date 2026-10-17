@@ -35,6 +35,7 @@ import NextIcon from '@mui/icons-material/SkipNextRounded';
 import PreviousIcon from '@mui/icons-material/SkipPreviousRounded';
 import SoundOffIcon from '@mui/icons-material/VolumeOffRounded';
 import SoundOnIcon from '@mui/icons-material/VolumeUpRounded';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -52,8 +53,9 @@ import {
   setLabel,
   target,
 } from '../format';
+import { trainingT, useTrainingT } from '../i18n';
 import { ExerciseIcon } from '../icons/TrainingIcon';
-import type { RecordKind, SetInput, TrainingSet, Workout } from '../types';
+import type { LibraryExercise, RecordKind, SetInput, TrainingSet, Workout } from '../types';
 import { WayChips } from '../components/WayChips';
 import {
   countdown,
@@ -85,6 +87,7 @@ import {
   type Step,
   type WorkStep,
 } from './sequence';
+import { LAST_TIME_PREFIXES, playerT, usePlayerT } from './PlayerPage.i18n';
 import { useWakeLock } from './useWakeLock';
 
 /**
@@ -370,15 +373,17 @@ function setFor(sets: TrainingSet[], key: string): TrainingSet | undefined {
   );
 }
 
-const plural = (n: number, word: string) => `${n} ${n === 1 ? word : `${word}s`}`;
+/** An exercise's name in the current language. */
+const nameOf = (exercise: LibraryExercise) => tr(exercise, 'name');
 
 /** "Set 2 of 3 · Round 1 of 3 · Left side". */
 function stepMeta(step: WorkStep): string {
+  const t = playerT();
   return [
     step.block !== 'main' ? BLOCK_LABEL[step.block] : null,
-    step.item.sets > 1 ? `Set ${step.setNumber} of ${step.item.sets}` : null,
-    step.rounds > 1 ? `Round ${step.round} of ${step.rounds}` : null,
-    step.side ? `${step.side === 'left' ? 'Left' : 'Right'} side` : null,
+    step.item.sets > 1 ? t.meta.set(step.setNumber, step.item.sets) : null,
+    step.rounds > 1 ? t.meta.round(step.round, step.rounds) : null,
+    step.side ? t.meta.side(step.side) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -401,7 +406,7 @@ function lastTime(step: WorkStep): string | null {
         : sets.map((s) => `${s.reps ?? 0}${s.weight ? ` × ${kg(s.weight)}` : ''}`).join(', ');
   } else if (measure === 'time') text = sets.map((s) => duration(s.seconds ?? 0)).join(', ');
   else text = sets.map((s) => setLabel(s)).join(', ');
-  return `Last time ${text}`;
+  return playerT().lastTime(text);
 }
 
 /** The ink of the player, read from the tokens (the bars match the dark screen). */
@@ -422,17 +427,18 @@ export default function PlayerPage() {
     queryFn: () => trainingApi.workout(id),
   });
   const close = () => leavePlayer(navigate, id);
+  const t = usePlayerT();
 
   if (workout.isPending) return <Loading />;
   if (workout.error || !workout.data) {
     return (
       <Message
-        title="Couldn’t open the workout"
+        title={t.open.failed}
         text={errorMessage(workout.error)}
         onClose={close}
         action={
           <DarkButton tone="butter" onClick={() => void workout.refetch()}>
-            Try again
+            {t.open.tryAgain}
           </DarkButton>
         }
       />
@@ -441,22 +447,10 @@ export default function PlayerPage() {
   const data = workout.data;
   if (data.status === 'done') return <Summary workout={data} />;
   if (data.status === 'skipped') {
-    return (
-      <Message
-        title="This workout was skipped"
-        text="Plan it again from the workout to play it."
-        onClose={close}
-      />
-    );
+    return <Message title={t.open.skipped} text={t.open.skippedText} onClose={close} />;
   }
   if (!data.items.length) {
-    return (
-      <Message
-        title="Nothing to play yet"
-        text="Add an exercise to the workout first."
-        onClose={close}
-      />
-    );
+    return <Message title={t.open.empty} text={t.open.emptyText} onClose={close} />;
   }
   return <Player key={data.id} workout={data} />;
 }
@@ -495,6 +489,7 @@ function Player({ workout }: { workout: Workout }) {
   const [best, setBest] = useState<{ text: string; n: number } | null>(null);
   const bestTimer = useRef<number | undefined>(undefined);
   const [sound, setSound] = useSound();
+  const t = usePlayerT();
 
   const done = useMemo(() => {
     const keys = doneKeys(workout.sets);
@@ -540,12 +535,12 @@ function Player({ workout }: { workout: Workout }) {
       if (result.records.length) {
         const kinds = [...new Set(result.records)];
         const bests = readJson<Best[]>(bestsKey(id)) ?? [];
-        bests.push({ exercise: result.set.exercise, icon: result.set.icon, kinds });
+        bests.push({ exercise: tr(result.set, 'exercise'), icon: result.set.icon, kinds });
         session.set(bestsKey(id), JSON.stringify(bests));
         newBest();
         window.clearTimeout(bestTimer.current);
         setBest((current) => ({
-          text: `New best · ${kinds.map((k) => RECORD_LABEL[k]).join(' · ')}`,
+          text: trainingT().newBest(kinds.map((k) => RECORD_LABEL[k]).join(' · ')),
           n: (current?.n ?? 0) + 1,
         }));
         bestTimer.current = window.setTimeout(() => setBest(null), 3200);
@@ -582,7 +577,7 @@ function Player({ workout }: { workout: Workout }) {
           }
           // Refused for good (the workout was skipped meanwhile, a bad value): say so, move on.
           setPending(queue.current.filter((p) => p.key !== item.key));
-          toast.error(errorMessage(error, 'A set couldn’t be saved'));
+          toast.error(errorMessage(error, playerT().saveFailed));
         }
       }
     })().finally(() => {
@@ -713,9 +708,9 @@ function Player({ workout }: { workout: Workout }) {
     if (current.paused) return;
     if (current.phase === 'ready') {
       const first = steps[current.index];
-      say(`Get ready.${isWork(first) ? ` First: ${first.item.exercise.name}.` : ''}`);
+      say(t.speech.getReady(isWork(first) ? nameOf(first.item.exercise) : null));
     } else if (current.phase === 'play') stepStart(speechFor(steps, current.index));
-    else if (current.phase === 'end') say('Workout finished.');
+    else if (current.phase === 'end') say(t.speech.finished);
   });
   const announcedOnce = useRef(false);
   useEffect(() => {
@@ -883,7 +878,7 @@ function Player({ workout }: { workout: Workout }) {
         seconds: waiting.body.seconds ?? null,
         distance: waiting.body.distance ?? null,
       });
-    return 'Done';
+    return t.done;
   };
   const upNextIndex =
     run.phase === 'start'
@@ -894,9 +889,9 @@ function Player({ workout }: { workout: Workout }) {
   const upNext = steps[upNextIndex];
   const live =
     run.phase === 'ready'
-      ? 'Get ready'
+      ? t.live.getReady
       : run.phase === 'end'
-        ? 'Workout complete'
+        ? t.live.complete
         : run.phase === 'play'
           ? speechFor(steps, run.index)
           : '';
@@ -957,19 +952,23 @@ function Player({ workout }: { workout: Workout }) {
         <div className="flex items-center gap-2">
           <RoundButton
             icon={CloseIcon}
-            label="Leave the workout"
+            label={t.header.leave}
             onClick={() => (run.phase === 'start' ? leave() : setLeaving(true))}
           />
           <div className="min-w-0 flex-1 px-1">
-            <h1 className="truncate text-[1.0625rem] font-bold leading-tight">{workout.title}</h1>
+            <h1 className="truncate text-[1.0625rem] font-bold leading-tight">
+              {tr(workout, 'title')}
+            </h1>
             <p className="tabular truncate text-sm text-white/60">
-              {run.phase === 'end' ? `${at.total} of ${at.total}` : `${at.current} of ${at.total}`}
+              {run.phase === 'end'
+                ? t.header.of(at.total, at.total)
+                : t.header.of(at.current, at.total)}
               {run.phase !== 'start' ? ` · ${clock(secondsRun(run.active, now))}` : ''}
             </p>
           </div>
           <RoundButton
             icon={sound ? SoundOnIcon : SoundOffIcon}
-            label="Sound and voice"
+            label={t.header.sound}
             pressed={sound}
             onClick={() => {
               setSound(!sound);
@@ -978,7 +977,7 @@ function Player({ workout }: { workout: Workout }) {
           />
           <RoundButton
             icon={ListIcon}
-            label="All steps"
+            label={t.header.allSteps}
             className="md:hidden"
             onClick={() => setListOpen(true)}
           />
@@ -986,7 +985,7 @@ function Player({ workout }: { workout: Workout }) {
         <div
           className="mt-2.5 h-1 overflow-hidden rounded-pill bg-white/10"
           role="progressbar"
-          aria-label="Sets done"
+          aria-label={t.header.progress}
           aria-valuemin={0}
           aria-valuemax={at.total}
           aria-valuenow={at.done}
@@ -1000,10 +999,10 @@ function Player({ workout }: { workout: Workout }) {
           <button
             type="button"
             onClick={() => void flush()}
-            className="press mx-auto mt-2 flex h-8 items-center gap-1.5 rounded-pill bg-white/10 px-3 text-xs font-semibold text-white/80"
+            className="press mx-auto mt-2 flex h-8 max-w-full items-center gap-1.5 rounded-pill bg-white/10 px-3 text-xs font-semibold text-white/80"
           >
-            <SyncIcon fontSize="inherit" className="text-sm" />
-            {plural(pending.length, 'set')} not saved yet, retrying
+            <SyncIcon fontSize="inherit" className="shrink-0 text-sm" />
+            <span className="truncate">{t.header.pending(pending.length)}</span>
           </button>
         ) : null}
       </header>
@@ -1021,7 +1020,7 @@ function Player({ workout }: { workout: Workout }) {
         </main>
         <aside className="hidden min-h-0 w-[19rem] shrink-0 flex-col gap-3 pb-3 md:flex lg:w-[23rem]">
           {isWork(upNext) && run.phase !== 'end' ? (
-            <UpNext step={upNext} title={run.phase === 'start' ? 'First up' : 'Up next'} />
+            <UpNext step={upNext} title={run.phase === 'start' ? t.firstUp : t.upNext} />
           ) : null}
           <div className="min-h-0 flex-1 overflow-y-auto rounded-[1.75rem] bg-white/[0.06] p-2">
             <StepList
@@ -1034,7 +1033,7 @@ function Player({ workout }: { workout: Workout }) {
           </div>
           {hasSets && run.phase !== 'end' ? (
             <DarkButton tone="ghost" icon={FlagIcon} onClick={openFinish}>
-              Finish workout
+              {t.finishWorkout}
             </DarkButton>
           ) : null}
         </aside>
@@ -1044,21 +1043,21 @@ function Player({ workout }: { workout: Workout }) {
         <footer className="gutter-x flex shrink-0 items-center justify-center gap-5 pb-[max(0.75rem,var(--safe-bottom))] pt-3 md:px-6">
           <RoundButton
             icon={PreviousIcon}
-            label="Previous step"
+            label={t.previousStep}
             size="lg"
             disabled={previousWork(steps, run.index) < 0}
             onClick={goPrevious}
           />
           <RoundButton
             icon={run.paused ? PlayIcon : PauseIcon}
-            label={run.paused ? 'Resume' : 'Pause'}
+            label={run.paused ? t.resume : t.pause}
             size="xl"
             disabled={run.phase === 'end'}
             onClick={togglePause}
           />
           <RoundButton
             icon={NextIcon}
-            label="Next step"
+            label={t.nextStep}
             size="lg"
             disabled={run.phase === 'end'}
             onClick={goNext}
@@ -1073,12 +1072,12 @@ function Player({ workout }: { workout: Workout }) {
       <Sheet
         open={listOpen}
         onClose={() => setListOpen(false)}
-        title="Steps"
+        title={t.steps}
         size="lg"
         footer={
           hasSets && run.phase !== 'end' ? (
             <Button variant="tint" fullWidth icon={FlagIcon} onClick={openFinish}>
-              Finish workout
+              {t.finishWorkout}
             </Button>
           ) : undefined
         }
@@ -1095,19 +1094,15 @@ function Player({ workout }: { workout: Workout }) {
       <Sheet
         open={leaving}
         onClose={() => setLeaving(false)}
-        title="Leave the workout?"
-        description={
-          pending.length
-            ? `${plural(pending.length, 'set')} not saved yet: stay until ${pending.length === 1 ? 'it is' : 'they are'}, or come back to it.`
-            : 'Your sets are saved. Open the workout again to continue from this step.'
-        }
+        title={t.leaving.title}
+        description={pending.length ? t.leaving.pending(pending.length) : t.leaving.saved}
         footer={
           <div className="flex flex-col gap-2.5 md:flex-row-reverse">
             <Button fullWidth onClick={leave}>
-              Leave
+              {t.leaving.leave}
             </Button>
             <Button variant="tint" fullWidth onClick={() => setLeaving(false)}>
-              Stay
+              {t.leaving.stay}
             </Button>
           </div>
         }
@@ -1121,7 +1116,7 @@ function Player({ workout }: { workout: Workout }) {
         error={
           finish.error
             ? finish.error instanceof Error && finish.error.message === 'PENDING'
-              ? 'A set isn’t saved yet: no connection. Try again when you’re back online.'
+              ? t.pendingError
               : errorMessage(finish.error)
             : null
         }
@@ -1149,13 +1144,14 @@ function Shell({ children }: { children: ReactNode }) {
 
 function Loading() {
   const block = 'rounded-[1.75rem] bg-white/[0.06] motion-safe:animate-pulse';
+  const t = usePlayerT();
   return (
     <Shell>
       <div
         className="gutter-x flex flex-1 flex-col items-center gap-4 pt-[calc(var(--safe-top)+1rem)]"
         aria-busy="true"
       >
-        <span className="sr-only">Loading the workout</span>
+        <span className="sr-only">{t.open.loading}</span>
         <div className={cx(block, 'h-11 w-full max-w-xl')} />
         <div className={cx(block, 'mt-8 size-28')} />
         <div className={cx(block, 'h-8 w-48')} />
@@ -1179,10 +1175,11 @@ function Message({
   onClose: () => void;
   action?: ReactNode;
 }) {
+  const t = usePlayerT();
   return (
     <Shell>
       <div className="gutter-x flex pt-[calc(var(--safe-top)+0.5rem)] md:px-6">
-        <RoundButton icon={CloseIcon} label="Back to the workout" onClick={onClose} />
+        <RoundButton icon={CloseIcon} label={t.open.back} onClick={onClose} />
       </div>
       <div className="gutter-x flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <span className="grid size-14 place-items-center rounded-full bg-white/10 text-[1.6rem]">
@@ -1337,19 +1334,20 @@ function PausedCover({
   onLeave: () => void;
   elapsed: string;
 }) {
+  const t = usePlayerT();
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 rounded-[2rem] bg-ink-900/90 text-center motion-safe:animate-fade-in">
-      <p className="text-h1 font-bold">Paused</p>
-      <p className="tabular text-white/60">Workout time {elapsed}</p>
+      <p className="text-h1 font-bold">{t.paused.title}</p>
+      <p className="tabular text-white/60">{t.paused.time(elapsed)}</p>
       <DarkButton tone="butter" icon={PlayIcon} onClick={onResume}>
-        Resume
+        {t.resume}
       </DarkButton>
       <button
         type="button"
         onClick={onLeave}
         className="press h-11 rounded-full px-5 text-[0.9375rem] font-semibold text-white/80 hover:bg-white/10"
       >
-        Leave workout
+        {t.paused.leave}
       </button>
     </div>
   );
@@ -1384,10 +1382,12 @@ function StartView({
   total: number;
   onStart: () => void;
 }) {
+  const t = usePlayerT();
+  const words = useTrainingT();
   const facts = [
-    plural(total, 'set'),
-    workout.estimatedSeconds ? `about ${duration(workout.estimatedSeconds)}` : null,
-    workout.rounds > 1 ? `${workout.rounds} rounds` : null,
+    words.sets(total),
+    workout.estimatedSeconds ? t.start.about(duration(workout.estimatedSeconds)) : null,
+    workout.rounds > 1 ? words.rounds(workout.rounds) : null,
   ].filter(Boolean);
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4 text-center">
@@ -1399,9 +1399,9 @@ function StartView({
           />
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.12em] text-butter-300">
-              {resuming ? 'Continue with' : 'First up'}
+              {resuming ? t.start.continueWith : t.firstUp}
             </p>
-            <h2 className="mt-1.5 text-h1 font-bold">{first.item.exercise.name}</h2>
+            <h2 className="mt-1.5 text-h1 font-bold">{nameOf(first.item.exercise)}</h2>
             <p className="mt-1 text-white/65">
               {[stepMeta(first), target(first.item, measureOf(first))].filter(Boolean).join(' · ')}
             </p>
@@ -1410,7 +1410,7 @@ function StartView({
       ) : null}
       <p className="text-sm text-white/55">{facts.join(' · ')}</p>
       <DarkButton tone="butter" icon={PlayIcon} onClick={onStart} className="w-full max-w-sm">
-        {resuming ? 'Continue' : 'Start'}
+        {resuming ? t.start.continue : t.start.start}
       </DarkButton>
     </div>
   );
@@ -1427,14 +1427,17 @@ function ReadyView({
   first: Step | undefined;
   onSkip: () => void;
 }) {
+  const t = usePlayerT();
   return (
     <button
       type="button"
       onClick={onSkip}
-      aria-label="Start now"
+      aria-label={t.ready.startNow}
       className="flex flex-1 flex-col items-center justify-center gap-6 py-4 text-center"
     >
-      <p className="text-sm font-semibold uppercase tracking-[0.12em] text-butter-300">Get ready</p>
+      <p className="text-sm font-semibold uppercase tracking-[0.12em] text-butter-300">
+        {t.ready.title}
+      </p>
       <Ring part={fraction(run.timer, now)} tone="butter" className={RING}>
         <span className="tabular text-[5.5rem] font-bold leading-none">
           {Math.max(1, secondsLeft(run.timer, now))}
@@ -1442,14 +1445,14 @@ function ReadyView({
       </Ring>
       {isWork(first) ? (
         <p className="text-lg font-semibold">
-          {first.item.exercise.name}
+          {nameOf(first.item.exercise)}
           <span className="font-normal text-white/60">
             {' '}
             · {target(first.item, measureOf(first))}
           </span>
         </p>
       ) : null}
-      <p className="text-sm text-white/50">Tap to start now</p>
+      <p className="text-sm text-white/50">{t.ready.tap}</p>
     </button>
   );
 }
@@ -1463,17 +1466,14 @@ function EndView({
   onFinish: () => void;
   onBack: () => void;
 }) {
+  const t = usePlayerT();
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4 text-center">
       <span className="grid size-20 place-items-center rounded-full bg-mint-200 text-[2.5rem] text-mint-800">
         <CheckIcon fontSize="inherit" />
       </span>
-      <h2 className="text-h1 font-bold">{hasSets ? 'All sets done' : 'Nothing logged yet'}</h2>
-      <p className="max-w-xs text-white/65">
-        {hasSets
-          ? 'Rate how hard it was, then save.'
-          : 'No sets logged. Go back and log at least one set, or leave and plan it for another day.'}
-      </p>
+      <h2 className="text-h1 font-bold">{hasSets ? t.end.allDone : t.end.nothing}</h2>
+      <p className="max-w-xs text-white/65">{hasSets ? t.end.allDoneText : t.end.nothingText}</p>
       {hasSets ? (
         <DarkButton
           tone="butter"
@@ -1481,11 +1481,11 @@ function EndView({
           onClick={onFinish}
           className="mt-2 w-full max-w-sm"
         >
-          Finish
+          {t.end.finish}
         </DarkButton>
       ) : (
         <DarkButton tone="ghost" icon={ArrowBackIcon} onClick={onBack} className="mt-2">
-          Back to the last set
+          {t.end.back}
         </DarkButton>
       )}
     </div>
@@ -1507,12 +1507,14 @@ function RestView({
   onSkip: () => void;
   onChange: (seconds: number) => void;
 }) {
+  const t = usePlayerT();
+  const { unit } = useTrainingT();
   const label =
     step.reason === 'side'
-      ? 'Switch sides'
+      ? t.rest.switchSides
       : step.reason === 'round'
-        ? 'Rest between rounds'
-        : 'Rest';
+        ? t.rest.betweenRounds
+        : t.rest.rest;
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-5 py-3 text-center">
       <p className="text-sm font-semibold uppercase tracking-[0.12em] text-cyan-400">{label}</p>
@@ -1520,17 +1522,17 @@ function RestView({
         <span className="tabular text-[4.25rem] font-bold leading-none md:text-[5rem]">
           {clock(secondsLeft(run.timer, now))}
         </span>
-        {run.paused ? <span className="mt-1 text-sm text-white/55">paused</span> : null}
+        {run.paused ? <span className="mt-1 text-sm text-white/55">{t.rest.paused}</span> : null}
       </Ring>
       <div className="flex items-center gap-3">
-        <TimeChange label="15 s less" text="−15 s" onClick={() => onChange(-15)} />
+        <TimeChange label={t.rest.less(15)} text={`−15 ${unit.s}`} onClick={() => onChange(-15)} />
         <DarkButton tone="butter" icon={NextIcon} onClick={onSkip} className="h-14 px-7 text-base">
-          Skip
+          {t.rest.skip}
         </DarkButton>
-        <TimeChange label="15 s more" text="+15 s" onClick={() => onChange(15)} />
+        <TimeChange label={t.rest.more(15)} text={`+15 ${unit.s}`} onClick={() => onChange(15)} />
       </div>
       {isWork(next) ? (
-        <UpNext step={next} title="Up next" className="w-full max-w-md md:hidden" />
+        <UpNext step={next} title={t.upNext} className="w-full max-w-md md:hidden" />
       ) : null}
     </div>
   );
@@ -1568,7 +1570,7 @@ function UpNext({ step, title, className }: { step: WorkStep; title: string; cla
       <Picture icon={step.item.exercise.icon} className="size-14 rounded-[1.125rem]" />
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/50">{title}</p>
-        <p className="truncate font-bold">{step.item.exercise.name}</p>
+        <p className="truncate font-bold">{nameOf(step.item.exercise)}</p>
         <p className="truncate text-sm text-white/60">
           {[target(step.item, measureOf(step)), stepMeta(step)].filter(Boolean).join(' · ')}
         </p>
@@ -1598,17 +1600,17 @@ function WorkView({
   onDone: (values: Pick<SetInput, 'reps' | 'weight' | 'seconds' | 'distance'>) => void;
   onNext: () => void;
 }) {
+  const t = usePlayerT();
   const { item } = step;
   const measure = measureOf(step);
   const meta = stepMeta(step);
   const last = lastTime(step);
   // The suggestion often already says what last time was.
   const suggestion = item.suggest?.text ?? null;
-  const hint = (
-    suggestion?.toLowerCase().startsWith('last time') ? [suggestion] : [last, suggestion]
-  )
-    .filter(Boolean)
-    .join(' · ');
+  const saysLast = LAST_TIME_PREFIXES.some((prefix) =>
+    suggestion?.toLowerCase().startsWith(prefix),
+  );
+  const hint = (saysLast ? [suggestion] : [last, suggestion]).filter(Boolean).join(' · ');
   const weighted = item.exercise.weighted;
   const ran = secondsRun(run.timer, now);
   const started = isRunning(run.timer) || ran > 0;
@@ -1619,7 +1621,7 @@ function WorkView({
   if (logged) {
     action = (
       <DarkButton tone="butter" icon={NextIcon} onClick={onNext} className="w-full">
-        Next
+        {t.work.next}
       </DarkButton>
     );
   } else if (measure === 'reps') {
@@ -1631,7 +1633,7 @@ function WorkView({
         onClick={() => onDone({ reps: values.reps, weight: values.weight })}
         className="w-full"
       >
-        Done
+        {t.work.done}
       </DarkButton>
     );
   } else if (measure === 'time') {
@@ -1643,11 +1645,11 @@ function WorkView({
         onClick={() => onDone({ seconds: Math.max(1, ran), weight: values.weight })}
         className="w-full"
       >
-        Done early
+        {t.work.doneEarly}
       </DarkButton>
     ) : (
       <DarkButton tone="butter" icon={PlayIcon} onClick={onToggleTimer} className="w-full">
-        Start {duration(targetSeconds(step))}
+        {t.work.startFor(duration(targetSeconds(step)))}
       </DarkButton>
     );
   } else {
@@ -1659,7 +1661,7 @@ function WorkView({
         onClick={() => onDone({ distance: Math.round(km * 1000), seconds: ran > 0 ? ran : null })}
         className="w-full"
       >
-        Done
+        {t.work.done}
       </DarkButton>
     );
   }
@@ -1678,7 +1680,7 @@ function WorkView({
             <Picture icon={item.exercise.icon} className="size-14 rounded-[1.125rem]" />
           ) : null}
           <div className="min-w-0">
-            <h2 className="text-h1 font-bold md:text-[2.5rem]">{item.exercise.name}</h2>
+            <h2 className="text-h1 font-bold md:text-[2.5rem]">{nameOf(item.exercise)}</h2>
             {meta ? <p className="mt-1 text-[0.9375rem] text-white/60">{meta}</p> : null}
           </div>
         </div>
@@ -1690,9 +1692,9 @@ function WorkView({
         ) : null}
 
         {logged ? (
-          <p className="flex items-center gap-2 rounded-pill bg-mint-200 px-4 py-2 font-semibold text-mint-800">
-            <CheckCircleIcon fontSize="inherit" className="text-lg" />
-            Logged · {logged}
+          <p className="flex max-w-full items-center gap-2 rounded-pill bg-mint-200 px-4 py-2 font-semibold text-mint-800">
+            <CheckCircleIcon fontSize="inherit" className="shrink-0 text-lg" />
+            <span className="truncate">{t.work.logged(logged)}</span>
           </p>
         ) : measure === 'reps' ? (
           <RepsCounter value={values.reps} onChange={(reps) => onEdit({ reps })} />
@@ -1700,7 +1702,7 @@ function WorkView({
           <button
             type="button"
             onClick={onToggleTimer}
-            aria-label={run.timerOn && !run.paused ? 'Pause the timer' : 'Start the timer'}
+            aria-label={run.timerOn && !run.paused ? t.work.pauseTimer : t.work.startTimer}
             className="press rounded-full"
           >
             <Ring part={fraction(run.timer, now)} tone="butter" className={HOLD_RING}>
@@ -1757,11 +1759,12 @@ function WorkView({
 
 function RepsCounter({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const set = (next: number) => onChange(Math.max(0, Math.min(5000, Math.round(next))));
+  const t = usePlayerT();
   return (
     <div className="flex items-center gap-3 md:gap-5">
       <button
         type="button"
-        aria-label="One rep less"
+        aria-label={t.work.oneLess}
         onClick={() => {
           haptic('tap');
           set(value - 1);
@@ -1782,11 +1785,11 @@ function RepsCounter({ value, onChange }: { value: number; onChange: (value: num
           onFocus={(event) => event.target.select()}
           className="tabular w-[3.2ch] appearance-none bg-transparent text-center text-[4rem] font-bold md:text-[5rem] leading-none outline-none [-moz-appearance:textfield] focus-visible:rounded-2xl focus-visible:bg-white/10 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
-        <span className="text-sm text-white/55">reps</span>
+        <span className="text-sm text-white/55">{t.work.repsUnder(value)}</span>
       </label>
       <button
         type="button"
-        aria-label="One rep more"
+        aria-label={t.work.oneMore}
         onClick={() => {
           haptic('tap');
           set(value + 1);
@@ -1808,6 +1811,8 @@ function WeightChips({
   value: number | null;
   onChange: (weight: number | null) => void;
 }) {
+  const t = usePlayerT();
+  const words = useTrainingT();
   const byKg = new Map<number, boolean>();
   for (const option of options) byKg.set(option.kg, Boolean(byKg.get(option.kg)) || option.pair);
   if (value !== null && !byKg.has(value)) byKg.set(value, false);
@@ -1822,7 +1827,7 @@ function WeightChips({
   return (
     <div
       role="group"
-      aria-label="Weight"
+      aria-label={t.work.weight}
       className="flex w-fit max-w-full gap-2 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <button
@@ -1831,14 +1836,14 @@ function WeightChips({
         onClick={() => onChange(null)}
         className={chip(value === null)}
       >
-        No weight
+        {t.work.noWeight}
       </button>
       {list.map(([weight, pair]) => (
         <button
           key={weight}
           type="button"
           aria-pressed={value === weight}
-          aria-label={`${kg(weight)}${pair ? ', a pair' : ''}`}
+          aria-label={`${kg(weight)}${pair ? `, ${words.pairs(1)}` : ''}`}
           onClick={() => onChange(weight)}
           className={chip(value === weight)}
         >
@@ -1863,6 +1868,8 @@ function Stopwatch({
   onKm: (text: string) => void;
   onToggle: () => void;
 }) {
+  const t = usePlayerT();
+  const words = useTrainingT();
   return (
     <div className="flex w-full max-w-sm flex-col items-center gap-4">
       <div className="flex items-center gap-4">
@@ -1870,14 +1877,14 @@ function Stopwatch({
         <button
           type="button"
           onClick={onToggle}
-          aria-label={running ? 'Stop the stopwatch' : 'Start the stopwatch'}
+          aria-label={running ? t.work.stopStopwatch : t.work.startStopwatch}
           className="press grid size-16 place-items-center rounded-full bg-white text-[2rem] text-ink-900"
         >
           {running ? <PauseIcon fontSize="inherit" /> : <PlayIcon fontSize="inherit" />}
         </button>
       </div>
       <label className="flex w-full items-center gap-3 rounded-[1.25rem] bg-white/10 px-4">
-        <span className="text-sm font-semibold text-white/65">Distance</span>
+        <span className="text-sm font-semibold text-white/65">{words.measure.distance}</span>
         <input
           type="text"
           inputMode="decimal"
@@ -1886,7 +1893,7 @@ function Stopwatch({
           onFocus={(event) => event.target.select()}
           className="tabular h-14 min-w-0 flex-1 bg-transparent text-right text-2xl font-bold outline-none"
         />
-        <span className="text-white/65">km</span>
+        <span className="text-white/65">{words.unit.km}</span>
       </label>
     </div>
   );
@@ -1908,6 +1915,7 @@ function StepList({
   dark?: boolean;
 }) {
   const currentRef = useRef<HTMLLIElement>(null);
+  const t = usePlayerT();
   useEffect(() => {
     // A frame later: in a sheet, the dialog opens after its content mounts.
     const frame = requestAnimationFrame(() =>
@@ -1924,7 +1932,7 @@ function StepList({
       step.block !== 'main'
         ? BLOCK_LABEL[step.block]
         : step.rounds > 1
-          ? `Round ${step.round} of ${step.rounds}`
+          ? t.meta.round(step.round, step.rounds)
           : BLOCK_LABEL.main;
     if (heading !== group) {
       group = heading;
@@ -1962,12 +1970,12 @@ function StepList({
           <Picture icon={step.item.exercise.icon} className="size-11 rounded-[0.875rem]" />
           <span className="min-w-0 flex-1">
             <span className={cx('block truncate font-semibold', isDone && 'opacity-60')}>
-              {step.item.exercise.name}
+              {nameOf(step.item.exercise)}
             </span>
             <span className={cx('block truncate text-sm', dark ? 'text-white/55' : 'text-ink-600')}>
               {[
-                step.item.sets > 1 ? `Set ${step.setNumber}` : null,
-                step.side ? `${step.side === 'left' ? 'Left' : 'Right'} side` : null,
+                step.item.sets > 1 ? t.meta.setN(step.setNumber) : null,
+                step.side ? t.meta.side(step.side) : null,
                 target(step.item, measureOf(step)),
               ]
                 .filter(Boolean)
@@ -1975,7 +1983,7 @@ function StepList({
             </span>
           </span>
           <span
-            aria-label={isDone ? 'Done' : undefined}
+            aria-label={isDone ? t.done : undefined}
             className={cx(
               'grid size-7 shrink-0 place-items-center rounded-full text-base',
               isDone
@@ -1996,13 +2004,15 @@ function StepList({
 
 // ---------------------------------------------------------------- finishing
 
-const FEELINGS: Array<{ value: number; label: string; icon: IconComponent }> = [
-  { value: 1, label: 'Very hard', icon: FeelVeryHardIcon },
-  { value: 2, label: 'Hard', icon: FeelHardIcon },
-  { value: 3, label: 'OK', icon: FeelOkIcon },
-  { value: 4, label: 'Good', icon: FeelGoodIcon },
-  { value: 5, label: 'Great', icon: FeelGreatIcon },
+/** 1 (very hard) to 5 (great); the words are playerT().feeling[value - 1]. */
+const FEELINGS: Array<{ value: number; icon: IconComponent }> = [
+  { value: 1, icon: FeelVeryHardIcon },
+  { value: 2, icon: FeelHardIcon },
+  { value: 3, icon: FeelOkIcon },
+  { value: 4, icon: FeelGoodIcon },
+  { value: 5, icon: FeelGreatIcon },
 ];
+const feelingLabel = (value: number) => playerT().feeling[value - 1] ?? '';
 
 function FinishSheet({
   open,
@@ -2023,11 +2033,12 @@ function FinishSheet({
 }) {
   const [feeling, setFeeling] = useState<number | null>(null);
   const [note, setNote] = useState('');
+  const t = usePlayerT();
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title="Finish the workout"
+      title={t.finish.title}
       footer={
         <Button
           fullWidth
@@ -2035,18 +2046,19 @@ function FinishSheet({
           loading={saving}
           onClick={() => onSave(feeling, note.trim())}
         >
-          Save
+          {t.finish.save}
         </Button>
       }
     >
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Time trained" value={clock(seconds)} />
-        <Stat label="Sets done" value={String(sets)} />
+        <Stat label={t.finish.timeTrained} value={clock(seconds)} />
+        <Stat label={t.finish.setsDone} value={String(sets)} />
       </div>
       <fieldset className="mt-5">
-        <legend className="text-[0.8125rem] font-semibold text-ink-700">How did it feel?</legend>
+        <legend className="text-[0.8125rem] font-semibold text-ink-700">{t.finish.feel}</legend>
         <div className="mt-2 grid grid-cols-5 gap-1.5">
-          {FEELINGS.map(({ value, label, icon: Icon }) => {
+          {FEELINGS.map(({ value, icon: Icon }) => {
+            const label = feelingLabel(value);
             const on = feeling === value;
             return (
               <button
@@ -2063,7 +2075,7 @@ function FinishSheet({
                 )}
               >
                 <Icon fontSize="inherit" className="text-[1.75rem]" />
-                <span className="leading-tight">{label}</span>
+                <span className="max-w-full hyphens-auto break-words leading-tight">{label}</span>
               </button>
             );
           })}
@@ -2071,8 +2083,8 @@ function FinishSheet({
       </fieldset>
       <TextField
         className="mt-5"
-        label="Note"
-        placeholder="Anything to remember for next time"
+        label={t.finish.note}
+        placeholder={t.finish.notePlaceholder}
         value={note}
         maxLength={500}
         onChange={(event) => setNote(event.target.value)}
@@ -2101,7 +2113,10 @@ function Stat({ label, value, dark }: { label: string; value: string; dark?: boo
 function compactSets(sets: TrainingSet[]): string {
   if (sets.every((s) => s.reps !== null && !s.distance)) {
     const weights = [...new Set(sets.map((s) => s.weight ?? 0))];
-    const reps = `${sets.map((s) => s.reps).join(', ')} reps`;
+    const reps = playerT().summary.repsList(
+      sets.map((s) => s.reps).join(', '),
+      sets.at(-1)?.reps ?? 0,
+    );
     if (weights.length === 1) return weights[0] ? `${reps} · ${kg(weights[0])}` : reps;
     return sets.map((s) => setLabel(s)).join(', ');
   }
@@ -2120,8 +2135,11 @@ function Summary({ workout }: { workout: Workout }) {
   for (const set of sets) {
     const group = groups.find((g) => g.id === set.exerciseId);
     if (group) group.sets.push(set);
-    else groups.push({ id: set.exerciseId, name: set.exercise, icon: set.icon, sets: [set] });
+    else
+      groups.push({ id: set.exerciseId, name: tr(set, 'exercise'), icon: set.icon, sets: [set] });
   }
+  const t = usePlayerT();
+  const { unit } = useTrainingT();
   const feeling = FEELINGS.find((f) => f.value === workout.feeling);
 
   return (
@@ -2131,24 +2149,24 @@ function Summary({ workout }: { workout: Workout }) {
           <span className="grid size-20 place-items-center rounded-full bg-mint-200 text-[2.5rem] text-mint-800">
             <CheckIcon fontSize="inherit" />
           </span>
-          <h1 className="text-h1 font-bold">Workout saved</h1>
+          <h1 className="text-h1 font-bold">{t.summary.saved}</h1>
           <p className="text-white/65">
-            {workout.title}
-            {feeling ? ` · felt ${feeling.label.toLowerCase()}` : ''}
+            {tr(workout, 'title')}
+            {feeling ? ` · ${t.felt(feelingLabel(feeling.value))}` : ''}
           </p>
         </header>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat dark label="Time" value={clock(workout.durationSeconds ?? 0)} />
-          <Stat dark label="Sets" value={String(sets.length)} />
-          <Stat dark label="Reps" value={String(reps)} />
-          <Stat dark label="Energy" value={`${workout.kcal} kcal`} />
-          {metres ? <Stat dark label="Distance" value={distance(metres)} /> : null}
+          <Stat dark label={t.summary.time} value={clock(workout.durationSeconds ?? 0)} />
+          <Stat dark label={t.summary.sets} value={String(sets.length)} />
+          <Stat dark label={t.summary.reps} value={String(reps)} />
+          <Stat dark label={t.summary.energy} value={`${workout.kcal} ${unit.kcal}`} />
+          {metres ? <Stat dark label={t.summary.distance} value={distance(metres)} /> : null}
         </div>
 
         {bests.length ? (
           <section>
-            <h2 className="text-h3 font-bold">New bests</h2>
+            <h2 className="text-h3 font-bold">{t.summary.bests}</h2>
             <ul className="mt-2 flex flex-col gap-2">
               {bests.map((b, index) => (
                 <li
@@ -2168,7 +2186,7 @@ function Summary({ workout }: { workout: Workout }) {
 
         {groups.length ? (
           <section>
-            <h2 className="text-h3 font-bold">What you did</h2>
+            <h2 className="text-h3 font-bold">{t.summary.whatYouDid}</h2>
             <ul className="mt-2 flex flex-col gap-2">
               {groups.map((g) => (
                 <li
@@ -2196,7 +2214,7 @@ function Summary({ workout }: { workout: Workout }) {
           onClick={() => navigate('/training', { replace: true })}
           className="w-full max-w-md"
         >
-          Done
+          {t.summary.done}
         </DarkButton>
       </div>
     </div>

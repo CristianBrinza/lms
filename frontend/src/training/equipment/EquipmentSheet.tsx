@@ -1,9 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { Button, Sheet, Switch, TextField, toast } from '@/components/ui';
 import { AddIcon, CloseIcon, DeleteIcon } from '@/components/ui/icons';
 import { Stepper } from '@/food/kitchenware/Stepper';
+import { tr, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -11,13 +13,14 @@ import { trainingApi, trainingKeys } from '../api';
 import { kg } from '../format';
 import { EquipmentIcon } from '../icons/TrainingIcon';
 import type { Equipment, EquipmentPreset, Piece } from '../types';
+import { useEquipmentT } from './equipment.i18n';
 import { PiecesEditor } from './PiecesEditor';
-import { addWeights, parseWeights, removeWeight } from './weights';
+import { addWeights, countLabel, parseWeights, removeWeight } from './weights';
 
 /**
  * One piece of equipment: its name, how many (0 while it's away: lent out, at the cottage), the
  * weights owned and whether they come in pairs, its pieces (each band with its kg, the bar's
- * grips), a note. Removing it takes it off the list.
+ * grips), a note, and the name and note in the other languages. Removing it takes it off the list.
  */
 export function EquipmentSheet({
   open,
@@ -30,6 +33,7 @@ export function EquipmentSheet({
   presets: EquipmentPreset[];
   onClose: () => void;
 }) {
+  const t = useEquipmentT();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [count, setCount] = useState(1);
@@ -39,6 +43,7 @@ export function EquipmentSheet({
   const [note, setNote] = useState('');
   const [icon, setIcon] = useState('');
   const [pieces, setPieces] = useState<Piece[]>([]);
+  const [translations, setTranslations] = useState<Translations>({});
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   // Opening the sheet (or opening it on another thing) starts from it as saved.
@@ -55,6 +60,7 @@ export function EquipmentSheet({
       setNote(item.note);
       setIcon(item.icon);
       setPieces(item.variants);
+      setTranslations(item.translations ?? {});
     }
   }
 
@@ -75,13 +81,14 @@ export function EquipmentSheet({
         weights: all,
         note: note.trim(),
         variants: pieces,
+        translations,
         ...(item!.kind === 'other' ? { icon } : {}),
       });
     },
     onSuccess: (saved) => {
       haptic('success');
-      toast.success(`${saved.name} saved`, {
-        description: saved.count === 0 ? 'Not at home right now' : undefined,
+      toast.success(t.saved(tr(saved, 'name')), {
+        description: saved.count === 0 ? countLabel(0) : undefined,
       });
       void refresh();
       onClose();
@@ -90,7 +97,7 @@ export function EquipmentSheet({
   const remove = useMutation({
     mutationFn: () => trainingApi.removeEquipment(item!.id),
     onSuccess: () => {
-      toast.success(`${item?.name ?? 'It'} removed`);
+      toast.success(t.removed(item ? tr(item, 'name') : undefined));
       void refresh();
       setConfirmRemove(false);
       onClose();
@@ -111,7 +118,7 @@ export function EquipmentSheet({
       <Sheet
         open={open}
         onClose={onClose}
-        title={item?.name ?? 'Equipment'}
+        title={item ? tr(item, 'name') : t.equipment}
         size="lg"
         footer={
           <div className="flex flex-col gap-2">
@@ -124,7 +131,7 @@ export function EquipmentSheet({
               loading={save.isPending}
               disabled={!name.trim()}
             >
-              Save
+              {t.save}
             </Button>
           </div>
         }
@@ -136,8 +143,8 @@ export function EquipmentSheet({
                 <EquipmentIcon name={icon || (item?.icon ?? 'mat')} className="size-12" />
               </span>
               <TextField
-                label="Name"
-                className="flex-1"
+                label={t.name}
+                className="min-w-0 flex-1"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 error={fields.name}
@@ -146,12 +153,12 @@ export function EquipmentSheet({
             </div>
             <div>
               <Stepper
-                label="How many"
+                label={t.howMany}
                 value={count}
                 onChange={setCount}
                 min={0}
                 max={100}
-                format={(v) => (v ? String(v) : 'None')}
+                format={(v) => (v ? String(v) : t.none)}
               />
               <p
                 className={cx(
@@ -159,17 +166,15 @@ export function EquipmentSheet({
                   count ? 'text-ink-500' : 'font-semibold text-peach-800',
                 )}
               >
-                {count
-                  ? '0 when it’s away for a while: lent out, at the cottage.'
-                  : 'Not at home right now: exercises that need it are left out.'}
+                {count ? t.countHint : t.awayHint}
               </p>
             </div>
             {weighted ? (
               <Switch
                 checked={pairs}
                 onChange={setPairs}
-                label="Two of each weight"
-                hint={pairs ? 'A pair of each, one per hand' : 'One of each weight'}
+                label={t.twoOfEach}
+                hint={pairs ? t.pairHint : t.oneHint}
               />
             ) : null}
           </div>
@@ -178,10 +183,10 @@ export function EquipmentSheet({
             {weighted ? (
               <fieldset>
                 <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
-                  Weights
+                  {t.weights}
                 </legend>
                 {weights.length ? (
-                  <ul className="flex flex-wrap gap-1.5" aria-label="Weights owned">
+                  <ul className="flex flex-wrap gap-1.5" aria-label={t.weightsOwned}>
                     {weights.map((w) => (
                       <li key={w}>
                         <span className="tabular inline-flex h-10 items-center gap-0.5 rounded-pill bg-butter-300 pl-3.5 pr-1 text-sm font-semibold text-ink-900">
@@ -189,7 +194,7 @@ export function EquipmentSheet({
                           {pairs ? <span className="ml-0.5 text-butter-800">×2</span> : null}
                           <button
                             type="button"
-                            aria-label={`Remove ${kg(w)}`}
+                            aria-label={t.removeWhat(kg(w))}
                             onClick={() => setWeights((list) => removeWeight(list, w))}
                             className="press ml-0.5 grid size-8 place-items-center rounded-full text-base text-ink-700 hover:bg-butter-200"
                           >
@@ -200,7 +205,7 @@ export function EquipmentSheet({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-ink-600">No weights yet.</p>
+                  <p className="text-sm text-ink-600">{t.noWeights}</p>
                 )}
                 <form
                   className="mt-2.5 flex items-end gap-2"
@@ -210,12 +215,12 @@ export function EquipmentSheet({
                   }}
                 >
                   <TextField
-                    label="Add weights, kg"
+                    label={t.addWeightsLabel}
                     hideLabel
                     dense
-                    className="flex-1"
+                    className="min-w-0 flex-1"
                     inputMode="decimal"
-                    placeholder="Add kg: 6 or 2 4 8"
+                    placeholder={t.addWeightsPlaceholder}
                     value={typed}
                     onChange={(event) => setTyped(event.target.value)}
                   />
@@ -225,14 +230,14 @@ export function EquipmentSheet({
                     variant="tint"
                     icon={AddIcon}
                     disabled={!pending.length}
-                    className="h-11"
+                    className="h-11 shrink-0"
                   >
-                    Add
+                    {t.add}
                   </Button>
                 </form>
                 {suggested.length ? (
                   <div className="mt-3">
-                    <p className="mb-1.5 text-xs font-semibold text-ink-600">Common weights</p>
+                    <p className="mb-1.5 text-xs font-semibold text-ink-600">{t.commonWeights}</p>
                     <div className="flex flex-wrap gap-1.5">
                       {suggested.map((w) => (
                         <button
@@ -242,7 +247,7 @@ export function EquipmentSheet({
                             haptic('tap');
                             setWeights((list) => addWeights(list, [w]));
                           }}
-                          aria-label={`Add ${kg(w)}`}
+                          aria-label={t.addWhat(kg(w))}
                           className="press tabular inline-flex h-9 items-center gap-1 rounded-pill bg-butter-100 px-3 text-sm font-semibold text-ink-800 hover:bg-butter-200"
                         >
                           <AddIcon fontSize="inherit" className="text-ink-500" />
@@ -265,8 +270,8 @@ export function EquipmentSheet({
             ) : null}
 
             <TextField
-              label="Note"
-              placeholder="Optional"
+              label={t.note}
+              placeholder={t.optional}
               value={note}
               onChange={(event) => setNote(event.target.value)}
               error={fields.note}
@@ -275,12 +280,22 @@ export function EquipmentSheet({
             {item?.kind === 'other' ? (
               <fieldset>
                 <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
-                  Picture
+                  {t.picture}
                 </legend>
-                <IconGrid icons={presets.map((p) => p.icon)} value={icon} onChange={setIcon} />
+                <IconGrid presets={presets} value={icon} onChange={setIcon} />
               </fieldset>
             ) : null}
           </div>
+
+          <TranslationFields
+            className="md:col-span-2"
+            fields={[
+              { key: 'name', label: t.name, maxLength: 80 },
+              { key: 'note', label: t.note, multiline: true, maxLength: 500 },
+            ]}
+            value={translations}
+            onChange={setTranslations}
+          />
 
           <Button
             variant="ghost"
@@ -289,7 +304,7 @@ export function EquipmentSheet({
             className="self-start justify-self-start text-danger-700 hover:bg-danger-50 md:col-span-2"
             onClick={() => setConfirmRemove(true)}
           >
-            Remove from home
+            {t.removeFromHome}
           </Button>
         </div>
       </Sheet>
@@ -298,30 +313,36 @@ export function EquipmentSheet({
         onClose={() => setConfirmRemove(false)}
         onConfirm={() => remove.mutate()}
         loading={remove.isPending}
-        title={`Remove ${item?.name ?? 'this'}?`}
-        description="Exercises that need it stop being suggested. Adding it again brings them back."
-        confirmLabel="Remove"
+        title={t.confirmTitle(item ? tr(item, 'name') : undefined)}
+        description={t.confirmText}
+        confirmLabel={t.remove}
         tone="danger"
       />
     </>
   );
 }
 
-/** Pictures to choose from, the chosen one in butter. */
+/** Pictures to choose from, the chosen one in butter; each named after the thing it shows. */
 export function IconGrid({
-  icons,
+  presets,
   value,
   onChange,
 }: {
-  icons: string[];
+  presets: EquipmentPreset[];
   value: string;
   onChange: (icon: string) => void;
 }) {
+  const t = useEquipmentT();
+  const icons = presets.map((p) => p.icon);
   const list = [...new Set(value && !icons.includes(value) ? [value, ...icons] : icons)];
+  const nameOf = (key: string) => {
+    const preset = presets.find((p) => p.icon === key);
+    return preset ? tr(preset, 'name') : key.replace(/-/g, ' ');
+  };
   return (
     <div
       role="radiogroup"
-      aria-label="Picture"
+      aria-label={t.picture}
       className="grid max-h-[9.5rem] grid-cols-6 gap-1 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-8 md:grid-cols-6"
     >
       {list.map((key) => (
@@ -330,8 +351,8 @@ export function IconGrid({
           type="button"
           role="radio"
           aria-checked={key === value}
-          aria-label={key.replace(/-/g, ' ')}
-          title={key.replace(/-/g, ' ')}
+          aria-label={nameOf(key)}
+          title={nameOf(key)}
           onClick={() => onChange(key)}
           className={cx(
             'press grid aspect-square min-h-11 place-items-center rounded-xl transition-colors',

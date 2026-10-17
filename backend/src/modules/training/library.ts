@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import {
+  cleanTranslations,
+  LOCALES,
+  mergeTranslations,
+  type Translations,
+} from '../../lib/i18n';
 import type { FoodCtx as Ctx } from '../food/kitchen';
 import { isUuid } from '../users';
 import {
@@ -10,6 +16,8 @@ import {
   type Measure,
   type Muscle,
 } from './catalog';
+import { equipmentRowTranslations, exerciseRowTranslations, wayIn } from './catalog-i18n';
+import { rebaseTranslations } from './i18n';
 import type {
   EquipmentInput,
   EquipmentPatch,
@@ -45,6 +53,8 @@ export interface Equipment {
   count: number;
   note: string;
   variants: Piece[];
+  /** { ro: { name, note, variants: [piece names, in order] }, ru: … } */
+  translations: Translations;
 }
 
 interface EquipmentRow {
@@ -57,6 +67,7 @@ interface EquipmentRow {
   count: number;
   note: string;
   variants: Piece[];
+  translations: Translations | null;
 }
 
 const toEquipment = (row: EquipmentRow): Equipment => ({
@@ -69,9 +80,10 @@ const toEquipment = (row: EquipmentRow): Equipment => ({
   count: row.count,
   note: row.note,
   variants: row.variants,
+  translations: row.translations ?? {},
 });
 
-const EQUIPMENT_FIELDS = 'id, kind, name, icon, weights, pairs, count, note, variants';
+const EQUIPMENT_FIELDS = 'id, kind, name, icon, weights, pairs, count, note, variants, translations';
 const EQUIPMENT_SELECT = `SELECT ${EQUIPMENT_FIELDS} FROM training_equipment`;
 
 export async function listEquipment(ctx: Ctx): Promise<Equipment[]> {
@@ -117,9 +129,16 @@ export async function addEquipment(ctx: Ctx, input: EquipmentInput): Promise<Equ
   const name = input.name ?? preset?.name;
   if (!name)
     throw new AppError(400, 'VALIDATION', 'Give it a name', { fields: { name: 'Give it a name' } });
+  const note = input.note ?? '';
+  const variants = cleanPieces(input.variants);
+  // From a preset: the catalog's own words come in every language (what was renamed stays as written).
+  const translations = mergeTranslations(
+    equipmentRowTranslations(preset, { name, note, variants }),
+    input.translations,
+  );
   const { rows } = await ctx.db.query<EquipmentRow>(
-    `INSERT INTO training_equipment (id, household_id, kind, name, icon, weights, pairs, count, note, variants, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11) RETURNING ${EQUIPMENT_FIELDS}`,
+    `INSERT INTO training_equipment (id, household_id, kind, name, icon, weights, pairs, count, note, variants, created_at, updated_at, translations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12) RETURNING ${EQUIPMENT_FIELDS}`,
     [
       randomUUID(),
       ctx.actor.householdId,
@@ -129,13 +148,21 @@ export async function addEquipment(ctx: Ctx, input: EquipmentInput): Promise<Equ
       cleanWeights(input.weights),
       input.pairs ?? preset?.pairs ?? false,
       input.count ?? 1,
-      input.note ?? '',
-      JSON.stringify(cleanPieces(input.variants)),
+      note,
+      JSON.stringify(variants),
       ctx.now,
+      JSON.stringify(translations),
     ],
   );
   return toEquipment(rows[0]!);
 }
+
+/** The text of equipment whose translations follow it, piece names as a list. */
+const equipmentText = (e: Pick<Equipment, 'name' | 'note' | 'variants'>) => ({
+  name: e.name,
+  note: e.note,
+  variants: e.variants.map((piece) => piece.name),
+});
 
 export async function updateEquipment(
   ctx: Ctx,
@@ -143,14 +170,20 @@ export async function updateEquipment(
   patch: EquipmentPatch,
 ): Promise<Equipment> {
   const current = await findEquipment(ctx, id);
+  const { translations: given, ...fields } = patch;
   const next = {
     ...current,
-    ...patch,
-    weights: patch.weights ? cleanWeights(patch.weights) : current.weights,
-    variants: patch.variants ? cleanPieces(patch.variants) : current.variants,
+    ...fields,
+    weights: fields.weights ? cleanWeights(fields.weights) : current.weights,
+    variants: fields.variants ? cleanPieces(fields.variants) : current.variants,
   };
+  const translations = mergeTranslations(
+    rebaseTranslations(current.translations, equipmentText(current), equipmentText(next)),
+    given,
+  );
   const { rows } = await ctx.db.query<EquipmentRow>(
-    `UPDATE training_equipment SET name = $3, icon = $4, weights = $5, pairs = $6, count = $7, note = $8, variants = $9, updated_at = $10
+    `UPDATE training_equipment SET name = $3, icon = $4, weights = $5, pairs = $6, count = $7, note = $8, variants = $9, updated_at = $10,
+            translations = $11
       WHERE id = $1 AND household_id = $2 RETURNING ${EQUIPMENT_FIELDS}`,
     [
       id,
@@ -163,6 +196,7 @@ export async function updateEquipment(
       next.note,
       JSON.stringify(next.variants),
       ctx.now,
+      JSON.stringify(translations),
     ],
   );
   return toEquipment(rows[0]!);
@@ -209,32 +243,89 @@ export interface ExerciseOption {
   kg: number | null;
   from: 'exercise' | 'equipment';
   equipment?: string;
+  /** { ro: { name, equipment }, ru: … }; `name` is still what a set records. */
+  translations: Translations;
+}
+
+/** Item `index` of a list field in each language that has it. */
+function itemTranslations(
+  translations: Translations | null | undefined,
+  field: string,
+  index: number,
+  as: string,
+): Translations {
+  const out: Translations = {};
+  for (const locale of LOCALES) {
+    const list = translations?.[locale]?.[field];
+    const value = Array.isArray(list) ? list[index] : undefined;
+    if (value) out[locale] = { [as]: value };
+  }
+  return out;
+}
+
+/** Two sets of translations, field by field. */
+const joinTranslations = (a: Translations, b: Translations): Translations =>
+  Object.fromEntries(
+    LOCALES.filter((l) => a[l] || b[l]).map((l) => [l, { ...a[l], ...b[l] }]),
+  ) as Translations;
+
+/**
+ * How a way of doing an exercise, as a set records it ("Wide grip"), reads in other languages: the
+ * exercise's own translation of it, else the catalog's (the bands and grips of the equipment).
+ */
+export function variantTranslations(
+  variant: string,
+  exercise: Pick<Exercise, 'variants' | 'translations'>,
+): Translations {
+  if (!variant) return {};
+  const at = exercise.variants.indexOf(variant);
+  const own = at >= 0 ? itemTranslations(exercise.translations, 'variants', at, 'variant') : {};
+  for (const locale of ['ro', 'ru'] as const) {
+    const catalog = wayIn(variant, locale);
+    if (!own[locale] && catalog) own[locale] = { variant: catalog };
+  }
+  return own;
 }
 
 export function optionsFor(
-  exercise: Pick<Exercise, 'variants' | 'equipment'>,
+  exercise: Pick<Exercise, 'variants' | 'equipment' | 'translations'>,
   uses: string[] | null,
   equipment: Equipment[],
 ): ExerciseOption[] {
-  const own: ExerciseOption[] = exercise.variants.map((name) => ({
+  const own: ExerciseOption[] = exercise.variants.map((name, index) => ({
     name,
     kg: null,
     from: 'exercise',
+    translations: itemTranslations(exercise.translations, 'variants', index, 'name'),
   }));
   const kinds = new Set(uses ?? []);
   const pieces: ExerciseOption[] = equipment
     .filter((item) => kinds.has(item.kind) && item.count > 0)
     .flatMap((item) =>
-      item.variants.map((piece) => ({
+      item.variants.map((piece, index) => ({
         name: piece.name,
         kg: piece.kg,
         from: 'equipment' as const,
         equipment: item.name,
+        translations: joinTranslations(
+          itemTranslations(item.translations, 'variants', index, 'name'),
+          pickName(item.translations, 'equipment'),
+        ),
       })),
     );
   // The bar's "Wide grip" and the exercise's "Wide grip" are one choice: the piece says where it is.
   const named = new Set(pieces.map((p) => p.name.toLowerCase()));
   return [...pieces, ...own.filter((o) => !named.has(o.name.toLowerCase()))];
+}
+
+/** A record's name in each language, under another field name. */
+function pickName(translations: Translations | null | undefined, as: string): Translations {
+  const out: Translations = {};
+  for (const locale of LOCALES) {
+    const name = translations?.[locale]?.name;
+    if (typeof name === 'string' && name) out[locale] = { [as]: name };
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- exercises
@@ -264,6 +355,8 @@ export interface Exercise {
   /** Its own ways: wide grip, single leg, arms straight… */
   variants: string[];
   archived: boolean;
+  /** { ro: { name, steps: […], note, variants: […] }, ru: … }: lists item by item, in order. */
+  translations: Translations;
 }
 
 /** An exercise as the household can do it today. */
@@ -301,10 +394,11 @@ interface ExerciseRow {
   note: string;
   variants: string[];
   archived_at: Date | null;
+  translations: Translations | null;
 }
 
 const EXERCISE_COLUMNS = `id, user_id, preset, name, category, muscles, secondary, equipment, measure, weighted, unilateral, reps, seconds,
-  distance, rest, level, impact, icon, steps, note, variants, archived_at`;
+  distance, rest, level, impact, icon, steps, note, variants, archived_at, translations`;
 
 const toExercise = (row: ExerciseRow): Exercise => ({
   id: row.id,
@@ -329,6 +423,7 @@ const toExercise = (row: ExerciseRow): Exercise => ({
   note: row.note,
   variants: row.variants,
   archived: row.archived_at !== null,
+  translations: row.translations ?? {},
 });
 
 /**
@@ -350,8 +445,9 @@ export async function syncCatalog(ctx: Ctx, userId: string = ctx.actor.userId): 
     for (const p of EXERCISE_PRESETS) {
       await tx.db.query(
         `INSERT INTO training_exercises (id, household_id, user_id, preset, name, category, muscles, secondary, equipment, measure, weighted,
-                                         unilateral, reps, seconds, distance, rest, level, impact, icon, steps, variants, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $22)
+                                         unilateral, reps, seconds, distance, rest, level, impact, icon, steps, variants, created_at, updated_at,
+                                         translations)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $22, $23)
          ON CONFLICT (user_id, preset) WHERE preset IS NOT NULL
          DO UPDATE SET variants = EXCLUDED.variants WHERE training_exercises.variants = '{}'`,
         [
@@ -377,14 +473,66 @@ export async function syncCatalog(ctx: Ctx, userId: string = ctx.actor.userId): 
           p.steps,
           p.variants ?? [],
           tx.now,
+          JSON.stringify(
+            exerciseRowTranslations(p, { name: p.name, steps: p.steps, variants: p.variants ?? [] }),
+          ),
         ],
       );
     }
+    await translateCatalogCopies(tx, userId);
     await tx.db.query('UPDATE users SET training_catalog_version = $2 WHERE id = $1', [
       userId,
       CATALOG_VERSION,
     ]);
   });
+}
+
+/**
+ * Catalog exercises (this person's) and catalog equipment (the household's) copied in before the
+ * catalog had other languages get its translations, matched by preset key and kind. Only rows
+ * with none yet, and only for what still reads as the catalog wrote it. Running it again changes nothing.
+ */
+async function translateCatalogCopies(ctx: Ctx, userId: string): Promise<void> {
+  const exercises = await ctx.db.query<{
+    id: string;
+    preset: string;
+    name: string;
+    steps: string[];
+    variants: string[];
+  }>(
+    `SELECT id, preset, name, steps, variants FROM training_exercises
+      WHERE user_id = $1 AND preset IS NOT NULL AND translations = '{}'::jsonb`,
+    [userId],
+  );
+  for (const row of exercises.rows) {
+    const preset = EXERCISE_PRESETS.find((p) => p.key === row.preset);
+    const translations = exerciseRowTranslations(preset, row);
+    if (Object.keys(translations).length)
+      await ctx.db.query(
+        `UPDATE training_exercises SET translations = $2 WHERE id = $1 AND translations = '{}'::jsonb`,
+        [row.id, JSON.stringify(translations)],
+      );
+  }
+  const equipment = await ctx.db.query<{
+    id: string;
+    kind: string;
+    name: string;
+    note: string;
+    variants: Piece[];
+  }>(
+    `SELECT id, kind, name, note, variants FROM training_equipment
+      WHERE household_id = $1 AND kind <> 'other' AND translations = '{}'::jsonb`,
+    [ctx.actor.householdId],
+  );
+  for (const row of equipment.rows) {
+    const preset = EQUIPMENT_PRESETS.find((p) => p.kind === row.kind);
+    const translations = equipmentRowTranslations(preset, row);
+    if (Object.keys(translations).length)
+      await ctx.db.query(
+        `UPDATE training_equipment SET translations = $2 WHERE id = $1 AND translations = '{}'::jsonb`,
+        [row.id, JSON.stringify(translations)],
+      );
+  }
 }
 
 /** Any exercise in the household (to look at); whose it is says `userId`. */
@@ -470,9 +618,10 @@ export async function ownItems(
 async function copyExercise(ctx: Ctx, e: Exercise, userId: string): Promise<Exercise> {
   const { rows } = await ctx.db.query<ExerciseRow>(
     `INSERT INTO training_exercises (id, household_id, user_id, preset, name, category, muscles, secondary, equipment, measure, weighted, unilateral,
-                                     reps, seconds, distance, rest, level, impact, icon, steps, note, variants, created_by, created_at, updated_at)
+                                     reps, seconds, distance, rest, level, impact, icon, steps, note, variants, created_by, created_at, updated_at,
+                                     translations)
      SELECT $1, household_id, $2, preset, name, category, muscles, secondary, equipment, measure, weighted, unilateral, reps, seconds, distance,
-            rest, level, impact, icon, steps, note, variants, $3, $4, $4
+            rest, level, impact, icon, steps, note, variants, $3, $4, $4, translations
        FROM training_exercises WHERE id = $5
      RETURNING ${EXERCISE_COLUMNS}`,
     [randomUUID(), userId, ctx.actor.userId, ctx.now, e.id],
@@ -533,8 +682,9 @@ export async function createExercise(
 ): Promise<Exercise> {
   const { rows } = await ctx.db.query<ExerciseRow>(
     `INSERT INTO training_exercises (id, household_id, user_id, preset, name, category, muscles, secondary, equipment, measure, weighted, unilateral,
-                                     reps, seconds, distance, rest, level, impact, icon, steps, note, variants, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $23)
+                                     reps, seconds, distance, rest, level, impact, icon, steps, note, variants, created_by, created_at, updated_at,
+                                     translations)
+     VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $23, $24)
      RETURNING ${EXERCISE_COLUMNS}`,
     [
       randomUUID(),
@@ -560,6 +710,7 @@ export async function createExercise(
       cleanVariants(input.variants),
       ctx.actor.userId,
       ctx.now,
+      JSON.stringify(cleanTranslations(input.translations)),
     ],
   );
   return toExercise(rows[0]!);
@@ -582,16 +733,27 @@ export async function updateExercise(
   patch: ExercisePatch,
 ): Promise<Exercise> {
   const current = await findExercise(ctx, id);
-  const { archived, ...fields } = patch;
+  const { archived, translations: given, ...fields } = patch;
   const next = {
     ...current,
     ...fields,
     variants: fields.variants ? cleanVariants(fields.variants) : current.variants,
   };
+  const text = (e: Pick<Exercise, 'name' | 'note' | 'steps' | 'variants'>) => ({
+    name: e.name,
+    note: e.note,
+    steps: e.steps,
+    variants: e.variants,
+  });
+  // A renamed exercise drops the translations of its old name; translations sent along win.
+  const translations = mergeTranslations(
+    rebaseTranslations(current.translations, text(current), text(next)),
+    given,
+  );
   const { rows } = await ctx.db.query<ExerciseRow>(
     `UPDATE training_exercises SET name = $3, category = $4, muscles = $5, secondary = $6, equipment = $7, measure = $8, weighted = $9,
             unilateral = $10, reps = $11, seconds = $12, distance = $13, rest = $14, level = $15, impact = $16, icon = $17, steps = $18,
-            note = $19, archived_at = $20, variants = $21, updated_at = $22
+            note = $19, archived_at = $20, variants = $21, updated_at = $22, translations = $23
       WHERE id = $1 AND household_id = $2 RETURNING ${EXERCISE_COLUMNS}`,
     [
       id,
@@ -616,6 +778,7 @@ export async function updateExercise(
       archived === undefined ? (current.archived ? ctx.now : null) : archived ? ctx.now : null,
       next.variants,
       ctx.now,
+      JSON.stringify(translations),
     ],
   );
   return toExercise(rows[0]!);

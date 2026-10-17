@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
-import { dayAndMonth, parseDay } from '@/food/format';
 import { cx } from '@/lib/cx';
+import { chartsT, dayMonth as dayAndMonth, monthShort, weekday, useChartsT } from './charts.i18n';
 import { heatWeeks, monthLabels, niceMax, scale, spread, type HeatCell } from './chartData';
 
 /**
@@ -49,9 +49,18 @@ export function LineChart({
   const first = points[0];
   const best = points.reduce<LinePoint | null>((b, p) => (!b || p.value > b.value ? p : b), null);
   const summary = last
-    ? `${label}: ${points.length} ${points.length === 1 ? 'day' : 'days'} from ${dayAndMonth(first!.day)} to ${dayAndMonth(last.day)}. Latest ${format(last.value)}, best ${format(best!.value)} on ${dayAndMonth(best!.day)}.`
-    : `${label}: nothing yet.`;
+    ? chartsT().line.summary(
+        label,
+        points.length,
+        dayAndMonth(first!.day),
+        dayAndMonth(last.day),
+        format(last.value),
+        format(best!.value),
+        dayAndMonth(best!.day),
+      )
+    : chartsT().nothingYet(label);
   const lastXY = coords.at(-1);
+  const t = useChartsT();
 
   return (
     <figure role="img" aria-label={summary} className={cx('relative', className)}>
@@ -60,7 +69,9 @@ export function LineChart({
         className="flex items-baseline justify-between gap-2 text-xs font-semibold text-ink-500"
       >
         <span className="tabular">{format(top)}</span>
-        {last ? <span className="tabular text-ink-800">Latest {format(last.value)}</span> : null}
+        {last ? (
+          <span className="tabular text-ink-800">{t.line.latest(format(last.value))}</span>
+        ) : null}
       </div>
       <div aria-hidden="true" className="relative mt-1 h-28 border-b border-ink-200">
         <div className="absolute inset-x-0 top-[6%] border-t border-dashed border-ink-100" />
@@ -144,9 +155,17 @@ export function BarChart({
   const every = Math.max(1, Math.ceil(bars.length / 5));
   const total = bars.reduce((sum, b) => sum + b.value, 0);
   const busiest = bars.reduce<Bar | null>((b, bar) => (!b || bar.value > b.value ? bar : b), null);
+  const t = useChartsT();
   const summary = bars.length
-    ? `${label}: ${bars.length} bars, ${format(total)} in all${busiest && busiest.value > 0 ? `, most ${format(busiest.value)} (${busiest.title ?? busiest.label})` : ''}.`
-    : `${label}: nothing yet.`;
+    ? t.bars.summary(
+        label,
+        bars.length,
+        format(total),
+        busiest && busiest.value > 0
+          ? `${format(busiest.value)} (${busiest.title ?? busiest.label})`
+          : null,
+      )
+    : t.nothingYet(label);
 
   return (
     <figure role="img" aria-label={summary} className={cx('relative', className)}>
@@ -202,8 +221,11 @@ const HEAT_TONES: Record<HeatCell['level'], string> = {
   4: 'bg-lav-800',
 };
 
-const monthShort = new Intl.DateTimeFormat('en', { month: 'short' });
-const WEEKDAYS = ['Mon', '', 'Wed', '', 'Fri', '', ''];
+/** Monday, Wednesday and Friday by name (from Intl, a known Monday onwards); the rest blank. */
+const weekdayLabels = () =>
+  ['2024-01-01', '', '2024-01-03', '', '2024-01-05', '', ''].map((day) =>
+    day ? weekday(day) : '',
+  );
 
 /**
  * Days trained as squares, a column per week (Monday on top), darker for busier days. Wider than
@@ -230,6 +252,7 @@ export function HeatMap({
   const scroller = useRef<HTMLDivElement>(null);
   const trained = weeks.flat().filter((cell) => !cell.outside && cell.value > 0).length;
   const days = weeks.flat().filter((cell) => !cell.outside).length;
+  const t = useChartsT();
 
   useLayoutEffect(() => {
     const node = scroller.current;
@@ -239,13 +262,13 @@ export function HeatMap({
   return (
     <figure
       role="img"
-      aria-label={`Trained on ${trained} of ${days} days, ${dayAndMonth(from)} to ${dayAndMonth(to)}.`}
+      aria-label={t.heat.summary(trained, days, dayAndMonth(from), dayAndMonth(to))}
       className={cx('min-w-0', className)}
     >
       <div aria-hidden="true" className="flex gap-1.5">
         <div className="grid shrink-0 grid-rows-[auto_repeat(7,minmax(0,1fr))] gap-[3px] pr-0.5 text-[0.6875rem] font-medium text-ink-500">
           <span className="h-4" />
-          {WEEKDAYS.map((name, i) => (
+          {weekdayLabels().map((name, i) => (
             <span key={i} className="flex items-center leading-none">
               {name}
             </span>
@@ -276,7 +299,7 @@ export function HeatMap({
                 >
                   {/* No width of its own: the name runs over the next columns without widening this one. */}
                   <span className="h-4 w-0 overflow-visible whitespace-nowrap text-[0.6875rem] font-medium leading-4 text-ink-500">
-                    {month ? monthShort.format(parseDay(month)) : ''}
+                    {month ? monthShort(month) : ''}
                   </span>
                   {week.map((cell) => (
                     <span
@@ -302,11 +325,11 @@ export function HeatMap({
         aria-hidden="true"
         className="mt-2 flex items-center justify-end gap-1 text-[0.6875rem] font-medium text-ink-500"
       >
-        Less
+        {t.heat.less}
         {([0, 1, 2, 3, 4] as const).map((level) => (
           <span key={level} className={cx('size-2.5 rounded-[0.2rem]', HEAT_TONES[level])} />
         ))}
-        More
+        {t.heat.more}
       </div>
     </figure>
   );

@@ -4,10 +4,14 @@
  * what the household says it has. An exercise lists the equipment it needs as alternatives —
  * [['dumbbells'], ['kettlebell']] is "dumbbells or a kettlebell"; [] needs nothing.
  *
- * Raising CATALOG_VERSION brings new catalog exercises into every household once.
+ * Raising CATALOG_VERSION brings new catalog exercises into every household once. Version 3
+ * brought the Romanian and Russian texts (catalog-i18n.ts) to the exercises and equipment already copied.
  */
 
-export const CATALOG_VERSION = 2;
+import type { Translations } from '../../lib/i18n';
+import { equipmentPresetTranslations } from './catalog-i18n';
+
+export const CATALOG_VERSION = 3;
 
 export const MUSCLES = [
   'chest',
@@ -47,6 +51,8 @@ export interface EquipmentPreset {
   note?: string;
   /** Pieces to offer when adding it: the bands of a set, the grips a bar has. */
   pieces?: Array<{ name: string; kg: number | null }>;
+  /** Its name, note and pieces in Romanian and Russian: { ro: { name, note, pieces: [...] }, ru: … }. */
+  translations?: Translations;
 }
 
 export const EQUIPMENT_PRESETS: EquipmentPreset[] = [
@@ -147,6 +153,8 @@ export const EQUIPMENT_PRESETS: EquipmentPreset[] = [
   { kind: 'parallettes', name: 'Parallettes', icon: 'parallettes', weighted: false },
   { kind: 'hand_grip', name: 'Hand grip', icon: 'hand-grip', weighted: false },
 ];
+
+for (const preset of EQUIPMENT_PRESETS) preset.translations = equipmentPresetTranslations(preset);
 
 export const EQUIPMENT_KINDS = EQUIPMENT_PRESETS.map((preset) => preset.kind);
 

@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+import { trainingT } from '../i18n';
 import type { Block, TrainingSet, Workout, WorkoutItemView } from '../types';
 
 /**
@@ -215,17 +217,18 @@ export function progress(steps: Step[], index: number, done: Set<string>): Progr
 // ---------------------------------------------------------------- words
 
 function spokenSeconds(seconds: number): string {
+  const { speech } = trainingT();
   const s = Math.round(seconds);
-  if (s < 60) return `${s} ${s === 1 ? 'second' : 'seconds'}`;
+  if (s < 60) return speech.seconds(s);
   const m = Math.floor(s / 60);
   const rest = s % 60;
-  return `${m} ${m === 1 ? 'minute' : 'minutes'}${rest ? ` ${rest} seconds` : ''}`;
+  return rest ? speech.minutesSeconds(speech.minutes(m), speech.seconds(rest)) : speech.minutes(m);
 }
 
 function spokenDistance(metres: number): string {
-  if (metres < 1000) return `${Math.round(metres)} metres`;
-  const km = Math.round(metres / 100) / 10;
-  return `${km} ${km === 1 ? 'kilometre' : 'kilometres'}`;
+  const { speech } = trainingT();
+  if (metres < 1000) return speech.metres(Math.round(metres));
+  return speech.kilometres(Math.round(metres / 100) / 10);
 }
 
 /** "10 reps", "45 seconds", "3 kilometres": a work step's target, the way it's said aloud. */
@@ -235,21 +238,21 @@ export function spokenTarget(step: WorkStep): string {
   if (measure === 'time') return spokenSeconds(item.seconds ?? item.exercise.seconds ?? 30);
   if (measure === 'distance')
     return spokenDistance(item.distance ?? item.exercise.distance ?? 1000);
-  const reps = item.reps ?? item.exercise.reps ?? 10;
-  return `${reps} ${reps === 1 ? 'rep' : 'reps'}`;
+  return trainingT().speech.reps(item.reps ?? item.exercise.reps ?? 10);
 }
 
-/** What the voice says when a step begins. */
+/** What the voice says when a step begins, in the app's language. */
 export function speechFor(steps: Step[], index: number): string {
+  const { speech } = trainingT();
   const step = steps[index];
   if (!step) return '';
   if (step.kind === 'work') {
-    const side = step.side ? `, ${step.side} side` : '';
-    return `${step.item.exercise.name}${side}. ${spokenTarget(step)}.`;
+    const side = step.side ? `, ${speech.side(step.side)}` : '';
+    return `${tr(step.item.exercise, 'name')}${side}. ${spokenTarget(step)}.`;
   }
   const next = steps[step.next];
-  const nextName = isWork(next) ? next.item.exercise.name : '';
-  if (step.reason === 'side') return 'Switch sides.';
-  const what = step.reason === 'round' ? 'Rest between rounds' : 'Rest';
-  return `${what}, ${spokenSeconds(step.seconds)}.${nextName ? ` Next: ${nextName}.` : ''}`;
+  const nextName = isWork(next) ? tr(next.item.exercise, 'name') : '';
+  if (step.reason === 'side') return speech.switchSides;
+  const what = step.reason === 'round' ? speech.roundRest : speech.rest;
+  return `${what}, ${spokenSeconds(step.seconds)}.${nextName ? ` ${speech.next(nextName)}` : ''}`;
 }

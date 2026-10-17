@@ -1,21 +1,25 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { Button, Sheet, TextField, toast } from '@/components/ui';
 import { AddIcon, CheckCircleIcon } from '@/components/ui/icons';
+import { tr, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
-import { trainingApi, trainingKeys } from '../api';
+import { trainingApi, trainingKeys, type EquipmentInput } from '../api';
 import { EquipmentIcon } from '../icons/TrainingIcon';
 import type { Equipment, EquipmentPreset } from '../types';
+import { useEquipmentT } from './equipment.i18n';
 import { IconGrid } from './EquipmentSheet';
 
 type EquipmentList = Awaited<ReturnType<typeof trainingApi.equipment>>;
 
 /**
  * Adding equipment: one tap on a common thing (what's already at home is marked and opens it
- * instead), or "Something else" with a name and a picture. Things that come in weights open
- * straight away to say which weights; the rest keep the sheet open for the next one.
+ * instead), or "Something else" with a name (and, folded away, the name in the other languages)
+ * and a picture. Things that come in weights open straight away to say which weights; the rest
+ * keep the sheet open for the next one.
  */
 export function AddEquipmentSheet({
   open,
@@ -31,9 +35,11 @@ export function AddEquipmentSheet({
   /** Opens one piece for editing (just added with weights to choose, or already at home). */
   onOpen: (id: string) => void;
 }) {
+  const t = useEquipmentT();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('mat');
+  const [translations, setTranslations] = useState<Translations>({});
 
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
@@ -41,12 +47,12 @@ export function AddEquipmentSheet({
     if (open) {
       setName('');
       setIcon('mat');
+      setTranslations({});
     }
   }
 
   const add = useMutation({
-    mutationFn: (body: { kind: string; name?: string; icon?: string }) =>
-      trainingApi.addEquipment(body),
+    mutationFn: (body: EquipmentInput) => trainingApi.addEquipment(body),
     onSuccess: (item) => {
       haptic('success');
       // Into the list at once, so the editor can open on it before the refetch lands.
@@ -55,21 +61,23 @@ export function AddEquipmentSheet({
       );
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
       const preset = presets.find((p) => p.kind === item.kind);
+      const added = t.added(tr(item, 'name'));
       if (preset?.weighted || preset?.pieces?.length) {
         // Straight on to what makes it this one: its weights, its bands, its grips.
-        toast.success(`${item.name} added`, {
+        toast.success(added, {
           description: preset.weighted
-            ? 'Which weights are there?'
+            ? t.askWeights
             : item.kind === 'bands'
-              ? 'Which bands, how strong?'
-              : 'Which grips does it have?',
+              ? t.askBands
+              : t.askGrips,
         });
         onClose();
         onOpen(item.id);
       } else if (item.kind === 'other') {
-        toast.success(`${item.name} added`);
+        toast.success(added);
         setName('');
-      } else toast.success(`${item.name} added`);
+        setTranslations({});
+      } else toast.success(added);
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
@@ -80,8 +88,8 @@ export function AddEquipmentSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Add equipment"
-      description="Tap what’s at home."
+      title={t.addTitle}
+      description={t.addDescription}
       size="lg"
     >
       <div className="flex flex-col gap-5">
@@ -89,6 +97,7 @@ export function AddEquipmentSheet({
           {presets.map((preset) => {
             const have = byKind.get(preset.kind);
             const pending = add.isPending && add.variables?.kind === preset.kind;
+            const presetName = tr(preset, 'name');
             return (
               <li key={preset.kind}>
                 <button
@@ -100,7 +109,7 @@ export function AddEquipmentSheet({
                       onOpen(have.id);
                     } else add.mutate({ kind: preset.kind });
                   }}
-                  aria-label={have ? `${preset.name}: at home. Open` : `Add ${preset.name}`}
+                  aria-label={have ? t.atHomeOpen(presetName) : t.addWhat(presetName)}
                   className={cx(
                     'press relative flex min-h-[4.25rem] w-full items-center gap-2 rounded-2xl py-1.5 pl-1.5 pr-2.5 text-left text-sm font-semibold text-ink-900 disabled:opacity-60',
                     have ? 'bg-mint-100 hover:bg-mint-200' : 'bg-butter-100 hover:bg-butter-200',
@@ -110,11 +119,13 @@ export function AddEquipmentSheet({
                     <EquipmentIcon name={preset.icon} className="size-11" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="line-clamp-2 leading-tight">{preset.name}</span>
+                    <span className="line-clamp-2 leading-tight [overflow-wrap:anywhere]">
+                      {presetName}
+                    </span>
                     {have ? (
                       <span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-mint-800">
-                        <CheckCircleIcon fontSize="inherit" />
-                        At home
+                        <CheckCircleIcon fontSize="inherit" className="shrink-0" />
+                        <span className="truncate">{t.atHome}</span>
                       </span>
                     ) : null}
                   </span>
@@ -131,31 +142,42 @@ export function AddEquipmentSheet({
           className="flex flex-col gap-3 rounded-[1.5rem] p-3.5 ring-1 ring-inset ring-ink-100"
           onSubmit={(event) => {
             event.preventDefault();
-            if (name.trim()) add.mutate({ kind: 'other', name: name.trim(), icon });
+            if (name.trim())
+              add.mutate({
+                kind: 'other',
+                name: name.trim(),
+                icon,
+                ...(Object.keys(translations).length ? { translations } : {}),
+              });
           }}
         >
-          <p className="text-[0.9375rem] font-bold">Something else</p>
+          <p className="text-[0.9375rem] font-bold">{t.somethingElse}</p>
           <TextField
-            label="What is it"
-            placeholder="Sandbag, balance board…"
+            label={t.whatIsIt}
+            placeholder={t.whatIsItPlaceholder}
             value={name}
             onChange={(event) => setName(event.target.value)}
             error={fields.name}
             maxLength={80}
           />
+          <TranslationFields
+            fields={[{ key: 'name', label: t.whatIsIt, maxLength: 80 }]}
+            value={translations}
+            onChange={setTranslations}
+          />
           <div>
-            <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Picture</p>
-            <IconGrid icons={presets.map((p) => p.icon)} value={icon} onChange={setIcon} />
+            <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.picture}</p>
+            <IconGrid presets={presets} value={icon} onChange={setIcon} />
           </div>
           <Button
             type="submit"
             icon={AddIcon}
             size="md"
-            className="self-start"
+            className="max-w-full self-start"
             disabled={!name.trim()}
             loading={add.isPending && add.variables?.kind === 'other'}
           >
-            {name.trim() ? `Add ${name.trim()}` : 'Add'}
+            {name.trim() ? t.addWhat(name.trim()) : t.add}
           </Button>
         </form>
       </div>

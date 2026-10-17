@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AddIcon, CloseIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
+import { usePickersT } from './pickers.i18n';
 
 /**
  * A short list of names as chips: × takes one off, the field adds one (Enter or +). Suggestions
@@ -21,6 +22,7 @@ export function TagsInput({
   suggestions?: string[];
   max?: number;
 }) {
+  const t = usePickersT().tags;
   const [text, setText] = useState('');
   const has = (name: string) => value.some((v) => v.toLowerCase() === name.toLowerCase());
   const add = (name: string) => {
@@ -42,7 +44,7 @@ export function TagsInput({
               {name}
               <button
                 type="button"
-                aria-label={`Remove ${name}`}
+                aria-label={t.remove(name)}
                 onClick={() => onChange(value.filter((v) => v !== name))}
                 className="press grid size-7 place-items-center rounded-full text-white/80 hover:bg-white/15"
               >
@@ -69,7 +71,7 @@ export function TagsInput({
         />
         <button
           type="button"
-          aria-label={`Add to ${label.toLowerCase()}`}
+          aria-label={t.add(label)}
           disabled={!text.trim()}
           onClick={() => add(text)}
           className="press grid size-9 place-items-center rounded-full bg-ink-900 text-[1.2rem] text-white disabled:opacity-30"

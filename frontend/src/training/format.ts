@@ -1,3 +1,5 @@
+import { formatNumber, tr } from '@/i18n';
+import { trainingT } from './i18n';
 import type {
   Block,
   ExerciseCategory,
@@ -5,63 +7,81 @@ import type {
   LibraryExercise,
   Measure,
   Muscle,
+  RecordKind,
   TrainingSet,
   WorkoutItem,
   WorkoutStatus,
 } from './types';
 
-/** How Training reads: targets, times, distances, muscles. */
+/** How Training reads: targets, times, distances, muscles. In the current language. */
 
-export const MUSCLE_LABEL: Record<Muscle, string> = {
-  chest: 'Chest',
-  back: 'Back',
-  shoulders: 'Shoulders',
-  biceps: 'Biceps',
-  triceps: 'Triceps',
-  forearms: 'Forearms',
-  core: 'Abs',
-  obliques: 'Obliques',
-  glutes: 'Glutes',
-  quads: 'Quads',
-  hamstrings: 'Hamstrings',
-  calves: 'Calves',
-  hips: 'Hips',
-  heart: 'Heart',
-};
-export const MUSCLE_ORDER = Object.keys(MUSCLE_LABEL) as Muscle[];
+/**
+ * A label map that reads the dictionary each time it is looked at, so a module-level constant
+ * still follows the language (the app remounts on a change; modules don't re-run).
+ */
+function live<K extends string>(
+  keys: readonly K[],
+  pick: (t: ReturnType<typeof trainingT>) => Record<K, string>,
+): Readonly<Record<K, string>> {
+  const map = {} as Record<K, string>;
+  for (const key of keys)
+    Object.defineProperty(map, key, { enumerable: true, get: () => pick(trainingT())[key] });
+  return map;
+}
 
-export const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
-  strength: 'Strength',
-  cardio: 'Cardio',
-  core: 'Core',
-  mobility: 'Mobility',
-  stretch: 'Stretching',
-};
-export const CATEGORY_ORDER = Object.keys(CATEGORY_LABEL) as ExerciseCategory[];
+export const MUSCLE_ORDER: Muscle[] = [
+  'chest',
+  'back',
+  'shoulders',
+  'biceps',
+  'triceps',
+  'forearms',
+  'core',
+  'obliques',
+  'glutes',
+  'quads',
+  'hamstrings',
+  'calves',
+  'hips',
+  'heart',
+];
+export const MUSCLE_LABEL = live(MUSCLE_ORDER, (t) => t.muscle);
 
-export const FOCUS_LABEL: Record<Focus, string> = {
-  full: 'Full body',
-  upper: 'Upper body',
-  lower: 'Legs',
-  core: 'Core',
-  cardio: 'Cardio',
-  mobility: 'Mobility',
-};
+export const CATEGORY_ORDER: ExerciseCategory[] = [
+  'strength',
+  'cardio',
+  'core',
+  'mobility',
+  'stretch',
+];
+export const CATEGORY_LABEL = live(CATEGORY_ORDER, (t) => t.category);
 
-export const BLOCK_LABEL: Record<Block, string> = {
-  warmup: 'Warm-up',
-  main: 'Workout',
-  cooldown: 'Cool-down',
-};
+export const FOCUS_ORDER: Focus[] = ['full', 'upper', 'lower', 'core', 'cardio', 'mobility'];
+export const FOCUS_LABEL = live(FOCUS_ORDER, (t) => t.focus);
 
-export const STATUS_LABEL: Record<WorkoutStatus, string> = {
-  planned: 'Planned',
-  active: 'Under way',
-  done: 'Done',
-  skipped: 'Skipped',
-};
+export const BLOCK_LABEL = live(['warmup', 'main', 'cooldown'] as Block[], (t) => t.block);
 
-export const LEVEL_LABEL = ['', 'Easy', 'Medium', 'Hard'] as const;
+export const STATUS_LABEL = live(
+  ['planned', 'active', 'done', 'skipped'] as WorkoutStatus[],
+  (t) => t.status,
+);
+
+export const MEASURE_LABEL = live(['reps', 'time', 'distance'] as Measure[], (t) => t.measure);
+
+export const IMPACT_LABEL = live(['low', 'high'] as const, (t) => t.impact);
+
+/** By level: 1 easy, 2 medium, 3 hard (0 is blank). */
+export const LEVEL_LABEL: Readonly<Record<number, string>> = live(['0', '1', '2', '3'], (t) => ({
+  0: t.level[0]!,
+  1: t.level[1]!,
+  2: t.level[2]!,
+  3: t.level[3]!,
+}));
+
+export const RECORD_LABEL = live(
+  ['reps', 'weight', 'e1rm', 'seconds', 'distance'] as RecordKind[],
+  (t) => t.record,
+);
 
 /** 75 → "1:15"; 3725 → "1:02:05". */
 export function clock(seconds: number): string {
@@ -74,32 +94,36 @@ export function clock(seconds: number): string {
 
 /** 45 → "45 s"; 90 → "1½ min"; 1500 → "25 min"; 5400 → "1 h 30 min". */
 export function duration(seconds: number): string {
+  const { unit } = trainingT();
   const s = Math.round(seconds);
-  if (s < 60) return `${s} s`;
-  if (s < 600 && s % 60) return `${Math.floor(s / 60)}${s % 60 >= 30 ? '½' : ''} min`;
+  if (s < 60) return `${s} ${unit.s}`;
+  if (s < 600 && s % 60) return `${Math.floor(s / 60)}${s % 60 >= 30 ? '½' : ''} ${unit.min}`;
   const minutes = Math.round(s / 60);
-  if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}`;
+  if (minutes < 60) return `${minutes} ${unit.min}`;
+  return `${Math.floor(minutes / 60)} ${unit.h}${minutes % 60 ? ` ${minutes % 60} ${unit.min}` : ''}`;
 }
 
-/** Metres: 800 → "800 m"; 3000 → "3 km"; 2500 → "2.5 km". */
+/** Metres: 800 → "800 m"; 3000 → "3 km"; 2500 → "2.5 km" ("2,5 km" in Romanian). */
 export function distance(metres: number): string {
-  if (metres < 1000) return `${Math.round(metres)} m`;
+  const { unit } = trainingT();
+  if (metres < 1000) return `${formatNumber(Math.round(metres))} ${unit.m}`;
   const km = metres / 1000;
-  return `${Number.isInteger(km) ? km : km.toFixed(km < 10 ? 2 : 1).replace(/0$/, '')} km`;
+  return `${formatNumber(km, { maximumFractionDigits: km < 10 ? 2 : 1 })} ${unit.km}`;
 }
 
+/** 8 → "8 kg"; 12.5 → "12.5 kg" ("12,5 kg"). */
 export const kg = (value: number) =>
-  `${Number.isInteger(value) ? value : value.toFixed(1).replace(/\.0$/, '')} kg`;
+  `${formatNumber(value, { maximumFractionDigits: 1 })} ${trainingT().unit.kg}`;
 
 /** What one set aims for: "10 reps", "45 s", "3 km", with "· 8 kg". */
 export function target(
   item: Pick<WorkoutItem, 'reps' | 'seconds' | 'distance' | 'weight'>,
   measure: Measure,
 ): string {
+  const t = trainingT();
   const main =
     measure === 'reps'
-      ? `${item.reps ?? 10} reps`
+      ? t.reps(item.reps ?? 10)
       : measure === 'time'
         ? duration(item.seconds ?? 30)
         : distance(item.distance ?? 1000);
@@ -111,7 +135,7 @@ export function plan(
   item: WorkoutItem,
   exercise: Pick<LibraryExercise, 'measure' | 'unilateral'>,
 ): string {
-  const each = exercise.unilateral ? ' each side' : '';
+  const each = exercise.unilateral ? ` ${trainingT().eachSide}` : '';
   return `${item.sets > 1 ? `${item.sets} × ` : ''}${target(item, exercise.measure)}${each}`;
 }
 
@@ -119,10 +143,13 @@ export function plan(
 export function setLabel(
   set: Pick<TrainingSet, 'reps' | 'weight' | 'seconds' | 'distance'>,
 ): string {
+  const t = trainingT();
   if (set.distance)
-    return `${distance(set.distance)}${set.seconds ? ` in ${clock(set.seconds)}` : ''}`;
+    return set.seconds
+      ? t.inTime(distance(set.distance), clock(set.seconds))
+      : distance(set.distance);
   if (set.reps !== null && set.reps !== undefined)
-    return `${set.reps} ${set.reps === 1 ? 'rep' : 'reps'}${set.weight ? ` · ${kg(set.weight)}` : ''}`;
+    return `${t.reps(set.reps)}${set.weight ? ` · ${kg(set.weight)}` : ''}`;
   if (set.seconds) return `${duration(set.seconds)}${set.weight ? ` · ${kg(set.weight)}` : ''}`;
   return '—';
 }
@@ -130,19 +157,19 @@ export function setLabel(
 /** min/km for a run: 3000 m in 900 s → "5:00 /km". */
 export function pace(metres: number, seconds: number): string {
   if (!metres || !seconds) return '';
-  return `${clock((seconds / metres) * 1000)} /km`;
+  return `${clock((seconds / metres) * 1000)} ${trainingT().unit.perKm}`;
 }
 
-export const RECORD_LABEL = {
-  reps: 'Most reps',
-  weight: 'Heaviest',
-  e1rm: 'Strongest set',
-  seconds: 'Longest hold',
-  distance: 'Furthest',
-} as const;
+/** A way (grip, stance, band) saved by its written name, shown in the current language. */
+export function wayName(exercise: Pick<LibraryExercise, 'options'>, name: string): string {
+  const option = exercise.options.find((o) => o.name === name);
+  return option ? tr(option, 'name') : name;
+}
 
 export function equipmentLabel(kinds: string[], names: Record<string, string>): string {
-  return kinds.map((kind) => names[kind] ?? kind.replace(/_/g, ' ')).join(' + ');
+  return kinds
+    .map((kind) => names[kind] ?? kind.replace(/_/g, ' '))
+    .join(trainingT().equipmentJoin);
 }
 
 /** The people's first names, "Ana" for one; initials for an avatar. */

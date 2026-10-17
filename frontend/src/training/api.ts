@@ -1,3 +1,4 @@
+import type { Translations } from '@/i18n';
 import { api, query } from '@/services/api/client';
 import type {
   Equipment,
@@ -61,6 +62,7 @@ export interface ExerciseInput {
   steps?: string[];
   note?: string;
   variants?: string[];
+  translations?: Translations;
 }
 
 export interface EquipmentInput {
@@ -72,6 +74,7 @@ export interface EquipmentInput {
   count?: number;
   note?: string;
   variants?: Array<{ name: string; kg?: number | null }>;
+  translations?: Translations;
 }
 
 export const trainingApi = {
@@ -120,6 +123,7 @@ export const trainingApi = {
     items: WorkoutItem[];
     rounds?: number;
     roundRest?: number;
+    translations?: Translations;
   }) => api.post<{ routine: Routine }>('/training/routines', body).then((r) => r.routine),
   updateRoutine: (
     id: string,
@@ -129,6 +133,7 @@ export const trainingApi = {
       items: WorkoutItem[];
       rounds: number;
       roundRest: number;
+      translations: Translations;
     }>,
   ) => api.patch<{ routine: Routine }>(`/training/routines/${id}`, body).then((r) => r.routine),
   removeRoutine: (id: string) => api.delete<void>(`/training/routines/${id}`),

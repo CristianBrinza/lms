@@ -1,5 +1,7 @@
+import type { Locale, Translations } from '../../lib/i18n';
 import type { FoodCtx as Ctx } from '../food/kitchen';
 import type { Muscle } from './catalog';
+import { generatedTitle, generatedTitleTranslations, nameTranslations } from './i18n';
 import { listExercises, type LibraryExercise } from './library';
 import type { Focus, GenerateInput, WorkoutItem } from './schemas';
 import { estimate } from './workouts';
@@ -56,12 +58,14 @@ const shuffle = <T>(list: T[], random: () => number) => {
 };
 
 export interface Generated {
+  /** In the language asked for; `translations` has it in all three: { en: { title }, ro: …, ru: … }. */
   title: string;
+  translations: Translations;
   items: WorkoutItem[];
   rounds: number;
   roundRest: number;
   estimatedSeconds: number;
-  exercises: Array<{ id: string; name: string; icon: string }>;
+  exercises: Array<{ id: string; name: string; icon: string; translations: Translations }>;
 }
 
 export async function generateWorkout(
@@ -69,6 +73,7 @@ export async function generateWorkout(
   userId: string,
   input: GenerateInput,
   random: () => number = Math.random,
+  locale: Locale = 'en',
 ): Promise<Generated> {
   const library = (await listExercises(ctx, userId)).filter(
     (e) => e.available && e.level <= input.level && (!input.quiet || e.impact === 'low'),
@@ -187,23 +192,28 @@ export async function generateWorkout(
   }
 
   const all = [...edges(warmup, 'warmup'), ...items, ...edges(cooldown, 'cooldown')];
-  const label = {
-    full: 'Full body',
-    upper: 'Upper body',
-    lower: 'Legs and glutes',
-    core: 'Core',
-    cardio: 'Cardio',
-    mobility: 'Mobility',
-  }[input.focus];
+  // Named in the language asked for; a workout saved with this title shows in everyone's language.
+  const title = generatedTitle(
+    input.focus,
+    input.minutes,
+    circuit && input.focus !== 'cardio',
+    locale,
+  );
   return {
-    title: `${label} · ${input.minutes} min${circuit && input.focus !== 'cardio' ? ' circuit' : ''}`,
+    title,
+    translations: generatedTitleTranslations(title) ?? {},
     items: all,
     rounds,
     roundRest: circuit ? 60 : 0,
     estimatedSeconds: estimate(all, rounds, circuit ? 60 : 0, map),
     exercises: all
       .map((item) => map.get(item.exerciseId)!)
-      .map((e) => ({ id: e.id, name: e.name, icon: e.icon })),
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        icon: e.icon,
+        translations: nameTranslations(e.translations),
+      })),
   };
 }
 

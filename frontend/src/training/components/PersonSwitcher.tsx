@@ -1,6 +1,7 @@
 import { Avatar } from '@/components/ui';
 import { cx } from '@/lib/cx';
 import { haptic } from '@/lib/haptics';
+import { useTrainingT } from '../i18n';
 import { usePerson } from '../person';
 
 /**
@@ -15,11 +16,12 @@ export function PersonSwitcher({
   tone?: 'field' | 'ink';
 }) {
   const { personId, people, setPerson } = usePerson();
+  const t = useTrainingT();
   if (people.length < 2) return null;
   return (
     <div
       role="radiogroup"
-      aria-label="Whose training"
+      aria-label={t.whoseTraining}
       className={cx('flex items-center gap-1.5 overflow-x-auto', className)}
     >
       {people.map((p) => {
