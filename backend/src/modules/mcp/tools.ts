@@ -143,6 +143,7 @@ import {
 } from '../travel/travel';
 import type { TokenScope } from '../tokens';
 import { WATCHING_TOOLS } from '../watching/mcp';
+import { WISHLIST_TOOLS } from '../wishlist/mcp';
 
 /**
  * The tools Claude gets over MCP. Each calls the same service the app's screens use, so the rules
@@ -1369,6 +1370,8 @@ export const TOOLS: Tool[] = [
   }),
   // ---------------------------------------------------------------- watching
   ...WATCHING_TOOLS,
+  // ---------------------------------------------------------------- the priority buy list
+  ...WISHLIST_TOOLS,
 ];
 
 /** JSON Schema for a tool's input: the zod schema, without the noise (uuid regexes, $schema). */

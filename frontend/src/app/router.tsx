@@ -22,6 +22,7 @@ const adminRoutes: RouteObject = {
     { path: 'users', lazy: page(() => import('@/pages/admin/UsersPage')) },
     { path: 'users/new', lazy: page(() => import('@/pages/admin/NewUserPage')) },
     { path: 'users/:id', lazy: page(() => import('@/pages/admin/UserPage')) },
+    { path: 'households', lazy: page(() => import('@/pages/admin/HouseholdsPage')) },
   ],
 };
 
@@ -64,6 +65,11 @@ const houseRoutes: RouteObject = {
     { path: 'items', lazy: page(() => import('@/house/HouseItemsPage')) },
     { path: 'shopping', lazy: page(() => import('@/house/HouseShoppingPage')) },
   ],
+};
+
+const wishlistRoutes: RouteObject = {
+  path: 'buy-list',
+  lazy: page(() => import('@/wishlist/WishlistPage')),
 };
 
 const travelRoutes: RouteObject = {
@@ -142,6 +148,7 @@ const routes: RouteObject[] = [
               trainingRoutes,
               houseRoutes,
               travelRoutes,
+              wishlistRoutes,
               watchingRoutes,
               { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,

@@ -1081,6 +1081,34 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE watch_list ADD COLUMN reactions text[] NOT NULL DEFAULT '{}';
     `,
   },
+  {
+    version: 36,
+    name: 'the priority buy list: what the household wants to buy, in order',
+    sql: `
+      CREATE TABLE wishlist_items (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        -- true: everyone at home sees and edits it; false: only its owner.
+        shared boolean NOT NULL DEFAULT true,
+        name text NOT NULL,
+        note text NOT NULL DEFAULT '',
+        url text NOT NULL DEFAULT '',
+        price numeric(12, 2),
+        currency text NOT NULL DEFAULT 'MDL',
+        urgency text NOT NULL DEFAULT 'soon' CHECK (urgency IN ('now', 'soon', 'someday')),
+        category text NOT NULL DEFAULT '',
+        -- The hand-made order of what's still wanted: lower comes first.
+        position integer NOT NULL DEFAULT 0,
+        status text NOT NULL DEFAULT 'wanted' CHECK (status IN ('wanted', 'bought', 'dropped')),
+        bought_price numeric(12, 2),
+        bought_on date,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX wishlist_items_household ON wishlist_items (household_id, status, position);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

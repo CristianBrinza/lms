@@ -18,6 +18,7 @@ import { foodRoutes } from './modules/food/routes';
 import { trainingRoutes } from './modules/training/routes';
 import { travelRoutes } from './modules/travel/routes';
 import { watchingRoutes } from './modules/watching/routes';
+import { wishlistRoutes } from './modules/wishlist/routes';
 import { avatarRoutes } from './modules/profile';
 import { healthRoutes } from './modules/health';
 import { liveSync } from './modules/live/publish';
@@ -52,6 +53,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/training', trainingRoutes(deps));
   app.route('/api/travel', travelRoutes(deps));
   app.route('/api/watching', watchingRoutes(deps));
+  app.route('/api/wishlist', wishlistRoutes(deps));
   app.route('/api/users', avatarRoutes(deps));
   app.route(
     '/api/mcp',

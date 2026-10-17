@@ -5,12 +5,14 @@ import { AREAS } from '@/areas/registry';
 import { ThumbRow } from '@/components/common/ThumbRow';
 import { InstallCard } from '@/components/common/InstallCard';
 import { Screen } from '@/components/layout/Screen';
-import { AdminIcon, DevicesIcon, PersonIcon } from '@/components/ui/icons';
+import { AdminIcon, DevicesIcon, PersonIcon, ShoppingCartIcon } from '@/components/ui/icons';
 import { formatDay, partOfDay } from '@/lib/format';
 import { adminApi } from '@/services/api/endpoints';
 import { queryKeys } from '@/services/queries';
 import { areasT } from '@/areas/i18n';
 import { intlLocale } from '@/i18n';
+import { wishlistApi, wishlistKeys } from '@/wishlist/api';
+import { useWishlistT } from '@/wishlist/i18n';
 import { useHomeT } from './i18n';
 import { Paydays } from './Paydays';
 
@@ -69,7 +71,11 @@ export default function HomePage() {
           aria-hidden="true"
           className="mx-auto block h-1.5 w-10 rounded-pill bg-ink-200 lg:hidden"
         />
-        <h2 id="for-you-title" className="mt-5 text-h3 font-bold lg:mt-0">
+        <h2 className="mt-5 text-h3 font-bold lg:mt-0">{t.custom}</h2>
+        <div className="mt-3.5">
+          <BuyListRow />
+        </div>
+        <h2 id="for-you-title" className="mt-7 text-h3 font-bold">
           {t.forYou}
         </h2>
         <div className="mt-3.5 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] xl:grid-cols-1">
@@ -109,6 +115,22 @@ function PeopleRow() {
       thumb={<AdminIcon fontSize="inherit" />}
       title={t.peopleTitle}
       detail={users.isPending ? t.loading : t.canSignIn(active)}
+    />
+  );
+}
+
+/** Custom: the priority buy list, with how many are waiting and which comes next. */
+function BuyListRow() {
+  const t = useWishlistT();
+  const list = useQuery({ queryKey: wishlistKeys.all, queryFn: wishlistApi.list });
+  const wanted = (list.data?.items ?? []).filter((w) => w.status === 'wanted');
+  return (
+    <ThumbRow
+      to="/buy-list"
+      thumbClassName="bg-butter-200 text-[1.5rem] text-ink-900"
+      thumb={<ShoppingCartIcon fontSize="inherit" />}
+      title={t.title}
+      detail={list.isPending ? ' ' : t.homeDetail(wanted.length, wanted[0]?.name ?? null)}
     />
   );
 }

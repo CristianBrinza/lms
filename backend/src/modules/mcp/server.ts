@@ -56,6 +56,9 @@ Watching (films and series, each person's own; from TMDB)
 - Suggestions: watching_similar (for a title, or "because you watched" without one) and watching_discover (trending, or by genre/year/provider); skip what is already in their library, and respect their ratings. watching_add_to_list keeps ideas in a named list ("Movie night").
 - watching_stats for screen time and a year in review; watching_calendar for what airs when; watching_import brings small TV Time or Trakt export files over (big ones go through the app).
 
+Priority buy list (bigger things to buy one day, in order)
+- buy_list first: what's wanted, in priority order (rank 1 first), with urgency (now, soon, someday), price, link, note; bought ones after. buy_list_add for something new ("a cordless vacuum", "a monitor"): put a real price and a shop link when you find them, top: true when it should come first. buy_list_update to change it, reorder (position), or mark it bought (status bought, boughtPrice). Groceries go on the shopping list, not here.
+
 Training (home workouts, each person's own)
 - training_overview first: whose (userId; default you), today's and next workouts, the week, streaks. People are the household's, with gender, age and height: "for Maria" means her userId. Each person has their own exercise library and routines (exercise ids differ per person; plan_workout maps another person's to theirs); the equipment is shared.
 - Equipment pieces: bands each with a resistance (kg), the bar's grips. An exercise's options are its variations plus those pieces; plan items and sets take variant ("Wide grip", "Black band").
