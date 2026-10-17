@@ -1,0 +1,8 @@
+/* De ce întreabă LMS: apare în cererile de permisiune ale iOS. */
+
+"CFBundleDisplayName" = "LMS";
+"NSHealthShareUsageDescription" = "LMS citește pașii, distanța, energia, pulsul, variabilitatea pulsului, somnul, greutatea, grăsimea corporală, VO2 max și antrenamentele, ca să le arate lângă antrenamente și mâncare.";
+"NSHealthUpdateUsageDescription" = "LMS scrie ce ai mâncat azi ca energie din alimentație, ca să apară și în Sănătate.";
+"NSLocationWhenInUseUsageDescription" = "LMS folosește locația când îi ceri, de exemplu ca să salveze un loc pentru un memento.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "LMS observă când ajungi într-un loc ales de tine sau pleci de acolo, ca să-ți amintească ceva, chiar și cu aplicația închisă.";
+"NSCameraUsageDescription" = "LMS folosește camera când faci o fotografie pentru o rețetă, un produs sau profil.";

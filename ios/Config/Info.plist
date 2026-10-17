@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>ro</string>
+		<string>ru</string>
+	</array>
+	<key>CFBundleDisplayName</key>
+	<string>LMS</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>md.shades.lms.refresh</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>LMS reads your steps, distance, energy, heart rate, heart rate variability, sleep, weight, body fat, VO2 max and workouts, to show them next to your training and food.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>LMS writes what you ate today as dietary energy, so Apple Health shows it too.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LMS uses your location when you ask it to, for example to save a place for a reminder.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LMS notices when you arrive at or leave a place you chose, to remind you of something there, even when the app is closed.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>LMS uses the camera when you take a photo, for a recipe, a product or your profile.</string>
+</dict>
+</plist>

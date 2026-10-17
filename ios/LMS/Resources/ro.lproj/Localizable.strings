@@ -1,0 +1,10 @@
+/* LMS pentru iPhone: puținele cuvinte pe care le arată aplicația însăși. */
+
+"offline.title" = "LMS nu se deschide";
+"offline.body" = "Verifică conexiunea la internet și încearcă din nou.";
+"offline.retry" = "Încearcă din nou";
+
+"alert.ok" = "OK";
+"alert.cancel" = "Anulează";
+
+"region.title" = "LMS";

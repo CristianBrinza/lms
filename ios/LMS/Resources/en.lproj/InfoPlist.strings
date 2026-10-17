@@ -1,0 +1,8 @@
+/* Why LMS asks: shown in iOS's permission prompts. */
+
+"CFBundleDisplayName" = "LMS";
+"NSHealthShareUsageDescription" = "LMS reads your steps, distance, energy, heart rate, heart rate variability, sleep, weight, body fat, VO2 max and workouts, to show them next to your training and food.";
+"NSHealthUpdateUsageDescription" = "LMS writes what you ate today as dietary energy, so Apple Health shows it too.";
+"NSLocationWhenInUseUsageDescription" = "LMS uses your location when you ask it to, for example to save a place for a reminder.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "LMS notices when you arrive at or leave a place you chose, to remind you of something there, even when the app is closed.";
+"NSCameraUsageDescription" = "LMS uses the camera when you take a photo, for a recipe, a product or your profile.";

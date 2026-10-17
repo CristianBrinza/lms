@@ -1,0 +1,11 @@
+/* LMS for iPhone: the few words the app itself shows (the rest is the web app, in its own language). */
+
+"offline.title" = "Can’t reach LMS";
+"offline.body" = "Check the internet connection and try again.";
+"offline.retry" = "Try again";
+
+"alert.ok" = "OK";
+"alert.cancel" = "Cancel";
+
+/* Title of the notification when arriving at (or leaving) a watched place. */
+"region.title" = "LMS";
