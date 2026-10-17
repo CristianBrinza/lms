@@ -249,6 +249,19 @@ export default defineConfig(({ mode }) => {
               handler: 'CacheFirst',
               options: { cacheName: 'lms-admin', expiration: { maxEntries: 40, maxAgeSeconds: 30 * 86_400 } },
             },
+            {
+              // Watching's posters, stills and faces, straight from TMDB's CDN (never stored on the
+              // server): kept on the device with a hard cap, dropped first when storage runs short.
+              urlPattern: ({ url }) => url.origin === 'https://image.tmdb.org',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'lms-tmdb-images',
+                expiration: { maxEntries: 300, maxAgeSeconds: 30 * 86_400, purgeOnQuotaError: true },
+                // The <img>s ask with crossorigin="anonymous" (TMDB answers CORS), so responses are
+                // real 200s, not opaque ones that count megabytes each against the quota.
+                cacheableResponse: { statuses: [200] },
+              },
+            },
           ],
         },
         devOptions: { enabled: false },
