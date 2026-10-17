@@ -58,6 +58,8 @@ export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   const nav = window.navigator as Navigator & { standalone?: boolean };
   return (
+    // The LMS app for iPhone (ios/): a native shell around this web app, installed like any app.
+    'LMSNative' in window ||
     // Every way an installed app can be shown (fullscreen on some Androids, window controls on desktops).
     window.matchMedia?.('(display-mode: standalone)').matches ||
     window.matchMedia?.('(display-mode: fullscreen)').matches ||

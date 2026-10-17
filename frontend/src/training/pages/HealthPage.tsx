@@ -2,14 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Button, ButtonAnchor, Skeleton, toast } from '@/components/ui';
-import {
-  CheckCircleIcon,
-  ContentCopyIcon,
-  InsightsIcon,
-  RefreshIcon,
-  WarningIcon,
-} from '@/components/ui/icons';
+import { Button, Skeleton, toast } from '@/components/ui';
+import { CheckCircleIcon, ContentCopyIcon, InsightsIcon, WarningIcon } from '@/components/ui/icons';
 import { keysApi } from '@/food/api';
 import { addDays, localDate } from '@/food/format';
 import { formatNumber, intlLocale } from '@/i18n';
@@ -17,6 +11,7 @@ import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { currentPlatform } from '@/lib/platform';
 import { trainingApi, trainingKeys } from '../api';
+import { AppleHealth } from '../components/AppleHealth';
 import { BarChart, LineChart } from '../components/charts';
 import { dayMonth as dayAndMonth, wholeNumber as thousands } from '../components/charts.i18n';
 import { EnergyPanel } from '../components/EnergyPanel';
@@ -63,8 +58,8 @@ function rich(text: string, slots: Record<string, ReactNode> = {}): ReactNode {
 
 /**
  * Health from the phone, next to the training: steps, sleep, resting heart rate, weight. iPhones
- * send Apple Health through a Shortcut (web apps can't read Health themselves); Android through
- * the companion app; anything can be typed in. The page compares this week with the last and
+ * send Apple Health through the LMS app for iPhone (web apps can't read Health themselves); Android
+ * through the companion app; anything can be typed in. The page compares this week with the last and
  * says what stands out — observations, not medical advice.
  */
 export default function HealthPage() {
@@ -281,7 +276,6 @@ function Connect({ synced }: { synced: string | null }) {
   const platform = useMemo(() => currentPlatform(), []);
   const [tab, setTab] = useState<'ios' | 'android'>(platform.os === 'android' ? 'android' : 'ios');
   const [key, setKey] = useState<string | null>(null);
-  const url = `${window.location.origin}/api/training/health`;
   const make = useMutation({
     mutationFn: () =>
       keysApi.create({
@@ -291,7 +285,7 @@ function Connect({ synced }: { synced: string | null }) {
     onSuccess: (res) => setKey(res.token),
     onError: (error) => toast.error(errorMessage(error)),
   });
-  const copy = async (text: string, what: 'key' | 'url') => {
+  const copy = async (text: string, what: 'key') => {
     try {
       await navigator.clipboard.writeText(text);
       toast.success(t.copied[what]);
@@ -334,17 +328,6 @@ function Connect({ synced }: { synced: string | null }) {
   );
   const slots = {
     key: keyStep,
-    url: (
-      <button
-        type="button"
-        onClick={() => void copy(url, 'url')}
-        className="font-semibold text-lav-800 underline [overflow-wrap:anywhere]"
-      >
-        {url}
-      </button>
-    ),
-    energyUrl: <code>{url.replace('/health', '/energy/today')}</code>,
-    back: <code className="[overflow-wrap:anywhere]">{`${window.location.origin}/training/health`}</code>,
     download: (
       <a className="font-semibold text-lav-800 underline" href="/lms-health.apk" download>
         {t.download}
@@ -378,25 +361,7 @@ function Connect({ synced }: { synced: string | null }) {
         </button>
       </div>
       {tab === 'ios' ? (
-        <div className="mt-3 flex flex-col gap-3 text-sm text-ink-800">
-          <p className="text-ink-600">{t.iosIntro}</p>
-          {/* Runs the shortcut now: Apple's Health prompt the first time, then today's numbers. */}
-          <div className="flex flex-col items-start gap-1.5">
-            <ButtonAnchor
-              href={`shortcuts://run-shortcut?name=${encodeURIComponent('LMS Health')}`}
-              icon={RefreshIcon}
-              variant="tint"
-            >
-              {t.syncNow}
-            </ButtonAnchor>
-            <span className="text-xs text-ink-600">{t.syncHint}</span>
-          </div>
-          <ol className="flex list-decimal flex-col gap-2 pl-5">
-            {t.iosSteps.map((step) => (
-              <li key={step}>{rich(step, slots)}</li>
-            ))}
-          </ol>
-        </div>
+        <AppleHealth />
       ) : (
         <div className="mt-3 flex flex-col gap-2 text-sm text-ink-800">
           <p className="text-ink-600">{t.androidIntro}</p>
