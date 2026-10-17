@@ -5,7 +5,7 @@ import { ButtonLink, Chips, IconLink, Skeleton } from '@/components/ui';
 import { ListIcon, SearchIcon, UploadIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { watchingApi, watchingKeys } from '../api';
-import { PlayRow } from '../components/rows';
+import { groupPlays, PlayRow } from '../components/rows';
 import {
   CheckMark,
   ErrorCard,
@@ -266,11 +266,13 @@ function RecentSection({ items }: { items: PlayLine[] }) {
   return (
     <Section title={t.home.recent} action={<SeeAll to="/watching/stats" />}>
       <ul className="overflow-hidden rounded-[1.5rem] bg-white shadow-[var(--shadow-card)]">
-        {items.slice(0, 8).map((play) => (
-          <li key={play.id} className="border-b border-ink-100 last:border-0">
-            <PlayRow play={play} />
-          </li>
-        ))}
+        {groupPlays(items)
+          .slice(0, 8)
+          .map((group) => (
+            <li key={group[0]!.id} className="border-b border-ink-100 last:border-0">
+              <PlayRow play={group[0]!} group={group} />
+            </li>
+          ))}
       </ul>
     </Section>
   );
