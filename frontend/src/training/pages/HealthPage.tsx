@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Fragment, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, Skeleton, toast } from '@/components/ui';
@@ -63,6 +63,16 @@ function rich(text: string, slots: Record<string, ReactNode> = {}): ReactNode {
  * says what stands out — observations, not medical advice.
  */
 export default function HealthPage() {
+  // From Settings → Apple Health: straight to the card that connects the phone.
+  useEffect(() => {
+    if (window.location.hash !== '#connect') return;
+    const timer = window.setTimeout(
+      () => document.getElementById('connect')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      300,
+    );
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const t = useHealthT();
   const today = localDate();
   const { personId, person, isMe } = usePerson();

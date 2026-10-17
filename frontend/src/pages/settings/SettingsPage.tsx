@@ -21,6 +21,8 @@ import {
   CheckIcon,
   CloseIcon,
   DevicesIcon,
+  FavoriteIcon,
+  HouseIcon,
   InstallIcon,
   LanguageIcon,
   LaptopIcon,
@@ -29,6 +31,7 @@ import {
   LogoutIcon,
   PhoneIphoneIcon,
   SparkleIcon,
+  StorageIcon,
   SyncIcon,
 } from '@/components/ui/icons';
 import { NotificationsIcon } from './icons';
@@ -135,6 +138,12 @@ export default function SettingsPage() {
             />
             <PeopleLink />
             <ListRowLink
+              to="/training/health#connect"
+              icon={FavoriteIcon}
+              label={t.health}
+              detail={t.healthDetail}
+            />
+            <ListRowLink
               to="/settings/ai"
               icon={SparkleIcon}
               label={t.claude}
@@ -149,6 +158,18 @@ export default function SettingsPage() {
                 icon={AdminIcon}
                 label={t.peopleAccess}
                 detail={t.peopleAccessDetail}
+              />
+              <ListRowLink
+                to="/admin/households"
+                icon={HouseIcon}
+                label={t.households}
+                detail={t.householdsDetail}
+              />
+              <ListRowLink
+                to="/admin/backups"
+                icon={StorageIcon}
+                label={t.backups}
+                detail={t.backupsDetail}
               />
             </ListGroup>
           ) : null}
