@@ -699,7 +699,13 @@ function LineRow({
   });
 
   return (
-    <li className="flex items-center gap-0.5 pr-2.5">
+    <li className="relative flex items-center gap-0.5 pr-2.5">
+      {/* Who added it, barely there: a corner note, not part of the line's details. */}
+      {line.source === 'ai' ? (
+        <span className="pointer-events-none absolute right-2.5 top-1 text-[0.625rem] font-medium leading-none opacity-[0.05]">
+          {t.byClaude}
+        </span>
+      ) : null}
       <button
         type="button"
         role="checkbox"
@@ -749,11 +755,7 @@ function LineRow({
                 line.amount && line.unit ? t.atLeast(formatAmount(line.amount, line.unit)) : null,
                 line.kindInName || !line.variant ? null : kindOf(line, product),
                 line.note || null,
-                line.source === 'plan' && !line.needBy
-                  ? t.forPlan
-                  : line.source === 'ai'
-                    ? t.byClaude
-                    : null,
+                line.source === 'plan' && !line.needBy ? t.forPlan : null,
               ]
                 .filter(Boolean)
                 .join(' · ') || t.tapToSet
