@@ -28,6 +28,7 @@ const en = {
     dropped: 'Stopped',
   } as Record<WatchStatus, string>,
   common: {
+    again: 'again',
     search: 'Search',
     loadFailed: 'Couldn’t load this',
     tryAgain: 'Try again',
@@ -458,6 +459,7 @@ const ro: typeof en = {
     dropped: 'Abandonat',
   },
   common: {
+    again: 'din nou',
     search: 'Caută',
     loadFailed: 'Nu s-a putut încărca',
     tryAgain: 'Încearcă din nou',
@@ -915,6 +917,7 @@ const ru: typeof en = {
     dropped: 'Брошено',
   },
   common: {
+    again: 'снова',
     search: 'Поиск',
     loadFailed: 'Не удалось загрузить',
     tryAgain: 'Повторить',

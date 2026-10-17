@@ -7,43 +7,89 @@ import { PeopleStack } from './parts';
 import { Poster } from './Poster';
 
 /**
- * Plays in a row of the same title, on the same day, by the same people, become one line
- * ("S1 E1–E7"): marking a season shouldn't fill a list with one show.
+ * One line per title per day: every play of a show (or film) on the same day, by anyone at home,
+ * becomes one line ("S1 E1–7 · again E1–3"), so marking a season, or watching some of it twice,
+ * doesn't fill the list with one show. Lines keep the order of each title's latest play.
  */
 export function groupPlays(plays: readonly PlayLine[]): PlayLine[][] {
-  const groups: PlayLine[][] = [];
-  const keyOf = (p: PlayLine) =>
-    [p.title?.id, (p.watchedAt ?? 'unknown').slice(0, 10), p.precision, p.userId, ...(p.together ?? [])].join('|');
+  const groups = new Map<string, PlayLine[]>();
   for (const play of plays) {
-    const last = groups.at(-1);
-    if (last && play.season !== null && keyOf(last[0]!) === keyOf(play)) last.push(play);
-    else groups.push([play]);
+    const key = [play.title?.id, (play.watchedAt ?? 'unknown').slice(0, 10), play.precision].join('|');
+    const group = groups.get(key);
+    if (group) group.push(play);
+    else groups.set(key, [play]);
   }
-  return groups;
+  return [...groups.values()];
 }
 
-/** Which episodes a group is: one code, a range in one season, or a count. */
-function episodesLine(group: readonly PlayLine[], count: (n: number) => string): string | null {
-  const eps = group
-    .filter((p) => p.season !== null && p.episode !== null)
-    .map((p) => ({ season: p.season!, episode: p.episode! }))
-    .sort((a, b) => a.season - b.season || a.episode - b.episode);
-  if (!eps.length) return null;
-  const first = eps[0]!;
-  const last = eps.at(-1)!;
-  if (eps.length === 1) return episodeCode(first.season, first.episode);
-  if (first.season === last.season && last.episode - first.episode + 1 === eps.length)
-    return `${episodeCode(first.season, first.episode)}–${last.episode}`;
-  return count(eps.length);
+type Ep = { season: number; episode: number };
+
+/** A set of episodes as short as it gets: "S1 E4", "S1 E1–7", "S1 E1–3, 5", else a count. */
+function rangeOf(eps: Ep[], count: (n: number) => string): string {
+  const sorted = [...eps].sort((a, b) => a.season - b.season || a.episode - b.episode);
+  const first = sorted[0]!;
+  if (sorted.some((e) => e.season !== first.season)) return count(sorted.length);
+  const runs: string[] = [];
+  let start = first.episode;
+  let prev = first.episode;
+  for (const { episode } of sorted.slice(1)) {
+    if (episode === prev + 1) {
+      prev = episode;
+      continue;
+    }
+    runs.push(start === prev ? `${start}` : `${start}–${prev}`);
+    start = prev = episode;
+  }
+  runs.push(start === prev ? `${start}` : `${start}–${prev}`);
+  return runs.length > 3 ? count(sorted.length) : `S${first.season} E${runs.join(', ')}`;
 }
 
-/** One play in a list (or a run of them): the poster, the title and episodes, when, and who. */
+/**
+ * Which episodes a day's group is: each episode once, then what was watched again
+ * ("S1 E1–7 · again E1–3"). Several people's plays of the same episode count once.
+ */
+export function episodesLine(
+  group: readonly PlayLine[],
+  count: (n: number) => string,
+  again: string,
+): string | null {
+  // One sitting (a group of people) is one watch: count each episode per sitting, not per person.
+  const seen = new Map<string, number>();
+  const passes: Ep[][] = [];
+  const sittings = new Set<string>();
+  for (const p of [...group].reverse()) {
+    if (p.season === null || p.episode === null) continue;
+    const people = [p.userId, ...(p.together ?? [])].sort().join(',');
+    const sitting = `${p.season}:${p.episode}:${people}:${p.watchedAt ?? ''}`;
+    if (sittings.has(sitting)) continue;
+    sittings.add(sitting);
+    const key = `${p.season}:${p.episode}`;
+    const n = seen.get(key) ?? 0;
+    seen.set(key, n + 1);
+    (passes[n] ??= []).push({ season: p.season, episode: p.episode });
+  }
+  if (!passes.length) return null;
+  const [firstPass, ...more] = passes;
+  if (firstPass!.length === 1 && !more.length)
+    return episodeCode(firstPass![0]!.season, firstPass![0]!.episode);
+  return [rangeOf(firstPass!, count), ...more.map((pass) => `${again} ${rangeOf(pass, count).replace(/^S\d+ /, '')}`)].join(' · ');
+}
+
+/** One play in a list (or a day of them): the poster, the title and episodes, when, and who. */
 export function PlayRow({ play, group }: { play: PlayLine; group?: readonly PlayLine[] }) {
   const t = useWatchingT();
   const title = play.title;
   if (!title) return null;
-  const people = play.userId ? [play.userId, ...(play.together ?? [])] : undefined;
-  const many = group && group.length > 1 ? episodesLine(group, t.common.episodes) : null;
+  const all = group ?? [play];
+  const people = [
+    ...new Set(all.flatMap((p) => (p.userId ? [p.userId, ...(p.together ?? [])] : []))),
+  ];
+  const many = all.length > 1 ? episodesLine(all, t.common.episodes, t.common.again) : null;
+  // A film watched together is one sitting, not one per person.
+  const filmTimes =
+    play.season === null
+      ? new Set(all.map((p) => `${[p.userId, ...(p.together ?? [])].sort().join(',')}`)).size
+      : 0;
   return (
     <Link
       to={`/watching/${title.id}`}
@@ -67,9 +113,10 @@ export function PlayRow({ play, group }: { play: PlayLine; group?: readonly Play
           </span>
         ) : null}
       </span>
-      <PeopleStack ids={people} />
+      <PeopleStack ids={people.length ? people : undefined} />
       <span className="max-w-[35%] shrink-0 truncate text-right text-xs font-medium text-ink-500">
         {watchedWhen(play.watchedAt, play.precision)}
+        {filmTimes > 1 ? ` · ×${filmTimes}` : ''}
       </span>
     </Link>
   );
