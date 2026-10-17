@@ -20,18 +20,21 @@ import {
   RemoveIcon,
   SparkleIcon,
 } from '@/components/ui/icons';
+import { formatList, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
 import { DockBar } from '../components/DockBar';
-import { dayAndMonth, formatAmount, formatQty, localDate, plural, relativeDay } from '../format';
+import { formatAmount, formatQty, localDate } from '../format';
 import { AddToListSheet } from '../components/AddToListSheet';
 import { OptionChips } from '../components/OptionChips';
 import { withChoice } from '../options';
 import { openedText } from '../opened';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import { NutritionStrip } from '../components/NutritionStrip';
+import { clockTime, relativeDayInline } from '../plan/i18n';
+import { useRecipesT } from '../recipes.i18n';
 import type { IngredientLine, Recipe, ToolNeed } from '../types';
 
 /**
@@ -42,6 +45,7 @@ import type { IngredientLine, Recipe, ToolNeed } from '../types';
  * out of the kitchen and says what it opened.
  */
 export default function RecipePage() {
+  const t = useRecipesT();
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [servings, setServings] = useState<number | null>(null);
@@ -62,7 +66,7 @@ export default function RecipePage() {
     mutationFn: (value: boolean) => foodApi.updateRecipe(id, { favorite: value }),
     onSuccess: (updated) => {
       haptic('tap');
-      toast.success(updated.favorite ? 'Added to favourites' : 'Removed from favourites');
+      toast.success(updated.favorite ? t.favoriteAdded : t.favoriteRemoved);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
     },
   });
@@ -70,7 +74,7 @@ export default function RecipePage() {
   if (recipe.isPending) {
     return (
       <Screen tone="white">
-        <PageHeader back="/food/recipes" title="Recipe" centered />
+        <PageHeader back="/food/recipes" title={t.recipe} centered />
         <div className="gutter-x mt-6 flex flex-col gap-3">
           <Skeleton className="h-40 rounded-3xl" />
           <Skeleton className="h-60 rounded-3xl" />
@@ -81,7 +85,7 @@ export default function RecipePage() {
   if (!data) {
     return (
       <Screen tone="white">
-        <PageHeader back="/food/recipes" title="Recipe" centered />
+        <PageHeader back="/food/recipes" title={t.recipe} centered />
         <p className="gutter-x mt-8 text-center text-ink-600">{errorMessage(recipe.error)}</p>
       </Screen>
     );
@@ -89,25 +93,28 @@ export default function RecipePage() {
 
   const shown = data.shownServings;
   const minutes = (data.prepMinutes ?? 0) + (data.cookMinutes ?? 0);
+  const title = tr(data, 'title');
+  const description = tr(data, 'description');
+  const notes = tr(data, 'notes');
 
   return (
     <Screen tone="white" className="pb-[calc(var(--tabbar-h)+var(--safe-bottom)+5rem)] md:pb-0">
       <PageHeader
         back="/food/recipes"
-        title={data.title}
+        title={title}
         centered
         actions={
           <div className="flex gap-2">
             <IconButton
               icon={data.favorite ? FavoriteIcon : FavoriteBorderIcon}
-              label={data.favorite ? 'Remove from favourites' : 'Add to favourites'}
+              label={data.favorite ? t.removeFavorite : t.addFavorite}
               onClick={() => favorite.mutate(!data.favorite)}
               className={data.favorite ? 'text-pink-800' : undefined}
             />
             <IconLink
               to={`/food/recipes/${id}/edit`}
               icon={EditIcon}
-              label="Edit recipe"
+              label={t.editRecipe}
               variant="ink"
             />
           </div>
@@ -118,16 +125,15 @@ export default function RecipePage() {
         <div className="md:sticky md:top-4">
           <section className="flex flex-col items-center rounded-[2rem] bg-butter-100 px-5 pb-5 pt-6 text-center">
             <FoodIcon name={data.icon} className="size-24 animate-pop" />
-            <h2 className="mt-3 text-h1 font-bold">{data.title}</h2>
-            {data.description ? (
-              <p className="mt-2 max-w-md text-[0.9375rem] text-butter-800">{data.description}</p>
+            <h2 className="mt-3 text-h1 font-bold">{title}</h2>
+            {description ? (
+              <p className="mt-2 max-w-md text-[0.9375rem] text-butter-800">{description}</p>
             ) : null}
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
               {minutes ? (
                 <Badge tone="muted" className="gap-1 bg-white">
                   <AccessTimeIcon fontSize="inherit" className="text-sm" />
-                  {data.prepMinutes ? `${data.prepMinutes} prep · ` : ''}
-                  {data.cookMinutes ? `${data.cookMinutes} cook` : `${minutes} min`}
+                  {t.time(data.prepMinutes, data.cookMinutes, minutes)}
                 </Badge>
               ) : null}
               {data.tags.map((tag) => (
@@ -138,12 +144,10 @@ export default function RecipePage() {
               {data.createdVia === 'ai' ? (
                 <Badge tone="lav" className="gap-1">
                   <SparkleIcon fontSize="inherit" className="text-sm" />
-                  By Claude
+                  {t.byClaude}
                 </Badge>
               ) : null}
-              {data.timesCooked ? (
-                <Badge tone="mint">Cooked {plural(data.timesCooked, 'time')}</Badge>
-              ) : null}
+              {data.timesCooked ? <Badge tone="mint">{t.cooked(data.timesCooked)}</Badge> : null}
             </div>
           </section>
 
@@ -159,10 +163,10 @@ export default function RecipePage() {
 
         <div className="mt-6 md:mt-0">
           <Steps recipe={data} servings={shown} />
-          {data.notes ? (
+          {notes ? (
             <section className="mt-6">
-              <h2 className="text-h3 font-bold">Notes</h2>
-              <p className="mt-2 whitespace-pre-line text-[0.9375rem] text-ink-700">{data.notes}</p>
+              <h2 className="text-h3 font-bold">{t.notes}</h2>
+              <p className="mt-2 whitespace-pre-line text-[0.9375rem] text-ink-700">{notes}</p>
             </section>
           ) : null}
           {data.sourceUrl ? (
@@ -172,7 +176,7 @@ export default function RecipePage() {
               rel="noreferrer noopener"
               className="mt-4 inline-block text-sm font-semibold text-lav-700 underline underline-offset-4"
             >
-              Original recipe
+              {t.original}
             </a>
           ) : null}
         </div>
@@ -193,6 +197,7 @@ export default function RecipePage() {
 }
 
 function Actions({ recipe, onCook }: { recipe: Recipe; onCook: () => void }) {
+  const t = useRecipesT();
   const navigate = useNavigate();
   return (
     <>
@@ -203,10 +208,10 @@ function Actions({ recipe, onCook }: { recipe: Recipe; onCook: () => void }) {
         fullWidth
         onClick={() => navigate(`/food/plan?recipe=${recipe.id}`)}
       >
-        Plan it
+        {t.planIt}
       </Button>
       <Button size="md" fullWidth onClick={onCook}>
-        Cook now
+        {t.cookNow}
       </Button>
     </>
   );
@@ -225,6 +230,7 @@ function Ingredients({
   onServings: (value: number) => void;
   onChoose: (index: number, choice: number) => void;
 }) {
+  const t = useRecipesT();
   const queryClient = useQueryClient();
   const [missingLine, setMissingLine] = useState<IngredientLine | null>(null);
   const missing = lines.filter((i) => i.enough === false && !i.optional);
@@ -251,9 +257,7 @@ function Ingredients({
       ),
     onSuccess: (lines) => {
       haptic('success');
-      toast.success(`${plural(lines.length, 'item')} on the shopping list`, {
-        description: 'Each to its usual store',
-      });
+      toast.success(t.onList(lines.length), { description: t.onListHint });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -262,11 +266,11 @@ function Ingredients({
   return (
     <section className="mt-4 rounded-[2rem] bg-white p-4 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
       <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className="text-h3 font-bold">Ingredients</h2>
+        <h2 className="text-h3 font-bold">{t.ingredients}</h2>
         <div className="flex items-center gap-1 rounded-pill bg-ink-50 p-1">
           <button
             type="button"
-            aria-label="Fewer servings"
+            aria-label={t.fewerServings}
             disabled={servings <= 1}
             onClick={() => onServings(servings - 1)}
             className="press grid size-8 place-items-center rounded-full bg-white text-base shadow-xs disabled:opacity-40"
@@ -274,11 +278,11 @@ function Ingredients({
             <RemoveIcon fontSize="inherit" />
           </button>
           <span className="tabular min-w-[4.5rem] text-center text-sm font-semibold">
-            {plural(servings, 'serving')}
+            {t.servings(servings)}
           </span>
           <button
             type="button"
-            aria-label="More servings"
+            aria-label={t.moreServings}
             disabled={servings >= 100}
             onClick={() => onServings(servings + 1)}
             className="press grid size-8 place-items-center rounded-full bg-ink-900 text-base text-white"
@@ -300,7 +304,7 @@ function Ingredients({
           ))}
         </ul>
       ) : (
-        <p className="mt-3 px-1 text-sm text-ink-600">No ingredients yet.</p>
+        <p className="mt-3 px-1 text-sm text-ink-600">{t.noIngredients}</p>
       )}
       {missing.length ? (
         <Button
@@ -312,11 +316,11 @@ function Ingredients({
           onClick={() => toList.mutate()}
           loading={toList.isPending}
         >
-          Add {plural(missing.length, 'missing item')} to the list
+          {t.addMissing(missing.length)}
         </Button>
       ) : recipe.availability.total ? (
         <p className="mt-3 rounded-2xl bg-mint-100 px-4 py-3 text-center text-sm font-semibold text-mint-800">
-          Everything’s in the kitchen
+          {t.allHere}
         </p>
       ) : null}
       {recipe.availability.warnings.length ? (
@@ -329,6 +333,7 @@ function Ingredients({
 
 /** Who must not eat what in it: allergies first, marked, then foods someone avoids. */
 function Warnings({ warnings }: { warnings: Recipe['availability']['warnings'] }) {
+  const t = useRecipesT();
   const allergies = warnings.filter((w) => w.kind === 'allergy');
   const avoids = warnings.filter((w) => w.kind === 'avoid');
   return (
@@ -336,38 +341,38 @@ function Warnings({ warnings }: { warnings: Recipe['availability']['warnings'] }
       {allergies.length ? (
         <p className="rounded-2xl bg-danger-50 px-4 py-2.5 font-semibold text-danger-700">
           <span aria-hidden="true">* </span>
-          {allergies.map((w) => `${w.person} is allergic to ${w.item.toLowerCase()}`).join('; ')}
+          {allergies.map((w) => t.allergicTo(w.person, tr(w, 'item').toLowerCase())).join('; ')}
         </p>
       ) : null}
       {avoids.length ? (
         <p className="rounded-2xl bg-peach-100 px-4 py-2.5 font-medium text-peach-800">
-          {avoids.map((w) => `${w.person} doesn’t eat ${w.item.toLowerCase()}`).join('; ')}
+          {avoids.map((w) => t.doesntEat(w.person, tr(w, 'item').toLowerCase())).join('; ')}
         </p>
       ) : null}
     </div>
   );
 }
 
-const TOOL_STATE: Record<ToolNeed['status'], { label: string; tone: string }> = {
-  ready: { label: 'Clean', tone: 'bg-mint-100 text-mint-800' },
-  washing: { label: 'Washing', tone: 'bg-lav-100 text-lav-800' },
-  dirty: { label: 'Dirty', tone: 'bg-peach-100 text-peach-800' },
-  missing: { label: 'Not enough', tone: 'bg-danger-50 text-danger-700' },
+const TOOL_TONE: Record<ToolNeed['status'], string> = {
+  ready: 'bg-mint-100 text-mint-800',
+  washing: 'bg-lav-100 text-lav-800',
+  dirty: 'bg-peach-100 text-peach-800',
+  missing: 'bg-danger-50 text-danger-700',
 };
 
 /** The kitchenware it needs, and whether it's clean. */
 function Tools({ tools }: { tools: ToolNeed[] }) {
+  const t = useRecipesT();
   if (!tools.length) return null;
   return (
     <section className="mt-4 rounded-[2rem] bg-white p-4 shadow-[var(--shadow-card)] ring-1 ring-inset ring-ink-100/70">
-      <h2 className="px-1 text-h3 font-bold">You’ll need</h2>
+      <h2 className="px-1 text-h3 font-bold">{t.youllNeed}</h2>
       <ul className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-1.5">
         {tools.map((tool) => {
-          const state = TOOL_STATE[tool.status];
           const using = tool.options.find((o) => o.toolId === tool.using) ?? tool;
           const others = tool.options
             .filter((o) => o.toolId !== using.toolId)
-            .map((o) => o.name.toLowerCase());
+            .map((o) => tr(o, 'name').toLowerCase());
           return (
             <li
               key={tool.toolId}
@@ -381,25 +386,23 @@ function Tools({ tools }: { tools: ToolNeed[] }) {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">
                   {tool.count > 1 ? `${tool.count} × ` : ''}
-                  {using.name}
+                  {tr(using, 'name')}
                   {tool.perServing ? (
-                    <span className="font-medium text-ink-500"> · one each</span>
+                    <span className="font-medium text-ink-500"> · {t.oneEach}</span>
                   ) : null}
                 </span>
                 {others.length ? (
-                  <span className="block truncate text-xs text-ink-600">
-                    or {others.join(', or ')}
-                  </span>
+                  <span className="block truncate text-xs text-ink-600">{t.orTools(others)}</span>
                 ) : null}
                 <span
                   className={cx(
                     'mt-0.5 inline-flex h-5 items-center rounded-pill px-1.5 text-[0.6875rem] font-semibold',
-                    state.tone,
+                    TOOL_TONE[tool.status],
                   )}
                 >
                   {tool.status === 'washing' && tool.readyAt
-                    ? `Clean at ${new Date(tool.readyAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-                    : state.label}
+                    ? t.cleanAt(clockTime(tool.readyAt))
+                    : t.toolState[tool.status]}
                 </span>
               </span>
             </li>
@@ -419,6 +422,7 @@ function IngredientRow({
   onMissing?: () => void;
   onChoose?: (choice: number) => void;
 }) {
+  const t = useRecipesT();
   // Amounts missing are in the unit of the option used (grams of whipped cream, millilitres of milk).
   const unit = line.using
     ? (line.alternatives[line.chosen - 1]?.baseUnit ?? line.baseUnit)
@@ -431,7 +435,7 @@ function IngredientRow({
       ? formatAmount(line.amount, line.unit)
       : line.amount
         ? String(line.amount)
-        : 'to taste';
+        : t.toTaste;
   return (
     <li className="flex items-start gap-3 border-b border-ink-100 py-2.5 last:border-0">
       <FoodIconTile
@@ -440,21 +444,23 @@ function IngredientRow({
       />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.9375rem] font-semibold">
-          {line.name}
+          {tr(line, 'name')}
           {line.variant ? (
-            <span className="font-medium text-ink-600"> · {line.variant}</span>
+            <span className="font-medium text-ink-600"> · {tr(line, 'variant')}</span>
           ) : null}
           {line.warnings.length ? (
             <span
               className={cx('ml-0.5 font-bold', allergy ? 'text-danger-600' : 'text-peach-800')}
               title={line.warnings
-                .map((w) => `${w.person}: ${w.kind === 'allergy' ? 'allergic' : 'doesn’t eat it'}`)
+                .map((w) =>
+                  w.kind === 'allergy' ? t.allergicShort(w.person) : t.doesntEatShort(w.person),
+                )
                 .join(', ')}
             >
               *
             </span>
           ) : null}
-          {line.optional ? <span className="font-medium text-ink-500"> (optional)</span> : null}
+          {line.optional ? <span className="font-medium text-ink-500"> {t.optional}</span> : null}
         </span>
         <span className="block truncate text-sm text-ink-600">
           {[amount, line.note || null].filter(Boolean).join(' · ')}
@@ -467,16 +473,16 @@ function IngredientRow({
             )}
           >
             {line.warnings
-              .map((w) => `${w.person} ${w.kind === 'allergy' ? 'is allergic' : 'doesn’t eat it'}`)
+              .map((w) => (w.kind === 'allergy' ? t.isAllergic(w.person) : t.doesntEatIt(w.person)))
               .join(' · ')}
           </span>
         ) : null}
         {line.reservedFor && line.enough === false ? (
           <span className="block truncate text-xs font-medium text-lav-800">
-            Kept for {line.reservedFor.title} ·{' '}
-            {relativeDay(line.reservedFor.date, today) === dayAndMonth(line.reservedFor.date)
-              ? dayAndMonth(line.reservedFor.date)
-              : relativeDay(line.reservedFor.date, today).toLowerCase()}
+            {t.keptFor(
+              tr(line.reservedFor, 'title'),
+              relativeDayInline(line.reservedFor.date, today),
+            )}
           </span>
         ) : null}
         {onChoose ? <OptionChips line={line} value={line.chosen} onChange={onChoose} /> : null}
@@ -488,12 +494,12 @@ function IngredientRow({
             line.level === 'out' ? 'bg-peach-100 text-peach-800' : 'bg-butter-100 text-butter-800',
           )}
         >
-          {line.level === 'out' ? 'Out' : 'Low'}
+          {line.level === 'out' ? t.levelOut : t.levelLow}
         </span>
       ) : line.enough === true ? (
         <span className="inline-flex h-7 items-center gap-1 rounded-pill bg-mint-100 px-2.5 text-xs font-semibold text-mint-800">
           <CheckIcon fontSize="inherit" className="text-sm" />
-          Have
+          {t.have}
         </span>
       ) : line.enough === false ? (
         <button
@@ -501,9 +507,9 @@ function IngredientRow({
           onClick={onMissing}
           disabled={!onMissing || !line.productId}
           className="press inline-flex h-8 items-center gap-1 rounded-pill bg-peach-100 px-2.5 text-xs font-semibold text-peach-800 hover:bg-peach-200"
-          aria-label={`Put ${line.name} on a list`}
+          aria-label={t.putOnList(tr(line, 'name'))}
         >
-          {line.missing && measured ? `Need ${formatQty(line.missing, measured)}` : 'Missing'}
+          {line.missing && measured ? t.need(formatQty(line.missing, measured)) : t.missingWord}
           <AddShoppingCartIcon fontSize="inherit" className="text-sm" />
         </button>
       ) : null}
@@ -529,6 +535,8 @@ function useWakeLock(on: boolean) {
 }
 
 function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
+  const t = useRecipesT();
+  const steps = tr(recipe, 'steps');
   const [cookMode, setCookMode] = useState(false);
   const [done, setDone] = useState<Set<number>>(new Set());
   const toggle = (index: number) =>
@@ -539,17 +547,17 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
       return next;
     });
 
-  if (!recipe.steps.length) return null;
+  if (!steps.length) return null;
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-h3 font-bold">Steps</h2>
+        <h2 className="text-h3 font-bold">{t.steps}</h2>
         <Button size="sm" variant="tint" onClick={() => setCookMode(true)}>
-          Cook mode
+          {t.cookMode}
         </Button>
       </div>
       <ol className="mt-3 flex flex-col gap-2.5">
-        {recipe.steps.map((step, index) => {
+        {steps.map((step, index) => {
           const isDone = done.has(index);
           return (
             <li key={index}>
@@ -605,6 +613,9 @@ function CookMode({
   servings: number;
   onClose: () => void;
 }) {
+  const t = useRecipesT();
+  const steps = tr(recipe, 'steps');
+  const title = tr(recipe, 'title');
   const [step, setStep] = useState(0);
   const [added, setAdded] = useState<Set<string>>(new Set());
   useWakeLock(true);
@@ -612,35 +623,35 @@ function CookMode({
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
       if (event.key === 'ArrowRight' || event.key === ' ')
-        setStep((s) => Math.min(recipe.steps.length - 1, s + 1));
+        setStep((s) => Math.min(steps.length - 1, s + 1));
       if (event.key === 'ArrowLeft') setStep((s) => Math.max(0, s - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, recipe.steps.length]);
-  const last = step === recipe.steps.length - 1;
+  }, [onClose, steps.length]);
+  const last = step === steps.length - 1;
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={`Cooking ${recipe.title}`}
+      aria-label={t.cooking(title)}
       className="fixed inset-0 z-50 flex flex-col bg-butter-100 pb-[max(1rem,var(--safe-bottom))] pt-[calc(var(--safe-top)+0.75rem)]"
     >
       <header className="flex items-center gap-3 px-4 md:px-6">
         <FoodIcon name={recipe.icon} className="size-10" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-bold">{recipe.title}</p>
+          <p className="truncate text-lg font-bold">{title}</p>
           <p className="text-sm font-medium text-butter-800">
-            {plural(servings, 'serving')} · step {step + 1} of {recipe.steps.length}
+            {t.stepOf(t.servings(servings), step + 1, steps.length)}
           </p>
         </div>
-        <IconButton icon={CloseIcon} label="Done cooking" variant="ink" onClick={onClose} />
+        <IconButton icon={CloseIcon} label={t.doneCooking} variant="ink" onClick={onClose} />
       </header>
       <div className="mt-3 flex min-h-0 flex-1 gap-4 px-4 md:px-6">
         {/* Tablets: what goes in, to tick as it does. */}
         <aside className="hidden w-[18rem] shrink-0 overflow-y-auto rounded-[1.75rem] bg-white p-3 md:block lg:w-[22rem]">
-          <h2 className="px-1 text-[0.9375rem] font-bold">Ingredients</h2>
+          <h2 className="px-1 text-[0.9375rem] font-bold">{t.ingredients}</h2>
           <ul className="mt-1">
             {recipe.ingredients.map((line) => {
               const on = added.has(line.id);
@@ -667,13 +678,15 @@ function CookMode({
                       tone={on ? 'bg-mint-100' : 'bg-ink-50'}
                     />
                     <span className={cx('min-w-0 flex-1 text-[0.9375rem]', on && 'line-through')}>
-                      <span className="font-semibold">{line.using?.name ?? line.name}</span>
+                      <span className="font-semibold">
+                        {line.using ? tr(line.using, 'name') : tr(line, 'name')}
+                      </span>
                       <span className="text-ink-600">
                         {' '}
                         ·{' '}
                         {line.amount && line.unit
                           ? formatAmount(line.amount, line.unit)
-                          : 'to taste'}
+                          : t.toTaste}
                       </span>
                     </span>
                   </button>
@@ -684,19 +697,19 @@ function CookMode({
         </aside>
         <button
           type="button"
-          onClick={() => setStep((s) => Math.min(recipe.steps.length - 1, s + 1))}
+          onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
           className="flex min-w-0 flex-1 flex-col justify-center overflow-y-auto rounded-[2rem] bg-white p-6 text-left shadow-[var(--shadow-card)] md:p-10"
-          aria-label="Next step"
+          aria-label={t.nextStep}
         >
           <span className="grid size-12 place-items-center rounded-full bg-butter-300 text-xl font-bold">
             {step + 1}
           </span>
           <span className="mt-5 text-[1.5rem] font-semibold leading-snug tracking-[-0.01em] md:text-[2rem]">
-            {recipe.steps[step]}
+            {steps[step]}
           </span>
-          {recipe.steps[step + 1] ? (
+          {steps[step + 1] ? (
             <span className="mt-6 text-base text-ink-500 md:text-lg">
-              Next: {recipe.steps[step + 1]}
+              {t.nextPrefix(steps[step + 1]!)}
             </span>
           ) : null}
         </button>
@@ -710,11 +723,11 @@ function CookMode({
           disabled={step === 0}
           className="flex-1"
         >
-          Back
+          {t.back}
         </Button>
         {last ? (
           <Button size="lg" icon={CheckIcon} onClick={onClose} className="flex-1">
-            Done
+            {t.done}
           </Button>
         ) : (
           <Button
@@ -723,7 +736,7 @@ function CookMode({
             onClick={() => setStep((s) => s + 1)}
             className="flex-1"
           >
-            Next
+            {t.next}
           </Button>
         )}
       </footer>
@@ -745,6 +758,7 @@ function CookSheet({
   servings: number;
   onClose: () => void;
 }) {
+  const t = useRecipesT();
   // Picked options must be there: cooking with whipped cream there isn't can't happen.
   const blocked = lines.filter(
     (line) => line.alternatives.length && !line.optional && line.enough === false,
@@ -766,20 +780,20 @@ function CookSheet({
     onSuccess: ({ meal, shortfalls, opened }) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success(`Enjoy your ${recipe.title.toLowerCase()}!`, {
+      toast.success(t.enjoy(tr(recipe, 'title')), {
         duration: opened.length ? 9000 : undefined,
         description: [
-          shortfalls.length ? `Not enough: ${shortfalls.map((s) => s.name).join(', ')}.` : null,
+          shortfalls.length ? t.notEnough(formatList(shortfalls.map((s) => tr(s, 'name')))) : null,
           opened.length
-            ? `Opened — ${openedText(opened, localDate())}.`
+            ? t.opened(openedText(opened, localDate()))
             : shortfalls.length
               ? null
-              : 'The ingredients are out of the kitchen.',
+              : t.outOfKitchen,
         ]
           .filter(Boolean)
           .join(' '),
         action: {
-          label: 'Undo',
+          label: t.undo,
           onClick: () =>
             void foodApi
               .reopenMeal(meal.id)
@@ -800,8 +814,8 @@ function CookSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Cook it now?"
-      description={`For ${plural(servings, 'serving')}. The ingredients come out of the kitchen, first-expiring first.`}
+      title={t.cookTitle}
+      description={t.cookDescription(servings)}
       footer={
         <Button
           fullWidth
@@ -809,51 +823,47 @@ function CookSheet({
           loading={cook.isPending}
           disabled={blocked.length > 0}
         >
-          Cooked it
+          {t.cookedIt}
         </Button>
       }
     >
       <div className="flex flex-col gap-4">
         {blocked.length ? (
           <p className="rounded-2xl bg-danger-50 px-4 py-3 text-sm font-semibold text-danger-700">
-            Not enough{' '}
-            {blocked.map((line) => (line.using?.name ?? line.name).toLowerCase()).join(', ')}: pick{' '}
-            {blocked
-              .map((line) =>
-                (line.using
-                  ? line.name
-                  : (line.alternatives.find((alt) => alt.enough)?.name ?? 'another')
-                ).toLowerCase(),
-              )
-              .join(', ')}{' '}
-            instead, or buy some first.
+            {t.blocked(
+              blocked.map((line) => usedName(line).toLowerCase()).join(', '),
+              blocked
+                .map((line) =>
+                  (line.using ? tr(line, 'name') : (altName(line) ?? t.another)).toLowerCase(),
+                )
+                .join(', '),
+            )}
           </p>
         ) : null}
         {lines.some((line) => line.alternatives.length) ? (
           <p className="text-sm text-ink-600">
-            Using{' '}
-            {lines
-              .filter((line) => line.alternatives.length)
-              .map((line) => (line.using?.name ?? line.name).toLowerCase())
-              .join(', ')}
-            .
+            {t.using(
+              lines
+                .filter((line) => line.alternatives.length)
+                .map((line) => usedName(line).toLowerCase())
+                .join(', '),
+            )}
           </p>
         ) : null}
         {missing.length ? (
           <p className="rounded-2xl bg-peach-100 px-4 py-3 text-sm font-medium text-peach-800">
-            Not enough {missing.map((m) => m.name).join(', ')} in the kitchen — it will take what
-            there is.
+            {t.takesWhatThereIs(formatList(missing.map((m) => tr(m, 'name'))))}
           </p>
         ) : null}
         <div className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 p-3.5">
           <span>
-            <span className="block text-[0.9375rem] font-semibold">Leftovers</span>
-            <span className="block text-sm text-ink-600">Portions to keep in the fridge</span>
+            <span className="block text-[0.9375rem] font-semibold">{t.leftovers}</span>
+            <span className="block text-sm text-ink-600">{t.leftoversHint}</span>
           </span>
           <div className="flex items-center gap-1 rounded-pill bg-white p-1 shadow-xs">
             <button
               type="button"
-              aria-label="Fewer portions"
+              aria-label={t.fewerPortions}
               disabled={!leftovers}
               onClick={() => setLeftovers((v) => Math.max(0, v - 1))}
               className="press grid size-9 place-items-center rounded-full bg-ink-50 text-lg disabled:opacity-40"
@@ -863,7 +873,7 @@ function CookSheet({
             <span className="tabular w-8 text-center font-bold">{leftovers}</span>
             <button
               type="button"
-              aria-label="More portions"
+              aria-label={t.morePortions}
               onClick={() => setLeftovers((v) => Math.min(20, v + 1))}
               className="press grid size-9 place-items-center rounded-full bg-ink-900 text-lg text-white"
             >
@@ -874,4 +884,13 @@ function CookSheet({
       </div>
     </Sheet>
   );
+}
+
+/** What a line will use, in the current language: the alternative picked, else the item itself. */
+const usedName = (line: IngredientLine) => (line.using ? tr(line.using, 'name') : tr(line, 'name'));
+
+/** The first alternative there is enough of, in the current language. */
+function altName(line: IngredientLine): string | undefined {
+  const alt = line.alternatives.find((option) => option.enough);
+  return alt ? tr(alt, 'name') : undefined;
 }

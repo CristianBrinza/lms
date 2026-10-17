@@ -1,3 +1,5 @@
+import type { Translations } from '@/i18n';
+
 /** Food API shapes (mirrors backend/src/modules/food). Quantities are in the item's base unit. */
 
 export type BaseUnit = 'pcs' | 'g' | 'ml';
@@ -56,8 +58,23 @@ export interface Warning {
 export interface PlannedMealRef {
   id: string;
   title: string;
+  /** Its title in other languages ({ ro: { title } }). */
+  translations?: Translations;
   date: string;
 }
+
+/** A note the server wrote ("Poured out", "fridge → freezer"), by key; the app words it. */
+export type NoteKey =
+  | 'nowByLevel'
+  | 'itemRemoved'
+  | 'removed'
+  | 'pouredOut'
+  | 'pouredIn'
+  | 'undone'
+  | 'reopened'
+  | 'moved'
+  | 'level'
+  | 'leftoversFrom';
 
 export interface Product {
   id: string;
@@ -90,6 +107,8 @@ export interface Product {
   storeId: string | null;
   note: string;
   archived: boolean;
+  /** Its name (and note) in the other languages: the catalog's, or what the household wrote. */
+  translations?: Translations;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,12 +125,19 @@ export interface Lot {
   price: number | null;
   storeId: string | null;
   storeName: string | null;
+  /** The store's name in other languages ({ ro: { name } }). */
+  storeTranslations?: Translations;
   tripId: string | null;
   note: string;
+  /** A note the server wrote, as a key and its values; null for what people wrote. */
+  noteKey?: NoteKey | null;
+  noteValues?: Record<string, string>;
   variant: string;
   /** The package it came in (jar, bottle, loaf) and what one held; '' and null when loose. */
   package: string;
   packageSize: number | null;
+  /** Its kind in other languages ({ ro: { variant } }), when the catalog names it. */
+  translations?: Translations;
 }
 
 export interface StockedProduct extends Product {
@@ -129,6 +155,9 @@ export interface StockEvent {
   lotId: string | null;
   mealId: string | null;
   note: string;
+  /** A note the server wrote, as a key and its values; null for what people wrote. */
+  noteKey?: NoteKey | null;
+  noteValues?: Record<string, string>;
   via: Via;
   actor: string | null;
   createdAt: string;
@@ -137,6 +166,7 @@ export interface StockEvent {
 export interface PricePoint {
   storeId: string | null;
   storeName: string | null;
+  storeTranslations?: Translations;
   price: number;
   quantity: number;
   unitPrice: number;
@@ -162,6 +192,8 @@ export interface Preset {
   variants?: string[];
   variantIcons?: Record<string, string>;
   kindInName?: boolean;
+  /** The catalog's own names in Romanian and Russian (name, variants). */
+  translations?: Translations;
 }
 
 export interface UseResult {
@@ -188,6 +220,7 @@ export interface Opened {
   unit: BaseUnit;
   expiresOn: string | null;
   location: Location;
+  translations?: Translations;
 }
 
 export interface Store {
@@ -198,6 +231,7 @@ export interface Store {
   open: number;
   inCart: number;
   createdAt: string;
+  translations?: Translations;
 }
 
 export interface ShoppingItem {
@@ -219,7 +253,12 @@ export interface ShoppingItem {
   source: 'manual' | 'plan' | 'low_stock' | 'recipe' | 'ai';
   checked: boolean;
   price: number | null;
-  lastPrice: { price: number; storeName: string | null; boughtAt: string } | null;
+  lastPrice: {
+    price: number;
+    storeName: string | null;
+    storeTranslations?: Translations;
+    boughtAt: string;
+  } | null;
   estimate: number | null;
   /** At least this much, in the base unit (null: no amount asked). */
   need: number | null;
@@ -229,12 +268,16 @@ export interface ShoppingItem {
   boughtTotal: number | null;
   baseUnit: BaseUnit | null;
   createdAt: string;
+  /** The linked item's names in other languages, when it has them. */
+  translations?: Translations;
 }
 
 export interface Trip {
   id: string;
   storeId: string | null;
   storeName: string;
+  /** The store's name in other languages ({ ro: { name } }). */
+  storeTranslations?: Translations;
   total: number | null;
   itemCount: number;
   finishedAt: string;
@@ -252,6 +295,8 @@ export interface IngredientLine {
   alternatives: Array<{
     productId: string | null;
     name: string;
+    /** Its name and kind in other languages ({ ro: { name, variant } }). */
+    translations?: Translations;
     icon: string;
     amount: number | null;
     unit: string | null;
@@ -271,8 +316,10 @@ export interface IngredientLine {
   /** Short because what there is goes off before the meal (planned meals). */
   spoilsBefore: boolean;
   /** Covered by an alternative rather than the main item. */
-  using: { productId: string; name: string; icon: string } | null;
+  using: { productId: string; name: string; icon: string; translations?: Translations } | null;
   name: string;
+  /** The line's name and kind in other languages ({ ro: { name, variant } }). */
+  translations?: Translations;
   icon: string;
   amount: number | null;
   unit: string | null;
@@ -292,9 +339,16 @@ export interface Availability {
   have: number;
   total: number;
   ready: boolean;
-  missing: Array<{ productId: string; name: string; missing: number; unit: BaseUnit }>;
+  missing: Array<{
+    productId: string;
+    name: string;
+    translations?: Translations;
+    missing: number;
+    unit: BaseUnit;
+  }>;
   useSoon: number;
-  warnings: Array<Warning & { item: string }>;
+  /** translations: { ro: { item } }. */
+  warnings: Array<Warning & { item: string; translations?: Translations }>;
 }
 
 /** Energy and nutrients (g; kcal for energy). */
@@ -348,6 +402,8 @@ export interface Recipe {
   timesCooked: number;
   lastCooked: string | null;
   nutrition: DishNutrition;
+  /** Its title, description, steps and notes in other languages (shown with `tr`). */
+  translations?: Translations;
 }
 
 export interface Meal {
@@ -375,6 +431,8 @@ export interface Meal {
   tools: ToolNeed[];
   ingredients: IngredientLine[];
   availability: Availability;
+  /** Its title, note and eating-out place in other languages ({ ro: { title, note, place } }). */
+  translations?: Translations;
 }
 
 export type PartKind = 'dish' | 'side' | 'sauce' | 'drink';
@@ -384,6 +442,8 @@ export interface MealPart {
   id: string;
   recipeId: string | null;
   title: string;
+  /** Its title in other languages ({ ro: { title } }). */
+  translations?: Translations;
   kind: PartKind;
   servings: number;
   icon: string;
@@ -418,6 +478,8 @@ export interface Tool {
   low: boolean;
   place: string;
   note: string;
+  /** Its name in other languages: the catalog's, or what the household wrote. */
+  translations?: Translations;
 }
 
 export type ToolStatus = 'ready' | 'washing' | 'dirty' | 'missing';
@@ -437,8 +499,11 @@ export interface ToolNeed {
     icon: string;
     status: ToolStatus;
     readyAt: string | null;
+    translations?: Translations;
   }>;
   using: string;
+  /** The tool's name in other languages, when the API sends it. */
+  translations?: Translations;
 }
 
 export interface ToolNeedInput {
@@ -459,11 +524,14 @@ export interface ToolInput {
   minCount?: number | null;
   place?: string;
   note?: string;
+  translations?: Translations;
 }
 
 export interface NeedLine {
   productId: string;
   name: string;
+  /** Its name in other languages ({ ro: { name } }). */
+  translations?: Translations;
   icon: string;
   category: Category;
   unit: BaseUnit;
@@ -476,7 +544,28 @@ export interface NeedLine {
   storeId: string | null;
   level: 'low' | 'out' | null;
   needBy: string | null;
-  meals: Array<{ id: string; title: string; date: string }>;
+  meals: Array<{ id: string; title: string; translations?: Translations; date: string }>;
+}
+
+/** A plan line that can't be counted: check it at home. translations: { ro: { name, meal } }. */
+export interface ToCheck {
+  name: string;
+  meal: string;
+  translations?: Translations;
+}
+
+/** What a meal was short of. */
+export interface Shortfall {
+  name: string;
+  translations?: Translations;
+  missing: number;
+  unit: string;
+}
+
+/** A shopping line named in a checkout's summary. */
+export interface NamedLine {
+  name: string;
+  translations?: Translations;
 }
 
 export interface FoodOverview {
@@ -491,6 +580,7 @@ export interface FoodOverview {
       quantity: number;
       unit: BaseUnit;
       expiresOn: string;
+      translations?: Translations;
     }>;
     expired: number;
     opened: Array<{
@@ -504,6 +594,7 @@ export interface FoodOverview {
       location: Location;
       package: string;
       recipes: number;
+      translations?: Translations;
     }>;
     low: Array<{
       productId: string;
@@ -513,13 +604,20 @@ export interface FoodOverview {
       minStock: number;
       unit: BaseUnit;
       level: Level | null;
+      translations?: Translations;
     }>;
   };
   recipes: { total: number; ready: number; favorites: number };
   shopping: {
     open: number;
     inCart: number;
-    stores: Array<{ id: string; name: string; tone: StoreTone; open: number }>;
+    stores: Array<{
+      id: string;
+      name: string;
+      tone: StoreTone;
+      open: number;
+      translations?: Translations;
+    }>;
     anyStore: number;
   };
   meals: { today: Meal[]; upcoming: Meal[]; plannedThisWeek: number };
@@ -559,6 +657,8 @@ export interface RecipeInput {
   favorite?: boolean;
   ingredients?: IngredientInput[];
   tools?: ToolNeedInput[];
+  /** Per language: title, description, notes (strings) and steps (an array). */
+  translations?: Translations;
 }
 
 export interface KitchenPerson {
@@ -575,6 +675,8 @@ export interface Restriction {
   kind: 'allergy' | 'avoid';
   productId: string | null;
   productName: string | null;
+  /** The item's name in other languages ({ ro: { name } }). */
+  productTranslations?: Translations;
   category: Category | null;
   note: string;
 }
@@ -587,6 +689,8 @@ export interface Reminder {
   days: number[];
   text: string;
   enabled: boolean;
+  /** The text in the other languages ({ ro: { text } }). */
+  translations?: Translations;
 }
 
 export interface AccessKey {

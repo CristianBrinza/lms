@@ -5,6 +5,7 @@ import { ChevronRightIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { kitchenwareApi, foodKeys } from '../api';
 import { FoodIconTile } from '../icons/FoodIcon';
+import { useKitchenwareT } from './i18n';
 import { statusLine, washState } from './status';
 
 /**
@@ -12,6 +13,7 @@ import { statusLine, washState } from './status';
  * drawing and where the washing-up stands ("All clean", "3 dirty · dishwasher until 21:40").
  */
 export function KitchenwareEntry({ className }: { className?: string }) {
+  const t = useKitchenwareT();
   const list = useQuery({ queryKey: foodKeys.kitchenware, queryFn: kitchenwareApi.list });
   const state = list.data ? washState(list.data.tools) : null;
   const busy = state ? state.dirty > 0 || state.washing > 0 : false;
@@ -32,7 +34,7 @@ export function KitchenwareEntry({ className }: { className?: string }) {
         className="size-11 rounded-[0.875rem] [&>svg]:size-8"
       />
       <span className="min-w-0 flex-1">
-        <span className="block text-[0.9375rem] font-bold leading-tight">Kitchenware</span>
+        <span className="block text-[0.9375rem] font-bold leading-tight">{t.title}</span>
         {state ? (
           <span
             className={cx(
@@ -44,7 +46,7 @@ export function KitchenwareEntry({ className }: { className?: string }) {
           </span>
         ) : list.isError ? (
           <span className="mt-0.5 block truncate text-[0.8125rem] font-medium text-ink-500">
-            Pots, pans, glasses
+            {t.entryFallback}
           </span>
         ) : (
           <Skeleton className="mt-1 h-3.5 w-32" />

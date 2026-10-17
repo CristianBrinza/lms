@@ -5,27 +5,20 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, IconButton, Skeleton } from '@/components/ui';
 import { AddIcon, AddShoppingCartIcon, ChevronRightIcon, FoodIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
 import { MealStatus } from '../components/MealStatus';
-import {
-  addDays,
-  dayAndMonth,
-  localDate,
-  plural,
-  relativeDay,
-  SLOT_LABEL,
-  weekdayShort,
-  weekStart,
-} from '../format';
+import { addDays, localDate, weekStart } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { AddMealSheet } from '../plan/AddMealSheet';
 import { AteSheet } from '../plan/AteSheet';
 import { formatKcal, kcalEach } from '../nutrition';
 import { MealPanel, MealSheet } from '../plan/MealSheet';
 import { NeedsSheet } from '../plan/NeedsSheet';
+import { dayAndMonth, relativeDay, usePlanT, weekdayShort } from '../plan/i18n';
 import type { Meal } from '../types';
 
 /**
@@ -35,6 +28,7 @@ import type { Meal } from '../types';
  * eaten (the ingredients leave the kitchen) or change it for that day.
  */
 export default function PlanPage() {
+  const t = usePlanT();
   const today = localDate();
   const [params, setParams] = useSearchParams();
   const day = params.get('day') ?? today;
@@ -87,25 +81,25 @@ export default function PlanPage() {
       <PageHeader
         compact
         back="/food"
-        title="Plan"
-        subtitle={`${dayAndMonth(start)} – ${dayAndMonth(end)} · ${plural(planned, 'meal')} to come`}
+        title={t.title}
+        subtitle={t.subtitle(dayAndMonth(start), dayAndMonth(end), planned)}
         actions={
           <>
             <IconButton
               icon={FoodIcon}
-              label="I ate something"
+              label={t.ateSomething}
               size="sm"
               onClick={() => set({ ate: '1' })}
             />
             <IconButton
               icon={AddShoppingCartIcon}
-              label="What the plan needs"
+              label={t.needs}
               size="sm"
               onClick={() => set({ needs: '1' })}
             />
             <IconButton
               icon={AddIcon}
-              label="Add a meal"
+              label={t.addMeal}
               variant="ink"
               size="sm"
               onClick={() => setAdding({ open: true, day })}
@@ -118,13 +112,13 @@ export default function PlanPage() {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label="Previous week"
+            aria-label={t.previousWeek}
             onClick={() => set({ day: addDays(start, -7) })}
             className="press grid size-9 shrink-0 place-items-center rounded-full text-[1.3rem] text-ink-600 hover:bg-ink-100"
           >
             <ChevronRightIcon fontSize="inherit" className="rotate-180" />
           </button>
-          <div role="tablist" aria-label="Days" className="grid flex-1 grid-cols-7 gap-1">
+          <div role="tablist" aria-label={t.days} className="grid flex-1 grid-cols-7 gap-1">
             {days.map((d) => {
               const count = (byDay.get(d) ?? []).length;
               const active = d === day;
@@ -163,7 +157,7 @@ export default function PlanPage() {
           </div>
           <button
             type="button"
-            aria-label="Next week"
+            aria-label={t.nextWeek}
             onClick={() => set({ day: addDays(start, 7) })}
             className="press grid size-9 shrink-0 place-items-center rounded-full text-[1.3rem] text-ink-600 hover:bg-ink-100"
           >
@@ -176,7 +170,7 @@ export default function PlanPage() {
             onClick={() => set({ day: today })}
             className="mt-1.5 text-sm font-semibold text-lav-700 hover:text-lav-800"
           >
-            Back to today
+            {t.backToToday}
           </button>
         ) : null}
       </div>
@@ -225,10 +219,8 @@ export default function PlanPage() {
                         />
                       ) : null}
                       <div className="rounded-[1.75rem] bg-white p-5 text-center shadow-[var(--shadow-card)]">
-                        <p className="text-[1.0625rem] font-bold">Tap a meal</p>
-                        <p className="mt-1 text-sm text-ink-600">
-                          Each part, what it takes from the kitchen, the kitchenware, and “Eaten”.
-                        </p>
+                        <p className="text-[1.0625rem] font-bold">{t.tapMeal}</p>
+                        <p className="mt-1 text-sm text-ink-600">{t.tapMealHint}</p>
                       </div>
                     </div>
                   )}
@@ -287,10 +279,11 @@ export default function PlanPage() {
 
 /** Tomorrow's lunch to take along: made and packed tonight, after the last meal. */
 function PackTonight({ meals, onOpen }: { meals: Meal[]; onOpen: (id: string) => void }) {
+  const t = usePlanT();
   return (
     <section className="mb-3 rounded-[1.25rem] bg-lav-100 p-3">
-      <h2 className="px-1 text-[0.9375rem] font-bold">Pack tonight</h2>
-      <p className="px-1 text-xs text-lav-800">For tomorrow, to take along</p>
+      <h2 className="px-1 text-[0.9375rem] font-bold">{t.packTonight}</h2>
+      <p className="px-1 text-xs text-lav-800">{t.packHint}</p>
       <ul className="mt-2 flex flex-col gap-1.5">
         {meals.map((meal) => (
           <li key={meal.id}>
@@ -305,9 +298,11 @@ function PackTonight({ meals, onOpen }: { meals: Meal[]; onOpen: (id: string) =>
                 className="size-9 rounded-xl [&>svg]:size-6"
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[0.9375rem] font-semibold">{meal.title}</span>
+                <span className="block truncate text-[0.9375rem] font-semibold">
+                  {tr(meal, 'title')}
+                </span>
                 <span className="block truncate text-xs text-ink-600">
-                  {meal.time ?? SLOT_LABEL[meal.slot]} tomorrow · {plural(meal.servings, 'serving')}
+                  {t.tomorrowAt(meal.time ?? t.slot[meal.slot])} · {t.servings(meal.servings)}
                 </span>
               </span>
               <MealStatus meal={meal} />
@@ -334,6 +329,7 @@ function DayMeals({
   compact?: boolean;
   selected?: string | null;
 }) {
+  const t = usePlanT();
   return (
     <>
       <h2 className={cx('mb-1.5 px-1 font-bold', compact ? 'text-sm' : 'text-[0.9375rem]')}>
@@ -355,8 +351,8 @@ function DayMeals({
                 )}
               >
                 {compact ? null : (
-                  <span className="tabular w-12 shrink-0 text-center text-sm font-bold text-ink-700">
-                    {meal.time ?? SLOT_LABEL[meal.slot].slice(0, 5)}
+                  <span className="tabular w-12 shrink-0 truncate text-center text-sm font-bold text-ink-700">
+                    {meal.time ?? t.slotShort[meal.slot]}
                   </span>
                 )}
                 <FoodIconTile
@@ -372,26 +368,26 @@ function DayMeals({
                       meal.status === 'done' && 'line-through decoration-ink-400',
                     )}
                   >
-                    {meal.title}
+                    {tr(meal, 'title')}
                   </span>
                   <span className="block truncate text-xs text-ink-600">
-                    {compact
-                      ? `${meal.time ?? SLOT_LABEL[meal.slot]} · `
-                      : `${SLOT_LABEL[meal.slot]} · `}
-                    {plural(meal.servings, 'serving')}
-                    {meal.parts.length > 1 ? ` · ${plural(meal.parts.length, 'part')}` : ''}
-                    {meal.toGo ? ' · to go' : ''}
+                    {compact ? `${meal.time ?? t.slot[meal.slot]} · ` : `${t.slot[meal.slot]} · `}
+                    {t.servings(meal.servings)}
+                    {meal.parts.length > 1 ? ` · ${t.parts(meal.parts.length)}` : ''}
+                    {meal.toGo ? ` · ${t.toGo}` : ''}
                     {meal.status === 'done' && kcalEach(meal) !== null
-                      ? ` · ${formatKcal(kcalEach(meal)!)} kcal${meal.servings > 1 ? ' each' : ''}`
+                      ? ` · ${t.kcal(formatKcal(kcalEach(meal)!), meal.servings > 1)}`
                       : ''}
                   </span>
-                  {meal.status === 'planned' && meal.tools.some((t) => t.status === 'dirty') ? (
+                  {meal.status === 'planned' &&
+                  meal.tools.some((tool) => tool.status === 'dirty') ? (
                     <span className="block truncate text-xs font-semibold text-peach-800">
-                      Wash first:{' '}
-                      {meal.tools
-                        .filter((t) => t.status === 'dirty')
-                        .map((t) => t.name.toLowerCase())
-                        .join(', ')}
+                      {t.washFirst(
+                        meal.tools
+                          .filter((tool) => tool.status === 'dirty')
+                          .map((tool) => tr(tool, 'name').toLowerCase())
+                          .join(', '),
+                      )}
                     </span>
                   ) : null}
                 </span>
@@ -407,11 +403,11 @@ function DayMeals({
             compact ? 'py-3 text-xs' : 'py-4 text-sm',
           )}
         >
-          Nothing planned.
+          {t.nothingPlanned}
         </p>
       )}
       <Button variant="tint" size="sm" icon={AddIcon} className="mt-2" onClick={onAdd}>
-        Add
+        {t.add}
       </Button>
     </>
   );

@@ -1,7 +1,9 @@
 import { CheckIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { altLabel, formatAmount, formatQty } from '../format';
 import type { IngredientLine } from '../types';
+import { foodUiT } from './components.i18n';
 
 /**
  * An ingredient that can be one thing or another (milk, or whipped cream): every option as a pill
@@ -18,10 +20,11 @@ export function OptionChips({
   onChange: (choice: number) => void;
   disabled?: boolean;
 }) {
+  const t = foodUiT().options;
   if (!line.alternatives.length) return null;
   const options = [
     {
-      label: `${line.name.toLowerCase()}${line.variant ? ` (${line.variant.toLowerCase()})` : ''}`,
+      label: altLabel(line),
       enough: line.mainEnough,
       detail: line.amount && line.unit ? formatAmount(line.amount, line.unit) : null,
       short:
@@ -42,7 +45,7 @@ export function OptionChips({
   return (
     <div
       role="radiogroup"
-      aria-label={`${line.name}: use`}
+      aria-label={t.use(tr(line, 'name'))}
       className="mt-1.5 flex flex-wrap gap-1.5"
     >
       {options.map((option, index) => {
@@ -77,7 +80,7 @@ export function OptionChips({
                     : 'bg-mint-100 text-mint-800',
               )}
             >
-              {option.enough === false ? (option.short ? `need ${option.short}` : 'none') : 'have'}
+              {option.enough === false ? (option.short ? t.need(option.short) : t.none) : t.have}
             </span>
           </button>
         );

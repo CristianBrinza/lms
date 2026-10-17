@@ -1,20 +1,22 @@
 import { useSyncExternalStore } from 'react';
 import type { Tool, ToolKind } from '../types';
+import { kitchenwareT } from './i18n';
 
 /** How kitchenware reads on screen: kinds, counts, the dishwasher's clock. Pure, except useNow. */
 
-export const KIND_LABEL: Record<ToolKind, string> = {
-  cookware: 'Cookware',
-  bakeware: 'Bakeware',
-  utensil: 'Utensils',
-  dishes: 'Dishes',
-  bar: 'Bar',
-  appliance: 'Appliances',
-  disposable: 'Single-use',
-  other: 'Other',
-};
+export const KIND_ORDER: ToolKind[] = [
+  'cookware',
+  'bakeware',
+  'utensil',
+  'dishes',
+  'bar',
+  'appliance',
+  'disposable',
+  'other',
+];
 
-export const KIND_ORDER = Object.keys(KIND_LABEL) as ToolKind[];
+/** A kind's name in the current language: "Cookware", "Vase de gătit", "Для готовки". */
+export const kindLabel = (kind: ToolKind) => kitchenwareT().kind[kind];
 
 export interface WashState {
   /** Things in the kitchen (each kind counted once). */
@@ -58,13 +60,14 @@ export function clock(iso: string): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** "3 h", "2 h 15 min", "45 min". */
+/** "3 h", "2 h 15 min", "45 min" ("3 ч 15 мин" in Russian). */
 export function duration(minutes: number): string {
+  const t = kitchenwareT();
   const m = Math.max(0, Math.round(minutes));
   const hours = Math.floor(m / 60);
   const rest = m % 60;
-  if (!hours) return `${rest} min`;
-  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+  if (!hours) return `${rest} ${t.minutes}`;
+  return rest ? `${hours} ${t.hours} ${rest} ${t.minutes}` : `${hours} ${t.hours}`;
 }
 
 /** Minutes left until `iso` (to the nearest minute, at least 1 until it is over, never below 0). */
@@ -75,43 +78,47 @@ export function minutesLeft(iso: string, now: number): number {
 
 /** The one line under "Kitchenware": "All clean", "3 dirty · dishwasher until 21:40". */
 export function statusLine(state: WashState): string {
-  if (!state.kinds) return 'Count your pots, pans and glasses';
+  const t = kitchenwareT();
+  if (!state.kinds) return t.statusEmpty;
   const parts: string[] = [];
   if (state.dirty)
     parts.push(
       state.byHand && state.byHand === state.dirty
-        ? `${state.dirty} to wash by hand`
-        : `${state.dirty} dirty`,
+        ? t.toWashByHand(state.dirty)
+        : t.dirtyCount(state.dirty),
     );
-  if (state.washing && state.cleanAt) parts.push(`dishwasher until ${clock(state.cleanAt)}`);
-  return parts.length ? parts.join(' · ') : 'All clean';
+  if (state.washing && state.cleanAt) parts.push(t.dishwasherUntil(clock(state.cleanAt)));
+  return parts.length ? parts.join(' · ') : t.allClean;
 }
 
 /** One thing's state as short chips: "2 of 3 clean", "1 dirty", "1 washing". */
 export function toolChips(
   tool: Tool,
 ): Array<{ label: string; tone: 'mint' | 'peach' | 'cyan' | 'muted' }> {
+  const t = kitchenwareT();
   if (tool.kind === 'disposable')
     return [
       {
-        label: tool.count ? `${tool.count} left${tool.low ? ' · running low' : ''}` : 'None left',
+        label: tool.count ? t.left(tool.count, tool.low) : t.noneLeft,
         tone: tool.low ? 'peach' : 'muted',
       },
     ];
   if (!tool.washable) return [{ label: `×${tool.count}`, tone: 'muted' }];
-  if (tool.count === 0) return [{ label: 'None', tone: 'muted' }];
+  if (tool.count === 0) return [{ label: t.none, tone: 'muted' }];
   const chips: Array<{ label: string; tone: 'mint' | 'peach' | 'cyan' | 'muted' }> = [];
   if (tool.clean === tool.count)
-    chips.push({ label: tool.count === 1 ? 'Clean' : `All ${tool.count} clean`, tone: 'mint' });
-  else if (tool.clean > 0)
-    chips.push({ label: `${tool.clean} of ${tool.count} clean`, tone: 'mint' });
+    chips.push({ label: tool.count === 1 ? t.clean : t.allNClean(tool.count), tone: 'mint' });
+  else if (tool.clean > 0) chips.push({ label: t.nOfClean(tool.clean, tool.count), tone: 'mint' });
   if (tool.dirty)
     chips.push({
-      label: `${tool.count === 1 ? 'Dirty' : `${tool.dirty} dirty`}${tool.dishwasherSafe ? '' : ' · by hand'}`,
+      label: `${tool.count === 1 ? t.dirty : t.dirtyCount(tool.dirty)}${tool.dishwasherSafe ? '' : t.byHand}`,
       tone: 'peach',
     });
   if (tool.washing)
-    chips.push({ label: tool.count === 1 ? 'Washing' : `${tool.washing} washing`, tone: 'cyan' });
+    chips.push({
+      label: tool.count === 1 ? t.washing : t.washingCount(tool.washing),
+      tone: 'cyan',
+    });
   return chips;
 }
 

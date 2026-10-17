@@ -1,3 +1,5 @@
+import type { Translations } from '../../lib/i18n';
+import { onlyFields } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import { listMeals, type Meal } from './meals';
 import type { FoodIcon } from './presets';
@@ -17,6 +19,8 @@ export interface FoodOverview {
       lotId: string;
       productId: string;
       name: string;
+      /** Its name in other languages ({ ro: { name } }). */
+      translations: Translations;
       icon: FoodIcon;
       quantity: number;
       unit: BaseUnit;
@@ -28,6 +32,8 @@ export interface FoodOverview {
       lotId: string;
       productId: string;
       name: string;
+      /** Its name in other languages ({ ro: { name } }). */
+      translations: Translations;
       icon: FoodIcon;
       quantity: number;
       unit: BaseUnit;
@@ -40,6 +46,8 @@ export interface FoodOverview {
     low: Array<{
       productId: string;
       name: string;
+      /** Its name in other languages ({ ro: { name } }). */
+      translations: Translations;
       icon: FoodIcon;
       total: number;
       minStock: number;
@@ -51,7 +59,13 @@ export interface FoodOverview {
   shopping: {
     open: number;
     inCart: number;
-    stores: Array<{ id: string; name: string; tone: string; open: number }>;
+    stores: Array<{
+      id: string;
+      name: string;
+      tone: string;
+      open: number;
+      translations: Translations;
+    }>;
     anyStore: number;
   };
   meals: { today: Meal[]; upcoming: Meal[]; plannedThisWeek: number };
@@ -86,6 +100,7 @@ export async function overview(
           lotId: lot.id,
           productId: product.id,
           name: product.name,
+          translations: onlyFields(product.translations, ['name']),
           icon: product.icon,
           quantity: lot.quantity,
           unit: product.unit,
@@ -113,6 +128,7 @@ export async function overview(
           lotId: lot.id,
           productId: product.id,
           name: product.name,
+          translations: onlyFields(product.translations, ['name']),
           icon: product.icon,
           quantity: lot.quantity,
           unit: product.unit,
@@ -138,6 +154,7 @@ export async function overview(
         .map((p) => ({
           productId: p.id,
           name: p.name,
+          translations: onlyFields(p.translations, ['name']),
           icon: p.icon,
           total: p.total,
           minStock: p.minStock ?? 0,
@@ -153,7 +170,13 @@ export async function overview(
     shopping: {
       open: items.filter((i) => !i.checked).length,
       inCart: items.filter((i) => i.checked).length,
-      stores: stores.map((s) => ({ id: s.id, name: s.name, tone: s.tone, open: s.open })),
+      stores: stores.map((s) => ({
+        id: s.id,
+        name: s.name,
+        tone: s.tone,
+        open: s.open,
+        translations: s.translations,
+      })),
       anyStore: items.filter((i) => !i.storeId && !i.checked).length,
     },
     meals: {

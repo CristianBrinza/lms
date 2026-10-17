@@ -1,12 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Sheet, toast } from '@/components/ui';
 import { ChevronRightIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
-import { plural } from '../format';
 import type { ShoppingItem, Store } from '../types';
+import { shoppingT } from './shopping.i18n';
 import { STORE_TONE } from './tones';
 
 /** A store to pick: one chip each, "Any store" first. The line sheet's store field. */
@@ -19,13 +20,14 @@ export function StoreChips({
   value: string | null;
   onChange: (storeId: string | null) => void;
 }) {
+  const t = shoppingT();
   const options: Array<{ id: string | null; name: string; dot?: string }> = [
-    { id: null, name: 'Any store' },
-    ...stores.map((s) => ({ id: s.id, name: s.name, dot: STORE_TONE[s.tone].dot })),
+    { id: null, name: t.anyStore },
+    ...stores.map((s) => ({ id: s.id, name: tr(s, 'name'), dot: STORE_TONE[s.tone].dot })),
   ];
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[0.8125rem] font-semibold text-ink-700">Store</span>
+      <span className="text-[0.8125rem] font-semibold text-ink-700">{t.store}</span>
       <div className="-mx-1 flex flex-wrap gap-1.5 px-1">
         {options.map((option) => {
           const on = option.id === value;
@@ -71,9 +73,15 @@ export function MoveSheet({
   stores: Store[];
   onClose: () => void;
 }) {
+  const s = shoppingT();
+  const t = s.moveSheet;
   const queryClient = useQueryClient();
   const open = from !== undefined;
-  const fromName = from ? (stores.find((s) => s.id === from)?.name ?? 'this store') : 'Any store';
+  const nameOf = (id: string) => {
+    const store = stores.find((candidate) => candidate.id === id);
+    return store ? tr(store, 'name') : null;
+  };
+  const fromName = from ? (nameOf(from) ?? t.thisStore) : s.anyStore;
   const move = useMutation({
     mutationFn: (to: string | null) =>
       foodApi.moveLines(
@@ -82,13 +90,11 @@ export function MoveSheet({
       ),
     onSuccess: ({ moved }, to) => {
       haptic('tap');
-      const toName = to
-        ? (stores.find((s) => s.id === to)?.name ?? 'the other store')
-        : 'Any store';
+      const toName = to ? (nameOf(to) ?? t.otherStore) : s.anyStore;
       const ids = lines.map((l) => l.id);
-      toast.success(`${plural(moved, 'item')} moved to ${toName}`, {
+      toast.success(t.moved(moved, toName), {
         action: {
-          label: 'Undo',
+          label: t.undo,
           onClick: () =>
             void foodApi
               .moveLines(ids, from ?? null)
@@ -102,16 +108,20 @@ export function MoveSheet({
     onError: (error) => toast.error(errorMessage(error)),
   });
   const targets: Array<{ id: string | null; name: string; dot?: string }> = [
-    ...stores.map((s) => ({ id: s.id, name: s.name, dot: STORE_TONE[s.tone].dot })),
-    { id: null, name: 'Any store' },
-  ].filter((t) => t.id !== (from ?? null));
+    ...stores.map((store) => ({
+      id: store.id,
+      name: tr(store, 'name'),
+      dot: STORE_TONE[store.tone].dot,
+    })),
+    { id: null, name: s.anyStore },
+  ].filter((target) => target.id !== (from ?? null));
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title={`Move ${plural(lines.length, 'item')}`}
-      description={`Still to buy at ${fromName}. Where do they go?`}
+      title={t.title(lines.length)}
+      description={t.hint(fromName)}
     >
       <ul className="-mx-2 flex flex-col">
         {targets.map((target) => (
@@ -137,9 +147,7 @@ export function MoveSheet({
           </li>
         ))}
       </ul>
-      {targets.length ? null : (
-        <p className="text-sm text-ink-600">Add a store first (the shop button at the top).</p>
-      )}
+      {targets.length ? null : <p className="text-sm text-ink-600">{t.addStoreFirst}</p>}
     </Sheet>
   );
 }

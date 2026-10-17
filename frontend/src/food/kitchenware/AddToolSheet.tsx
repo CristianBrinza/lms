@@ -2,12 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, Sheet, TextField, toast } from '@/components/ui';
 import { AddIcon } from '@/components/ui/icons';
+import { tr, type Translations } from '@/i18n';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodKeys, kitchenwareApi } from '../api';
 import { normalize } from '../catalog';
 import { FoodIcon } from '../icons/FoodIcon';
 import type { Tool, ToolKind } from '../types';
+import { useKitchenwareT } from './i18n';
 import { Stepper } from './Stepper';
 
 export interface ToolPreset {
@@ -15,6 +17,8 @@ export interface ToolPreset {
   icon: string;
   kind: ToolKind;
   washable?: boolean;
+  /** The catalog's own names in the other languages. */
+  translations?: Translations;
 }
 
 /**
@@ -32,6 +36,7 @@ export function AddToolSheet({
   tools: Tool[];
   presets: ToolPreset[];
 }) {
+  const t = useKitchenwareT();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [count, setCount] = useState(1);
@@ -47,9 +52,13 @@ export function AddToolSheet({
 
   const have = new Set(tools.map((tool) => normalize(tool.name)));
   const typed = normalize(name);
+  // Typed in any language: the catalog's name as written, or as it reads here.
   const suggestions = presets.filter(
     (preset) =>
-      !have.has(normalize(preset.name)) && (!typed || normalize(preset.name).includes(typed)),
+      !have.has(normalize(preset.name)) &&
+      (!typed ||
+        normalize(preset.name).includes(typed) ||
+        normalize(tr(preset, 'name')).includes(typed)),
   );
 
   const add = useMutation({
@@ -58,6 +67,7 @@ export function AddToolSheet({
       icon?: string;
       kind?: ToolKind;
       washable?: boolean;
+      translations?: Translations;
       close: boolean;
     }) =>
       kitchenwareApi.create({
@@ -66,11 +76,12 @@ export function AddToolSheet({
         ...(body.icon ? { icon: body.icon } : {}),
         ...(body.kind ? { kind: body.kind } : {}),
         ...(body.washable !== undefined ? { washable: body.washable } : {}),
+        ...(body.translations ? { translations: body.translations } : {}),
       }),
     onSuccess: (tool, body) => {
       haptic('success');
-      toast.success(`${tool.name} added`, {
-        description: count === 1 ? undefined : `${count} of them`,
+      toast.success(t.added(tr(tool, 'name')), {
+        description: count === 1 ? undefined : t.ofThem(count),
       });
       void queryClient.invalidateQueries({ queryKey: foodKeys.kitchenware });
       if (body.close) onClose();
@@ -84,7 +95,7 @@ export function AddToolSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Add kitchenware"
+      title={t.addKitchenware}
       size="lg"
       footer={
         <Button
@@ -94,7 +105,7 @@ export function AddToolSheet({
           loading={add.isPending && add.variables?.close}
           disabled={!name.trim()}
         >
-          {name.trim() ? `Add ${name.trim()}` : 'Add'}
+          {name.trim() ? t.addName(name.trim()) : t.add}
         </Button>
       }
     >
@@ -106,19 +117,19 @@ export function AddToolSheet({
         }}
       >
         <TextField
-          label="What is it"
-          placeholder="Pot for spaghetti, glasses, pens…"
+          label={t.whatIsIt}
+          placeholder={t.whatPlaceholder}
           value={name}
           onChange={(event) => setName(event.target.value)}
           error={fields.name}
           maxLength={60}
           autoFocus
         />
-        <Stepper label="How many" value={count} onChange={setCount} min={1} max={500} />
+        <Stepper label={t.howMany} value={count} onChange={setCount} min={1} max={500} />
         {suggestions.length ? (
           <div>
             <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
-              {typed ? 'Matches' : 'One tap to add'}
+              {typed ? t.matches : t.oneTap}
             </p>
             <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
               {suggestions.map((preset) => {
@@ -134,6 +145,7 @@ export function AddToolSheet({
                           icon: preset.icon,
                           kind: preset.kind,
                           washable: preset.washable,
+                          translations: preset.translations,
                           close: false,
                         })
                       }
@@ -142,7 +154,7 @@ export function AddToolSheet({
                       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white">
                         <FoodIcon name={preset.icon} className="size-6" />
                       </span>
-                      <span className="min-w-0 flex-1 truncate">{preset.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{tr(preset, 'name')}</span>
                       {pending ? null : (
                         <AddIcon fontSize="inherit" className="shrink-0 text-base text-ink-500" />
                       )}

@@ -2,15 +2,18 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, Sheet, TextField, toast } from '@/components/ui';
 import { AddIcon, EditIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
+import { capitalized, kindText, unitWord } from '../format';
 import {
   EXTRA_KEYS,
   formatGrams,
   formatKcal,
   formFrom,
+  kcalUnit,
   kindValues,
   MAIN_KEYS,
   NUTRIENT_LABEL,
@@ -19,6 +22,7 @@ import {
   type NutrientForm,
 } from '../nutrition';
 import type { Nutrients, NutritionEntry, Product } from '../types';
+import { kitchenT } from './kitchen.i18n';
 
 /**
  * What an item holds: kcal, then protein, fat and carbs (sugar, fibre and salt when known), per
@@ -26,6 +30,7 @@ import type { Nutrients, NutritionEntry, Product } from '../types';
  * the label); a kind can have its own (Cola Zero). Edit opens the values sheet.
  */
 export function NutritionCard({ product }: { product: Product }) {
+  const t = kitchenT().nutrition;
   const nutrition = product.nutrition ?? null;
   const kinds = Object.keys(nutrition?.entry.kinds ?? {});
   const [kind, setKind] = useState('');
@@ -35,26 +40,26 @@ export function NutritionCard({ product }: { product: Product }) {
   return (
     <section className="rounded-[1.375rem] bg-ink-50 p-3.5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-h3 font-bold">Nutrition</h3>
+        <h3 className="text-h3 font-bold">{t.title}</h3>
         <Button
           size="sm"
           variant="soft"
           icon={nutrition ? EditIcon : AddIcon}
           onClick={() => setEditing(true)}
         >
-          {nutrition ? 'Edit' : 'Add'}
+          {nutrition ? t.edit : t.add}
         </Button>
       </div>
       {nutrition && values ? (
         <>
           <p className="mt-1 text-xs font-medium text-ink-600">
-            {PER_LABEL[nutrition.entry.per].replace(/^./, (c) => c.toUpperCase())} ·{' '}
-            {nutrition.source === 'own' ? 'Your values' : 'Typical values'}
+            {capitalized(PER_LABEL[nutrition.entry.per])} ·{' '}
+            {nutrition.source === 'own' ? t.own : t.typical}
           </p>
           {kinds.length ? (
             <div
               role="radiogroup"
-              aria-label="Kind"
+              aria-label={t.kind}
               className="-mx-1 mt-2.5 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]"
             >
               {['', ...kinds].map((name) => (
@@ -69,7 +74,7 @@ export function NutritionCard({ product }: { product: Product }) {
                     kind === name ? 'bg-ink-900 text-white' : 'bg-white text-ink-700',
                   )}
                 >
-                  {name || product.name}
+                  {name ? kindText(name, product) : tr(product, 'name')}
                 </button>
               ))}
             </div>
@@ -77,7 +82,7 @@ export function NutritionCard({ product }: { product: Product }) {
           <Values values={values} />
         </>
       ) : (
-        <p className="mt-1 text-sm text-ink-600">No values yet.</p>
+        <p className="mt-1 text-sm text-ink-600">{t.none}</p>
       )}
       <NutritionSheet open={editing} product={product} onClose={() => setEditing(false)} />
     </section>
@@ -92,12 +97,12 @@ function Values({ values }: { values: Nutrients }) {
         <span className="tabular text-[1.75rem] font-bold leading-none tracking-[-0.03em]">
           {formatKcal(values.kcal)}
         </span>
-        <span className="text-sm font-semibold text-ink-600">kcal</span>
+        <span className="text-sm font-semibold text-ink-600">{kcalUnit()}</span>
       </p>
       <dl className="grid grid-cols-3 gap-1.5">
         {(['protein', 'fat', 'carbs'] as const).map((key) => (
-          <div key={key} className="rounded-xl bg-white px-2.5 py-2">
-            <dt className="text-xs font-medium text-ink-600">{NUTRIENT_LABEL[key]}</dt>
+          <div key={key} className="min-w-0 rounded-xl bg-white px-2.5 py-2">
+            <dt className="truncate text-xs font-medium text-ink-600">{NUTRIENT_LABEL[key]}</dt>
             <dd className="tabular text-[0.9375rem] font-bold">{formatGrams(values[key])}</dd>
           </div>
         ))}
@@ -129,12 +134,13 @@ function NutritionSheet({
   product: Product;
   onClose: () => void;
 }) {
+  const t = kitchenT().nutrition;
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title={`${product.name}: nutrition`}
-      description="From the label. A comma or a point both work."
+      title={t.sheetTitle(tr(product, 'name'))}
+      description={t.sheetHint}
     >
       {open ? <NutritionForm product={product} onClose={onClose} /> : null}
     </Sheet>
@@ -142,6 +148,7 @@ function NutritionSheet({
 }
 
 function NutritionForm({ product, onClose }: { product: Product; onClose: () => void }) {
+  const t = kitchenT().nutrition;
   const queryClient = useQueryClient();
   const entry = product.nutrition?.entry;
   const own = product.nutrition?.source === 'own';
@@ -166,13 +173,14 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
     setError(null);
     setForms((current) => ({ ...current, [kind]: { ...current[kind], [key]: text } }));
   };
+  const grams = unitWord('g');
 
   const save = useMutation({
     mutationFn: (nutrition: NutritionEntry | null) =>
       foodApi.updateProduct(product.id, { nutrition }),
     onSuccess: (_product, nutrition) => {
       haptic('success');
-      toast.success(nutrition ? 'Values saved' : 'Back to the typical values');
+      toast.success(nutrition ? t.saved : t.backToTypical);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -183,7 +191,7 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
     const base = readForm(forms[''] ?? {});
     if (typeof base === 'string') {
       setKind('');
-      setError('Fill in energy, protein, fat and carbs.');
+      setError(t.fillIn);
       return;
     }
     const byKind: Record<string, Nutrients> = {};
@@ -192,7 +200,7 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
       if (values === 'empty') continue;
       if (values === 'missing') {
         setKind(name);
-        setError(`${name}: fill in energy, protein, fat and carbs, or leave all empty.`);
+        setError(t.fillInKind(kindText(name, product)));
         return;
       }
       byKind[name] = values;
@@ -208,7 +216,7 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="radiogroup" aria-label="The values are" className="flex flex-wrap gap-1.5">
+      <div role="radiogroup" aria-label={t.valuesAre} className="flex flex-wrap gap-1.5">
         {PERS.map((value) => (
           <button
             key={value}
@@ -218,17 +226,17 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
             onClick={() => setPer(value)}
             className={pill(per === value)}
           >
-            {PER_LABEL[value].replace(/^./, (c) => c.toUpperCase())}
+            {capitalized(PER_LABEL[value])}
           </button>
         ))}
       </div>
 
       {kinds.length ? (
         <div className="flex flex-col gap-2">
-          <span className="text-[0.8125rem] font-semibold text-ink-700">Values for</span>
+          <span className="text-[0.8125rem] font-semibold text-ink-700">{t.valuesFor}</span>
           <div
             role="radiogroup"
-            aria-label="Values for"
+            aria-label={t.valuesFor}
             className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none] md:flex-wrap"
           >
             {['', ...kinds].map((name) => (
@@ -240,14 +248,12 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
                 onClick={() => setKind(name)}
                 className={pill(kind === name)}
               >
-                {name || `${product.name} (all kinds)`}
+                {name ? kindText(name, product) : t.allKinds(tr(product, 'name'))}
               </button>
             ))}
           </div>
           {kind ? (
-            <p className="text-sm text-ink-600">
-              Only where {kind} differs. Empty: the values above count for it.
-            </p>
+            <p className="text-sm text-ink-600">{t.onlyWhere(kindText(kind, product))}</p>
           ) : null}
         </div>
       ) : null}
@@ -257,7 +263,7 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
           <TextField
             key={key}
             dense
-            label={key === 'kcal' ? 'Energy (kcal)' : `${NUTRIENT_LABEL[key]} (g)`}
+            label={`${NUTRIENT_LABEL[key]} (${key === 'kcal' ? kcalUnit() : grams})`}
             inputMode="decimal"
             value={form[key] ?? ''}
             onChange={(event) => set(key, event.target.value)}
@@ -267,9 +273,9 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
           <TextField
             key={key}
             dense
-            label={`${NUTRIENT_LABEL[key]} (g)`}
+            label={`${NUTRIENT_LABEL[key]} (${grams})`}
             inputMode="decimal"
-            placeholder="Optional"
+            placeholder={t.optional}
             value={form[key] ?? ''}
             onChange={(event) => set(key, event.target.value)}
           />
@@ -279,7 +285,7 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
       {error ? <p className="text-sm font-semibold text-danger-600">{error}</p> : null}
 
       <Button fullWidth onClick={submit} loading={save.isPending && save.variables !== null}>
-        Save
+        {t.save}
       </Button>
       {own ? (
         <Button
@@ -288,7 +294,7 @@ function NutritionForm({ product, onClose }: { product: Product; onClose: () => 
           onClick={() => save.mutate(null)}
           loading={save.isPending && save.variables === null}
         >
-          Use typical values
+          {t.useTypical}
         </Button>
       ) : null}
     </div>

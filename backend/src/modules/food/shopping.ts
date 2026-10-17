@@ -1,7 +1,9 @@
-import { areaOf, KIND_IN_NAME, kindIcon } from './presets';
+import { areaOf, KIND_IN_NAME, kindIcon, sameName } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
+import type { Translations } from '../../lib/i18n';
+import { combine, onlyFields, variantTranslations } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import type { Category, FoodIcon } from './presets';
 import { findProduct, rememberVariant, resolveNamed, type Product } from './products';
@@ -49,7 +51,13 @@ export interface ShoppingItem {
   checked: boolean;
   price: number | null;
   /** The last price paid for this item (this store first), to estimate the bill. */
-  lastPrice: { price: number; storeName: string | null; boughtAt: string } | null;
+  lastPrice: {
+    price: number;
+    storeName: string | null;
+    /** The store's name in other languages ({ ro: { name } }). */
+    storeTranslations: Translations;
+    boughtAt: string;
+  } | null;
   /** Expected cost of this line from that last price, when the amount is known. */
   estimate: number | null;
   /** What is needed, at least, in the item's base unit (null: no amount asked). */
@@ -61,7 +69,15 @@ export interface ShoppingItem {
   boughtTotal: number | null;
   /** The item's base unit, for the amounts above. */
   baseUnit: string | null;
+  /** The line's name and kind in other languages ({ ro: { name, variant } }), from its item. */
+  translations: Translations;
   createdAt: string;
+}
+
+/** A line by name, with its name in other languages ({ ro: { name } }). */
+export interface NamedLine {
+  name: string;
+  translations: Translations;
 }
 
 export interface BoughtPackage {
@@ -93,19 +109,32 @@ interface ItemRow {
   piece_size: number | null;
   piece_unit: 'g' | 'ml' | null;
   p_units: CustomUnit[] | null;
+  p_translations: Translations | null;
   package: string;
   bought: BoughtPackage[] | null;
 }
 
+/** A line's name and kind in other languages: its item's, while the line still goes by its name. */
+function itemTranslations(row: Pick<ItemRow, 'name' | 'p_name' | 'p_translations' | 'variant'>) {
+  if (!row.p_name) return {};
+  const named = sameName(row.name, row.p_name);
+  return combine(
+    named ? onlyFields(row.p_translations, ['name']) : {},
+    variantTranslations(row.p_name, row.variant),
+  );
+}
+
 const ITEM_SELECT = `SELECT i.id, i.store_id, i.product_id, i.name, p.icon, p.name AS p_name, p.category, i.amount, i.unit, i.note, i.variant, i.priority,
        to_char(i.need_by, 'YYYY-MM-DD') AS need_by, i.source, i.checked_at,
-       i.price, i.trip_id, i.lot_id, i.created_at, i.package, i.bought, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units
+       i.price, i.trip_id, i.lot_id, i.created_at, i.package, i.bought, p.unit AS p_unit, p.piece_size, p.piece_unit, p.units AS p_units,
+       p.translations AS p_translations
   FROM shopping_items i LEFT JOIN products p ON p.id = i.product_id`;
 
 interface PriceRow {
   product_id: string;
   store_id: string | null;
   store_name: string | null;
+  store_translations: Translations | null;
   price: number;
   initial_quantity: number;
   added_at: Date;
@@ -159,7 +188,12 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     checked: row.checked_at !== null,
     price: row.price,
     lastPrice: last
-      ? { price: last.price, storeName: last.store_name, boughtAt: last.added_at.toISOString() }
+      ? {
+          price: last.price,
+          storeName: last.store_name,
+          storeTranslations: last.store_translations ?? {},
+          boughtAt: last.added_at.toISOString(),
+        }
       : null,
     estimate:
       last && base !== null && last.initial_quantity > 0
@@ -170,6 +204,7 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
     package: row.package,
     boughtTotal: got,
     baseUnit: row.p_unit,
+    translations: itemTranslations(row),
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -177,7 +212,7 @@ function toItem(row: ItemRow, prices: PriceRow[]): ShoppingItem {
 async function lastPrices(ctx: FoodCtx, productIds: string[]): Promise<PriceRow[]> {
   if (!productIds.length) return [];
   const { rows } = await ctx.db.query<PriceRow>(
-    `SELECT DISTINCT ON (l.product_id, l.store_id) l.product_id, l.store_id, s.name AS store_name, l.price, l.initial_quantity, l.added_at
+    `SELECT DISTINCT ON (l.product_id, l.store_id) l.product_id, l.store_id, s.name AS store_name, s.translations AS store_translations, l.price, l.initial_quantity, l.added_at
        FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id
       WHERE l.household_id = $1 AND l.product_id = ANY($2::uuid[]) AND l.price IS NOT NULL
       ORDER BY l.product_id, l.store_id, l.added_at DESC`,
@@ -407,6 +442,8 @@ export interface Trip {
   id: string;
   storeId: string | null;
   storeName: string;
+  /** The store's name in other languages ({ ro: { name } }). */
+  storeTranslations: Translations;
   total: number | null;
   itemCount: number;
   finishedAt: string;
@@ -416,6 +453,7 @@ interface TripRow {
   id: string;
   store_id: string | null;
   store_name: string;
+  store_translations: Translations | null;
   total: number | null;
   item_count: number;
   finished_at: Date;
@@ -425,6 +463,7 @@ const toTrip = (row: TripRow): Trip => ({
   id: row.id,
   storeId: row.store_id,
   storeName: row.store_name,
+  storeTranslations: row.store_translations ?? {},
   total: row.total,
   itemCount: row.item_count,
   finishedAt: row.finished_at.toISOString(),
@@ -438,7 +477,15 @@ const toTrip = (row: TripRow): Trip => ({
 export async function checkout(
   ctx: FoodCtx,
   input: CheckoutInput,
-): Promise<{ trip: Trip; stocked: number; notStocked: string[]; leftOver: string[] }> {
+): Promise<{
+  trip: Trip;
+  stocked: number;
+  notStocked: string[];
+  leftOver: string[];
+  /** The same lines, each with its name in other languages: [{ name, translations: { ro: { name } } }]. */
+  notStockedItems: NamedLine[];
+  leftOverItems: NamedLine[];
+}> {
   return ctx.tx(async (tx) => {
     await checkStore(tx, input.storeId);
     const { rows: cart } = await tx.db.query<ItemRow>(
@@ -474,6 +521,12 @@ export async function checkout(
     let stocked = 0;
     const notStocked: string[] = [];
     const leftOver: string[] = [];
+    const notStockedItems: NamedLine[] = [];
+    const leftOverItems: NamedLine[] = [];
+    const named = (row: ItemRow): NamedLine => ({
+      name: row.name,
+      translations: onlyFields(itemTranslations(row), ['name']),
+    });
     for (const row of cart) {
       const line = lines.get(row.id);
       const price = line?.price === undefined ? row.price : line.price;
@@ -526,6 +579,7 @@ export async function checkout(
               ],
             );
             leftOver.push(row.name);
+            leftOverItems.push(named(row));
           }
           amount = got;
           unit = product.unit;
@@ -541,9 +595,15 @@ export async function checkout(
             const { lot } = await addStock(tx, { ...where, quantity, unit: quantityUnit });
             lotId = lot?.id ?? null;
             stocked += 1;
-          } else notStocked.push(row.name);
+          } else {
+            notStocked.push(row.name);
+            notStockedItems.push(named(row));
+          }
         }
-      } else notStocked.push(row.name);
+      } else {
+        notStocked.push(row.name);
+        notStockedItems.push(named(row));
+      }
       await tx.db.query(
         'UPDATE shopping_items SET trip_id = $2, price = $3, amount = $4, unit = $5, lot_id = $6, updated_at = $7, variant = $8, package = $9, bought = $10 WHERE id = $1',
         [
@@ -561,14 +621,15 @@ export async function checkout(
       );
     }
     const trip = await refreshTripTotal(tx, tripId);
-    return { trip, stocked, notStocked, leftOver };
+    return { trip, stocked, notStocked, leftOver, notStockedItems, leftOverItems };
   });
 }
 
 async function refreshTripTotal(ctx: FoodCtx, tripId: string): Promise<Trip> {
   const { rows } = await ctx.db.query<TripRow>(
     `UPDATE shopping_trips t SET total = (SELECT sum(price) FROM shopping_items WHERE trip_id = t.id)
-      WHERE t.id = $1 RETURNING t.id, t.store_id, t.store_name, t.total, t.item_count, t.finished_at`,
+      WHERE t.id = $1 RETURNING t.id, t.store_id, t.store_name, t.total, t.item_count, t.finished_at,
+                (SELECT s.translations FROM stores s WHERE s.id = t.store_id) AS store_translations`,
     [tripId],
   );
   return toTrip(rows[0]!);
@@ -576,7 +637,7 @@ async function refreshTripTotal(ctx: FoodCtx, tripId: string): Promise<Trip> {
 
 export async function listTrips(ctx: FoodCtx, limit = 30): Promise<Trip[]> {
   const { rows } = await ctx.db.query<TripRow>(
-    `SELECT t.id, t.store_id, coalesce(s.name, t.store_name) AS store_name, t.total, t.item_count, t.finished_at
+    `SELECT t.id, t.store_id, coalesce(s.name, t.store_name) AS store_name, s.translations AS store_translations, t.total, t.item_count, t.finished_at
        FROM shopping_trips t LEFT JOIN stores s ON s.id = t.store_id
       WHERE t.household_id = $1 ORDER BY t.finished_at DESC LIMIT $2`,
     [ctx.actor.householdId, limit],
@@ -590,7 +651,7 @@ export async function getTrip(
 ): Promise<{ trip: Trip; items: ShoppingItem[] }> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Trip not found');
   const { rows } = await ctx.db.query<TripRow>(
-    `SELECT t.id, t.store_id, coalesce(s.name, t.store_name) AS store_name, t.total, t.item_count, t.finished_at
+    `SELECT t.id, t.store_id, coalesce(s.name, t.store_name) AS store_name, s.translations AS store_translations, t.total, t.item_count, t.finished_at
        FROM shopping_trips t LEFT JOIN stores s ON s.id = t.store_id WHERE t.id = $1 AND t.household_id = $2`,
     [id, ctx.actor.householdId],
   );

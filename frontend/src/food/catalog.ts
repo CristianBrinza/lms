@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import type { Translations } from '@/i18n';
 import { foodApi, foodKeys } from './api';
 import type { BaseUnit, Category, CustomUnit, Location, Preset, Product, TrackMode } from './types';
 
@@ -26,6 +27,18 @@ export interface PickedProduct {
   isNew?: boolean;
   /** What it holds, when known (the kitchen's items). */
   nutrition?: Product['nutrition'];
+  /** Its name (and kinds) in other languages: shown with tr(); `name` stays the key sent to the API. */
+  translations?: Translations;
+}
+
+/** Every name a row goes by: as written and in each language ("Tomatoes", "Roșii", "Помидоры"). */
+export function namesOf(row: { name: string; translations?: Translations | null }): string[] {
+  const names = [row.name];
+  for (const fields of Object.values(row.translations ?? {})) {
+    const name = fields?.name;
+    if (typeof name === 'string' && name.trim()) names.push(name);
+  }
+  return names;
 }
 
 export const COMMON = [
@@ -84,6 +97,7 @@ export const fromProduct = (p: Product): PickedProduct => ({
   variantIcons: p.variantIcons,
   trackMode: p.trackMode,
   nutrition: p.nutrition,
+  translations: p.translations,
 });
 
 export const fromPreset = (p: Preset): PickedProduct => ({
@@ -99,6 +113,7 @@ export const fromPreset = (p: Preset): PickedProduct => ({
   variants: p.variants ?? [],
   variantIcons: p.variantIcons,
   trackMode: p.track ?? 'exact',
+  translations: p.translations,
 });
 
 export function usePresets() {
@@ -121,15 +136,15 @@ export function useProductSearch(query: string, limit = 8) {
   return useMemo(() => {
     const q = normalize(query);
     const products = catalog.data ?? [];
-    // The kitchen's items, by name or by what the catalog also calls them ("roșii", "coca cola").
+    // The kitchen's items, by name in any language or by what the catalog also calls them
+    // ("roșii", "помидоры", "coca cola").
     const aliases = (name: string) =>
       (presets.data ?? []).find((p) => sameName(p.name, name))?.aliases ?? [];
     const own = products
       .filter(
         (p) =>
           !q ||
-          normalize(p.name).includes(q) ||
-          sameName(p.name, query) ||
+          namesOf(p).some((name) => normalize(name).includes(q) || sameName(name, query)) ||
           aliases(p.name).some((alias) => normalize(alias).includes(q)),
       )
       .map(fromProduct);
@@ -138,7 +153,7 @@ export function useProductSearch(query: string, limit = 8) {
       .filter(
         (p) =>
           q &&
-          (normalize(p.name).includes(q) ||
+          (namesOf(p).some((name) => normalize(name).includes(q)) ||
             p.aliases?.some((alias) => normalize(alias).includes(q))),
       )
       .map(fromPreset);
@@ -146,7 +161,7 @@ export function useProductSearch(query: string, limit = 8) {
     // Typed a known name or a catalog alias ("steak", "roșii"): nothing new to offer.
     const exact =
       q &&
-      ([...own, ...foods].some((p) => sameName(p.name, query)) ||
+      ([...own, ...foods].some((p) => namesOf(p).some((name) => sameName(name, query))) ||
         (presets.data ?? []).some((p) => p.aliases?.some((alias) => sameName(alias, query))));
     return {
       results,

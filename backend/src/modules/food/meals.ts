@@ -1,6 +1,13 @@
 import { dishSummary, lineAsCooked, sumLines, type DishSummary } from './nutrition';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import { LOCALES, mergeTranslations, type Translations } from '../../lib/i18n';
+import {
+  fieldIn,
+  LEFTOVERS,
+  mealTitleTranslations,
+  onlyFields,
+} from './catalog-i18n';
 import { isUuid } from '../users';
 import { allocatePlan, coveringAlternative } from './allocation';
 import {
@@ -17,6 +24,7 @@ import { listRestrictions } from './restrictions';
 import {
   appendIngredientRows,
   describeLines,
+  lineTranslations,
   ingredientRows,
   insertIngredientRows,
   neededBase,
@@ -29,7 +37,7 @@ import {
 } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
-import { findProduct, resolveProduct, updateProduct } from './products';
+import { findProduct, resolveProduct, updateProduct, withoutField } from './products';
 import { getRecipe, recipeIngredients } from './recipes';
 import type {
   CompleteMealInput,
@@ -65,6 +73,8 @@ export interface MealPart {
   id: string;
   recipeId: string | null;
   title: string;
+  /** Its title in other languages ({ ro: { title } }): its recipe's, when it is called after it. */
+  translations: Translations;
   kind: PartKind;
   servings: number;
   icon: FoodIcon;
@@ -96,6 +106,11 @@ export interface Meal {
   /** Who ate it (empty: everyone when there's a serving each, else whoever marked it eaten). */
   eaters: string[];
   doneBy: string | null;
+  /**
+   * Its title, note and eating-out place in other languages ({ ro: { title, note, place } }): what
+   * people wrote, else its recipe's title, the parts' titles, or the server's words ("At work").
+   */
+  translations: Translations;
   /** Energy and nutrients of the whole meal and of one serving. */
   nutrition: DishSummary;
   /** What the meal is made of; its lines carry the part they belong to (partId). */
@@ -128,12 +143,44 @@ interface MealRow {
   out_kcal: number | null;
   eaters: string[];
   done_by: string | null;
+  translations: Translations | null;
+  recipe_title: string | null;
+  recipe_translations: Translations | null;
 }
 
 const MEAL_SELECT = `SELECT m.id, m.date, to_char(m.time, 'HH24:MI') AS time, m.slot, m.recipe_id, r.icon AS recipe_icon, m.title, m.servings, m.status, m.note,
        m.to_go, m.done_at, m.created_via, m.leftovers_lot_id, m.dirtied, m.out_kind, m.out_place, m.out_cost,
-       m.out_kcal, m.eaters, m.done_by
+       m.out_kcal, m.eaters, m.done_by, m.translations, r.title AS recipe_title, r.translations AS recipe_translations
   FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id`;
+
+/** A meal's title (and note, place) in every language, for what is shown and what is made from it. */
+function mealTranslations(row: MealRow, parts: MealPart[] = []): Translations {
+  return mealTitleTranslations({
+    title: row.title,
+    stored: row.translations,
+    recipeTitle: row.recipe_title,
+    recipeTranslations: row.recipe_translations,
+    parts,
+  });
+}
+
+/** Saves a meal's translations: what is stored, merged with an update; fields rewritten lose theirs. */
+async function saveMealTranslations(
+  ctx: FoodCtx,
+  id: string,
+  stored: Translations | null,
+  update: Translations | undefined,
+  rewritten: string[] = [],
+): Promise<void> {
+  let base = stored ?? {};
+  const stale = rewritten.filter((field) => LOCALES.some((l) => base[l]?.[field] !== undefined));
+  for (const field of stale) base = withoutField(base, field);
+  if (update === undefined && !stale.length) return;
+  await ctx.db.query('UPDATE meals SET translations = $2::jsonb WHERE id = $1', [
+    id,
+    JSON.stringify(mergeTranslations(base, update)),
+  ]);
+}
 
 /** A day's meals in eating order: by time, a slot without a time standing at its usual hour. */
 const MEAL_ORDER = `m.date, coalesce(m.time, CASE m.slot WHEN 'breakfast' THEN time '08:00' WHEN 'lunch' THEN time '13:00' WHEN 'snack' THEN time '16:30' ELSE time '19:00' END), m.created_at`;
@@ -158,8 +205,11 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
     kind: PartKind;
     servings: number;
     icon: FoodIcon | null;
+    recipe_title: string | null;
+    recipe_translations: Translations | null;
   }>(
-    `SELECT p.id, p.meal_id, p.recipe_id, p.title, p.kind, p.servings, r.icon FROM meal_parts p LEFT JOIN recipes r ON r.id = p.recipe_id
+    `SELECT p.id, p.meal_id, p.recipe_id, p.title, p.kind, p.servings, r.icon, r.title AS recipe_title, r.translations AS recipe_translations
+       FROM meal_parts p LEFT JOIN recipes r ON r.id = p.recipe_id
       WHERE p.meal_id = ANY($1::uuid[]) ORDER BY array_position(ARRAY['dish', 'side', 'sauce', 'drink'], p.kind), p.sort, p.id`,
     [mealIds],
   );
@@ -168,6 +218,11 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
       id: row.id,
       recipeId: row.recipe_id,
       title: row.title,
+      translations: mealTitleTranslations({
+        title: row.title,
+        recipeTitle: row.recipe_title,
+        recipeTranslations: row.recipe_translations,
+      }),
       kind: row.kind,
       servings: row.servings,
       icon: row.icon ?? PART_ICON[row.kind],
@@ -243,6 +298,7 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       1,
       { allocation: allocation.lines, restrictions },
     );
+    const mealParts = parts.get(row.id) ?? [];
     return {
       id: row.id,
       date: row.date,
@@ -263,11 +319,12 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
         : null,
       eaters: row.eaters,
       doneBy: row.done_by,
+      translations: mealTranslations(row, mealParts),
       nutrition: dishSummary(
         sumLines(lines.map(lineAsCooked), (id) => stock.get(id)?.product),
         row.servings,
       ),
-      parts: parts.get(row.id) ?? [],
+      parts: mealParts,
       tools:
         row.status === 'planned'
           ? describeNeeds(tools, needs.get(row.id) ?? [], mealTime(row))
@@ -315,6 +372,18 @@ export async function ateNow(
         }),
   });
   await ctx.db.query('UPDATE meals SET eaters = $2 WHERE id = $1', [planned.id, eaters]);
+  if (!input.title && !input.recipeId) {
+    // Named after what was eaten: "Banana", "Banana +2" in every language the item has a name in.
+    const firstLine = planned.ingredients[0];
+    const more = input.items.length > 1 ? ` +${input.items.length - 1}` : '';
+    const titles: Translations = {};
+    for (const locale of LOCALES) {
+      const name = fieldIn(firstLine?.translations, 'name', locale);
+      if (name) titles[locale] = { title: `${name}${more}` };
+    }
+    if (Object.keys(titles).length)
+      await saveMealTranslations(ctx, planned.id, null, titles);
+  }
   if (input.fromKitchen === false) {
     await ctx.db.query(
       `UPDATE meals SET status = 'done', done_at = $2, done_by = $3, updated_at = $2 WHERE id = $1`,
@@ -488,6 +557,9 @@ export async function planMeal(ctx: FoodCtx, input: MealInput): Promise<Meal> {
         [id, input.out.kind, input.out.place ?? '', input.out.cost ?? null],
       );
     }
+    // What people wrote, in other languages: the title and note, and where it was eaten.
+    const given = mergeTranslations(input.translations, input.out?.translations);
+    if (Object.keys(given).length) await saveMealTranslations(tx, id, null, given);
     for (const [index, part] of parts.entries()) {
       // Lines given for the meal replace the first recipe's (the older way to change a meal's lines).
       await insertPart(
@@ -538,6 +610,14 @@ export async function eatOut(ctx: FoodCtx, id: string, input: EatOutInput): Prom
         tx.actor.userId,
         input.kcal ?? null,
       ],
+    );
+    // A new place: the old one's translations no longer fit, unless given anew.
+    await saveMealTranslations(
+      tx,
+      id,
+      meal.translations,
+      input.translations,
+      (input.place ?? '') !== meal.out_place ? ['place'] : [],
     );
   });
   return getMeal(ctx, id);
@@ -674,6 +754,11 @@ export async function updateMeal(ctx: FoodCtx, id: string, patch: MealPatch): Pr
         patch.outKcal ?? null,
       ],
     );
+    // A title or note rewritten: their old translations no longer fit, unless given anew.
+    await saveMealTranslations(tx, id, meal.translations, patch.translations, [
+      ...(title !== undefined && title !== meal.title ? ['title'] : []),
+      ...(patch.note !== undefined && patch.note !== meal.note ? ['note'] : []),
+    ]);
     if (patch.recipeId) await syncMainRecipe(tx, id);
   });
   return getMeal(ctx, id);
@@ -706,15 +791,20 @@ export async function setMealIngredients(
 
 export interface Shortfall {
   name: string;
+  /** Its name in other languages ({ ro: { name } }). */
+  translations: Translations;
   missing: number;
   unit: BaseUnit;
 }
+
+const nameOnly = (value: Translations | null | undefined) => onlyFields(value, ['name']);
 
 /** A package cooking opened: what is left of it, until when, and where it now is. */
 export interface Opened {
   productId: string;
   lotId: string;
   name: string;
+  translations: Translations;
   left: number;
   unit: BaseUnit;
   expiresOn: string | null;
@@ -764,6 +854,7 @@ export async function completeMeal(
           if (result.shortfall > 0 && !row.optional)
             shortfalls.push({
               name: pickedInfo.product.name,
+              translations: nameOnly(pickedInfo.product.translations),
               missing: result.shortfall,
               unit: pickedInfo.product.unit,
             });
@@ -773,6 +864,7 @@ export async function completeMeal(
                 productId: pickedInfo.product.id,
                 lotId: lot.lotId,
                 name: pickedInfo.product.name,
+                translations: nameOnly(pickedInfo.product.translations),
                 left: lot.left,
                 unit: pickedInfo.product.unit,
                 expiresOn: lot.expiresOn,
@@ -804,6 +896,7 @@ export async function completeMeal(
                 productId: alt.productId,
                 lotId: lot.lotId,
                 name: altProduct.name,
+                translations: nameOnly(altProduct.translations),
                 left: lot.left,
                 unit: altProduct.unit,
                 expiresOn: lot.expiresOn,
@@ -822,13 +915,19 @@ export async function completeMeal(
         mealId: id,
       });
       if (result.shortfall > 0 && !row.optional)
-        shortfalls.push({ name: row.name, missing: result.shortfall, unit: product.unit });
+        shortfalls.push({
+          name: row.name,
+          translations: nameOnly(lineTranslations(row.name, product, row.variant)),
+          missing: result.shortfall,
+          unit: product.unit,
+        });
       for (const lot of result.lots) {
         if (lot.opened)
           opened.push({
             productId: product.id,
             lotId: lot.lotId,
             name: product.name,
+            translations: nameOnly(product.translations),
             left: lot.left,
             unit: product.unit,
             expiresOn: lot.expiresOn,
@@ -846,6 +945,17 @@ export async function completeMeal(
           location: 'fridge',
           shelfLifeDays: 3,
         });
+      }
+      if (!product.translations.ro?.name && !product.translations.ru?.name) {
+        // "Borș (resturi)", "Борщ (остатки)": the dish in each language, and the word for leftovers.
+        const titles = mealTranslations(meal, await partsOf(tx, [id]).then((p) => p.get(id)));
+        const names: Translations = {};
+        for (const locale of LOCALES)
+          names[locale] = {
+            name: `${fieldIn(titles, 'title', locale) ?? meal.title} (${LEFTOVERS[locale]})`,
+          };
+        names.en = { name: product.name };
+        product = await updateProduct(tx, product.id, { translations: names });
       }
       const { lot } = await addStock(tx, {
         productId: product.id,
@@ -888,6 +998,7 @@ export async function reopenMeal(ctx: FoodCtx, id: string): Promise<Meal> {
         `UPDATE meals SET status = 'planned', done_at = NULL, out_kind = NULL, out_place = '', out_cost = NULL, out_kcal = NULL, done_by = NULL, updated_at = $2 WHERE id = $1`,
         [id, tx.now],
       );
+      await saveMealTranslations(tx, id, meal.translations, undefined, ['place']);
       return;
     }
     const { rows } = await tx.db.query<{ lot_id: string; taken: number }>(

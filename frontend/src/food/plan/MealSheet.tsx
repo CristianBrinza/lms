@@ -13,6 +13,7 @@ import {
   SearchIcon,
   UndoIcon,
 } from '@/components/ui/icons';
+import { formatList, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -25,16 +26,8 @@ import { WhoEats } from '../components/WhoEats';
 import { formatKcal } from '../nutrition';
 import { OptionChips } from '../components/OptionChips';
 import { EatOutSheet } from './EatOutSheet';
-import { OUT_LABEL } from './out';
-import {
-  dayLong,
-  formatAmount,
-  formatQty,
-  LOCATION_LABEL,
-  parseAmount,
-  plural,
-  SLOT_LABEL,
-} from '../format';
+import { clockTime, dayAndMonth, dayLong, usePlanT } from './i18n';
+import { formatAmount, formatQty, LOCATION_LABEL, parseAmount, trText } from '../format';
 import { openedText } from '../opened';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { parseLine } from '../shopping/parseLine';
@@ -47,13 +40,6 @@ import type {
   StockedProduct,
   ToolNeed,
 } from '../types';
-
-const KIND_LABEL: Record<PartKind, string> = {
-  dish: 'Dish',
-  side: 'On the side',
-  sauce: 'Sauce',
-  drink: 'Drink',
-};
 
 /**
  * One meal on the plan, which can be several things — an omelette, a coffee, bread with
@@ -71,14 +57,13 @@ export function MealSheet({
   kitchen: StockedProduct[];
   onClose: () => void;
 }) {
+  const t = usePlanT();
   return (
     <Sheet
       open={Boolean(meal)}
       onClose={onClose}
-      title={meal?.title ?? 'Meal'}
-      description={
-        meal ? `${dayLong(meal.date)} · ${meal.time ?? SLOT_LABEL[meal.slot]}` : undefined
-      }
+      title={meal ? tr(meal, 'title') : t.meal}
+      description={meal ? `${dayLong(meal.date)} · ${meal.time ?? t.slot[meal.slot]}` : undefined}
       size="lg"
     >
       {meal ? (
@@ -102,19 +87,26 @@ export function MealPanel({
   kitchen: StockedProduct[];
   onClose: () => void;
 }) {
+  const t = usePlanT();
   return (
     <section
-      aria-label={meal.title}
+      aria-label={tr(meal, 'title')}
       className="animate-fade-in rounded-[1.75rem] bg-white p-5 shadow-[var(--shadow-card)]"
     >
       <header className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-h2 font-bold leading-tight">{meal.title}</h2>
+          <h2 className="text-h2 font-bold leading-tight">{tr(meal, 'title')}</h2>
           <p className="mt-1 text-[0.9375rem] text-ink-600">
-            {dayLong(meal.date)} · {meal.time ?? SLOT_LABEL[meal.slot]}
+            {dayLong(meal.date)} · {meal.time ?? t.slot[meal.slot]}
           </p>
         </div>
-        <IconButton icon={CloseIcon} label="Close" size="sm" variant="outline" onClick={onClose} />
+        <IconButton
+          icon={CloseIcon}
+          label={t.close}
+          size="sm"
+          variant="outline"
+          onClick={onClose}
+        />
       </header>
       <MealBody
         key={`${meal.id}-${meal.status}-${meal.servings}-${meal.ingredients.length}`}
@@ -167,6 +159,8 @@ function MealBody({
   kitchen: StockedProduct[];
   onClose: () => void;
 }) {
+  const t = usePlanT();
+  const title = tr(meal, 'title');
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: foodKeys.all });
   const [leftovers, setLeftovers] = useState(0);
@@ -195,7 +189,7 @@ function MealBody({
         meal.ingredients.map((i) => asInput(i, draft[i.id])),
       ),
     onSuccess: () => {
-      toast.success('Changed for this meal');
+      toast.success(t.changedForMeal);
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -209,16 +203,18 @@ function MealBody({
     onSuccess: ({ shortfalls, opened }) => {
       haptic('success');
       void refresh();
-      toast.success(`${meal.title} — eaten`, {
+      toast.success(t.eaten(title), {
         duration: opened.length ? 9000 : undefined,
         description:
           [
-            shortfalls.length ? `Not enough: ${shortfalls.map((s) => s.name).join(', ')}.` : null,
-            opened.length ? `Opened — ${openedText(opened)}.` : null,
+            shortfalls.length
+              ? t.notEnough(formatList(shortfalls.map((s) => tr(s, 'name'))))
+              : null,
+            opened.length ? t.opened(openedText(opened)) : null,
           ]
             .filter(Boolean)
-            .join(' ') || 'The ingredients are out of the kitchen.',
-        action: { label: 'Undo', onClick: () => void foodApi.reopenMeal(meal.id).then(refresh) },
+            .join(' ') || t.outOfKitchen,
+        action: { label: t.undo, onClick: () => void foodApi.reopenMeal(meal.id).then(refresh) },
       });
       onClose();
     },
@@ -227,7 +223,7 @@ function MealBody({
   const reopen = useMutation({
     mutationFn: () => foodApi.reopenMeal(meal.id),
     onSuccess: () => {
-      toast.success('Back to planned', { description: 'What it used is back in the kitchen.' });
+      toast.success(t.backToPlanned, { description: t.backToPlannedText });
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -254,7 +250,7 @@ function MealBody({
   const remove = useMutation({
     mutationFn: () => foodApi.deleteMeal(meal.id),
     onSuccess: () => {
-      toast.success('Removed from the plan');
+      toast.success(t.removedFromPlan);
       void refresh();
       onClose();
     },
@@ -283,7 +279,7 @@ function MealBody({
             to={`/food/recipes/${meal.recipeId}`}
             className="inline-flex h-7 items-center gap-1 rounded-pill bg-lav-100 px-2.5 text-xs font-semibold text-lav-800 hover:bg-lav-200"
           >
-            Recipe
+            {t.recipe}
             <ArrowOutIcon fontSize="inherit" className="text-sm" />
           </Link>
         ) : null}
@@ -293,11 +289,13 @@ function MealBody({
             onClick={() => setMoving((v) => !v)}
             className="press inline-flex h-7 items-center rounded-pill bg-ink-50 px-2.5 text-xs font-semibold text-ink-700 hover:bg-ink-100"
           >
-            {moving ? 'Done' : 'Move'}
+            {moving ? t.done : t.move}
           </button>
         ) : null}
         <Stepper
-          label="servings"
+          fewer={t.fewerServings}
+          more={t.moreServings}
+          format={t.servings}
           value={meal.servings}
           disabled={done || update.isPending}
           onChange={(value) => update.mutate({ servings: value })}
@@ -308,7 +306,7 @@ function MealBody({
       {moving && !done ? (
         <div className="grid grid-cols-2 gap-2.5 rounded-2xl bg-ink-50 p-3">
           <label className="flex flex-col gap-1 text-xs font-semibold text-ink-700">
-            Day
+            {t.day}
             <input
               type="date"
               defaultValue={meal.date}
@@ -319,7 +317,7 @@ function MealBody({
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold text-ink-700">
-            Time
+            {t.time}
             <input
               type="time"
               defaultValue={meal.time ?? ''}
@@ -335,8 +333,8 @@ function MealBody({
             className="col-span-2"
             checked={meal.toGo}
             onChange={(value) => update.mutate({ toGo: value })}
-            label="To go"
-            hint="Packed the evening before"
+            label={t.toGoLabel}
+            hint={t.toGoHint}
           />
         </div>
       ) : null}
@@ -349,18 +347,20 @@ function MealBody({
         >
           <span className="min-w-0">
             <span className="block text-[0.9375rem] font-semibold">
-              {OUT_LABEL[meal.eatenOut.kind]}
-              {meal.eatenOut.place ? ` · ${meal.eatenOut.place}` : ''}
+              {t.out[meal.eatenOut.kind]}
+              {meal.eatenOut.place
+                ? ` · ${trText(meal.eatenOut.place, meal.translations, 'place')}`
+                : ''}
             </span>
             <span className="block text-sm text-lav-800">
-              Nothing from the kitchen
-              {meal.eatenOut.cost !== null ? ` · ${meal.eatenOut.cost} lei` : ''}
+              {t.nothingFromKitchen}
+              {meal.eatenOut.cost !== null ? ` · ${t.costLei(meal.eatenOut.cost)}` : ''}
               {meal.eatenOut.kcal !== null
-                ? ` · about ${formatKcal(meal.eatenOut.kcal)} kcal each`
+                ? ` · ${t.aboutKcalEach(formatKcal(meal.eatenOut.kcal))}`
                 : ''}
             </span>
           </span>
-          <span className="text-sm font-semibold text-lav-800">Change</span>
+          <span className="text-sm font-semibold text-lav-800">{t.change}</span>
         </button>
       ) : null}
       {meal.eatenOut ? null : (
@@ -372,7 +372,7 @@ function MealBody({
       )}
       {household.length > 1 ? (
         <WhoEats
-          label="Who eats"
+          label={t.whoEats}
           people={household}
           value={eaters}
           onChange={(next) => update.mutate({ eaters: next })}
@@ -380,8 +380,8 @@ function MealBody({
             eaters.length
               ? undefined
               : meal.servings >= household.length
-                ? 'No one picked: everyone, a serving each.'
-                : 'No one picked: whoever marks it eaten.'
+                ? t.everyoneHint
+                : t.whoeverHint
           }
         />
       ) : null}
@@ -395,9 +395,10 @@ function MealBody({
           )}
         >
           {meal.availability.warnings
-            .map(
-              (w) =>
-                `${w.person} ${w.kind === 'allergy' ? 'is allergic to' : 'doesn’t eat'} ${w.item.toLowerCase()}`,
+            .map((w) =>
+              w.kind === 'allergy'
+                ? t.allergicTo(w.person, tr(w, 'item').toLowerCase())
+                : t.doesntEat(w.person, tr(w, 'item').toLowerCase()),
             )
             .join('; ')}
         </p>
@@ -419,14 +420,12 @@ function MealBody({
           />
         ))
       ) : (
-        <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">
-          No ingredients: nothing leaves the kitchen when it’s eaten.
-        </p>
+        <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">{t.noIngredients}</p>
       )}
 
       {!done ? (
         <Button variant="tint" size="md" icon={AddIcon} onClick={() => setAddingPart(true)}>
-          Add to this meal
+          {t.addToMeal}
         </Button>
       ) : null}
 
@@ -439,7 +438,7 @@ function MealBody({
           onClick={() => saveIngredients.mutate()}
           loading={saveIngredients.isPending}
         >
-          Save changes for this meal
+          {t.saveChanges}
         </Button>
       ) : null}
 
@@ -451,23 +450,30 @@ function MealBody({
           onClick={() => reopen.mutate()}
           loading={reopen.isPending}
         >
-          {meal.eatenOut ? 'Not eaten out after all' : 'Not eaten after all (put it back)'}
+          {meal.eatenOut ? t.notEatenOut : t.notEaten}
         </Button>
       ) : (
         <>
           {meal.eatenOut ? null : (
             <div className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-3.5 py-2.5">
-              <span className="text-sm font-semibold">Leftovers to keep</span>
-              <Stepper label="portions" value={leftovers} min={0} onChange={setLeftovers} bare />
+              <span className="text-sm font-semibold">{t.leftoversToKeep}</span>
+              <Stepper
+                fewer={t.fewerPortions}
+                more={t.morePortions}
+                value={leftovers}
+                min={0}
+                onChange={setLeftovers}
+                bare
+              />
             </div>
           )}
           <div className="flex gap-2.5">
             <Button fullWidth icon={CheckIcon} onClick={() => eat.mutate()} loading={eat.isPending}>
-              Eaten
+              {t.eatenButton}
             </Button>
             {meal.eatenOut ? null : (
               <Button fullWidth variant="tint" onClick={() => setEatingOut(true)}>
-                Ate elsewhere
+                {t.ateElsewhere}
               </Button>
             )}
           </div>
@@ -483,7 +489,7 @@ function MealBody({
             onClick={() => skip.mutate()}
             loading={skip.isPending}
           >
-            {meal.status === 'skipped' ? 'Not skipped' : 'Skip it (frees what it kept)'}
+            {meal.status === 'skipped' ? t.notSkipped : t.skipIt}
           </Button>
         ) : null}
         <Button
@@ -495,7 +501,7 @@ function MealBody({
           onClick={() => remove.mutate()}
           loading={remove.isPending}
         >
-          Remove
+          {t.remove}
         </Button>
       </div>
 
@@ -511,7 +517,9 @@ function MealBody({
 }
 
 function Stepper({
-  label,
+  fewer,
+  more,
+  format,
   value,
   onChange,
   disabled,
@@ -519,7 +527,11 @@ function Stepper({
   className,
   bare,
 }: {
-  label: string;
+  /** The buttons' names: "Fewer servings", "More servings". */
+  fewer: string;
+  more: string;
+  /** How the value reads ("2 servings"); bare steppers show the number. */
+  format?: (value: number) => string;
   value: number;
   onChange: (value: number) => void;
   disabled?: boolean;
@@ -533,7 +545,7 @@ function Stepper({
     >
       <button
         type="button"
-        aria-label={`Fewer ${label}`}
+        aria-label={fewer}
         disabled={disabled || value <= min}
         onClick={() => onChange(value - 1)}
         className="press grid size-8 place-items-center rounded-full bg-white text-base shadow-xs disabled:opacity-40"
@@ -546,11 +558,11 @@ function Stepper({
           bare ? 'w-7' : 'min-w-[4.75rem]',
         )}
       >
-        {bare ? value : plural(value, label.replace(/s$/, ''))}
+        {bare || !format ? value : format(value)}
       </span>
       <button
         type="button"
-        aria-label={`More ${label}`}
+        aria-label={more}
         disabled={disabled || value >= 100}
         onClick={() => onChange(value + 1)}
         className="press grid size-8 place-items-center rounded-full bg-ink-900 text-base text-white disabled:opacity-40"
@@ -583,6 +595,7 @@ function PartBlock({
   onDraft: (id: string, next: { amount: string; lotId: string | null }) => void;
   onMissing: (line: IngredientLine) => void;
 }) {
+  const t = usePlanT();
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: foodKeys.all });
   const change = useMutation({
@@ -593,7 +606,7 @@ function PartBlock({
   const remove = useMutation({
     mutationFn: () => foodApi.removePart(meal.id, part!.id),
     onSuccess: () => {
-      toast.success(`${part!.title} is off this meal`);
+      toast.success(t.partOff(tr(part!, 'title')));
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -610,12 +623,12 @@ function PartBlock({
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-1">
               <span className="min-w-0 flex-1 text-[0.9375rem] font-bold leading-snug">
-                {part.title}
+                {tr(part, 'title')}
               </span>
               {part.recipeId ? (
                 <Link
                   to={`/food/recipes/${part.recipeId}`}
-                  aria-label={`${part.title}: the recipe`}
+                  aria-label={t.partRecipe(tr(part, 'title'))}
                   className="press -mt-0.5 grid size-8 shrink-0 place-items-center rounded-full text-ink-600 hover:bg-ink-50"
                 >
                   <ArrowOutIcon fontSize="inherit" />
@@ -624,7 +637,7 @@ function PartBlock({
               {!done ? (
                 <button
                   type="button"
-                  aria-label={`Take ${part.title} off`}
+                  aria-label={t.takeOff(tr(part, 'title'))}
                   onClick={() => remove.mutate()}
                   className="press -mt-0.5 grid size-8 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-50"
                 >
@@ -633,12 +646,14 @@ function PartBlock({
               ) : null}
             </div>
             <div className="mt-0.5 flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-ink-600">{KIND_LABEL[part.kind]}</span>
+              <span className="text-xs font-medium text-ink-600">{t.partKind[part.kind]}</span>
               {done ? (
-                <span className="text-xs text-ink-600">{plural(part.servings, 'serving')}</span>
+                <span className="text-xs text-ink-600">{t.servings(part.servings)}</span>
               ) : (
                 <Stepper
-                  label="servings"
+                  fewer={t.fewerServings}
+                  more={t.moreServings}
+                  format={t.servings}
                   value={part.servings}
                   onChange={(value) => change.mutate(value)}
                   disabled={change.isPending}
@@ -648,7 +663,7 @@ function PartBlock({
           </div>
         </header>
       ) : !part && meal.parts.length ? (
-        <header className="border-b border-ink-100 px-3 py-2 text-sm font-bold">Also</header>
+        <header className="border-b border-ink-100 px-3 py-2 text-sm font-bold">{t.also}</header>
       ) : null}
       {lines.length ? (
         <ul className="divide-y divide-ink-100">
@@ -666,7 +681,7 @@ function PartBlock({
           ))}
         </ul>
       ) : (
-        <p className="px-3 py-2.5 text-sm text-ink-500">Nothing taken from the kitchen.</p>
+        <p className="px-3 py-2.5 text-sm text-ink-500">{t.nothingTaken}</p>
       )}
     </section>
   );
@@ -689,6 +704,7 @@ function IngredientRow({
   onChange: (next: { amount: string; lotId: string | null }) => void;
   onMissing: () => void;
 }) {
+  const t = usePlanT();
   const queryClient = useQueryClient();
   // Milk or whipped cream for this meal: saved on the meal, so the plan and the lists follow.
   const choose = useMutation({
@@ -718,9 +734,9 @@ function IngredientRow({
         />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[0.9375rem] font-semibold">
-            {line.using ? line.using.name : line.name}
+            {line.using ? tr(line.using, 'name') : tr(line, 'name')}
             {line.variant ? (
-              <span className="font-medium text-ink-600"> · {line.variant}</span>
+              <span className="font-medium text-ink-600"> · {tr(line, 'variant')}</span>
             ) : null}
             {line.warnings.length ? (
               <span
@@ -729,7 +745,9 @@ function IngredientRow({
                 *
               </span>
             ) : null}
-            {line.optional ? <span className="font-medium text-ink-500"> (optional)</span> : null}
+            {line.optional ? (
+              <span className="font-medium text-ink-500"> {t.optionalMark}</span>
+            ) : null}
           </span>
           <span
             className={cx(
@@ -739,26 +757,29 @@ function IngredientRow({
           >
             {line.using
               ? line.enough === false
-                ? `Missing ${line.missing && measured ? formatQty(line.missing, measured) : 'some'} of ${line.using.name.toLowerCase()}`
-                : `${line.using.name} instead of ${line.name.toLowerCase()}`
+                ? t.missingOf(
+                    line.missing && measured ? formatQty(line.missing, measured) : null,
+                    tr(line.using, 'name').toLowerCase(),
+                  )
+                : t.insteadOf(tr(line.using, 'name'), tr(line, 'name').toLowerCase())
               : line.level
                 ? line.level === 'full'
-                  ? 'In the kitchen'
+                  ? t.inKitchen
                   : line.level === 'low'
-                    ? 'Running low'
-                    : 'Out'
+                    ? t.runningLow
+                    : t.levelOut
                 : line.enough === false
-                  ? `Missing ${line.missing && measured ? formatQty(line.missing, measured) : 'some'}${line.spoilsBefore ? ' · what’s there goes off before then' : line.reservedFor ? ` · kept for ${line.reservedFor.title}` : ''}`
+                  ? `${t.missingAmount(line.missing && measured ? formatQty(line.missing, measured) : null)}${line.spoilsBefore ? t.spoils : line.reservedFor ? t.keptFor(tr(line.reservedFor, 'title')) : ''}`
                   : line.inStock !== null && measured
-                    ? `${formatQty(line.inStock, measured)} in the kitchen`
-                    : line.note || 'Not kept in the kitchen'}
+                    ? t.inStock(formatQty(line.inStock, measured))
+                    : line.note || t.notKept}
           </span>
         </span>
         {line.enough === false && !disabled && line.productId ? (
           <button
             type="button"
             onClick={onMissing}
-            aria-label={`Put ${line.name} on a list`}
+            aria-label={t.putOnList(tr(line, 'name'))}
             className="press grid size-9 shrink-0 place-items-center rounded-full bg-peach-100 text-peach-800 hover:bg-peach-200"
           >
             <AddShoppingCartIcon fontSize="inherit" />
@@ -766,7 +787,7 @@ function IngredientRow({
         ) : null}
         {line.unit && line.amount !== null && !disabled ? (
           <label className="flex w-24 shrink-0 items-center rounded-xl bg-ink-50 px-2.5 focus-within:bg-white focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
-            <span className="sr-only">Amount of {line.name}</span>
+            <span className="sr-only">{t.amountOf(tr(line, 'name'))}</span>
             <input
               inputMode="decimal"
               value={draft.amount}
@@ -797,24 +818,24 @@ function IngredientRow({
           onClick={() => setChoosing(true)}
           className="ml-[2.875rem] w-fit text-xs font-semibold text-lav-700 hover:text-lav-800"
         >
-          Which one?
+          {t.whichOne}
         </button>
       ) : null}
       {lots.length > 1 && !disabled && !line.using && choosing ? (
         <label className="ml-[2.875rem] flex items-center gap-2 text-xs text-ink-600">
-          <span>Use</span>
+          <span>{t.use}</span>
           <select
             value={draft.lotId ?? ''}
             onChange={(event) => onChange({ ...draft, lotId: event.target.value || null })}
             className="h-8 min-w-0 flex-1 rounded-lg bg-ink-50 px-2 text-xs font-semibold text-ink-900 outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
           >
-            <option value="">opened first, then first to expire</option>
+            <option value="">{t.autoLot}</option>
             {lots.map((lot) => (
               <option key={lot.id} value={lot.id}>
                 {formatQty(lot.quantity, product!)}
                 {lot.package ? ` ${lot.package}` : ''}
-                {lot.openedAt ? ' (opened)' : ''}
-                {lot.expiresOn ? ` · until ${lot.expiresOn.slice(5)}` : ''} ·{' '}
+                {lot.openedAt ? t.openedMark : ''}
+                {lot.expiresOn ? t.until(dayAndMonth(lot.expiresOn)) : ''} ·{' '}
                 {LOCATION_LABEL[lot.location].toLowerCase()}
               </option>
             ))}
@@ -831,18 +852,12 @@ const TOOL_TONE: Record<ToolNeed['status'], string> = {
   dirty: 'bg-peach-100 text-peach-800',
   missing: 'bg-danger-50 text-danger-700',
 };
-const TOOL_WORD: Record<ToolNeed['status'], string> = {
-  ready: 'clean',
-  washing: 'washing',
-  dirty: 'dirty',
-  missing: 'not enough',
-};
-
 function Tools({ tools }: { tools: ToolNeed[] }) {
+  const t = usePlanT();
   if (!tools.length) return null;
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[0.8125rem] font-semibold text-ink-700">Kitchenware</span>
+      <span className="text-[0.8125rem] font-semibold text-ink-700">{t.kitchenware}</span>
       <ul className="flex flex-wrap gap-1.5">
         {tools.map((tool) => (
           <li
@@ -860,20 +875,20 @@ function Tools({ tools }: { tools: ToolNeed[] }) {
               />
             </span>
             {tool.count > 1 ? `${tool.count} × ` : ''}
-            {(tool.options.find((o) => o.toolId === tool.using) ?? tool).name}
-            {tool.using !== tool.toolId ? ` (for the ${tool.name.toLowerCase()})` : ''} ·{' '}
+            {tr(tool.options.find((o) => o.toolId === tool.using) ?? tool, 'name')}
+            {tool.using !== tool.toolId ? t.forThe(tr(tool, 'name').toLowerCase()) : ''} ·{' '}
             {tool.status === 'washing' && tool.readyAt
-              ? `clean at ${new Date(tool.readyAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-              : TOOL_WORD[tool.status]}
+              ? t.cleanAt(clockTime(tool.readyAt))
+              : t.toolWord[tool.status]}
           </li>
         ))}
       </ul>
-      {tools.some((t) => t.status === 'dirty') ? (
+      {tools.some((tool) => tool.status === 'dirty') ? (
         <Link
           to="/food/kitchenware"
           className="text-sm font-semibold text-lav-700 hover:text-lav-800"
         >
-          Wash it first
+          {t.washItFirst}
         </Link>
       ) : null}
     </div>
@@ -887,14 +902,16 @@ const PART_KINDS: PartKind[] = ['dish', 'side', 'sauce', 'drink'];
  * "2 apples", "coffee 10 g", "bread with salmon" — for this meal.
  */
 function AddPartSheet({ open, meal, onClose }: { open: boolean; meal: Meal; onClose: () => void }) {
+  const t = usePlanT();
   return (
-    <Sheet open={open} onClose={onClose} title="Add to this meal" description={meal.title}>
+    <Sheet open={open} onClose={onClose} title={t.addToMeal} description={tr(meal, 'title')}>
       {open ? <AddPartForm meal={meal} onClose={onClose} /> : null}
     </Sheet>
   );
 }
 
 function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
+  const t = usePlanT();
   const queryClient = useQueryClient();
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const catalog = useCatalog();
@@ -909,11 +926,16 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
   };
   const list = (recipes.data ?? [])
     .filter((r) => !meal.parts.some((p) => p.recipeId === r.id))
-    .filter((r) => !query.trim() || normalize(r.title).includes(normalize(query)))
+    .filter(
+      (r) =>
+        !query.trim() ||
+        normalize(r.title).includes(normalize(query)) ||
+        normalize(tr(r, 'title')).includes(normalize(query)),
+    )
     .sort(
       (a, b) =>
-        Number(b.tags.some((t) => tagFor[kind].includes(t))) -
-          Number(a.tags.some((t) => tagFor[kind].includes(t))) ||
+        Number(b.tags.some((tag) => tagFor[kind].includes(tag))) -
+          Number(a.tags.some((tag) => tagFor[kind].includes(tag))) ||
         Number(b.availability.ready) - Number(a.availability.ready),
     )
     .slice(0, 8);
@@ -923,7 +945,7 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
     mutationFn: (body: Parameters<typeof foodApi.addPart>[1]) => foodApi.addPart(meal.id, body),
     onSuccess: (updated) => {
       haptic('success');
-      toast.success(`Added to ${updated.title}`);
+      toast.success(t.addedTo(tr(updated, 'title')));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -949,7 +971,7 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="radiogroup" aria-label="What it is" className="flex gap-1.5">
+      <div role="radiogroup" aria-label={t.whatItIs} className="flex flex-wrap gap-1.5">
         {PART_KINDS.map((value) => (
           <button
             key={value}
@@ -962,13 +984,13 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
               kind === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
             )}
           >
-            {KIND_LABEL[value]}
+            {t.partKind[value]}
           </button>
         ))}
       </div>
       <label className="flex items-center gap-2 rounded-[1.125rem] bg-ink-50 px-3.5 focus-within:bg-white focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
         <SearchIcon fontSize="inherit" className="text-lg text-ink-500" />
-        <span className="sr-only">A recipe, or something simple</span>
+        <span className="sr-only">{t.searchPart}</span>
         <input
           autoFocus
           value={query}
@@ -979,7 +1001,7 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
               simple();
             }
           }}
-          placeholder="Coffee, garlic sauce, 2 apples…"
+          placeholder={t.partPlaceholder}
           className="h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-500"
         />
       </label>
@@ -996,14 +1018,15 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[0.9375rem] font-semibold">
-              Just{' '}
-              {typed.amount
-                ? `${formatAmount(typed.amount, typed.unit ?? product?.unit ?? 'pcs')} of `
-                : ''}
-              {product?.name.toLowerCase() ?? typed.name}
+              {t.just(
+                typed.amount
+                  ? formatAmount(typed.amount, typed.unit ?? product?.unit ?? 'pcs')
+                  : null,
+                product ? tr(product, 'name').toLowerCase() : typed.name,
+              )}
             </span>
             <span className="block text-sm text-ink-600">
-              {product ? 'From the kitchen' : 'Not a recipe: just this'}
+              {product ? t.partFromKitchen : t.notARecipe}
             </span>
           </span>
         </button>
@@ -1019,12 +1042,12 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
               <FoodIconTile name={recipe.icon} className="size-10 rounded-xl [&>svg]:size-7" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[0.9375rem] font-semibold">
-                  {recipe.title}
+                  {tr(recipe, 'title')}
                 </span>
                 <span className="block truncate text-xs text-ink-600">
                   {recipe.availability.ready
-                    ? 'Everything’s in the kitchen'
-                    : `${recipe.availability.missing.length} missing`}
+                    ? t.allHere
+                    : t.missing(recipe.availability.missing.length)}
                   {recipe.tags.length ? ` · #${recipe.tags.slice(0, 2).join(' #')}` : ''}
                 </span>
               </span>

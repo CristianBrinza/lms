@@ -1,15 +1,31 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { Button, Sheet, Switch, TextField, toast } from '@/components/ui';
 import { DeleteIcon } from '@/components/ui/icons';
+import { getLocale, LOCALES, tr, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { foodKeys, kitchenwareApi } from '../api';
 import { FoodIcon } from '../icons/FoodIcon';
 import type { Tool, ToolKind } from '../types';
-import { KIND_LABEL, KIND_ORDER } from './status';
+import { useKitchenwareT } from './i18n';
+import { KIND_ORDER, kindLabel } from './status';
 import { Stepper } from './Stepper';
+
+/**
+ * The name in every language, as the API takes it: an empty field clears that translation, and a
+ * name changed above replaces the old translation in the language it was written in.
+ */
+function nameTranslations(value: Translations, nameChanged: boolean): Translations {
+  const out: Translations = {};
+  for (const locale of LOCALES) {
+    const name = String(value[locale]?.name ?? '').trim();
+    out[locale] = { name: nameChanged && locale === getLocale() ? '' : name };
+  }
+  return out;
+}
 
 /** One thing's details: name, how many, kind, drawing, dishwasher-safe, where it's kept, a note. */
 export function ToolSheet({
@@ -23,8 +39,10 @@ export function ToolSheet({
   icons: string[];
   onClose: () => void;
 }) {
+  const t = useKitchenwareT();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [translations, setTranslations] = useState<Translations>({});
   const [count, setCount] = useState(1);
   const [kind, setKind] = useState<ToolKind>('other');
   const [icon, setIcon] = useState('box');
@@ -42,6 +60,7 @@ export function ToolSheet({
     setLoadedFor(target);
     if (tool && target) {
       setName(tool.name);
+      setTranslations(tool.translations ?? {});
       setCount(tool.count);
       setKind(tool.kind);
       setIcon(tool.icon);
@@ -71,9 +90,10 @@ export function ToolSheet({
           : {}),
         place: place.trim(),
         note: note.trim(),
+        translations: nameTranslations(translations, name.trim() !== tool!.name),
       }),
     onSuccess: (saved) => {
-      toast.success(`${saved.name} saved`);
+      toast.success(t.savedName(tr(saved, 'name')));
       void refresh();
       onClose();
     },
@@ -81,7 +101,7 @@ export function ToolSheet({
   const remove = useMutation({
     mutationFn: () => kitchenwareApi.remove(tool!.id),
     onSuccess: () => {
-      toast.success(`${tool?.name ?? 'It'} removed`);
+      toast.success(t.removedName(tool ? tr(tool, 'name') : null));
       void refresh();
       setConfirmRemove(false);
       onClose();
@@ -96,7 +116,7 @@ export function ToolSheet({
       <Sheet
         open={open}
         onClose={onClose}
-        title={tool?.name ?? 'Kitchenware'}
+        title={tool ? tr(tool, 'name') : t.title}
         size="lg"
         footer={
           <div className="flex flex-col gap-2">
@@ -109,7 +129,7 @@ export function ToolSheet({
               loading={save.isPending}
               disabled={!name.trim()}
             >
-              Save
+              {t.save}
             </Button>
           </div>
         }
@@ -117,16 +137,23 @@ export function ToolSheet({
         <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:gap-x-5">
           <div className="flex flex-col gap-4">
             <TextField
-              label="Name"
+              label={t.name}
               value={name}
               onChange={(event) => setName(event.target.value)}
               error={fields.name}
               maxLength={60}
             />
-            <Stepper label="How many" value={count} onChange={setCount} min={0} max={500} />
+            <TranslationFields
+              fields={[{ key: 'name', label: t.name, maxLength: 60 }]}
+              value={translations}
+              onChange={setTranslations}
+            />
+            <Stepper label={t.howMany} value={count} onChange={setCount} min={0} max={500} />
             <fieldset>
-              <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Kind</legend>
-              <div role="radiogroup" aria-label="Kind" className="flex flex-wrap gap-1.5">
+              <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
+                {t.kindLabel}
+              </legend>
+              <div role="radiogroup" aria-label={t.kindLabel} className="flex flex-wrap gap-1.5">
                 {KIND_ORDER.map((value) => (
                   <button
                     key={value}
@@ -141,17 +168,17 @@ export function ToolSheet({
                         : 'bg-butter-100 text-ink-800 hover:bg-butter-200',
                     )}
                   >
-                    {KIND_LABEL[value]}
+                    {kindLabel(value)}
                   </button>
                 ))}
               </div>
             </fieldset>
             {kind === 'disposable' ? (
               <TextField
-                label="Running low at"
+                label={t.lowAt}
                 inputMode="numeric"
                 placeholder="2"
-                hint="Used up when cooking; at this many or fewer, it’s running low"
+                hint={t.lowAtHint}
                 value={minCount}
                 onChange={(event) => setMinCount(event.target.value)}
               />
@@ -160,23 +187,15 @@ export function ToolSheet({
                 <Switch
                   checked={washable}
                   onChange={setWashable}
-                  label="Gets washed"
-                  hint={
-                    washable
-                      ? 'Using it makes it dirty'
-                      : 'Never dirty, like an electric kettle or the oven'
-                  }
+                  label={t.washable}
+                  hint={washable ? t.washableOn : t.washableOff}
                 />
                 {washable ? (
                   <Switch
                     checked={dishwasherSafe}
                     onChange={setDishwasherSafe}
-                    label="In the dishwasher"
-                    hint={
-                      dishwasherSafe
-                        ? 'The dishwasher takes it'
-                        : 'By hand only, like knives or the grill'
-                    }
+                    label={t.dishwasherSafe}
+                    hint={dishwasherSafe ? t.dishwasherSafeOn : t.dishwasherSafeOff}
                   />
                 ) : null}
               </>
@@ -184,16 +203,16 @@ export function ToolSheet({
           </div>
           <div className="flex flex-col gap-4">
             <TextField
-              label="Kept in"
-              placeholder="Desk drawer"
+              label={t.keptIn}
+              placeholder={t.keptInPlaceholder}
               value={place}
               onChange={(event) => setPlace(event.target.value)}
               error={fields.place}
               maxLength={60}
             />
             <TextField
-              label="Note"
-              placeholder="Optional"
+              label={t.note}
+              placeholder={t.optional}
               value={note}
               onChange={(event) => setNote(event.target.value)}
               error={fields.note}
@@ -201,11 +220,11 @@ export function ToolSheet({
             />
             <fieldset>
               <legend className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">
-                Drawing
+                {t.drawing}
               </legend>
               <div
                 role="radiogroup"
-                aria-label="Drawing"
+                aria-label={t.drawing}
                 className="grid max-h-[9.5rem] grid-cols-6 gap-1 overflow-y-auto rounded-2xl bg-ink-50 p-1.5 sm:grid-cols-8 md:grid-cols-6"
               >
                 {shownIcons.map((key) => (
@@ -235,7 +254,7 @@ export function ToolSheet({
             className="self-start justify-self-start text-danger-700 hover:bg-danger-50 md:col-span-2"
             onClick={() => setConfirmRemove(true)}
           >
-            Remove from kitchenware
+            {t.removeFromList}
           </Button>
         </div>
       </Sheet>
@@ -244,9 +263,9 @@ export function ToolSheet({
         onClose={() => setConfirmRemove(false)}
         onConfirm={() => remove.mutate()}
         loading={remove.isPending}
-        title={`Remove ${tool?.name ?? 'this'}?`}
-        description="It leaves the list. Adding it again brings it back."
-        confirmLabel="Remove"
+        title={t.removeTitle(tool ? tr(tool, 'name') : null)}
+        description={t.removeText}
+        confirmLabel={t.remove}
         tone="danger"
       />
     </>

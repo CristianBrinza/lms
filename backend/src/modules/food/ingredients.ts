@@ -1,12 +1,15 @@
-import { kindIcon } from './presets';
+import { findPreset, kindIcon, sameName } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import type { Translations } from '../../lib/i18n';
 import type { LineAllocation, PlannedMealRef } from './allocation';
+import { combine, onlyFields, variantTranslations } from './catalog-i18n';
 import { warningsFor, type Restriction, type Warning } from './restrictions';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import {
   findProduct,
+  namesOf,
   PRODUCT_COLUMNS,
   rememberVariant,
   resolveNamed,
@@ -37,6 +40,8 @@ export interface IngredientLine {
   alternatives: Array<{
     productId: string | null;
     name: string;
+    /** Its name and type in other languages ({ ro: { name, variant } }). */
+    translations: Translations;
     icon: FoodIcon;
     amount: number | null;
     unit: string | null;
@@ -57,8 +62,13 @@ export interface IngredientLine {
   /** Short because what there is goes off before the meal (planned meals). */
   spoilsBefore: boolean;
   /** Covered by one of the alternatives rather than the main item (null: the main item, or nothing). */
-  using: { productId: string; name: string; icon: FoodIcon } | null;
+  using: { productId: string; name: string; translations: Translations; icon: FoodIcon } | null;
   name: string;
+  /**
+   * The line's name and type in other languages ({ ro: { name, variant } }): the item's own names
+   * when the line calls it by its name ("Tomatoes", "roșii"), else none (what the recipe says).
+   */
+  translations: Translations;
   icon: FoodIcon;
   amount: number | null;
   unit: string | null;
@@ -87,11 +97,37 @@ export interface Availability {
   /** Lines checked against the kitchen (linked, counted, not optional). */
   total: number;
   ready: boolean;
-  missing: Array<{ productId: string; name: string; missing: number; unit: BaseUnit }>;
+  missing: Array<{
+    productId: string;
+    name: string;
+    translations: Translations;
+    missing: number;
+    unit: BaseUnit;
+  }>;
   /** Lines using something that expires within three days. */
   useSoon: number;
   /** Everyone this dish is a problem for (allergy first), from its ingredients. */
-  warnings: Array<Warning & { item: string }>;
+  warnings: Array<Warning & { item: string; translations: Translations }>;
+}
+
+/**
+ * A line's name (and type) in other languages: the item's names when the line calls it by one of
+ * them or by its catalog name; a line that says more ("Finlandia vodka") keeps its own words.
+ */
+export function lineTranslations(
+  name: string,
+  product: Product | undefined,
+  variant: string | undefined,
+): Translations {
+  if (!product) return {};
+  const preset = findPreset(name);
+  const same =
+    namesOf(product).some((other) => sameName(other, name)) ||
+    (preset !== null && preset.name === product.name);
+  return combine(
+    same ? onlyFields(product.translations, ['name']) : {},
+    variantTranslations(product.name, variant),
+  );
 }
 
 export interface IngredientRow {
@@ -271,6 +307,7 @@ export function describeLines(
       return {
         productId: alt.product_id,
         name: alt.name,
+        translations: lineTranslations(alt.name, altInfo?.product, alt.variant),
         icon: altInfo ? kindIcon(altInfo.product, alt.variant) : 'basket',
         amount: alt.amount === null ? null : round(alt.amount * scale),
         unit: alt.unit,
@@ -291,12 +328,18 @@ export function describeLines(
     let using: IngredientLine['using'] = null;
     const pick = chosen > 0 ? alternatives[chosen - 1] : undefined;
     if (pick?.productId) {
-      using = { productId: pick.productId, name: pick.name, icon: pick.icon };
+      using = {
+        productId: pick.productId,
+        name: pick.name,
+        translations: pick.translations,
+        icon: pick.icon,
+      };
       enough = pick.enough;
       missing = pick.missing;
       reservedFor = null;
     }
     const expiresSoon = Boolean(info?.nextExpiry && info.nextExpiry <= soon && total > 0);
+    const translations = lineTranslations(row.name, info?.product, row.variant);
     lines.push({
       id: row.id,
       productId: row.product_id,
@@ -311,6 +354,7 @@ export function describeLines(
       using,
       spoilsBefore: Boolean(planned?.spoils && !using),
       name: row.name,
+      translations,
       icon: info ? kindIcon(info.product, row.variant) : 'basket',
       amount: row.amount === null ? null : round(row.amount * scale),
       unit: row.unit,
@@ -327,7 +371,11 @@ export function describeLines(
     });
     if (expiresSoon) availability.useSoon += 1;
     for (const warning of warningsFor(options.restrictions ?? [], info?.product))
-      availability.warnings.push({ ...warning, item: row.name });
+      availability.warnings.push({
+        ...warning,
+        item: row.name,
+        translations: onlyFields(translations, ['name'], { name: 'item' }),
+      });
     if (!counted || row.optional) continue;
     availability.total += 1;
     if (enough) availability.have += 1;
@@ -335,6 +383,7 @@ export function describeLines(
       availability.missing.push({
         productId: pick.productId,
         name: pick.name,
+        translations: onlyFields(pick.translations, ['name']),
         missing,
         unit: pick.baseUnit ?? info!.product.unit,
       });
@@ -342,6 +391,7 @@ export function describeLines(
       availability.missing.push({
         productId: row.product_id!,
         name: row.name,
+        translations: onlyFields(translations, ['name']),
         missing,
         unit: info!.product.unit,
       });

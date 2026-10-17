@@ -7,6 +7,8 @@ import {
   PantryIcon,
   StorageIcon,
 } from '@/components/ui/icons';
+import { LOCATION_LABEL } from './format';
+import type { Location } from './types';
 
 /** The places food is kept, with their icons: fridge, freezer, shelf, the balcony garden, elsewhere. */
 
@@ -20,12 +22,11 @@ export const LOCATION_ICON = {
   other: CountertopIcon,
 } as const;
 
-export const LOCATION_OPTIONS = [
-  { value: 'fridge' as const, label: 'Fridge', icon: FridgeIcon },
-  { value: 'freezer' as const, label: 'Freezer', icon: FreezerIcon },
-  { value: 'pantry' as const, label: 'Shelf', icon: PantryIcon },
-  { value: 'garden' as const, label: 'Garden', icon: GardenIcon },
-  { value: 'bathroom' as const, label: 'Bathroom', icon: BathroomIcon },
-  { value: 'storage' as const, label: 'Storage', icon: StorageIcon },
-  { value: 'other' as const, label: 'Other', icon: CountertopIcon },
-];
+/** Chips' options; each label is read in the current language when it is shown. */
+export const LOCATION_OPTIONS = (Object.keys(LOCATION_ICON) as Location[]).map((value) => ({
+  value,
+  get label() {
+    return LOCATION_LABEL[value];
+  },
+  icon: LOCATION_ICON[value],
+}));

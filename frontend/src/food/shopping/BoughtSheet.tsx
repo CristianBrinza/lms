@@ -7,9 +7,11 @@ import { foodApi, foodKeys } from '../api';
 import { useCatalog } from '../catalog';
 import { PackagesInput, type PackageRow } from '../components/PackagesInput';
 import { VariantChips } from '../components/VariantChips';
-import { formatQty, packageUnits, parseAmount } from '../format';
+import { formatQty, kindOf, packageUnits, parseAmount } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import type { Product, ShoppingItem } from '../types';
+import { lineTitle } from './names';
+import { shoppingT } from './shopping.i18n';
 
 /**
  * In the shop: what was really taken off the shelf. The list asked for at least 500 g of corn;
@@ -17,13 +19,14 @@ import type { Product, ShoppingItem } from '../types';
  * kind actually bought, and the price. More than needed is fine; less leaves the rest on the list.
  */
 export function BoughtSheet({ line, onClose }: { line: ShoppingItem | null; onClose: () => void }) {
+  const t = shoppingT();
   const catalog = useCatalog();
   const product = line ? catalog.data?.find((p) => p.id === line.productId) : undefined;
   return (
     <Sheet
       open={Boolean(line)}
       onClose={onClose}
-      title="What did you get?"
+      title={t.whatDidYouGet}
       description={line ? <Need line={line} product={product} /> : undefined}
     >
       {line && product ? (
@@ -34,6 +37,7 @@ export function BoughtSheet({ line, onClose }: { line: ShoppingItem | null; onCl
 }
 
 function Need({ line, product }: { line: ShoppingItem; product?: Product }) {
+  const t = shoppingT();
   return (
     <span className="flex items-center gap-2.5">
       <FoodIconTile
@@ -42,9 +46,9 @@ function Need({ line, product }: { line: ShoppingItem; product?: Product }) {
         className="size-10 rounded-xl [&>svg]:size-7"
       />
       <span>
-        {line.name}
-        {line.variant ? ` · ${line.variant}` : ''}
-        {line.need !== null && product ? ` · at least ${formatQty(line.need, product)}` : ''}
+        {lineTitle(line, product)}
+        {line.variant ? ` · ${kindOf(line, product)}` : ''}
+        {line.need !== null && product ? ` · ${t.atLeast(formatQty(line.need, product))}` : ''}
       </span>
     </span>
   );
@@ -76,6 +80,7 @@ function BoughtForm({
   product: Product;
   onClose: () => void;
 }) {
+  const t = shoppingT().bought;
   const queryClient = useQueryClient();
   const packages = packageUnits(product);
   const guess = firstGuess(line, product);
@@ -113,7 +118,7 @@ function BoughtForm({
           onPackageName={setPackageName}
           rows={rows}
           onChange={setRows}
-          label="In the cart"
+          label={t.inCart}
         />
       ) : null}
       {diff !== null ? (
@@ -121,30 +126,31 @@ function BoughtForm({
           className={`rounded-2xl px-4 py-3 text-sm font-semibold ${diff >= 0 ? 'bg-mint-100 text-mint-800' : 'bg-peach-100 text-peach-800'}`}
         >
           {diff === 0
-            ? 'Exactly what was needed.'
+            ? t.exact
             : diff > 0
-              ? `${formatQty(diff, product)} more than needed: it goes into the kitchen too.`
-              : `${formatQty(-diff, product)} short: the rest stays on the list when you finish.`}
+              ? t.more(formatQty(diff, product))
+              : t.short(formatQty(-diff, product))}
         </p>
       ) : null}
       {product.variants.length || line.variant ? (
         <VariantChips
           variants={product.variants}
           icons={product.variantIcons}
+          translations={product.translations}
           value={variant}
           onChange={setVariant}
-          label="Kind you got"
+          label={t.kindYouGot}
         />
       ) : null}
       <TextField
-        label={rows.length > 1 || (rows[0]?.count ?? 1) > 1 ? 'Paid for all (lei)' : 'Paid (lei)'}
+        label={rows.length > 1 || (rows[0]?.count ?? 1) > 1 ? t.paidAll : t.paid}
         inputMode="decimal"
-        placeholder="Optional"
+        placeholder={t.optional}
         value={price}
         onChange={(event) => setPrice(event.target.value)}
       />
       <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
-        In the cart
+        {t.inCart}
       </Button>
     </div>
   );

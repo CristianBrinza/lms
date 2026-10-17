@@ -1,6 +1,7 @@
 import { dishSummary, lineAsCooked, sumLines, type DishSummary } from './nutrition';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import { mergeTranslations, type Translations } from '../../lib/i18n';
 import { isUuid } from '../users';
 import { allocatePlan } from './allocation';
 import {
@@ -24,6 +25,7 @@ import {
 } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
+import { withoutField } from './products';
 import type { RecipeInput } from './schemas';
 
 /**
@@ -45,6 +47,8 @@ export interface Recipe {
   notes: string;
   favorite: boolean;
   createdVia: 'app' | 'ai';
+  /** The recipe in other languages: { ro: { title, description, notes, steps: [...] }, ru: …, en: … }. */
+  translations: Translations;
   createdAt: string;
   updatedAt: string;
   /** Servings the ingredient amounts and availability are shown for. */
@@ -75,12 +79,13 @@ interface RecipeRow {
   created_via: 'app' | 'ai';
   created_at: Date;
   updated_at: Date;
+  translations: Translations | null;
   times_cooked: number;
   last_cooked: string | null;
 }
 
 const RECIPE_SELECT = `SELECT r.id, r.title, r.description, r.servings, r.prep_minutes, r.cook_minutes, r.tags, r.steps, r.icon, r.source_url, r.notes,
-       r.favorite, r.created_via, r.created_at, r.updated_at,
+       r.favorite, r.created_via, r.created_at, r.updated_at, r.translations,
        (SELECT count(*)::int FROM meals m WHERE m.recipe_id = r.id AND m.status = 'done') AS times_cooked,
        (SELECT max(m.date) FROM meals m WHERE m.recipe_id = r.id AND m.status = 'done') AS last_cooked
   FROM recipes r`;
@@ -106,6 +111,7 @@ function toRecipe(
     notes: row.notes,
     favorite: row.favorite,
     createdVia: row.created_via,
+    translations: row.translations ?? {},
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     shownServings,
@@ -189,8 +195,8 @@ export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Re
     const ingredients = await resolveIngredients(tx, input.ingredients ?? []);
     await tx.db.query(
       `INSERT INTO recipes (id, household_id, title, description, servings, prep_minutes, cook_minutes, tags, steps, icon, source_url, notes, favorite,
-                            created_by, created_via, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)`,
+                            created_by, created_via, created_at, updated_at, translations)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16, $17)`,
       [
         id,
         tx.actor.householdId,
@@ -208,6 +214,7 @@ export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Re
         tx.actor.userId,
         tx.actor.via,
         tx.now,
+        JSON.stringify(mergeTranslations({}, input.translations)),
       ],
     );
     await insertIngredientRows(tx, 'recipe_ingredients', id, ingredients);
@@ -222,7 +229,18 @@ export async function updateRecipe(
   id: string,
   patch: Partial<RecipeInput>,
 ): Promise<Recipe> {
-  await getRecipe(ctx, id);
+  const current = await getRecipe(ctx, id);
+  // A field rewritten in its own language: its old translations no longer fit, unless given anew.
+  let base = current.translations;
+  for (const field of ['title', 'description', 'notes', 'steps'] as const) {
+    const next = patch[field];
+    if (next !== undefined && JSON.stringify(next) !== JSON.stringify(current[field]))
+      base = withoutField(base, field);
+  }
+  const translations =
+    base !== current.translations || patch.translations !== undefined
+      ? JSON.stringify(mergeTranslations(base, patch.translations))
+      : undefined;
   await ctx.tx(async (tx) => {
     const columns: Record<string, unknown> = {
       title: patch.title,
@@ -236,13 +254,18 @@ export async function updateRecipe(
       source_url: patch.sourceUrl,
       notes: patch.notes,
       favorite: patch.favorite,
+      translations,
     };
     const sets: string[] = [];
     const values: unknown[] = [id];
     for (const [column, value] of Object.entries(columns)) {
       if (value === undefined) continue;
       values.push(value);
-      sets.push(`${column} = $${values.length}`);
+      sets.push(
+        column === 'translations'
+          ? `${column} = $${values.length}::jsonb`
+          : `${column} = $${values.length}`,
+      );
     }
     values.push(tx.now);
     sets.push(`updated_at = $${values.length}`);

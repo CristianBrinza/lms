@@ -1,5 +1,8 @@
 import type { SVGProps } from 'react';
 
+/** An icon's name in the current language, for pickers' accessible names (see ./labels). */
+export { iconLabel } from './labels';
+
 /**
  * Every food and kitchenware icon is its own file in ./svg, named by the API's icon key
  * (tomato.svg, bell-pepper.svg, big-pot.svg…). They are read here as raw markup at build time

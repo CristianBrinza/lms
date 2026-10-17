@@ -4,6 +4,7 @@ import { Button, Sheet, toast } from '@/components/ui';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { foodKeys, kitchenwareApi } from '../api';
+import { useKitchenwareT } from './i18n';
 import { duration } from './status';
 import { Stepper } from './Stepper';
 
@@ -19,6 +20,7 @@ export function DishwasherSheet({
   minutes: number;
   onClose: () => void;
 }) {
+  const t = useKitchenwareT();
   const queryClient = useQueryClient();
   const [value, setValue] = useState(minutes);
   const [wasOpen, setWasOpen] = useState(open);
@@ -30,7 +32,7 @@ export function DishwasherSheet({
   const save = useMutation({
     mutationFn: () => kitchenwareApi.setDishwasher(value),
     onSuccess: () => {
-      toast.success(`Dishwasher runs ${duration(value)}`);
+      toast.success(t.runs(duration(value)));
       void queryClient.invalidateQueries({ queryKey: foodKeys.kitchenware });
       onClose();
     },
@@ -41,17 +43,17 @@ export function DishwasherSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="Dishwasher"
-      description="How long a run takes, until things are clean and back."
+      title={t.dishwasher}
+      description={t.dishwasherText}
       footer={
         <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
-          Save
+          {t.save}
         </Button>
       }
     >
       <div className="flex flex-col gap-3">
         <Stepper
-          label="A run takes"
+          label={t.runTakes}
           value={value}
           onChange={setValue}
           min={10}

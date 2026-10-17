@@ -2,14 +2,16 @@ import { useId } from 'react';
 import { CalendarIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { addDays, dayLong, localDate } from '../format';
+import { foodUiT } from './components.i18n';
 
 const QUICK = [
-  { label: '3 days', days: 3 },
-  { label: '1 week', days: 7 },
-  { label: '2 weeks', days: 14 },
-  { label: '1 month', days: 30 },
-  { label: '3 months', days: 90 },
+  { days: 3, say: (t: Words) => t.days(3) },
+  { days: 7, say: (t: Words) => t.weeks(1) },
+  { days: 14, say: (t: Words) => t.weeks(2) },
+  { days: 30, say: (t: Words) => t.months(1) },
+  { days: 90, say: (t: Words) => t.months(3) },
 ];
+type Words = ReturnType<typeof foodUiT>['expiry'];
 
 /**
  * Best-before in one tap: no date, a few typical spans, or any day from the calendar. The line
@@ -18,7 +20,7 @@ const QUICK = [
 export function ExpiryPicker({
   value,
   onChange,
-  label = 'Best before',
+  label,
   today = localDate(),
 }: {
   value: string | null;
@@ -26,6 +28,7 @@ export function ExpiryPicker({
   label?: string;
   today?: string;
 }) {
+  const t = foodUiT().expiry;
   const id = useId();
   const chip = (active: boolean) =>
     cx(
@@ -35,7 +38,9 @@ export function ExpiryPicker({
   const matched = QUICK.find((q) => addDays(today, q.days) === value);
   return (
     <fieldset className="flex min-w-0 flex-col gap-2.5">
-      <legend className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">{label}</legend>
+      <legend className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">
+        {label ?? t.label}
+      </legend>
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
         <button
           type="button"
@@ -43,7 +48,7 @@ export function ExpiryPicker({
           onClick={() => onChange(null)}
           className={chip(value === null)}
         >
-          No date
+          {t.noDate}
         </button>
         {QUICK.map((q) => (
           <button
@@ -53,7 +58,7 @@ export function ExpiryPicker({
             onClick={() => onChange(addDays(today, q.days))}
             className={chip(matched === q)}
           >
-            {q.label}
+            {q.say(t)}
           </button>
         ))}
         <label
@@ -61,7 +66,7 @@ export function ExpiryPicker({
           className={cx(chip(Boolean(value && !matched)), 'relative cursor-pointer')}
         >
           <CalendarIcon fontSize="inherit" className="text-base" />
-          Pick
+          {t.pick}
           <input
             id={id}
             type="date"
@@ -73,7 +78,7 @@ export function ExpiryPicker({
         </label>
       </div>
       <p className="text-sm font-medium text-ink-600">
-        {value ? `Keeps until ${dayLong(value)}` : 'No best-before date'}
+        {value ? t.keepsUntil(dayLong(value)) : t.noBestBefore}
       </p>
     </fieldset>
   );

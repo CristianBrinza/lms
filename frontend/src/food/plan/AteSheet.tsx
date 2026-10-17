@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useUser } from '@/app/auth';
 import { Button, Chips, Sheet, Switch, TextField, toast } from '@/components/ui';
 import { SearchIcon } from '@/components/ui/icons';
+import { formatList, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -16,6 +17,7 @@ import { localDate, unitsFor } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import { formatKcal, nutrientsIn, PER_LABEL } from '../nutrition';
 import type { Recipe } from '../types';
+import { usePlanT } from './i18n';
 
 type Picked = { kind: 'item'; item: PickedProduct } | { kind: 'recipe'; recipe: Recipe };
 
@@ -25,39 +27,36 @@ type Picked = { kind: 'item'; item: PickedProduct } | { kind: 'recipe'; recipe: 
  * counts in the day's energy; Undo puts the food back and drops the meal.
  */
 export function AteSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = usePlanT();
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title="I ate…"
-      description="Logged as eaten; it counts in the day’s energy."
-    >
+    <Sheet open={open} onClose={onClose} title={t.ateTitle} description={t.ateDescription}>
       {open ? <AteForm onClose={onClose} /> : null}
     </Sheet>
   );
 }
 
 function AteForm({ onClose }: { onClose: () => void }) {
+  const t = usePlanT();
   const [what, setWhat] = useState<'item' | 'recipe'>('item');
   const [picked, setPicked] = useState<Picked | null>(null);
   if (picked) return <Details picked={picked} onBack={() => setPicked(null)} onClose={onClose} />;
   return (
     <div className="flex flex-col gap-4">
       <Chips
-        label="What"
+        label={t.what}
         tone="sheet"
         dense
         value={what}
         onChange={setWhat}
         options={[
-          { value: 'item', label: 'Food or drink' },
-          { value: 'recipe', label: 'A recipe' },
+          { value: 'item', label: t.foodOrDrink },
+          { value: 'recipe', label: t.aRecipe },
         ]}
       />
       {what === 'item' ? (
         <ProductPicker
           autoFocus
-          label="What did you eat?"
+          label={t.whatDidYouEat}
           onPick={(item) => setPicked({ kind: 'item', item })}
         />
       ) : (
@@ -68,26 +67,32 @@ function AteForm({ onClose }: { onClose: () => void }) {
 }
 
 function RecipeList({ onPick }: { onPick: (recipe: Recipe) => void }) {
+  const t = usePlanT();
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const [query, setQuery] = useState('');
   const list = (recipes.data ?? [])
-    .filter((r) => !query.trim() || normalize(r.title).includes(normalize(query)))
+    .filter(
+      (r) =>
+        !query.trim() ||
+        normalize(r.title).includes(normalize(query)) ||
+        normalize(tr(r, 'title')).includes(normalize(query)),
+    )
     .sort((a, b) => b.timesCooked - a.timesCooked)
     .slice(0, 10);
   return (
     <div className="flex flex-col gap-3">
       <TextField
-        label="Which recipe?"
+        label={t.whichRecipe}
         hideLabel
         icon={SearchIcon}
-        placeholder="Protein shake, pancakes…"
+        placeholder={t.recipePlaceholder}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         autoFocus
         autoComplete="off"
       />
       {recipes.isPending ? (
-        <p className="px-1 text-sm text-ink-500">Loading recipes…</p>
+        <p className="px-1 text-sm text-ink-500">{t.loadingRecipes}</p>
       ) : list.length ? (
         <ul className="-mx-2 flex flex-col">
           {list.map((recipe) => (
@@ -100,12 +105,12 @@ function RecipeList({ onPick }: { onPick: (recipe: Recipe) => void }) {
                 <FoodIconTile name={recipe.icon} className="size-10 rounded-xl [&>svg]:size-7" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[0.9375rem] font-semibold">
-                    {recipe.title}
+                    {tr(recipe, 'title')}
                   </span>
                   <span className="block truncate text-xs text-ink-600">
                     {recipe.nutrition.known
-                      ? `${formatKcal(recipe.nutrition.perServing.kcal)} kcal a serving`
-                      : 'Values unknown'}
+                      ? t.kcalServing(formatKcal(recipe.nutrition.perServing.kcal))
+                      : t.valuesUnknown}
                   </span>
                 </span>
               </button>
@@ -113,7 +118,7 @@ function RecipeList({ onPick }: { onPick: (recipe: Recipe) => void }) {
           ))}
         </ul>
       ) : (
-        <p className="px-1 text-sm text-ink-500">No recipe by that name.</p>
+        <p className="px-1 text-sm text-ink-500">{t.noRecipeByNameDot}</p>
       )}
     </div>
   );
@@ -139,6 +144,7 @@ function Details({
   onBack: () => void;
   onClose: () => void;
 }) {
+  const t = usePlanT();
   const queryClient = useQueryClient();
   const me = useUser();
   const people = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
@@ -187,17 +193,15 @@ function Details({
       void refresh();
       const kcal = meal.nutrition.known ? meal.nutrition.perServing.kcal : null;
       toast.success(
-        kcal !== null
-          ? `${meal.title}: ${formatKcal(kcal)} kcal${eaters.length > 1 ? ' each' : ''}`
-          : `${meal.title}: logged`,
+        t.logged(tr(meal, 'title'), kcal !== null ? formatKcal(kcal) : null, eaters.length > 1),
         {
           description: shortfalls.length
-            ? `Not enough in the kitchen: ${shortfalls.map((s) => s.name).join(', ')}.`
+            ? t.notEnoughKitchen(formatList(shortfalls.map((s) => tr(s, 'name'))))
             : kcal === null
-              ? 'Its values are unknown, so it adds no kcal.'
+              ? t.noValues
               : undefined,
           action: {
-            label: 'Undo',
+            label: t.undo,
             // Reopening puts what it took back in the kitchen; then the meal goes.
             onClick: () =>
               void foodApi
@@ -214,7 +218,7 @@ function Details({
   });
 
   const household = people.data?.people ?? [];
-  const title = item ? item.name : recipe!.title;
+  const title = item ? item.name : tr(recipe!, 'title');
 
   return (
     <div className="flex flex-col gap-4">
@@ -229,19 +233,22 @@ function Details({
           <span className="block truncate text-xs text-ink-600">
             {item
               ? item.nutrition
-                ? `${formatKcal(item.nutrition.entry.base.kcal)} kcal ${PER_LABEL[item.nutrition.entry.per]}`
-                : 'Values unknown'
-              : 'One serving each'}
+                ? t.kcalPer(
+                    formatKcal(item.nutrition.entry.base.kcal),
+                    PER_LABEL[item.nutrition.entry.per],
+                  )
+                : t.valuesUnknown
+              : t.oneServingEach}
           </span>
         </span>
         <Button size="sm" variant="soft" onClick={onBack}>
-          Change
+          {t.change}
         </Button>
       </div>
 
       {item ? (
         <QuantityInput
-          label={eaters.length > 1 ? 'How much, each' : 'How much'}
+          label={eaters.length > 1 ? t.howMuchEach : t.howMuch}
           value={amount}
           unit={unit}
           units={unitsFor(item)}
@@ -263,7 +270,7 @@ function Details({
 
       {household.length > 1 ? (
         <WhoEats
-          label="Who ate"
+          label={t.whoAte}
           people={household}
           value={eaters}
           onChange={(next) => {
@@ -273,13 +280,13 @@ function Details({
       ) : null}
 
       <div className="flex flex-col gap-2">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">When</span>
-        <div className="flex items-center gap-2">
-          <div role="radiogroup" aria-label="When" className="flex gap-1.5">
+        <span className="text-[0.8125rem] font-semibold text-ink-700">{t.when}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div role="radiogroup" aria-label={t.when} className="flex gap-1.5">
             {(
               [
-                ['now', 'Now'],
-                ['earlier', 'Earlier today'],
+                ['now', t.now],
+                ['earlier', t.earlier],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -302,7 +309,7 @@ function Details({
           {when === 'earlier' ? (
             <input
               type="time"
-              aria-label="At"
+              aria-label={t.at}
               value={time}
               max={hhmm(new Date())}
               onChange={(event) => event.target.value && setTime(event.target.value)}
@@ -315,8 +322,8 @@ function Details({
       <Switch
         checked={fromKitchen}
         onChange={setFromKitchen}
-        label="From the kitchen"
-        hint={fromKitchen ? 'It comes out of what’s in stock.' : 'Bought or given elsewhere.'}
+        label={t.fromKitchen}
+        hint={fromKitchen ? t.fromKitchenOn : t.fromKitchenOff}
       />
 
       <Button
@@ -325,9 +332,7 @@ function Details({
         loading={save.isPending}
         disabled={Boolean(item) && !amount}
       >
-        {each !== null
-          ? `Save · ${formatKcal(each)} kcal${eaters.length > 1 ? ' each' : ''}`
-          : 'Save'}
+        {each !== null ? t.saveKcal(formatKcal(each), eaters.length > 1) : t.save}
       </Button>
     </div>
   );

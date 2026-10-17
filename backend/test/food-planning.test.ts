@@ -212,8 +212,8 @@ describe('food: allergies and dislikes', () => {
     expect(recipe.ingredients[0].warnings).toEqual([{ person: 'Ana', kind: 'avoid' }]);
     expect(recipe.ingredients[1].warnings).toEqual([{ person: 'Ion', kind: 'allergy' }]);
     expect(recipe.ingredients[2].warnings).toEqual([]);
-    expect(recipe.availability.warnings).toEqual([
-      { person: 'Ana', kind: 'avoid', item: 'Salmon' },
+    expect(recipe.availability.warnings).toMatchObject([
+      { person: 'Ana', kind: 'avoid', item: 'Salmon', translations: { ro: { item: 'Somon' } } },
       { person: 'Ion', kind: 'allergy', item: 'Honey' },
     ]);
 

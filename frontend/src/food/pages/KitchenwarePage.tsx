@@ -7,18 +7,19 @@ import { AddIcon } from '@/components/ui/icons';
 import type { IconComponent } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
+import { tr } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { foodKeys, kitchenwareApi } from '../api';
-import { plural } from '../format';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import { AddToolSheet } from '../kitchenware/AddToolSheet';
 import { DishwasherSheet } from '../kitchenware/DishwasherSheet';
+import { useKitchenwareT } from '../kitchenware/i18n';
 import { CheckCircleIcon, DishwasherIcon, HandWashIcon, TuneIcon } from '../kitchenware/icons';
 import {
   clock,
   duration,
-  KIND_LABEL,
   KIND_ORDER,
+  kindLabel,
   minutesLeft,
   toolChips,
   useNow,
@@ -37,6 +38,7 @@ type KitchenwareList = Awaited<ReturnType<typeof kitchenwareApi.list>>;
  * Tablets and up: the washing-up as a bar with its actions inline, the kinds in columns of cards.
  */
 export default function KitchenwarePage() {
+  const t = useKitchenwareT();
   const queryClient = useQueryClient();
   const list = useQuery({ queryKey: foodKeys.kitchenware, queryFn: kitchenwareApi.list });
   const [adding, setAdding] = useState(false);
@@ -69,14 +71,12 @@ export default function KitchenwarePage() {
       <PageHeader
         compact
         back="/food"
-        title="Kitchenware"
-        subtitle={
-          list.data ? (tools.length ? plural(tools.length, 'thing') : 'Nothing counted yet') : ' '
-        }
+        title={t.title}
+        subtitle={list.data ? (tools.length ? t.things(tools.length) : t.nothingCounted) : ' '}
         actions={
           <IconButton
             icon={AddIcon}
-            label="Add kitchenware"
+            label={t.addKitchenware}
             variant="ink"
             size="sm"
             onClick={() => setAdding(true)}
@@ -95,10 +95,10 @@ export default function KitchenwarePage() {
           </div>
         ) : list.error ? (
           <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load the kitchenware</p>
+            <p className="font-semibold text-danger-700">{t.loadFailed}</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(list.error)}</p>
             <Button size="sm" variant="tint" className="mt-3" onClick={() => void list.refetch()}>
-              Try again
+              {t.tryAgain}
             </Button>
           </div>
         ) : !tools.length ? (
@@ -115,7 +115,7 @@ export default function KitchenwarePage() {
               {groups.map((group) => (
                 <section key={group.kind} className="mb-3.5 break-inside-avoid">
                   <h2 className="mb-1.5 flex items-center gap-2 px-1 text-[0.9375rem] font-bold">
-                    {KIND_LABEL[group.kind]}
+                    {kindLabel(group.kind)}
                     <span className="tabular text-sm font-semibold text-ink-500">
                       {group.items.length}
                     </span>
@@ -172,6 +172,7 @@ function WashPanel({
   onTools: (tools: Tool[]) => void;
   onSettings: () => void;
 }) {
+  const t = useKitchenwareT();
   const queryClient = useQueryClient();
   const now = useNow();
   const left = state.cleanAt ? minutesLeft(state.cleanAt, now) : null;
@@ -189,12 +190,11 @@ function WashPanel({
       haptic('success');
       onTools(tools);
       const after = washState(tools);
-      if (how === 'hand') toast.success('All washed and clean');
-      else if (how === 'unload')
-        toast.success('Dishwasher unloaded', { description: 'Everything is clean and back' });
+      if (how === 'hand') toast.success(t.allWashed);
+      else if (how === 'unload') toast.success(t.unloaded, { description: t.unloadedText });
       else
-        toast.success('Dishwasher started', {
-          description: after.cleanAt ? `Clean at ${clock(after.cleanAt)}` : undefined,
+        toast.success(t.started, {
+          description: after.cleanAt ? t.cleanAt(clock(after.cleanAt)) : undefined,
         });
       void queryClient.invalidateQueries({ queryKey: foodKeys.kitchenware });
     },
@@ -209,23 +209,20 @@ function WashPanel({
       : 'bg-mint-200 text-mint-800';
   const Icon = washing ? DishwasherIcon : state.dirty ? HandWashIcon : CheckCircleIcon;
   const headline =
-    [
-      state.dirty ? `${state.dirty} dirty` : null,
-      washing ? `${state.washing} in the dishwasher` : null,
-    ]
+    [state.dirty ? t.dirtyCount(state.dirty) : null, washing ? t.inDishwasher(state.washing) : null]
       .filter(Boolean)
-      .join(' · ') || 'All clean';
+      .join(' · ') || t.allClean;
   const detail = washing
-    ? `Clean at ${clock(state.cleanAt!)}${left ? ` · ${duration(left)} left` : ''}`
+    ? t.cleanAtLeft(clock(state.cleanAt!), left ? duration(left) : null)
     : state.dirty
       ? state.dirtyWashable
-        ? 'Wash by hand or start the dishwasher'
-        : 'Wash them by hand'
-      : 'Nothing waiting to be washed';
+        ? t.washOrMachine
+        : t.washByHandOnly
+      : t.nothingWaiting;
 
   return (
     <section
-      aria-label="Washing up"
+      aria-label={t.washingUp}
       className="rounded-[1.5rem] bg-white p-3 shadow-[var(--shadow-raised)] md:flex md:items-center md:gap-4 md:p-3 md:pl-3.5"
     >
       <div className="flex min-w-0 items-center gap-3 md:flex-1">
@@ -244,8 +241,8 @@ function WashPanel({
         <button
           type="button"
           onClick={onSettings}
-          aria-label={`Dishwasher run time: ${duration(runMinutes)}. Change`}
-          title="Dishwasher run time"
+          aria-label={t.runTimeChange(duration(runMinutes))}
+          title={t.runTime}
           className="press flex h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-pill px-2.5 text-sm font-semibold text-ink-700 hover:bg-ink-50 sm:px-3"
         >
           <TuneIcon fontSize="inherit" className="text-[1.2rem]" />
@@ -262,7 +259,7 @@ function WashPanel({
               busy={run.isPending && run.variables === 'hand'}
               disabled={run.isPending}
             >
-              Wash by hand
+              {t.washByHand}
             </Action>
           ) : null}
           {state.dirtyWashable ? (
@@ -273,7 +270,7 @@ function WashPanel({
               busy={run.isPending && run.variables === 'machine'}
               disabled={run.isPending}
             >
-              {washing ? 'Add to dishwasher' : 'Start dishwasher'}
+              {washing ? t.addToDishwasher : t.startDishwasher}
             </Action>
           ) : null}
           {washing ? (
@@ -284,7 +281,7 @@ function WashPanel({
               busy={run.isPending && run.variables === 'unload'}
               disabled={run.isPending}
             >
-              Unload now
+              {t.unloadNow}
             </Action>
           ) : null}
         </div>
@@ -356,6 +353,7 @@ function ToolRow({
   onTool: (tool: Tool) => void;
   onTools: (tools: Tool[]) => void;
 }) {
+  const t = useKitchenwareT();
   const queryClient = useQueryClient();
   const settled = () => void queryClient.invalidateQueries({ queryKey: foodKeys.kitchenware });
   const used = useMutation({
@@ -389,7 +387,7 @@ function ToolRow({
       >
         <FoodIconTile name={tool.icon} className="size-11 rounded-[0.875rem] [&>svg]:size-8" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.9375rem] font-semibold">{tool.name}</span>
+          <span className="block truncate text-[0.9375rem] font-semibold">{tr(tool, 'name')}</span>
           <span className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
             {chips.map((chip) => (
               <span
@@ -416,18 +414,18 @@ function ToolRow({
             type="button"
             onClick={() => used.mutate()}
             disabled={used.isPending || tool.clean === 0}
-            aria-label={`Used one ${tool.name}`}
-            title="Used one: it's dirty now"
+            aria-label={t.usedOne(tr(tool, 'name'))}
+            title={t.usedTitle}
             className={cx(quick, 'bg-ink-50 px-3 text-ink-800 hover:bg-peach-100')}
           >
-            Used
+            {t.used}
           </button>
           <button
             type="button"
             onClick={() => washed.mutate()}
             disabled={washed.isPending || tool.dirty === 0}
-            aria-label={`Washed ${tool.name} by hand`}
-            title="Washed by hand"
+            aria-label={t.washedOne(tr(tool, 'name'))}
+            title={t.washedTitle}
             className={cx(quick, 'w-11 bg-ink-50 text-[1.2rem] text-ink-800 hover:bg-mint-100')}
           >
             <HandWashIcon fontSize="inherit" />
@@ -439,6 +437,7 @@ function ToolRow({
 }
 
 function Empty({ onAdd }: { onAdd: () => void }) {
+  const t = useKitchenwareT();
   return (
     <div className="flex flex-col items-center rounded-[2rem] bg-white px-6 py-9 text-center shadow-[var(--shadow-card)]">
       <div className="flex items-end gap-1" aria-hidden="true">
@@ -446,13 +445,10 @@ function Empty({ onAdd }: { onAdd: () => void }) {
         <FoodIcon name="big-pot" className="size-20" />
         <FoodIcon name="glass" className="size-12" />
       </div>
-      <h2 className="mt-4 text-h2 font-bold">Count your kitchenware</h2>
-      <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
-        Pots, pans, glasses, even pens. Cooking makes them dirty; washing by hand or the dishwasher
-        brings them back.
-      </p>
+      <h2 className="mt-4 text-h2 font-bold">{t.emptyTitle}</h2>
+      <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">{t.emptyText}</p>
       <Button icon={AddIcon} className="mt-6" onClick={onAdd}>
-        Add kitchenware
+        {t.addKitchenware}
       </Button>
     </div>
   );

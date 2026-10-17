@@ -14,4 +14,13 @@ describe('shopping line parsing', () => {
     expect(parseLine('corn 2 cans')).toEqual({ name: 'corn', amount: 2, unit: 'cans' });
     expect(parseLine('1 jar honey')).toEqual({ name: 'honey', amount: 1, unit: 'jar' });
   });
+
+  it('reads Romanian and Russian units', () => {
+    expect(parseLine('2 kg de cartofi')).toEqual({ name: 'cartofi', amount: 2, unit: 'kg' });
+    expect(parseLine('3 buc. roșii')).toEqual({ name: 'roșii', amount: 3, unit: 'pcs' });
+    expect(parseLine('2 conserve porumb')).toEqual({ name: 'porumb', amount: 2, unit: 'can' });
+    expect(parseLine('молоко 2 л')).toEqual({ name: 'молоко', amount: 2, unit: 'l' });
+    expect(parseLine('5 шт яиц')).toEqual({ name: 'яиц', amount: 5, unit: 'pcs' });
+    expect(parseLine('1 лимон')).toEqual({ name: 'лимон', amount: 1, unit: null });
+  });
 });

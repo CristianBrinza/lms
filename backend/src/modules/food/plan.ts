@@ -1,5 +1,7 @@
+import type { Translations } from '../../lib/i18n';
 import { allocatePlan } from './allocation';
-import { ingredientRows, stockSnapshot } from './ingredients';
+import { combine, onlyFields } from './catalog-i18n';
+import { ingredientRows, lineTranslations, stockSnapshot } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import { CATEGORIES, type Category, type FoodIcon } from './presets';
 import type { Product } from './products';
@@ -24,6 +26,8 @@ import {
 export interface NeedLine {
   productId: string;
   name: string;
+  /** Its name in other languages ({ ro: { name } }). */
+  translations: Translations;
   icon: FoodIcon;
   category: Category;
   unit: BaseUnit;
@@ -39,13 +43,24 @@ export interface NeedLine {
   level: 'low' | 'out' | null;
   /** The first day something is short (the meal's day): buy it before. */
   needBy: string | null;
-  meals: Array<{ id: string; title: string; date: string }>;
+  meals: Array<{ id: string; title: string; translations: Translations; date: string }>;
 }
+
+/** A line the plan can't count (its unit doesn't fit the item): check it at home. */
+export interface ToCheck {
+  name: string;
+  meal: string;
+  /** The line's and the meal's names in other languages: { ro: { name, meal } }. */
+  translations: Translations;
+}
+
+const nameOnly = (value: Translations) => onlyFields(value, ['name']);
 
 function levelLine(product: Product, total: number, needBy: string): NeedLine {
   return {
     productId: product.id,
     name: product.name,
+    translations: nameOnly(product.translations),
     icon: product.icon,
     category: product.category,
     unit: product.unit,
@@ -66,7 +81,7 @@ export async function planNeeds(
   ctx: FoodCtx,
   from: string,
   to: string,
-): Promise<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }> {
+): Promise<{ lines: NeedLine[]; toCheck: ToCheck[] }> {
   const stock = await stockSnapshot(ctx);
   // The whole plan from today plays forward (earlier meals take first, nothing past its date counts);
   // only the meals in the range ask for shopping.
@@ -82,10 +97,15 @@ export async function planNeeds(
     meals.map((m) => m.id),
   );
   const lines = new Map<string, NeedLine>();
-  const toCheck: Array<{ name: string; meal: string }> = [];
+  const toCheck: ToCheck[] = [];
 
   for (const meal of meals) {
-    const ref = { id: meal.id, title: meal.title, date: meal.date };
+    const ref = {
+      id: meal.id,
+      title: meal.title,
+      translations: meal.translations,
+      date: meal.date,
+    };
     for (const row of ingredients.get(meal.id) ?? []) {
       if (row.optional) continue;
       // The option this meal takes (milk, or the whipped cream picked or used instead).
@@ -107,12 +127,21 @@ export async function planNeeds(
       }
       const share = allocation.lines.get(row.id);
       if (!share) {
-        toCheck.push({ name: row.name, meal: meal.title });
+        // { ro: { name, meal } }: the line's and the meal's names in other languages.
+        toCheck.push({
+          name: row.name,
+          meal: meal.title,
+          translations: combine(
+            nameOnly(lineTranslations(row.name, product, row.variant)),
+            onlyFields(meal.translations, ['title'], { title: 'meal' }),
+          ),
+        });
         continue;
       }
       const line = lines.get(product.id) ?? {
         productId: product.id,
         name: product.name,
+        translations: nameOnly(product.translations),
         icon: product.icon,
         category: product.category,
         unit: product.unit,

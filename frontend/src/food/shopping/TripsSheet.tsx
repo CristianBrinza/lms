@@ -2,15 +2,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, Sheet, Skeleton, toast } from '@/components/ui';
 import { ArrowBackIcon, ChevronRightIcon, ReceiptIcon, UndoIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { formatDate } from '@/lib/format';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
-import { formatAmount, money, parseAmount } from '../format';
+import { formatAmount, money, parseAmount, storeText } from '../format';
 import { FoodIcon } from '../icons/FoodIcon';
 import type { ShoppingItem, Trip } from '../types';
+import { shoppingT } from './shopping.i18n';
 
 /** Past shops with their totals; open one to correct what something cost or how much it was. */
 export function TripsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const s = shoppingT();
+  const t = s.trips;
   const [tripId, setTripId] = useState<string | null>(null);
   const trips = useQuery({ queryKey: foodKeys.trips, queryFn: foodApi.trips, enabled: open });
   const close = () => {
@@ -21,12 +25,8 @@ export function TripsSheet({ open, onClose }: { open: boolean; onClose: () => vo
     <Sheet
       open={open}
       onClose={close}
-      title={tripId ? 'Shop' : 'Past shops'}
-      description={
-        tripId
-          ? 'Fix a price or an amount: the kitchen follows.'
-          : 'Every finished shop, newest first.'
-      }
+      title={tripId ? t.shop : s.pastShops}
+      description={tripId ? t.fixHint : t.everyShop}
     >
       {tripId ? (
         <TripDetail tripId={tripId} onBack={() => setTripId(null)} />
@@ -38,10 +38,8 @@ export function TripsSheet({ open, onClose }: { open: boolean; onClose: () => vo
       ) : !trips.data?.length ? (
         <div className="flex flex-col items-center gap-2 rounded-3xl bg-ink-50 px-6 py-8 text-center">
           <ReceiptIcon fontSize="inherit" className="text-[2rem] text-ink-400" />
-          <p className="font-semibold">No shops yet</p>
-          <p className="text-sm text-ink-600">
-            Tick things into the cart in a store, then “Finish the shop”.
-          </p>
+          <p className="font-semibold">{t.none}</p>
+          <p className="text-sm text-ink-600">{t.noneHint}</p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -57,6 +55,7 @@ export function TripsSheet({ open, onClose }: { open: boolean; onClose: () => vo
 }
 
 function TripRow({ trip, onOpen }: { trip: Trip; onOpen: () => void }) {
+  const s = shoppingT();
   return (
     <button
       type="button"
@@ -68,10 +67,10 @@ function TripRow({ trip, onOpen }: { trip: Trip; onOpen: () => void }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.9375rem] font-semibold">
-          {trip.storeName || 'Any store'}
+          {storeText(trip.storeName, trip.storeTranslations) || s.anyStore}
         </span>
         <span className="block text-sm text-ink-600">
-          {formatDate(trip.finishedAt)} · {trip.itemCount} {trip.itemCount === 1 ? 'item' : 'items'}
+          {formatDate(trip.finishedAt)} · {s.trips.items(trip.itemCount)}
         </span>
       </span>
       <span className="tabular shrink-0 text-[0.9375rem] font-bold">
@@ -83,6 +82,8 @@ function TripRow({ trip, onOpen }: { trip: Trip; onOpen: () => void }) {
 }
 
 function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) {
+  const s = shoppingT();
+  const t = s.trips;
   const queryClient = useQueryClient();
   const trip = useQuery({ queryKey: foodKeys.trip(tripId), queryFn: () => foodApi.trip(tripId) });
   const [confirming, setConfirming] = useState(false);
@@ -90,7 +91,7 @@ function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) 
     mutationFn: () => foodApi.undoTrip(tripId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success('Shop undone: its things are back in the cart');
+      toast.success(t.undone);
       onBack();
     },
     onError: (error) => {
@@ -107,17 +108,18 @@ function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) 
         className="self-start"
         onClick={onBack}
       >
-        All shops
+        {t.allShops}
       </Button>
       {trip.isPending ? (
         <Skeleton className="h-40" />
       ) : trip.data ? (
         <>
-          <div className="flex items-baseline justify-between rounded-2xl bg-butter-100 px-4 py-3">
-            <span className="font-semibold">
-              {trip.data.trip.storeName || 'Any store'} · {formatDate(trip.data.trip.finishedAt)}
+          <div className="flex items-baseline justify-between gap-3 rounded-2xl bg-butter-100 px-4 py-3">
+            <span className="min-w-0 font-semibold">
+              {storeText(trip.data.trip.storeName, trip.data.trip.storeTranslations) || s.anyStore}{' '}
+              · {formatDate(trip.data.trip.finishedAt)}
             </span>
-            <span className="tabular text-h2 font-bold">
+            <span className="tabular shrink-0 text-h2 font-bold">
               {trip.data.trip.total !== null ? money(trip.data.trip.total) : '—'}
             </span>
           </div>
@@ -128,18 +130,15 @@ function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) 
           </ul>
           {confirming ? (
             <div className="flex flex-col gap-3 rounded-2xl bg-danger-50 p-4">
-              <p className="text-sm text-ink-800">
-                What this shop put in the kitchen comes out again, and its lines go back into the
-                cart, ticked. Only while none of it has been used or opened.
-              </p>
-              <div className="flex gap-2">
+              <p className="text-sm text-ink-800">{t.undoText}</p>
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="danger"
                   size="sm"
                   loading={undo.isPending}
                   onClick={() => undo.mutate()}
                 >
-                  Undo the shop
+                  {t.undoShop}
                 </Button>
                 <Button
                   variant="ghost"
@@ -147,7 +146,7 @@ function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) 
                   disabled={undo.isPending}
                   onClick={() => setConfirming(false)}
                 >
-                  Keep it
+                  {t.keepIt}
                 </Button>
               </div>
             </div>
@@ -159,7 +158,7 @@ function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) 
               className="self-start"
               onClick={() => setConfirming(true)}
             >
-              Finished by mistake? Undo this shop
+              {t.byMistake}
             </Button>
           )}
         </>
@@ -171,6 +170,7 @@ function TripDetail({ tripId, onBack }: { tripId: string; onBack: () => void }) 
 }
 
 function TripLine({ tripId, line }: { tripId: string; line: ShoppingItem }) {
+  const s = shoppingT();
   const queryClient = useQueryClient();
   const [price, setPrice] = useState(line.price === null ? '' : String(line.price));
   const save = useMutation({
@@ -178,23 +178,24 @@ function TripLine({ tripId, line }: { tripId: string; line: ShoppingItem }) {
     onSuccess: (data) => {
       queryClient.setQueryData(foodKeys.trip(tripId), data);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success('Price saved');
+      toast.success(s.trips.priceSaved);
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
+  const name = tr(line, 'name');
   return (
     <li className="flex items-center gap-3 rounded-2xl bg-ink-50 p-2.5">
       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white">
         <FoodIcon name={line.icon} className="size-8" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.9375rem] font-semibold">{line.name}</span>
+        <span className="block truncate text-[0.9375rem] font-semibold">{name}</span>
         <span className="block text-xs text-ink-600">
-          {line.amount && line.unit ? formatAmount(line.amount, line.unit) : 'No amount'}
+          {line.amount && line.unit ? formatAmount(line.amount, line.unit) : s.trips.noAmount}
         </span>
       </span>
       <label className="flex w-28 shrink-0 items-center rounded-xl bg-white px-3 shadow-xs focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
-        <span className="sr-only">Price of {line.name} in lei</span>
+        <span className="sr-only">{s.priceOf(name)}</span>
         <input
           inputMode="decimal"
           value={price}

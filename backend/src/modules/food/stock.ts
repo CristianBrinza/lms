@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
 import { isUuid } from '../users';
+import { mergeTranslations, type Translations } from '../../lib/i18n';
+import { variantTranslations } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import { freezingFor, OPENED_BY_CATEGORY, type Level, type Location } from './presets';
 import {
@@ -36,13 +38,72 @@ export interface Lot {
   price: number | null;
   storeId: string | null;
   storeName: string | null;
+  /** The store's name in other languages ({ ro: { name } }). */
+  storeTranslations: Translations;
   tripId: string | null;
   note: string;
+  /** A note the server wrote ("From Borscht, 2026-10-16"), as a key and its values; null otherwise. */
+  noteKey: ServerNote['key'] | null;
+  noteValues: Record<string, string>;
   /** Which kind it is (Cheddar), when the item has kinds. */
   variant: string;
+  /** Its kind in other languages, from the catalog: { ro: { variant: 'Neagră' } }. */
+  translations: Translations;
   /** The package it came in (jar, bottle, loaf) and what one held, in the base unit; '' and null when loose. */
   package: string;
   packageSize: number | null;
+}
+
+/**
+ * Notes the server writes into the kitchen's history and onto pieces, in English as stored. The
+ * app shows them by key, in its own language:
+ * nowByLevel, itemRemoved, removed, pouredOut, pouredIn, undone,
+ * reopened { meal }, moved { from, to, until? } (places: fridge, freezer…), level { level },
+ * leftoversFrom { meal, date }.
+ */
+export interface ServerNote {
+  key:
+    | 'nowByLevel'
+    | 'itemRemoved'
+    | 'removed'
+    | 'pouredOut'
+    | 'pouredIn'
+    | 'undone'
+    | 'reopened'
+    | 'moved'
+    | 'level'
+    | 'leftoversFrom';
+  values: Record<string, string>;
+}
+
+const FIXED_NOTES: Record<string, ServerNote['key']> = {
+  'Now kept by level': 'nowByLevel',
+  'Item removed': 'itemRemoved',
+  Removed: 'removed',
+  'Poured out': 'pouredOut',
+  'Poured in': 'pouredIn',
+  Undone: 'undone',
+};
+
+/** The key of a note the server wrote, with its values; null for what people wrote. */
+export function serverNote(note: string, kind?: string): ServerNote | null {
+  if (!note) return null;
+  const fixed = FIXED_NOTES[note];
+  if (fixed) return { key: fixed, values: {} };
+  if (kind === 'level' && (note === 'full' || note === 'low' || note === 'out'))
+    return { key: 'level', values: { level: note } };
+  const moved = /^([a-z]+) → ([a-z]+)(?:, keeps until (\d{4}-\d{2}-\d{2}))?$/.exec(note);
+  if (moved && kind !== undefined && kind === 'moved')
+    return {
+      key: 'moved',
+      values: { from: moved[1]!, to: moved[2]!, ...(moved[3] ? { until: moved[3] } : {}) },
+    };
+  const reopened = /^Reopened (.+)$/.exec(note);
+  if (reopened && kind === 'restored') return { key: 'reopened', values: { meal: reopened[1]! } };
+  const leftovers = /^From (.+), (\d{4}-\d{2}-\d{2})$/.exec(note);
+  if (leftovers && kind === undefined)
+    return { key: 'leftoversFrom', values: { meal: leftovers[1]!, date: leftovers[2]! } };
+  return null;
 }
 
 interface LotRow {
@@ -57,6 +118,8 @@ interface LotRow {
   price: number | null;
   store_id: string | null;
   store_name: string | null;
+  store_translations: Translations | null;
+  product_name: string | null;
   trip_id: string | null;
   note: string;
   variant: string;
@@ -66,13 +129,14 @@ interface LotRow {
 }
 
 const LOT_SELECT = `SELECT l.id, l.product_id, l.quantity, l.initial_quantity, l.location, l.added_at, l.expires_on, l.opened_at,
-       l.price, l.store_id, s.name AS store_name, l.trip_id, l.note, l.variant, l.package, l.package_size, l.finished_at
-  FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id`;
+       l.price, l.store_id, s.name AS store_name, s.translations AS store_translations, lp.name AS product_name, l.trip_id, l.note, l.variant, l.package, l.package_size, l.finished_at
+  FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id LEFT JOIN products lp ON lp.id = l.product_id`;
 
 /** Opened first, then soonest to expire, then oldest: the order stock is used in. */
 export const LOT_ORDER = 'l.opened_at IS NULL, l.expires_on NULLS LAST, l.added_at, l.id';
 
 export function toLot(row: LotRow): Lot {
+  const note = serverNote(row.note);
   return {
     id: row.id,
     productId: row.product_id,
@@ -85,9 +149,13 @@ export function toLot(row: LotRow): Lot {
     price: row.price,
     storeId: row.store_id,
     storeName: row.store_name,
+    storeTranslations: row.store_translations ?? {},
     tripId: row.trip_id,
     note: row.note,
+    noteKey: note?.key ?? null,
+    noteValues: note?.values ?? {},
     variant: row.variant,
+    translations: row.product_name ? variantTranslations(row.product_name, row.variant) : {},
     package: row.package,
     packageSize: row.package_size,
   };
@@ -238,6 +306,15 @@ export async function addStock(
     let product = named ? named.product : await findProduct(tx, input.productId!, { lock: true });
     const variant = input.variant || named?.variant || '';
     product = await rememberVariant(tx, product, variant);
+    // An assistant adding "Plăcinte" names it in every language at once.
+    if (input.translations) {
+      const merged = mergeTranslations(product.translations, input.translations);
+      await tx.db.query('UPDATE products SET translations = $2 WHERE id = $1', [
+        product.id,
+        JSON.stringify(merged),
+      ]);
+      product = { ...product, translations: merged };
+    }
     if (product.archived) {
       await tx.db.query('UPDATE products SET archived_at = NULL, updated_at = $2 WHERE id = $1', [
         product.id,
@@ -711,6 +788,9 @@ export interface StockEvent {
   lotId: string | null;
   mealId: string | null;
   note: string;
+  /** A note the server wrote ("Poured out", "fridge → freezer"), as a key and values (ServerNote). */
+  noteKey: ServerNote['key'] | null;
+  noteValues: Record<string, string>;
   via: 'app' | 'ai';
   actor: string | null;
   createdAt: string;
@@ -719,6 +799,8 @@ export interface StockEvent {
 export interface PricePoint {
   storeId: string | null;
   storeName: string | null;
+  /** The store's name in other languages ({ ro: { name } }). */
+  storeTranslations: Translations;
   price: number;
   quantity: number;
   /** Price per kg, per l or per piece. */
@@ -755,11 +837,12 @@ export async function productDetail(
   const { rows: prices } = await ctx.db.query<{
     store_id: string | null;
     store_name: string | null;
+    store_translations: Translations | null;
     price: number;
     initial_quantity: number;
     added_at: Date;
   }>(
-    `SELECT DISTINCT ON (l.store_id) l.store_id, s.name AS store_name, l.price, l.initial_quantity, l.added_at
+    `SELECT DISTINCT ON (l.store_id) l.store_id, s.name AS store_name, s.translations AS store_translations, l.price, l.initial_quantity, l.added_at
        FROM stock_lots l LEFT JOIN stores s ON s.id = l.store_id
       WHERE l.product_id = $1 AND l.price IS NOT NULL AND l.initial_quantity > 0
       ORDER BY l.store_id, l.added_at DESC`,
@@ -768,21 +851,27 @@ export async function productDetail(
   const per = product.unit === 'pcs' ? 1 : 1000;
   return {
     product: stocked(product, lots.map(toLot)),
-    events: events.map((e) => ({
-      id: e.id,
-      kind: e.kind,
-      delta: e.delta,
-      lotId: e.lot_id,
-      mealId: e.meal_id,
-      note: e.note,
-      via: e.via,
-      actor: e.actor,
-      createdAt: e.created_at.toISOString(),
-    })),
+    events: events.map((e) => {
+      const note = serverNote(e.note, e.kind);
+      return {
+        id: e.id,
+        kind: e.kind,
+        delta: e.delta,
+        lotId: e.lot_id,
+        mealId: e.meal_id,
+        note: e.note,
+        noteKey: note?.key ?? null,
+        noteValues: note?.values ?? {},
+        via: e.via,
+        actor: e.actor,
+        createdAt: e.created_at.toISOString(),
+      };
+    }),
     prices: prices
       .map((p) => ({
         storeId: p.store_id,
         storeName: p.store_name,
+        storeTranslations: p.store_translations ?? {},
         price: p.price,
         quantity: p.initial_quantity,
         unitPrice: Math.round((p.price / p.initial_quantity) * per * 100) / 100,

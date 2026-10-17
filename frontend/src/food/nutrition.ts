@@ -1,3 +1,4 @@
+import { formatNumber, messages } from '@/i18n';
 import { toBase, type Measured } from './format';
 import type { Meal, Nutrients, NutritionEntry } from './types';
 
@@ -7,11 +8,71 @@ import type { Meal, Nutrients, NutritionEntry } from './types';
  * training/energy.ts), so what the app shows is what the day's energy will count.
  */
 
+const nutritionT = messages({
+  en: {
+    per: { '100g': 'per 100 g', '100ml': 'per 100 ml', piece: 'per piece' },
+    nutrient: {
+      kcal: 'Energy',
+      protein: 'Protein',
+      fat: 'Fat',
+      carbs: 'Carbs',
+      sugar: 'Sugar',
+      fiber: 'Fibre',
+      salt: 'Salt',
+    },
+    kcal: 'kcal',
+    g: 'g',
+    /** "32 g protein". */
+    amountOf: (grams: string, nutrient: string) => `${grams} ${nutrient.toLowerCase()}`,
+  },
+  ro: {
+    per: { '100g': 'la 100 g', '100ml': 'la 100 ml', piece: 'la bucată' },
+    nutrient: {
+      kcal: 'Energie',
+      protein: 'Proteine',
+      fat: 'Grăsimi',
+      carbs: 'Carbohidrați',
+      sugar: 'Zahăr',
+      fiber: 'Fibre',
+      salt: 'Sare',
+    },
+    kcal: 'kcal',
+    g: 'g',
+    amountOf: (grams: string, nutrient: string) => `${grams} ${nutrient.toLowerCase()}`,
+  },
+  ru: {
+    per: { '100g': 'на 100 г', '100ml': 'на 100 мл', piece: 'на штуку' },
+    nutrient: {
+      kcal: 'Энергия',
+      protein: 'Белки',
+      fat: 'Жиры',
+      carbs: 'Углеводы',
+      sugar: 'Сахар',
+      fiber: 'Клетчатка',
+      salt: 'Соль',
+    },
+    kcal: 'ккал',
+    g: 'г',
+    /** "белки 32 г". */
+    amountOf: (grams: string, nutrient: string) => `${nutrient.toLowerCase()} ${grams}`,
+  },
+});
+
+/** "per 100 g", read in the current language whenever it's shown. */
 export const PER_LABEL: Record<NutritionEntry['per'], string> = {
-  '100g': 'per 100 g',
-  '100ml': 'per 100 ml',
-  piece: 'per piece',
+  get '100g'() {
+    return nutritionT().per['100g'];
+  },
+  get '100ml'() {
+    return nutritionT().per['100ml'];
+  },
+  get piece() {
+    return nutritionT().per.piece;
+  },
 };
+
+/** "kcal" / "ккал". */
+export const kcalUnit = () => nutritionT().kcal;
 
 /** "1 240": whole kcal, thousands apart by a narrow space. */
 export function formatKcal(kcal: number): string {
@@ -21,7 +82,7 @@ export function formatKcal(kcal: number): string {
 /** "12 g", "4.5 g", "0.3 g": grams to one decimal under 10, whole above. */
 export function formatGrams(grams: number): string {
   const value = grams >= 10 ? Math.round(grams) : Math.round(grams * 10) / 10;
-  return `${value} g`;
+  return `${formatNumber(value)} ${nutritionT().g}`;
 }
 
 /** A typed value: "4,5" and "4.5" both mean 4.5; 0 is a value (Cola Zero); empty or junk is null. */
@@ -103,29 +164,28 @@ export function kcalEach(meal: Pick<Meal, 'eatenOut' | 'nutrition'>): number | n
 
 /** "32 g protein · 20 g fat · 55 g carbs" (and sugar, fibre, salt when known and asked for). */
 export function macroText(n: Nutrients, extras = false): string {
-  const parts = [
-    `${formatGrams(n.protein)} protein`,
-    `${formatGrams(n.fat)} fat`,
-    `${formatGrams(n.carbs)} carbs`,
-  ];
+  const t = nutritionT();
+  const parts = (['protein', 'fat', 'carbs'] as const).map((key) =>
+    t.amountOf(formatGrams(n[key]), t.nutrient[key]),
+  );
   if (extras)
     for (const key of EXTRA_KEYS)
-      if (n[key] !== undefined)
-        parts.push(`${formatGrams(n[key])} ${NUTRIENT_LABEL[key].toLowerCase()}`);
+      if (n[key] !== undefined) parts.push(t.amountOf(formatGrams(n[key]), t.nutrient[key]));
   return parts.join(' · ');
 }
 
 export const MAIN_KEYS = ['kcal', 'protein', 'fat', 'carbs'] as const;
 export const EXTRA_KEYS = ['sugar', 'fiber', 'salt'] as const;
-export const NUTRIENT_LABEL: Record<keyof Nutrients, string> = {
-  kcal: 'Energy',
-  protein: 'Protein',
-  fat: 'Fat',
-  carbs: 'Carbs',
-  sugar: 'Sugar',
-  fiber: 'Fibre',
-  salt: 'Salt',
-};
+/** Each nutrient's name, read in the current language whenever it's shown. */
+export const NUTRIENT_LABEL = Object.defineProperties(
+  {} as Record<keyof Nutrients, string>,
+  Object.fromEntries(
+    [...MAIN_KEYS, ...EXTRA_KEYS].map((key) => [
+      key,
+      { get: () => nutritionT().nutrient[key], enumerable: true },
+    ]),
+  ),
+);
 
 /** The editor's fields, as typed. */
 export type NutrientForm = Partial<Record<keyof Nutrients, string>>;

@@ -1,5 +1,6 @@
 import { cx } from '@/lib/cx';
-import { expiry, type ExpiryTone } from '../format';
+import { dayLong, expiry, type ExpiryTone } from '../format';
+import { foodUiT } from './components.i18n';
 
 const TONE: Record<ExpiryTone, string> = {
   expired: 'bg-danger-50 text-danger-700',
@@ -21,12 +22,13 @@ export function ExpiryChip({
   compact?: boolean;
   className?: string;
 }) {
+  const t = foodUiT().expiry;
   const state = expiry(expiresOn, today);
   if (compact && state.tone === 'none') return null;
-  const label = compact && state.tone === 'expired' ? 'Expired' : state.label;
+  const label = compact && state.tone === 'expired' ? t.expired : state.label;
   return (
     <span
-      title={expiresOn ? `Best before ${expiresOn}` : 'No best-before date'}
+      title={expiresOn ? t.bestBefore(dayLong(expiresOn)) : t.noBestBefore}
       className={cx(
         'tabular inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-pill px-2 text-xs font-semibold',
         TONE[state.tone],

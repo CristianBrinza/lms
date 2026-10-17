@@ -1,3 +1,4 @@
+import type { Translations } from '@/i18n';
 import { api, query } from '@/services/api/client';
 import type {
   AccessKey,
@@ -11,7 +12,10 @@ import type {
   Lot,
   Meal,
   MealPartInput,
+  NamedLine,
   NeedLine,
+  Shortfall,
+  ToCheck,
   NutritionEntry,
   OutKind,
   Opened,
@@ -56,8 +60,6 @@ export const foodKeys = {
   reminders: ['me', 'reminders'] as const,
   kitchenware: ['food', 'kitchenware'] as const,
 };
-
-type Shortfall = { name: string; missing: number; unit: string };
 
 export interface AddStockBody {
   /** From the House: an unknown name becomes a house thing. */
@@ -185,10 +187,12 @@ export const foodApi = {
   removeLot: (id: string) => api.delete<void>(`/food/lots/${id}`),
 
   stores: () => api.get<{ stores: Store[] }>('/food/stores').then((r) => r.stores),
-  createStore: (body: { name: string; tone?: StoreTone }) =>
+  createStore: (body: { name: string; tone?: StoreTone; translations?: Translations }) =>
     api.post<{ store: Store }>('/food/stores', body).then((r) => r.store),
-  updateStore: (id: string, body: { name?: string; tone?: StoreTone; sort?: number }) =>
-    api.patch<{ store: Store }>(`/food/stores/${id}`, body).then((r) => r.store),
+  updateStore: (
+    id: string,
+    body: { name?: string; tone?: StoreTone; sort?: number; translations?: Translations },
+  ) => api.patch<{ store: Store }>(`/food/stores/${id}`, body).then((r) => r.store),
   deleteStore: (id: string) => api.delete<void>(`/food/stores/${id}`),
 
   shopping: () => api.get<{ items: ShoppingItem[]; stores: Store[] }>('/food/shopping'),
@@ -219,10 +223,14 @@ export const foodApi = {
   moveLines: (ids: string[], storeId: string | null) =>
     api.post<{ moved: number }>('/food/shopping/move', { ids, storeId }),
   checkout: (body: { storeId: string | null; lines: CheckoutLine[] }) =>
-    api.post<{ trip: Trip; stocked: number; notStocked: string[]; leftOver: string[] }>(
-      '/food/shopping/checkout',
-      body,
-    ),
+    api.post<{
+      trip: Trip;
+      stocked: number;
+      notStocked: string[];
+      leftOver: string[];
+      notStockedItems?: NamedLine[];
+      leftOverItems?: NamedLine[];
+    }>('/food/shopping/checkout', body),
   trips: () => api.get<{ trips: Trip[] }>('/food/shopping/trips').then((r) => r.trips),
   trip: (id: string) =>
     api.get<{ trip: Trip; items: ShoppingItem[] }>(`/food/shopping/trips/${id}`),
@@ -288,7 +296,14 @@ export const foodApi = {
     api.delete<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}`).then((r) => r.meal),
   eatOut: (
     id: string,
-    body: { kind: OutKind; place?: string; cost?: number | null; kcal?: number | null },
+    body: {
+      kind: OutKind;
+      place?: string;
+      /** The place in other languages: { ro: { place } }. */
+      translations?: Translations;
+      cost?: number | null;
+      kcal?: number | null;
+    },
   ) => api.post<{ meal: Meal }>(`/food/meals/${id}/out`, body).then((r) => r.meal),
   /** Eaten outside the plan (a banana, a shake): a meal already eaten, for whoever ate it. */
   ate: (body: {
@@ -305,19 +320,13 @@ export const foodApi = {
     time?: string;
     eaters?: string[];
     fromKitchen?: boolean;
-  }) =>
-    api.post<{ meal: Meal; shortfalls: Array<{ name: string; missing: number; unit: string }> }>(
-      '/food/ate',
-      body,
-    ),
+  }) => api.post<{ meal: Meal; shortfalls: Shortfall[] }>('/food/ate', body),
   reopenMeal: (id: string) =>
     api.post<{ meal: Meal }>(`/food/meals/${id}/reopen`).then((r) => r.meal),
   uncook: (id: string) => api.post<void>(`/food/meals/${id}/uncook`),
   deleteMeal: (id: string) => api.delete<void>(`/food/meals/${id}`),
   needs: (from: string, to: string) =>
-    api.get<{ lines: NeedLine[]; toCheck: Array<{ name: string; meal: string }> }>(
-      `/food/plan/needs${query({ from, to })}`,
-    ),
+    api.get<{ lines: NeedLine[]; toCheck: ToCheck[] }>(`/food/plan/needs${query({ from, to })}`),
 };
 
 export const kitchenwareApi = {

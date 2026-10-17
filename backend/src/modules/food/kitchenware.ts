@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import { LOCALES, mergeTranslations, type Translations } from '../../lib/i18n';
 import { isUuid } from '../users';
+import { combine, fieldIn, onlyFields, toolLocalNames, toolTranslations } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import { normalizeName, sameName } from './presets';
 import type { ToolInput, ToolNeedInput, WashInput } from './schemas';
@@ -265,8 +267,27 @@ export function findToolPreset(name: string): ToolPreset | null {
     TOOL_PRESETS.find(
       (preset) =>
         sameName(preset.name, name) || preset.aliases?.some((alias) => sameName(alias, name)),
-    ) ?? null
+    ) ??
+    // Its Romanian or Russian name: "Tigaie", "Сковорода".
+    TOOL_PRESETS.find((preset) =>
+      toolLocalNames(preset.name).some((local) => sameName(local, name)),
+    ) ??
+    null
   );
+}
+
+/** The kitchenware presets with their names in all three languages, for the app's picker. */
+export const toolPresetsWithNames = () =>
+  TOOL_PRESETS.map((preset) => ({ ...preset, translations: toolTranslations(preset.name) }));
+
+/** Every name a tool goes by: its own, and its name in each language. */
+function toolNames(row: { name: string; translations?: Translations | null }): string[] {
+  const names = [row.name];
+  for (const locale of LOCALES) {
+    const name = fieldIn(row.translations, 'name', locale);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
 }
 
 export interface Tool {
@@ -290,6 +311,8 @@ export interface Tool {
   /** Where it is kept ("top drawer"). */
   place: string;
   note: string;
+  /** Its name in other languages ({ ro: { name }, ru: …, en: … }): the catalog's, or the household's. */
+  translations: Translations;
 }
 
 interface ToolRow {
@@ -306,10 +329,11 @@ interface ToolRow {
   min_count: number | null;
   place: string;
   note: string;
+  translations: Translations | null;
 }
 
 const TOOL_COLUMNS =
-  'id, name, icon, kind, count, dirty, washing, washing_until, washable, dishwasher_safe, min_count, place, note';
+  'id, name, icon, kind, count, dirty, washing, washing_until, washable, dishwasher_safe, min_count, place, note, translations';
 
 const toTool = (row: ToolRow): Tool => ({
   id: row.id,
@@ -327,6 +351,7 @@ const toTool = (row: ToolRow): Tool => ({
   low: row.kind === 'disposable' && row.count <= (row.min_count ?? 0),
   place: row.place,
   note: row.note,
+  translations: row.translations ?? {},
 });
 
 /** A dishwasher run that is over leaves its load clean. */
@@ -365,8 +390,58 @@ async function findToolByName(ctx: FoodCtx, name: string): Promise<ToolRow | nul
   return (
     rows.find((row) => normalizeName(row.name) === normalizeName(name)) ??
     rows.find((row) => sameName(row.name, name)) ??
+    rows.find((row) => toolNames(row).some((other) => sameName(other, name))) ??
     (preset ? (rows.find((row) => sameName(row.name, preset.name)) ?? null) : null)
   );
+}
+
+/**
+ * The catalog's names for kitchenware named like a preset ("Frying pan", or "Tigaie"), with the
+ * name as written kept in its own language; {} for anything else.
+ */
+function toolSeed(name: string): Translations {
+  const preset = findToolPreset(name);
+  if (!preset) return {};
+  const catalog = toolTranslations(preset.name);
+  if (!catalog.en) return {};
+  const [ro, ru] = toolLocalNames(preset.name);
+  const own = name.trim();
+  if (sameName(preset.name, name)) return combine(catalog, { en: { name: own } });
+  if (ro && sameName(ro, name)) return combine(catalog, { ro: { name: own } });
+  if (ru && sameName(ru, name)) return combine(catalog, { ru: { name: own } });
+  return {};
+}
+
+/** Translations without `name` (a renamed tool's old names). */
+function withoutName(value: Translations): Translations {
+  const out: Translations = {};
+  for (const locale of LOCALES) {
+    const { name: _name, ...rest } = value[locale] ?? {};
+    if (Object.keys(rest).length) out[locale] = rest;
+  }
+  return out;
+}
+
+/**
+ * Gives kitchenware from the catalog (by its key, the catalog's own name) its names in Romanian and
+ * Russian, where it has none yet. Safe to run again. Returns how many changed.
+ */
+export async function refreshToolsFromCatalog(ctx: FoodCtx): Promise<number> {
+  const { rows } = await ctx.db.query<{ id: string; name: string; translations: Translations }>(
+    'SELECT id, name, translations FROM tools WHERE household_id = $1',
+    [ctx.actor.householdId],
+  );
+  let changed = 0;
+  for (const row of rows) {
+    const preset = TOOL_PRESETS.find((p) => p.name === row.name);
+    if (!preset || row.translations?.ro?.name || row.translations?.ru?.name) continue;
+    await ctx.db.query('UPDATE tools SET translations = $2::jsonb WHERE id = $1', [
+      row.id,
+      JSON.stringify(mergeTranslations(toolTranslations(preset.name), row.translations)),
+    ]);
+    changed += 1;
+  }
+  return changed;
 }
 
 export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string }): Promise<Tool> {
@@ -377,11 +452,21 @@ export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string })
     // Fewer than before: the missing ones were clean ones first, then dirty ones.
     const dirty = Math.min(tool.dirty, Math.max(0, count - tool.washing));
     const kind = input.kind ?? tool.kind;
+    // Renamed: the old name's translations no longer fit (a catalog name brings its own).
+    const renamed = Boolean(input.name && normalizeName(input.name) !== normalizeName(tool.name));
+    const before = tool.translations ?? {};
+    const base = renamed
+      ? mergeTranslations(withoutName(before), toolSeed(input.name!))
+      : mergeTranslations(before, {});
+    const translations =
+      renamed || input.translations !== undefined
+        ? JSON.stringify(mergeTranslations(base, input.translations))
+        : null;
     await ctx.db.query(
       `UPDATE tools SET name = coalesce($2, name), icon = coalesce($3, icon), kind = $4, count = $5, dirty = $6,
               washable = coalesce($7, washable), place = coalesce($8, place), note = coalesce($9, note),
               dishwasher_safe = coalesce($11, dishwasher_safe), min_count = CASE WHEN $12::boolean THEN $13 ELSE min_count END,
-              archived_at = NULL, updated_at = $10
+              translations = coalesce($14::jsonb, translations), archived_at = NULL, updated_at = $10
         WHERE id = $1`,
       [
         tool.id,
@@ -397,6 +482,7 @@ export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string })
         input.dishwasherSafe ?? null,
         input.minCount !== undefined,
         input.minCount ?? null,
+        translations,
       ],
     );
     return toTool(await findTool(ctx, tool.id));
@@ -404,15 +490,21 @@ export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string })
   if (!input.name)
     throw new AppError(400, 'VALIDATION', 'Name it', { fields: { name: 'Required' } });
   const existing = await findToolByName(ctx, input.name);
+  // Found by another of its names ("tigaie" is the Frying pan): it keeps its own.
   if (existing)
-    return saveTool(ctx, { ...input, id: existing.id, count: input.count ?? existing.count });
+    return saveTool(ctx, {
+      ...input,
+      name: normalizeName(existing.name) === normalizeName(input.name) ? input.name : undefined,
+      id: existing.id,
+      count: input.count ?? existing.count,
+    });
   const preset = findToolPreset(input.name);
   const id = randomUUID();
   const tidy = input.name.trim().replace(/\s+/g, ' ');
   const kind = input.kind ?? preset?.kind ?? 'other';
   await ctx.db.query(
-    `INSERT INTO tools (id, household_id, name, icon, kind, count, washable, place, note, created_at, updated_at, dishwasher_safe, min_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12)`,
+    `INSERT INTO tools (id, household_id, name, icon, kind, count, washable, place, note, created_at, updated_at, dishwasher_safe, min_count, translations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12, $13)`,
     [
       id,
       ctx.actor.householdId,
@@ -427,6 +519,10 @@ export async function saveTool(ctx: FoodCtx, input: ToolInput & { id?: string })
       ctx.now,
       input.dishwasherSafe ?? preset?.dishwasherSafe ?? true,
       input.minCount ?? (kind === 'disposable' ? 2 : null),
+      // Kitchenware from the catalog arrives with its names in all three languages.
+      JSON.stringify(
+        mergeTranslations(preset ? toolTranslations(preset.name) : {}, input.translations),
+      ),
     ],
   );
   return toTool(await findTool(ctx, id));
@@ -527,6 +623,8 @@ export interface NeedSpec {
 export interface ToolNeed {
   toolId: string;
   name: string;
+  /** Its name in other languages ({ ro: { name } }). */
+  translations: Translations;
   icon: ToolIcon;
   count: number;
   perServing: boolean;
@@ -541,6 +639,7 @@ export interface ToolNeed {
   options: Array<{
     toolId: string;
     name: string;
+    translations: Translations;
     icon: ToolIcon;
     status: Status;
     readyAt: string | null;
@@ -656,6 +755,7 @@ export function describeNeeds(
     ].map((tool) => ({
       toolId: tool.id,
       name: tool.name,
+      translations: onlyFields(tool.translations, ['name']),
       icon: tool.icon,
       ...statusOf(tool, spec.total, at),
     }));
@@ -664,6 +764,7 @@ export function describeNeeds(
       {
         toolId: main.id,
         name: main.name,
+        translations: onlyFields(main.translations, ['name']),
         icon: main.icon,
         count: spec.total,
         perServing: spec.perServing,

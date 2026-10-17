@@ -5,6 +5,10 @@ import {
   type IngredientRow,
   type StockInfo,
 } from './ingredients';
+import type { Translations } from '../../lib/i18n';
+import { mealTitleTranslations, onlyFields } from './catalog-i18n';
+
+const onlyTitle = (value: Translations) => onlyFields(value, ['title']);
 import type { FoodCtx } from './kitchen';
 import { round } from './units';
 
@@ -18,6 +22,8 @@ import { round } from './units';
 export interface PlannedMealRef {
   id: string;
   title: string;
+  /** Its title in other languages ({ ro: { title } }). */
+  translations: Translations;
   date: string;
 }
 
@@ -57,16 +63,35 @@ export async function allocatePlan(
   stock: Map<string, StockInfo>,
   today: string,
 ): Promise<PlanAllocation> {
-  const { rows: meals } = await ctx.db.query<{
+  const { rows: mealRows } = await ctx.db.query<{
     id: string;
     title: string;
     date: string;
     time: string | null;
+    translations: Translations | null;
+    recipe_title: string | null;
+    recipe_translations: Translations | null;
   }>(
-    `SELECT m.id, m.title, m.date, to_char(m.time, 'HH24:MI') AS time FROM meals m
+    `SELECT m.id, m.title, m.date, to_char(m.time, 'HH24:MI') AS time, m.translations,
+            r.title AS recipe_title, r.translations AS recipe_translations
+       FROM meals m LEFT JOIN recipes r ON r.id = m.recipe_id
       WHERE m.household_id = $1 AND m.status = 'planned' AND m.date >= $2 ORDER BY ${EATING_ORDER}`,
     [ctx.actor.householdId, today],
   );
+  const meals = mealRows.map((m) => ({
+    id: m.id,
+    title: m.title,
+    date: m.date,
+    time: m.time,
+    translations: onlyTitle(
+      mealTitleTranslations({
+        title: m.title,
+        stored: m.translations,
+        recipeTitle: m.recipe_title,
+        recipeTranslations: m.recipe_translations,
+      }),
+    ),
+  }));
   const { rows: lots } = await ctx.db.query<LotRow>(
     `SELECT l.id, l.product_id, l.quantity, l.expires_on, l.variant FROM stock_lots l
       WHERE l.household_id = $1 AND l.finished_at IS NULL AND l.quantity > 0
@@ -132,7 +157,7 @@ export async function allocatePlan(
   };
 
   for (const meal of meals) {
-    const ref = { id: meal.id, title: meal.title, date: meal.date };
+    const ref = { id: meal.id, title: meal.title, translations: meal.translations, date: meal.date };
     for (const row of ingredients.get(meal.id) ?? []) {
       const info = row.product_id ? stock.get(row.product_id) : undefined;
       if (!info || info.product.trackMode !== 'exact' || row.optional) continue;

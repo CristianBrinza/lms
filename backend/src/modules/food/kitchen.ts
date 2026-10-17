@@ -3,6 +3,7 @@ import { createMiddleware } from 'hono/factory';
 import type { AppDeps, AppEnv } from '../../context';
 import type { Queryable } from '../../db';
 import type { User } from '../users';
+import { refreshToolsFromCatalog } from './kitchenware';
 import { CATALOG_VERSION } from './presets';
 import { refreshFromCatalog } from './products';
 
@@ -74,9 +75,11 @@ export function requireKitchen(deps: AppDeps) {
       via: c.get('via') ?? 'app',
       currency: kitchen.currency,
     };
-    // A newer catalog (more packages, types, keeping times): bring the kitchen's own items up to it, once.
+    // A newer catalog (more packages, types, keeping times, names in other languages): bring the
+    // kitchen's own items and kitchenware up to it, once.
     if (kitchen.catalogVersion < CATALOG_VERSION) {
       await refreshFromCatalog(foodCtx(deps, actor));
+      await refreshToolsFromCatalog(foodCtx(deps, actor));
       await deps.db.query(
         'UPDATE households SET catalog_version = $2 WHERE id = $1 AND catalog_version < $2',
         [kitchen.id, CATALOG_VERSION],

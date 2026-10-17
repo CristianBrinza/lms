@@ -32,10 +32,11 @@ import {
   setDishwasherMinutes,
   TOOL_ICONS,
   TOOL_KINDS,
-  TOOL_PRESETS,
+  toolPresetsWithNames,
   unloadDishwasher,
   wash,
 } from './kitchenware';
+import { combine, presetTranslations, variantsTranslations } from './catalog-i18n';
 import { overview } from './overview';
 import { planNeeds } from './plan';
 import { addRestriction, kitchenPeople, listRestrictions, removeRestriction } from './restrictions';
@@ -118,6 +119,10 @@ import {
 } from './stock';
 import { createStore, deleteStore, listStores, updateStore } from './stores';
 
+/** A catalog item's name and kinds in all three languages. */
+const presetNames = (preset: { name: string; variants?: string[] }) =>
+  combine(presetTranslations(preset.name), variantsTranslations(preset.name, preset.variants ?? []));
+
 /** /api/food — the kitchen's products and stock (stores, lists, recipes and plan join in later phases). */
 export function foodRoutes(deps: AppDeps) {
   const app = new Hono<AppEnv>();
@@ -138,6 +143,8 @@ export function foodRoutes(deps: AppDeps) {
         ...p,
         ...(VARIANT_ICONS[p.name] ? { variantIcons: VARIANT_ICONS[p.name] } : {}),
         ...(KIND_IN_NAME.has(p.name) ? { kindInName: true } : {}),
+        // { en: { name }, ro: { name, variants: [...] }, ru: { … } }; variants in `variants` order.
+        translations: presetNames(p),
       })),
       categories: CATEGORIES,
       icons: FOOD_ICONS,
@@ -151,7 +158,11 @@ export function foodRoutes(deps: AppDeps) {
     // "guava juice": Juice, a new type Guava — so the app offers the item instead of a new one.
     const known = findPreset(name);
     const match = known ? null : await splitVariant(ctx(c), name);
-    return c.json({ guess: presetOrGuess(name), match });
+    const guess = presetOrGuess(name);
+    return c.json({
+      guess: guess && known ? { ...guess, translations: presetNames(guess) } : guess,
+      match,
+    });
   });
 
   app.put('/products/:id/level', async (c) =>
@@ -372,7 +383,8 @@ export function foodRoutes(deps: AppDeps) {
       dishwasherMinutes: await dishwasherMinutes(ctx(c)),
       kinds: TOOL_KINDS,
       icons: TOOL_ICONS,
-      presets: TOOL_PRESETS,
+      // Each with translations: { en: { name }, ro: { name }, ru: { name } }.
+      presets: toolPresetsWithNames(),
     }),
   );
   app.post('/kitchenware', async (c) =>

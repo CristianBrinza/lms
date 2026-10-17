@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Translations } from '../../lib/i18n';
 import { NutritionInput } from './nutrition';
 import { TOOL_ICONS, TOOL_KINDS } from './kitchenware';
 import { CATEGORIES, FOOD_ICONS, LEVELS, LOCATIONS, TRACK_MODES } from './presets';
@@ -142,6 +143,9 @@ export const ProductInput = z.object({
   storeId: idField.nullable().optional().describe('The store it is usually bought at'),
   note: noteField.optional(),
   nutrition: NutritionInput.optional(),
+  translations: Translations.optional().describe(
+    'Its name and note in other languages: { "ro": { "name": "…", "note": "…" }, "ru": { … }, "en": { … } }',
+  ),
 });
 export type ProductInput = z.infer<typeof ProductInput>;
 
@@ -178,6 +182,9 @@ export type Packages = z.infer<typeof PackagesField>;
 export const AddStockInput = z
   .object({
     ...productRef,
+    translations: Translations.optional().describe(
+      'The item’s name in the other languages ({ ro: { name }, ru: { name }, en: { name } }), merged into the item',
+    ),
     area: z
       .enum(['food', 'house'])
       .optional()
@@ -274,6 +281,9 @@ export const STORE_TONES = ['butter', 'cyan', 'pink', 'mint', 'lav', 'peach', 'i
 export const StoreInput = z.object({
   name: z.string().trim().min(1, 'Name the store').max(40, 'Keep it under 40 characters'),
   tone: z.enum(STORE_TONES).optional().describe('Colour of its tab'),
+  translations: Translations.optional().describe(
+    'Its name in other languages: { "ro": { "name": "…" } }',
+  ),
 });
 export const StorePatch = StoreInput.extend({ sort: z.number().int().min(0).max(1000) })
   .partial()
@@ -450,6 +460,9 @@ export const ToolInput = z.object({
     .describe('Single-use things: at or below this many, running low'),
   place: z.string().trim().max(60).optional().describe('Where it is kept'),
   note: noteField.optional(),
+  translations: Translations.optional().describe(
+    'Its name in other languages: { "ro": { "name": "…" } }',
+  ),
 });
 export type ToolInput = z.infer<typeof ToolInput>;
 
@@ -532,6 +545,9 @@ export const RecipeInput = z.object({
     .max(20)
     .optional()
     .describe('Kitchenware it needs: [{ name: "Big pot" }, { name: "Colander" }]'),
+  translations: Translations.optional().describe(
+    'The recipe in other languages: { "ro": { "title": "…", "description": "…", "notes": "…", "steps": ["…"] }, "ru": { … }, "en": { … } }',
+  ),
 });
 export type RecipeInput = z.infer<typeof RecipeInput>;
 
@@ -616,6 +632,9 @@ export const EatOutInput = z.object({
     .optional()
     .describe('Where, or what ("Andy’s Pizza", "Ana’s birthday")'),
   cost: priceField.nullable().optional().describe('What it cost, in lei'),
+  translations: Translations.optional().describe(
+    'The place in other languages: { "ro": { "place": "…" } }',
+  ),
   kcal: z
     .number()
     .int()
@@ -659,6 +678,9 @@ export const MealInput = z
     out: EatOutInput.optional().describe(
       'Eating out, planned ahead: nothing is taken from the kitchen',
     ),
+    translations: Translations.optional().describe(
+      'Its title, note and eating-out place in other languages: { "ro": { "title": "…", "note": "…", "place": "…" } }',
+    ),
   })
   .refine((body) => Boolean(body.recipeId || body.title || body.parts?.length || body.out), {
     message: 'Pick a recipe or name the meal',
@@ -687,6 +709,9 @@ export const MealPatchFields = z.object({
     .max(10000)
     .nullable()
     .describe('Eaten out: about how many kcal one person ate'),
+  translations: Translations.describe(
+    'Its title, note and eating-out place in other languages: { "ro": { "title": "…", "note": "…", "place": "…" } }',
+  ),
 });
 export const MealPatch = MealPatchFields.partial().refine(
   (body) => Object.keys(body).length > 0,

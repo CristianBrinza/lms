@@ -7,7 +7,10 @@ import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
 import { parseAmount } from '../format';
 import type { Meal, OutKind } from '../types';
-import { OUT_KINDS, OUT_LABEL } from './out';
+import { TranslationFields } from '@/components/common/TranslationFields';
+import { LOCALES, tr, type Translations } from '@/i18n';
+import { usePlanT } from './i18n';
+import { OUT_KINDS } from './out';
 
 /**
  * No cooking after all: ate at a restaurant, ordered in, went to a party. The meal stays in the
@@ -22,12 +25,13 @@ export function EatOutSheet({
   onClose: () => void;
   onDone?: () => void;
 }) {
+  const t = usePlanT();
   return (
     <Sheet
       open={Boolean(meal)}
       onClose={onClose}
-      title="Ate elsewhere"
-      description="Nothing leaves the kitchen; what this meal kept aside is free again."
+      title={t.ateElsewhere}
+      description={t.ateElsewhereText}
     >
       {meal ? <Form key={meal.id} meal={meal} onClose={onClose} onDone={onDone} /> : null}
     </Sheet>
@@ -35,9 +39,19 @@ export function EatOutSheet({
 }
 
 function Form({ meal, onClose, onDone }: { meal: Meal; onClose: () => void; onDone?: () => void }) {
+  const t = usePlanT();
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<OutKind>(meal.eatenOut?.kind ?? 'restaurant');
   const [place, setPlace] = useState(meal.eatenOut?.place ?? '');
+  // Only the place's own translations: the meal's title and note keep theirs.
+  const [placeTx, setPlaceTx] = useState<Translations>(() =>
+    Object.fromEntries(
+      LOCALES.flatMap((locale) => {
+        const text = meal.translations?.[locale]?.place;
+        return typeof text === 'string' && text ? [[locale, { place: text }]] : [];
+      }),
+    ),
+  );
   const [cost, setCost] = useState(
     meal.eatenOut?.cost === null || meal.eatenOut?.cost === undefined
       ? ''
@@ -54,15 +68,16 @@ function Form({ meal, onClose, onDone }: { meal: Meal; onClose: () => void; onDo
       foodApi.eatOut(meal.id, {
         kind,
         place: place.trim(),
+        ...(Object.keys(placeTx).length ? { translations: placeTx } : {}),
         cost: parseAmount(cost),
         kcal: kcalEach === null ? null : Math.round(kcalEach),
       }),
     onSuccess: () => {
       haptic('success');
-      toast.success(`${meal.title}: ${OUT_LABEL[kind].toLowerCase()}`, {
-        description: 'The food it kept aside is back in the kitchen.',
+      toast.success(t.outToast(tr(meal, 'title'), t.out[kind]), {
+        description: t.outToastText,
         action: {
-          label: 'Undo',
+          label: t.undo,
           onClick: () =>
             void foodApi
               .reopenMeal(meal.id)
@@ -77,7 +92,7 @@ function Form({ meal, onClose, onDone }: { meal: Meal; onClose: () => void; onDo
   });
   return (
     <div className="flex flex-col gap-4">
-      <div role="radiogroup" aria-label="Where" className="flex flex-wrap gap-1.5">
+      <div role="radiogroup" aria-label={t.where} className="flex flex-wrap gap-1.5">
         {OUT_KINDS.map((value) => (
           <button
             key={value}
@@ -90,36 +105,43 @@ function Form({ meal, onClose, onDone }: { meal: Meal; onClose: () => void; onDo
               kind === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
             )}
           >
-            {OUT_LABEL[value]}
+            {t.out[value]}
           </button>
         ))}
       </div>
       <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3">
         <TextField
-          label="Where, or what"
-          placeholder="Andy’s Pizza, Ana’s birthday…"
+          label={t.whereOrWhat}
+          placeholder={t.placePlaceholder}
           value={place}
           maxLength={120}
           onChange={(event) => setPlace(event.target.value)}
         />
         <TextField
-          label="Cost (lei)"
+          label={t.costLabel}
           inputMode="decimal"
-          placeholder="Optional"
+          placeholder={t.optional}
           value={cost}
           onChange={(event) => setCost(event.target.value)}
         />
       </div>
+      {place.trim() ? (
+        <TranslationFields
+          fields={[{ key: 'place', label: t.whereOrWhat, maxLength: 120 }]}
+          value={placeTx}
+          onChange={setPlaceTx}
+        />
+      ) : null}
       <TextField
-        label="About how many kcal each"
+        label={t.kcalEachLabel}
         inputMode="numeric"
-        placeholder="Optional"
-        hint="Counts in the day of each person who ate."
+        placeholder={t.optional}
+        hint={t.kcalEachHint}
         value={kcal}
         onChange={(event) => setKcal(event.target.value)}
       />
       <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
-        Save
+        {t.save}
       </Button>
     </div>
   );

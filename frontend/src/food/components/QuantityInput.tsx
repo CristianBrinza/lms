@@ -2,8 +2,9 @@ import { useId, useState } from 'react';
 import { AddIcon, RemoveIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { haptic } from '@/lib/haptics';
-import { parseAmount } from '../format';
+import { formatAmount, parseAmount, unitWord } from '../format';
 import type { Unit } from '../types';
+import { foodUiT } from './components.i18n';
 
 const STEPS: Record<Unit, number> = {
   pcs: 1,
@@ -17,7 +18,8 @@ const STEPS: Record<Unit, number> = {
 };
 /** The item's own units (slice, pack) step one at a time. */
 const stepOf = (unit: string) => STEPS[unit as Unit] ?? 1;
-const labelOf = (unit: string) => unit;
+/** A unit as shown beside a number, in the current language ("buc.", "felii", "шт."). */
+const labelOf = (unit: string, count: number) => unitWord(unit, count);
 
 const clean = (value: number) => Math.round(value * 1000) / 1000;
 
@@ -47,6 +49,7 @@ export function QuantityInput({
   error,
   autoFocus,
 }: QuantityInputProps) {
+  const t = foodUiT().quantity;
   const id = useId();
   const [text, setText] = useState(value === null ? '' : String(value));
   // A value set from outside (a step, a quick pick, a unit change) shows in the field; what is being
@@ -84,7 +87,7 @@ export function QuantityInput({
           type="button"
           onClick={() => step(-1)}
           disabled={!value}
-          aria-label={`Less (${stepOf(unit)} ${labelOf(unit)})`}
+          aria-label={t.less(formatAmount(stepOf(unit), unit))}
           className="press grid size-12 shrink-0 place-items-center rounded-2xl bg-white text-[1.4rem] shadow-xs transition-opacity disabled:opacity-40"
         >
           <RemoveIcon fontSize="inherit" />
@@ -106,12 +109,14 @@ export function QuantityInput({
             className="tabular w-full min-w-0 bg-transparent text-right text-[1.75rem] font-bold tracking-[-0.03em] text-ink-900 outline-none placeholder:text-ink-300"
             style={{ maxWidth: `${Math.max(2, text.length + 1)}ch` }}
           />
-          <span className="shrink-0 text-base font-semibold text-ink-500">{labelOf(unit)}</span>
+          <span className="shrink-0 text-base font-semibold text-ink-500">
+            {labelOf(unit, value ?? 0)}
+          </span>
         </div>
         <button
           type="button"
           onClick={() => step(1)}
-          aria-label={`More (${stepOf(unit)} ${labelOf(unit)})`}
+          aria-label={t.more(formatAmount(stepOf(unit), unit))}
           className="press grid size-12 shrink-0 place-items-center rounded-2xl bg-ink-900 text-[1.4rem] text-white"
         >
           <AddIcon fontSize="inherit" />
@@ -134,7 +139,7 @@ export function QuantityInput({
                       : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
                   )}
                 >
-                  {labelOf(option)}
+                  {labelOf(option, value || 1)}
                 </button>
               ))
             : null}

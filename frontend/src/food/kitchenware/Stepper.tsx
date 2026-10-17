@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { AddIcon, RemoveIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { haptic } from '@/lib/haptics';
+import { useKitchenwareT } from './i18n';
 
 interface StepperProps {
   label: string;
@@ -26,6 +27,7 @@ export function Stepper({
   format,
   className,
 }: StepperProps) {
+  const t = useKitchenwareT();
   const id = useId();
   const set = (next: number) => {
     const clamped = Math.min(max, Math.max(min, next));
@@ -51,7 +53,7 @@ export function Stepper({
           className={button}
           onClick={() => set(Math.ceil(value / step) * step - step)}
           disabled={value <= min}
-          aria-label={`Fewer: ${label}`}
+          aria-label={t.fewer(label)}
         >
           <RemoveIcon fontSize="inherit" />
         </button>
@@ -66,7 +68,7 @@ export function Stepper({
           className={button}
           onClick={() => set(Math.floor(value / step) * step + step)}
           disabled={value >= max}
-          aria-label={`More: ${label}`}
+          aria-label={t.more(label)}
         >
           <AddIcon fontSize="inherit" />
         </button>

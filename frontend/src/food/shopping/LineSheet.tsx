@@ -8,8 +8,10 @@ import { useCatalog } from '../catalog';
 import { QuantityInput } from '../components/QuantityInput';
 import { VariantChips } from '../components/VariantChips';
 import { StoreChips } from './MoveSheet';
-import { formatAmount, money, parseAmount, unitsFor } from '../format';
+import { formatAmount, money, parseAmount, storeText, unitsFor } from '../format';
 import type { ShoppingItem, Store } from '../types';
+import { lineTitle } from './names';
+import { shoppingT } from './shopping.i18n';
 
 /** One line on a list: at least how much, which kind, by when, which store, a note, what it cost; or take it off. */
 export function LineSheet({
@@ -21,8 +23,15 @@ export function LineSheet({
   stores: Store[];
   onClose: () => void;
 }) {
+  const t = shoppingT().line;
+  const catalog = useCatalog();
+  const product = line ? catalog.data?.find((p) => p.id === line.productId) : undefined;
   return (
-    <Sheet open={Boolean(line)} onClose={onClose} title={line?.name ?? 'Line'}>
+    <Sheet
+      open={Boolean(line)}
+      onClose={onClose}
+      title={line ? lineTitle(line, product) : t.fallback}
+    >
       {line ? <LineForm key={line.id} line={line} stores={stores} onClose={onClose} /> : null}
     </Sheet>
   );
@@ -37,6 +46,8 @@ function LineForm({
   stores: Store[];
   onClose: () => void;
 }) {
+  const s = shoppingT();
+  const t = s.line;
   const queryClient = useQueryClient();
   const catalog = useCatalog();
   const product = catalog.data?.find((p) => p.id === line.productId);
@@ -70,7 +81,7 @@ function LineForm({
   const remove = useMutation({
     mutationFn: () => foodApi.removeLine(line.id),
     onSuccess: () => {
-      toast.success(`${line.name} is off the list`);
+      toast.success(t.offList(lineTitle(line, product)));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -81,7 +92,7 @@ function LineForm({
   return (
     <div className="flex flex-col gap-5">
       <QuantityInput
-        label="At least"
+        label={t.atLeast}
         value={amount}
         unit={unit}
         units={unitsFor(measured)}
@@ -93,10 +104,12 @@ function LineForm({
       />
       {line.lastPrice ? (
         <p className="-mt-2 text-sm text-ink-600">
-          Last time {money(line.lastPrice.price)}
-          {line.lastPrice.storeName ? ` at ${line.lastPrice.storeName}` : ''}
+          {t.lastTime(
+            money(line.lastPrice.price),
+            storeText(line.lastPrice.storeName, line.lastPrice.storeTranslations) || null,
+          )}
           {line.estimate !== null && amount
-            ? ` · about ${money(line.estimate)} for ${formatAmount(amount, unit)}`
+            ? ` · ${t.aboutFor(money(line.estimate), formatAmount(amount, unit))}`
             : ''}
         </p>
       ) : null}
@@ -105,13 +118,14 @@ function LineForm({
         <VariantChips
           variants={product?.variants ?? []}
           icons={product?.variantIcons}
+          translations={product?.translations}
           value={variant}
           onChange={setVariant}
         />
       ) : null}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-        <label className="flex flex-col gap-2">
-          <span className="text-[0.8125rem] font-semibold text-ink-700">Needed by</span>
+        <label className="flex min-w-0 flex-col gap-2">
+          <span className="text-[0.8125rem] font-semibold text-ink-700">{t.neededBy}</span>
           <input
             type="date"
             value={needBy}
@@ -119,18 +133,18 @@ function LineForm({
             className="h-12 rounded-[1.125rem] bg-ink-50 px-4 text-base outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
           />
         </label>
-        <Switch checked={priority} onChange={setPriority} label="Important" />
+        <Switch checked={priority} onChange={setPriority} label={s.important} />
       </div>
       <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-3">
         <TextField
-          label="Note"
-          placeholder="Brand, ripe, on offer…"
+          label={t.note}
+          placeholder={t.notePlaceholder}
           value={note}
           onChange={(event) => setNote(event.target.value)}
           maxLength={500}
         />
         <TextField
-          label="Price (lei)"
+          label={t.price}
           inputMode="decimal"
           placeholder="—"
           value={price}
@@ -142,7 +156,7 @@ function LineForm({
       ) : null}
       <div className="flex gap-2.5">
         <Button fullWidth onClick={() => save.mutate()} loading={save.isPending}>
-          Save
+          {t.save}
         </Button>
         <Button
           variant="tint"
@@ -150,7 +164,7 @@ function LineForm({
           onClick={() => remove.mutate()}
           loading={remove.isPending}
         >
-          Remove
+          {t.remove}
         </Button>
       </div>
     </div>

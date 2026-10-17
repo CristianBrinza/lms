@@ -204,7 +204,7 @@ describe('food: meal plan', () => {
     const done = await b.post(`/api/food/meals/${meal.id}/done`, { leftovers: { portions: 1 } });
     expect(done.status).toBe(200);
     expect(done.body.meal).toMatchObject({ status: 'done' });
-    expect(done.body.shortfalls).toEqual([{ name: 'cucumber', missing: 1, unit: 'pcs' }]);
+    expect(done.body.shortfalls).toMatchObject([{ name: 'cucumber', missing: 1, unit: 'pcs' }]);
 
     const after = await totals(b);
     expect(after['Beef steak']).toBe(2800);
@@ -295,7 +295,9 @@ describe('food: meal plan', () => {
     expect(byName['Cucumbers']).toMatchObject({ needed: 3, toBuy: 3, needBy: '2026-10-05' });
     expect(byName['Pasta']).toMatchObject({ needed: 500, toBuy: 500, toBuyUnit: 'g' });
     expect(byName['Basil']).toMatchObject({ needed: 1, toBuy: 1 });
-    expect(needs.toCheck).toEqual([{ name: 'Mushrooms', meal: 'Pasta' }]);
+    expect(needs.toCheck).toMatchObject([
+      { name: 'Mushrooms', meal: 'Pasta', translations: { ro: { name: 'Ciuperci' } } },
+    ]);
     // What is needed soonest comes first.
     expect(needs.lines.map((l: any) => l.name)).toEqual([
       'Cucumbers',

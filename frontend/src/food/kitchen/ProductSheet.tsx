@@ -21,6 +21,7 @@ import {
   SparkleIcon,
   SwapIcon,
 } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { formatAgo } from '@/lib/format';
@@ -33,24 +34,31 @@ import { LocationPicker } from '../components/LocationPicker';
 import { QuantityInput } from '../components/QuantityInput';
 import {
   CATEGORY_LABEL,
+  capitalized,
+  noteText,
+  storeText,
   formatAmount,
   formatQty,
   fromBase,
+  kindOf,
   LOCATION_LABEL,
+  locationTo,
   packageLabel,
+  packageWord,
   toBase,
   localDate,
   money,
   naturalUnit,
   parseAmount,
   pieceName,
-  plural,
   unitsFor,
+  unitWord,
 } from '../format';
 import { LOCATION_ICON } from '../places';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import type { Lot, StockedProduct, StockEvent } from '../types';
 import { EditItemSheet } from './EditItemSheet';
+import { kitchenT } from './kitchen.i18n';
 import { NutritionCard } from './NutritionCard';
 
 type LotMode = 'use' | 'pour' | 'move' | 'edit';
@@ -71,6 +79,7 @@ export function ProductSheet({
   onClose: () => void;
   onAddMore: (pick: PickedProduct) => void;
 }) {
+  const t = kitchenT().item;
   const detail = useQuery({
     queryKey: foodKeys.product(productId ?? ''),
     queryFn: () => foodApi.product(productId!),
@@ -81,7 +90,7 @@ export function ProductSheet({
     <Sheet
       open={Boolean(productId)}
       onClose={onClose}
-      title={product?.name ?? 'Item'}
+      title={product ? tr(product, 'name') : t.fallback}
       size="lg"
       description={product ? <Summary product={product} /> : undefined}
     >
@@ -102,6 +111,7 @@ export function ProductPanel({
   onClose: () => void;
   onAddMore: (pick: PickedProduct) => void;
 }) {
+  const t = kitchenT().item;
   const detail = useQuery({
     queryKey: foodKeys.product(productId),
     queryFn: () => foodApi.product(productId),
@@ -109,17 +119,23 @@ export function ProductPanel({
   const product = detail.data?.product;
   return (
     <section
-      aria-label={product?.name ?? 'Item'}
+      aria-label={product ? tr(product, 'name') : t.fallback}
       className="animate-fade-in rounded-[1.75rem] bg-white p-5 shadow-[var(--shadow-card)]"
     >
       <header className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate text-h2 font-bold">{product?.name ?? ' '}</h2>
+          <h2 className="truncate text-h2 font-bold">{product ? tr(product, 'name') : ' '}</h2>
           <div className="mt-1.5 text-[0.9375rem] text-ink-600">
             {product ? <Summary product={product} /> : null}
           </div>
         </div>
-        <IconButton icon={CloseIcon} label="Close" size="sm" variant="outline" onClick={onClose} />
+        <IconButton
+          icon={CloseIcon}
+          label={t.close}
+          size="sm"
+          variant="outline"
+          onClick={onClose}
+        />
       </header>
       <ProductBody productId={productId} onClose={onClose} onAddMore={onAddMore} />
     </section>
@@ -127,14 +143,16 @@ export function ProductPanel({
 }
 
 function Summary({ product }: { product: StockedProduct }) {
+  const k = kitchenT();
+  const t = k.item;
   const amount =
     product.trackMode === 'level'
-      ? `Kept as full, low or out · ${LEVEL_LABEL[product.level].toLowerCase()} now`
+      ? t.keptByLevel(k.level[product.level])
       : product.trackMode === 'none'
-        ? 'Always there'
+        ? k.alwaysThere
         : product.total > 0
-          ? `${formatQty(product.total, product)} in ${plural(product.lots.length, 'piece')}`
-          : 'None left';
+          ? t.inPieces(formatQty(product.total, product), product.lots.length)
+          : k.noneLeft;
   return (
     <span className="flex items-center gap-2.5">
       <FoodIconTile
@@ -149,8 +167,6 @@ function Summary({ product }: { product: StockedProduct }) {
   );
 }
 
-const LEVEL_LABEL = { full: 'Full', low: 'Low', out: 'Out' } as const;
-
 function ProductBody({
   productId,
   onClose,
@@ -160,6 +176,7 @@ function ProductBody({
   onClose: () => void;
   onAddMore: (pick: PickedProduct) => void;
 }) {
+  const t = kitchenT().item;
   const queryClient = useQueryClient();
   const detail = useQuery({
     queryKey: foodKeys.product(productId),
@@ -175,7 +192,7 @@ function ProductBody({
     mutationFn: () => foodApi.addLines([{ productId: product!.id }]),
     onSuccess: () => {
       haptic('success');
-      toast.success(`${product!.name} is on the shopping list`);
+      toast.success(t.onShoppingList(tr(product!, 'name')));
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -193,12 +210,18 @@ function ProductBody({
   if (detail.error || !product)
     return <p className="text-sm text-danger-600">{errorMessage(detail.error)}</p>;
 
+  // The price per kilo, litre or piece: "/kg", "/l", "/slice".
+  const per =
+    product.unit === 'pcs'
+      ? unitWord(pieceName(product)?.name ?? 'pcs', 1, pieceName(product))
+      : unitWord(product.unit === 'g' ? 'kg' : 'l');
+
   return (
     <>
       <div className="flex flex-col gap-5">
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
           <Button size="sm" icon={AddIcon} onClick={() => onAddMore(fromProduct(product))}>
-            {product.trackMode === 'level' ? 'Bought it' : 'Add more'}
+            {product.trackMode === 'level' ? t.boughtIt : t.addMore}
           </Button>
           <Button
             size="sm"
@@ -207,10 +230,10 @@ function ProductBody({
             onClick={() => toList.mutate()}
             loading={toList.isPending}
           >
-            To the list
+            {t.toList}
           </Button>
           <Button size="sm" variant="tint" icon={EditIcon} onClick={() => setEditing(true)}>
-            Edit item
+            {t.edit}
           </Button>
         </div>
 
@@ -218,12 +241,14 @@ function ProductBody({
 
         {product.low ? (
           <p className="rounded-2xl bg-peach-100 px-4 py-3 text-sm font-medium text-peach-800">
-            Running low: you keep at least {formatQty(product.minStock!, product)}.
+            {t.runningLow(formatQty(product.minStock!, product))}
           </p>
         ) : null}
 
         {product.note ? (
-          <p className="rounded-2xl bg-lav-50 px-4 py-3 text-sm text-ink-700">{product.note}</p>
+          <p className="rounded-2xl bg-lav-50 px-4 py-3 text-sm text-ink-700">
+            {tr(product, 'note')}
+          </p>
         ) : null}
 
         {product.trackMode !== 'exact' ? null : product.lots.length ? (
@@ -245,8 +270,8 @@ function ProductBody({
           </ul>
         ) : (
           <div className="rounded-2xl bg-ink-50 p-4 text-center">
-            <p className="text-[0.9375rem] font-semibold">Nothing in the kitchen</p>
-            <p className="mt-0.5 text-sm text-ink-600">Add some, or put it on the shopping list.</p>
+            <p className="text-[0.9375rem] font-semibold">{t.nothingHere}</p>
+            <p className="mt-0.5 text-sm text-ink-600">{t.nothingHereHint}</p>
           </div>
         )}
 
@@ -254,23 +279,20 @@ function ProductBody({
 
         {detail.data.prices.length ? (
           <section>
-            <h3 className="text-h3 font-bold">Last paid</h3>
+            <h3 className="text-h3 font-bold">{t.lastPaid}</h3>
             <ul className="mt-2 flex flex-col gap-1.5">
               {detail.data.prices.map((p) => (
                 <li
                   key={`${p.storeId}-${p.boughtAt}`}
                   className="flex items-center justify-between gap-3 rounded-2xl bg-ink-50 px-4 py-3 text-sm"
                 >
-                  <span className="min-w-0 truncate font-semibold">{p.storeName ?? 'A shop'}</span>
+                  <span className="min-w-0 truncate font-semibold">
+                    {storeText(p.storeName, p.storeTranslations) || t.aShop}
+                  </span>
                   <span className="tabular shrink-0 text-ink-600">
-                    {money(p.price)} for {formatQty(p.quantity, product)}
+                    {t.priceFor(money(p.price), formatQty(p.quantity, product))}
                     <span className="ml-2 font-semibold text-ink-900">
-                      {money(p.unitPrice)}/
-                      {product.unit === 'pcs'
-                        ? (pieceName(product)?.name ?? 'pc')
-                        : product.unit === 'g'
-                          ? 'kg'
-                          : 'l'}
+                      {money(p.unitPrice)}/{per}
                     </span>
                   </span>
                 </li>
@@ -287,7 +309,7 @@ function ProductBody({
             className="press flex w-full items-center gap-2 rounded-2xl py-1 text-left"
           >
             <HistoryIcon fontSize="inherit" className="text-[1.25rem] text-ink-600" />
-            <span className="flex-1 text-h3 font-bold">History</span>
+            <span className="flex-1 text-h3 font-bold">{t.history}</span>
             <ExpandMoreIcon
               fontSize="inherit"
               className={cx(
@@ -311,6 +333,8 @@ function ProductBody({
 
 /** Full, low or out, one tap each (basics: oil, salt, soy sauce). */
 function LevelPicker({ product }: { product: StockedProduct }) {
+  const k = kitchenT();
+  const t = k.item;
   const queryClient = useQueryClient();
   const set = useMutation({
     mutationFn: (level: 'full' | 'low' | 'out') => foodApi.setLevel(product.id, level),
@@ -318,16 +342,14 @@ function LevelPicker({ product }: { product: StockedProduct }) {
       haptic('tap');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       if (level === 'out')
-        toast.success(`${product.name} is out`, {
-          description: 'Put it on the list from here or from Food.',
-        });
+        toast.success(t.isOut(tr(product, 'name')), { description: t.isOutHint });
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
   return (
     <div
       role="radiogroup"
-      aria-label="How much is left"
+      aria-label={t.howMuchLeft}
       className="grid grid-cols-3 gap-1.5 rounded-[1.25rem] bg-ink-50 p-1.5"
     >
       {(['full', 'low', 'out'] as const).map((level) => (
@@ -348,7 +370,7 @@ function LevelPicker({ product }: { product: StockedProduct }) {
               : 'text-ink-700 hover:bg-white',
           )}
         >
-          {LEVEL_LABEL[level]}
+          {k.level[level]}
         </button>
       ))}
     </div>
@@ -370,12 +392,13 @@ function LotCard({
   onMode: (mode: LotMode | null) => void;
   onDone: () => void;
 }) {
+  const t = kitchenT().item;
   const today = localDate();
   const LocationIcon = LOCATION_ICON[lot.location];
   const meta = [
-    lot.note || null,
-    `Added ${formatAgo(lot.addedAt).toLowerCase()}`,
-    lot.storeName,
+    noteText(lot) || null,
+    t.added(formatAgo(lot.addedAt)),
+    storeText(lot.storeName, lot.storeTranslations) || null,
     lot.price !== null ? money(lot.price) : null,
   ]
     .filter(Boolean)
@@ -414,18 +437,18 @@ function LotCard({
                     className="size-4"
                   />
                 ) : null}
-                {lot.variant}
+                {kindOf(lot, product)}
               </Badge>
             ) : null}
-            {lot.openedAt ? <Badge tone="lav">Opened</Badge> : null}
-            {index === 0 && product.lots.length > 1 ? <Badge tone="mint">Next up</Badge> : null}
+            {lot.openedAt ? <Badge tone="lav">{t.opened}</Badge> : null}
+            {index === 0 && product.lots.length > 1 ? <Badge tone="mint">{t.nextUp}</Badge> : null}
           </span>
           <span className="mt-1 block truncate text-xs font-medium text-ink-600">{meta}</span>
           {/* How full the jar, bottle or loaf still is. */}
           {lot.openedAt && fill < 1 ? (
             <span
               className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-ink-100"
-              aria-label={`${Math.round(fill * 100)}% left`}
+              aria-label={t.percentLeft(Math.round(fill * 100))}
             >
               <span
                 className="block h-full rounded-full bg-mint-800"
@@ -438,17 +461,10 @@ function LotCard({
       </button>
       {mode ? (
         <div className="animate-rise border-t border-ink-100 p-3.5 pt-3">
-          <div role="tablist" aria-label="What to do" className="mb-4 flex gap-1.5">
-            {(
-              [
-                ['use', 'Use'],
-                ['pour', 'Pour'],
-                ['move', 'Move'],
-                ['edit', 'Correct'],
-              ] as const
-            )
-              .filter(([value]) => value !== 'pour' || canPour)
-              .map(([value, label]) => (
+          <div role="tablist" aria-label={t.whatToDo} className="mb-4 flex flex-wrap gap-1.5">
+            {(['use', 'pour', 'move', 'edit'] as const)
+              .filter((value) => value !== 'pour' || canPour)
+              .map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -462,7 +478,7 @@ function LotCard({
                       : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
                   )}
                 >
-                  {label}
+                  {t.tabs[value]}
                 </button>
               ))}
           </div>
@@ -485,6 +501,8 @@ function UsePanel({
   product: StockedProduct;
   onDone: () => void;
 }) {
+  const k = kitchenT();
+  const t = k.item;
   const queryClient = useQueryClient();
   const measured = product;
   const shown = naturalUnit(lot.quantity, product);
@@ -500,22 +518,17 @@ function UsePanel({
     onSuccess: (result, wasted) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success(
-        `${wasted ? 'Thrown away' : 'Used'} ${formatQty(result.used, product)} of ${product.name}`,
-        {
-          description:
-            result.shortfall > 0
-              ? `${formatQty(result.shortfall, product)} more wasn’t there`
-              : undefined,
-          action: {
-            label: 'Undo',
-            onClick: () =>
-              void foodApi
-                .undo(result.events)
-                .then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
-          },
+      toast.success(t.usedOf(wasted, formatQty(result.used, product), tr(product, 'name')), {
+        description:
+          result.shortfall > 0 ? t.wasntThere(formatQty(result.shortfall, product)) : undefined,
+        action: {
+          label: k.undo,
+          onClick: () =>
+            void foodApi
+              .undo(result.events)
+              .then(() => queryClient.invalidateQueries({ queryKey: foodKeys.all })),
         },
-      );
+      });
       onDone();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -525,19 +538,19 @@ function UsePanel({
     product.unit === 'pcs' && lot.quantity <= 12
       ? [
           { label: '½', value: 0.5, unit: 'pcs' },
-          { label: `All (${formatQty(lot.quantity, product)})`, value: lot.quantity, unit: 'pcs' },
+          { label: t.allOf(formatQty(lot.quantity, product)), value: lot.quantity, unit: 'pcs' },
         ]
       : [
           { label: '¼', value: inShown(0.25), unit: shown },
           { label: '½', value: inShown(0.5), unit: shown },
           { label: '¾', value: inShown(0.75), unit: shown },
-          { label: 'All', value: inShown(1), unit: shown },
+          { label: t.allPlain, value: inShown(1), unit: shown },
         ];
 
   return (
     <div className="flex flex-col gap-4">
       <QuantityInput
-        label="How much did you use?"
+        label={t.howMuchUsed}
         value={amount}
         unit={unit}
         units={unitsFor(measured)}
@@ -555,7 +568,7 @@ function UsePanel({
           disabled={!amount}
           loading={use.isPending && use.variables === false}
         >
-          Use {amount ? formatAmount(amount, unit) : ''}
+          {t.use(amount ? formatAmount(amount, unit) : '')}
         </Button>
         <Button
           size="md"
@@ -565,7 +578,7 @@ function UsePanel({
           disabled={!amount}
           loading={use.isPending && use.variables === true}
         >
-          Threw away
+          {t.threwAway}
         </Button>
       </div>
     </div>
@@ -587,6 +600,7 @@ function PourPanel({
   product: StockedProduct;
   onDone: () => void;
 }) {
+  const t = kitchenT().item;
   const queryClient = useQueryClient();
   const others = product.lots.filter((other) => other.id !== lot.id);
   const shown = naturalUnit(lot.quantity, product);
@@ -600,6 +614,9 @@ function PourPanel({
   const names = [...new Set([...CONTAINERS, ...(product.units ?? []).map((u) => u.name)])].filter(
     (n) => !['tbsp', 'tsp', 'cup', 'shot', 'pump', 'glass'].includes(n),
   );
+  const own = (name: string) => product.units?.find((u) => u.name === name);
+  /** A container's name as a chip shows it: "Bottle", "Sticlă", "Бутылка". */
+  const containerName = (name: string) => capitalized(packageWord(name, 1, own(name)));
 
   const pour = useMutation({
     mutationFn: () =>
@@ -619,8 +636,11 @@ function PourPanel({
       }),
     onSuccess: ({ into: target }) => {
       haptic('success');
-      toast.success(`Poured ${formatAmount(amount!, unit)}`, {
-        description: `${target.package || 'It'} now has ${formatQty(target.quantity, product)}`,
+      toast.success(t.poured(formatAmount(amount!, unit)), {
+        description: t.nowHas(
+          formatQty(target.quantity, product),
+          target.package ? containerName(target.package) : null,
+        ),
       });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onDone();
@@ -631,7 +651,7 @@ function PourPanel({
   return (
     <div className="flex flex-col gap-4">
       <QuantityInput
-        label="How much to pour"
+        label={t.howMuchPour}
         value={amount}
         unit={unit}
         units={unitsFor(product)}
@@ -642,7 +662,7 @@ function PourPanel({
         autoFocus
       />
       <div className="flex flex-col gap-2">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">Into</span>
+        <span className="text-[0.8125rem] font-semibold text-ink-700">{t.into}</span>
         <div className="flex flex-wrap gap-1.5">
           {others.map((other) => (
             <button
@@ -651,14 +671,14 @@ function PourPanel({
               aria-pressed={into === other.id}
               onClick={() => setInto(other.id)}
               className={cx(
-                'press h-9 rounded-pill px-3.5 text-sm font-semibold',
+                'press h-9 max-w-full truncate rounded-pill px-3.5 text-sm font-semibold',
                 into === other.id
                   ? 'bg-ink-900 text-white'
                   : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
               )}
             >
-              {(other.package || 'Piece').replace(/^./, (c) => c.toUpperCase())}
-              {other.note ? ` · ${other.note}` : ` · ${LOCATION_LABEL[other.location]}`} (
+              {other.package ? containerName(other.package) : t.piece}
+              {other.note ? ` · ${noteText(other)}` : ` · ${LOCATION_LABEL[other.location]}`} (
               {formatQty(other.quantity, product)})
             </button>
           ))}
@@ -673,7 +693,7 @@ function PourPanel({
                 : 'bg-butter-100 text-ink-900 hover:bg-butter-200',
             )}
           >
-            A new container
+            {t.newContainer}
           </button>
         </div>
       </div>
@@ -687,33 +707,33 @@ function PourPanel({
                 aria-pressed={container === name}
                 onClick={() => setContainer(name)}
                 className={cx(
-                  'press h-8 rounded-pill px-3 text-sm font-semibold capitalize',
+                  'press h-8 rounded-pill px-3 text-sm font-semibold',
                   container === name ? 'bg-ink-900 text-white' : 'bg-white text-ink-700',
                 )}
               >
-                {name}
+                {containerName(name)}
               </button>
             ))}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <TextField
-              label={`Holds (${unit})`}
+              label={t.holds(unitWord(unit, 2))}
               dense
               inputMode="decimal"
-              placeholder="Optional"
+              placeholder={t.optional}
               value={holds}
               onChange={(event) => setHolds(event.target.value)}
             />
             <TextField
-              label="Where exactly"
+              label={t.whereExactly}
               dense
-              placeholder="On the desk"
+              placeholder={t.onTheDesk}
               value={note}
               maxLength={60}
               onChange={(event) => setNote(event.target.value)}
             />
           </div>
-          <LocationPicker label="Kept in" value={location} onChange={setLocation} />
+          <LocationPicker label={t.keptIn} value={location} onChange={setLocation} />
         </div>
       ) : null}
       <Button
@@ -723,23 +743,21 @@ function PourPanel({
         disabled={!amount}
         loading={pour.isPending}
       >
-        Pour {amount ? formatAmount(amount, unit) : ''}
+        {t.pour(amount ? formatAmount(amount, unit) : '')}
       </Button>
     </div>
   );
 }
 
 function MovePanel({ lot, onDone }: { lot: Lot; onDone: () => void }) {
+  const t = kitchenT().item;
   const queryClient = useQueryClient();
   const move = useMutation({
     mutationFn: (location: Lot['location']) => foodApi.updateLot(lot.id, { location }),
     onSuccess: (updated) => {
       haptic('tap');
-      toast.success(`Moved to the ${LOCATION_LABEL[updated.location].toLowerCase()}`, {
-        description:
-          updated.location === 'freezer'
-            ? 'Frozen food keeps longer: correct its date if you like.'
-            : undefined,
+      toast.success(t.movedTo(locationTo(updated.location)), {
+        description: updated.location === 'freezer' ? t.frozenHint : undefined,
       });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onDone();
@@ -748,7 +766,7 @@ function MovePanel({ lot, onDone }: { lot: Lot; onDone: () => void }) {
   });
   return (
     <LocationPicker
-      label="Move to"
+      label={t.moveTo}
       value={lot.location}
       onChange={(location) => location !== lot.location && move.mutate(location)}
     />
@@ -764,6 +782,7 @@ function CorrectPanel({
   product: StockedProduct;
   onDone: () => void;
 }) {
+  const t = kitchenT().item;
   const queryClient = useQueryClient();
   const measured = product;
   const shown = naturalUnit(lot.quantity, product);
@@ -785,7 +804,7 @@ function CorrectPanel({
       }),
     onSuccess: () => {
       haptic('success');
-      toast.success('Saved');
+      toast.success(t.saved);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onDone();
     },
@@ -794,7 +813,7 @@ function CorrectPanel({
   const remove = useMutation({
     mutationFn: () => foodApi.removeLot(lot.id),
     onSuccess: () => {
-      toast.success('Removed from the kitchen');
+      toast.success(t.removed);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onDone();
     },
@@ -804,7 +823,7 @@ function CorrectPanel({
   return (
     <div className="flex flex-col gap-4">
       <QuantityInput
-        label="Left now"
+        label={t.leftNow}
         value={left}
         unit={unit}
         units={unitsFor(measured)}
@@ -817,22 +836,27 @@ function CorrectPanel({
       <Switch
         checked={opened}
         onChange={setOpened}
-        label="Opened"
-        hint={product.openedDays ? `Keeps about ${product.openedDays} days once open` : undefined}
+        label={t.opened}
+        hint={product.openedDays ? t.keepsOpen(product.openedDays) : undefined}
       />
       <label className="flex flex-col gap-2">
-        <span className="text-[0.8125rem] font-semibold text-ink-700">Paid (lei)</span>
+        <span className="text-[0.8125rem] font-semibold text-ink-700">{t.paid}</span>
         <input
           inputMode="decimal"
           value={price}
-          placeholder="Optional"
+          placeholder={t.optional}
           onChange={(event) => setPrice(event.target.value)}
           className="h-12 rounded-[1.125rem] bg-ink-50 px-4 text-base outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
         />
       </label>
-      <div className="flex gap-2.5">
-        <Button fullWidth size="md" onClick={() => save.mutate()} loading={save.isPending}>
-          Save
+      <div className="flex flex-wrap gap-2.5">
+        <Button
+          className="min-w-0 flex-1"
+          size="md"
+          onClick={() => save.mutate()}
+          loading={save.isPending}
+        >
+          {t.save}
         </Button>
         {confirmRemove ? (
           <Button
@@ -841,7 +865,7 @@ function CorrectPanel({
             onClick={() => remove.mutate()}
             loading={remove.isPending}
           >
-            Remove it
+            {t.removeIt}
           </Button>
         ) : (
           <Button
@@ -850,7 +874,7 @@ function CorrectPanel({
             icon={DeleteIcon}
             onClick={() => setConfirmRemove(true)}
           >
-            Added by mistake
+            {t.byMistake}
           </Button>
         )}
       </div>
@@ -858,18 +882,9 @@ function CorrectPanel({
   );
 }
 
-const KIND_TEXT: Record<StockEvent['kind'], string> = {
-  added: 'Added',
-  used: 'Used',
-  wasted: 'Thrown away',
-  adjusted: 'Corrected',
-  moved: 'Moved',
-  restored: 'Put back',
-  level: 'Marked',
-};
-
 function History({ events, product }: { events: StockEvent[]; product: StockedProduct }) {
-  if (!events.length) return <p className="mt-2 text-sm text-ink-600">Nothing yet.</p>;
+  const t = kitchenT().item;
+  if (!events.length) return <p className="mt-2 text-sm text-ink-600">{t.nothingYet}</p>;
   return (
     <ol className="mt-2 flex flex-col">
       {events.map((event) => (
@@ -899,18 +914,18 @@ function History({ events, product }: { events: StockEvent[]; product: StockedPr
           </span>
           <span className="min-w-0 flex-1 text-sm">
             <span className="font-semibold">
-              {KIND_TEXT[event.kind]}
+              {t.events[event.kind]}
               {event.delta ? ` ${formatQty(Math.abs(event.delta), product)}` : ''}
             </span>
-            {event.note ? <span className="text-ink-600"> · {event.note}</span> : null}
+            {event.note ? <span className="text-ink-600"> · {noteText(event)}</span> : null}
             <span className="block text-xs text-ink-500">
-              {event.actor ?? 'Someone'} · {formatAgo(event.createdAt)}
+              {event.actor ?? t.someone} · {formatAgo(event.createdAt)}
             </span>
           </span>
           {event.via === 'ai' ? (
             <Badge tone="lav" className="gap-1">
               <SparkleIcon fontSize="inherit" className="text-sm" />
-              AI
+              {t.ai}
             </Badge>
           ) : null}
         </li>

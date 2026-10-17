@@ -6,30 +6,33 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Button, Chips, IconButton, Skeleton, TextField, toast } from '@/components/ui';
 import { AddIcon, RemoveIcon, SearchIcon } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { useWide } from '@/lib/useMediaQuery';
 import { foodApi, foodKeys } from '../api';
 import { ExpiryChip } from '../components/ExpiryChip';
-import { normalize, type PickedProduct } from '../catalog';
+import { namesOf, normalize, type PickedProduct } from '../catalog';
 import { LOCATION_OPTIONS } from '../places';
 import {
   addDays,
   CATEGORY_LABEL,
   CATEGORY_ORDER,
+  formatAmount,
   formatQty,
   LOCATION_LABEL,
   localDate,
+  localKindName,
+  locationIn,
   packageLabel,
   pieceName,
-  plural,
   areaOf,
-  kindName,
   stockKind,
 } from '../format';
 import { FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { AddStockSheet } from '../kitchen/AddStockSheet';
+import { kitchenT } from '../kitchen/kitchen.i18n';
 import { ProductPanel, ProductSheet } from '../kitchen/ProductSheet';
 import type { Area, Location, StockedProduct } from '../types';
 
@@ -45,33 +48,20 @@ export default function KitchenPage() {
   return <InventoryScreen area="food" />;
 }
 
-const AREA_TEXT = {
-  food: {
-    title: 'Kitchen',
-    back: '/food',
-    add: 'Add food',
-    search: 'Search the kitchen',
-    everywhere: 'kitchen',
-    basics: 'Basics · full, low, out',
-  },
-  house: {
-    title: 'House',
-    back: '/home',
-    add: 'Add something',
-    search: 'Search the house',
-    everywhere: 'house',
-    basics: 'Bottles and tubes · full, low, out',
-  },
-} as const;
+const AREA_BACK: Record<Area, string> = { food: '/food', house: '/house' };
 
 const AREA_PLACES: Record<Area, readonly Location[]> = {
   food: ['fridge', 'freezer', 'pantry', 'garden', 'other'],
   house: ['bathroom', 'storage', 'other'],
 };
 
+/** An item's name as shown: in the current language, with its kind when the brand prints it. */
+const shownName = (product: StockedProduct) => localKindName(product, stockKind(product.lots));
+
 /** The kitchen's food or the house's things: one screen, the same engine, each its own items. */
 export function InventoryScreen({ area }: { area: Area }) {
-  const text = AREA_TEXT[area];
+  const t = kitchenT();
+  const text = t.area[area];
   const [params, setParams] = useSearchParams();
   const kitchen = useQuery({ queryKey: foodKeys.kitchen, queryFn: foodApi.kitchen });
   const [place, setPlace] = useState<Place>('all');
@@ -124,6 +114,7 @@ export function InventoryScreen({ area }: { area: Area }) {
     return out;
   }, [products]);
 
+  const q = normalize(query);
   const shown = products
     .map((product) =>
       place === 'all'
@@ -131,7 +122,8 @@ export function InventoryScreen({ area }: { area: Area }) {
         : { ...product, lots: product.lots.filter((lot) => lot.location === place) },
     )
     .filter((product) => (place === 'all' ? true : product.lots.length > 0))
-    .filter((product) => !query.trim() || normalize(product.name).includes(normalize(query)));
+    // Found by its name in any language: "roșii" and "tomatoes" both find the tomatoes.
+    .filter((product) => !q || namesOf(product).some((name) => normalize(name).includes(q)));
   const basics = shown.filter((p) => p.trackMode !== 'exact');
   const measured = shown.filter((p) => p.trackMode === 'exact');
   const useSoon = measured.filter((p) =>
@@ -150,7 +142,7 @@ export function InventoryScreen({ area }: { area: Area }) {
     <Screen tone="white">
       <PageHeader
         compact
-        back={area === 'house' ? '/house' : text.back}
+        back={AREA_BACK[area]}
         title={
           kind && kind in CATEGORY_LABEL
             ? CATEGORY_LABEL[kind as keyof typeof CATEGORY_LABEL]
@@ -158,7 +150,7 @@ export function InventoryScreen({ area }: { area: Area }) {
         }
         subtitle={
           kitchen.data
-            ? `${plural(stocked, 'item')}${useSoon.length ? ` · ${useSoon.length} to use soon` : ''}`
+            ? `${t.items(stocked)}${useSoon.length ? ` · ${t.toUseSoon(useSoon.length)}` : ''}`
             : ' '
         }
         actions={
@@ -176,7 +168,7 @@ export function InventoryScreen({ area }: { area: Area }) {
         <div className="min-w-0">
           <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-0">
             <TextField
-              label="Search the kitchen"
+              label={text.search}
               hideLabel
               dense
               icon={SearchIcon}
@@ -186,15 +178,17 @@ export function InventoryScreen({ area }: { area: Area }) {
               onChange={(event) => setQuery(event.target.value)}
             />
             <Chips
-              label="Where"
+              label={t.where}
               tone="sheet"
               dense
               value={place}
               onChange={setPlace}
               options={[
-                { value: 'all' as const, label: 'All', count: counts.all },
+                { value: 'all' as const, label: t.all, count: counts.all },
                 ...LOCATION_OPTIONS.filter((o) => AREA_PLACES[area].includes(o.value)).map((o) => ({
-                  ...o,
+                  value: o.value,
+                  label: o.label,
+                  icon: o.icon,
                   count: counts[o.value],
                 })),
               ]}
@@ -210,7 +204,7 @@ export function InventoryScreen({ area }: { area: Area }) {
               </div>
             ) : kitchen.error ? (
               <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-                <p className="font-semibold text-danger-700">Couldn’t load the kitchen</p>
+                <p className="font-semibold text-danger-700">{t.couldntLoad}</p>
                 <p className="mt-1 text-sm text-ink-600">{errorMessage(kitchen.error)}</p>
                 <Button
                   size="sm"
@@ -218,7 +212,7 @@ export function InventoryScreen({ area }: { area: Area }) {
                   className="mt-3"
                   onClick={() => void kitchen.refetch()}
                 >
-                  Try again
+                  {t.tryAgain}
                 </Button>
               </div>
             ) : !products.length ? (
@@ -226,14 +220,16 @@ export function InventoryScreen({ area }: { area: Area }) {
             ) : !shown.length ? (
               <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
                 {query
-                  ? `Nothing called “${query}”`
-                  : `Nothing in the ${place === 'all' ? text.everywhere : LOCATION_LABEL[place as Location].toLowerCase()}`}
+                  ? t.nothingCalled(query)
+                  : place === 'all'
+                    ? text.nothing
+                    : t.nothingIn(locationIn(place))}
               </p>
             ) : (
               <div className="2xl:columns-2 2xl:gap-6">
                 {useSoon.length ? (
                   <Group
-                    title="Use soon"
+                    title={t.useSoon}
                     tone="peach"
                     items={useSoon}
                     onOpen={setItem}
@@ -278,11 +274,8 @@ export function InventoryScreen({ area }: { area: Area }) {
             ) : (
               <div className="flex flex-col items-center rounded-[1.75rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
                 <SceneArt scene="kitchen" className="size-20" />
-                <p className="mt-3 text-[1.0625rem] font-bold">Tap an item</p>
-                <p className="mt-1 max-w-xs text-sm text-ink-600">
-                  Each piece, how much is left and until when, and quick ways to use, pour or move
-                  it.
-                </p>
+                <p className="mt-3 text-[1.0625rem] font-bold">{t.tapItem}</p>
+                <p className="mt-1 max-w-xs text-sm text-ink-600">{t.tapItemHint}</p>
               </div>
             )}
           </aside>
@@ -299,7 +292,7 @@ export function InventoryScreen({ area }: { area: Area }) {
                 size="md"
                 onClick={() => setAdding({ open: true, initial: null })}
               >
-                Add food
+                {text.add}
               </Button>
             </div>,
             document.body,
@@ -383,16 +376,20 @@ function ItemRow({
   today: string;
   selected?: boolean;
 }) {
+  const t = kitchenT();
   const queryClient = useQueryClient();
+  const piece = pieceName(product);
+  const one = formatAmount(1, piece?.name ?? 'pcs', piece);
+  const name = tr(product, 'name');
   const useOne = useMutation({
     mutationFn: () => foodApi.useStock({ productId: product.id, quantity: 1, unit: 'pcs' }),
     onSuccess: (result) => {
       haptic('success');
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success(`Used ${piece ? `1 ${piece.name}` : '1'} · ${product.name}`, {
-        description: `${formatQty(Math.max(0, product.total - result.used), product)} left`,
+      toast.success(t.used(one, name), {
+        description: t.left(formatQty(Math.max(0, product.total - result.used), product)),
         action: {
-          label: 'Undo',
+          label: t.undo,
           onClick: () =>
             void foodApi
               .undo(result.events)
@@ -402,13 +399,12 @@ function ItemRow({
     },
     onError: (error) => toast.error(errorMessage(error)),
   });
-  const piece = pieceName(product);
   const total = product.lots.reduce((sum, lot) => sum + lot.quantity, 0);
   const places = [...new Set(product.lots.map((lot) => LOCATION_LABEL[lot.location]))].join(', ');
   const only = product.lots.length === 1 ? product.lots[0]! : null;
   // "Jar of 14, opened", "1.25 l + 1 l", else where it is.
   const pieces = only?.package
-    ? `${packageLabel(only, product)}${only.openedAt ? ', opened' : ''} · ${LOCATION_LABEL[only.location]}`
+    ? `${packageLabel(only, product)}${only.openedAt ? t.openedSuffix : ''} · ${LOCATION_LABEL[only.location]}`
     : product.lots.length > 1 && (product.unit !== 'pcs' || product.lots.some((lot) => lot.package))
       ? product.lots
           .slice(0, 3)
@@ -433,10 +429,10 @@ function ItemRow({
         <FoodIconTile name={kindIconOf(product)} className="size-10 rounded-xl [&>svg]:size-7" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[0.9375rem] font-semibold">
-            {kindName(product.name, stockKind(product.lots), product.kindInName)}
+            {shownName(product)}
           </span>
           <span className="block truncate text-sm text-ink-600">
-            {total > 0 ? (pieces ?? places) : product.low ? 'None left · running low' : 'None left'}
+            {total > 0 ? (pieces ?? places) : product.low ? t.noneLeftLow : t.noneLeft}
           </span>
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1">
@@ -456,8 +452,8 @@ function ItemRow({
           type="button"
           onClick={() => useOne.mutate()}
           disabled={useOne.isPending}
-          aria-label={`Use 1 ${piece?.name ?? ''} ${product.name}`.replace(/\s+/g, ' ')}
-          title={piece ? `Use 1 ${piece.name}` : 'Use 1'}
+          aria-label={t.useOneOf(one, name)}
+          title={t.useOne(one)}
           className="press mr-2 grid size-10 shrink-0 place-items-center rounded-full bg-ink-50 text-[1.25rem] text-ink-800 transition-colors hover:bg-butter-200 disabled:opacity-50"
         >
           <RemoveIcon fontSize="inherit" />
@@ -469,11 +465,7 @@ function ItemRow({
   );
 }
 
-const LEVELS = [
-  ['full', 'Full'],
-  ['low', 'Low'],
-  ['out', 'Out'],
-] as const;
+const LEVELS = ['full', 'low', 'out'] as const;
 
 /** A basic kept by level: full, low or out, one tap on the row. */
 function BasicRow({
@@ -485,6 +477,7 @@ function BasicRow({
   onOpen: () => void;
   selected?: boolean;
 }) {
+  const t = kitchenT();
   const queryClient = useQueryClient();
   const set = useMutation({
     mutationFn: (level: 'full' | 'low' | 'out') => foodApi.setLevel(product.id, level),
@@ -504,20 +497,20 @@ function BasicRow({
         <FoodIconTile name={kindIconOf(product)} className="size-10 rounded-xl [&>svg]:size-7" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[0.9375rem] font-semibold">
-            {kindName(product.name, stockKind(product.lots), product.kindInName)}
+            {shownName(product)}
           </span>
           <span className="block truncate text-sm text-ink-600">
-            {product.trackMode === 'none' ? 'Always there' : LOCATION_LABEL[product.location]}
+            {product.trackMode === 'none' ? t.alwaysThere : LOCATION_LABEL[product.location]}
           </span>
         </span>
       </button>
       {product.trackMode === 'level' ? (
         <span
           role="radiogroup"
-          aria-label={`${product.name}: how much is left`}
+          aria-label={t.howMuchLeftOf(tr(product, 'name'))}
           className="flex shrink-0 gap-0.5 rounded-pill bg-ink-50 p-0.5"
         >
-          {LEVELS.map(([value, label]) => (
+          {LEVELS.map((value) => (
             <button
               key={value}
               type="button"
@@ -535,7 +528,7 @@ function BasicRow({
                   : 'text-ink-600',
               )}
             >
-              {label}
+              {t.level[value]}
             </button>
           ))}
         </span>
@@ -545,6 +538,7 @@ function BasicRow({
 }
 
 function Empty({ area, onAdd }: { area: Area; onAdd: () => void }) {
+  const t = kitchenT().empty;
   return (
     <div className="flex flex-col items-center rounded-[2rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
       {area === 'food' ? (
@@ -556,16 +550,12 @@ function Empty({ area, onAdd }: { area: Area; onAdd: () => void }) {
           <FoodIconTile name="cleaner-spray" />
         </span>
       )}
-      <h2 className="mt-4 text-h2 font-bold">
-        {area === 'food' ? 'Your kitchen is empty' : 'Nothing counted in the house yet'}
-      </h2>
+      <h2 className="mt-4 text-h2 font-bold">{area === 'food' ? t.food : t.house}</h2>
       <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
-        {area === 'food'
-          ? 'Add what’s in the fridge, freezer and cupboards. Finishing a shop in Shopping puts it here too.'
-          : 'Add what’s in the bathroom and the storage: shampoo, paper towels, cleaners, the cat’s litter. Finishing a shop puts it here too.'}
+        {area === 'food' ? t.foodText : t.houseText}
       </p>
       <Button icon={AddIcon} className="mt-6" onClick={onAdd}>
-        Add what you have
+        {t.add}
       </Button>
     </div>
   );

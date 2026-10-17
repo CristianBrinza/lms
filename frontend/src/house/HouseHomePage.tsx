@@ -5,12 +5,15 @@ import { Screen } from '@/components/layout/Screen';
 import { Button, Skeleton, toast } from '@/components/ui';
 import { AddIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { foodApi, foodKeys } from '@/food/api';
-import { areaOf, CATEGORY_LABEL, plural } from '@/food/format';
+import { areaOf, CATEGORY_LABEL, formatQty } from '@/food/format';
 import { FoodIcon, FoodIconTile } from '@/food/icons/FoodIcon';
+import { lineTitle } from '@/food/shopping/names';
 import type { Category } from '@/food/types';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { houseT } from './house.i18n';
 
 const ROOMS: Array<{ category: Category; icon: string }> = [
   { category: 'bathroom', icon: 'shampoo' },
@@ -27,6 +30,7 @@ const ROOMS: Array<{ category: Category; icon: string }> = [
  * The same engine as the kitchen: counts, levels, low-stock limits, a finished shop stocks it.
  */
 export default function HouseHomePage() {
+  const t = houseT();
   const queryClient = useQueryClient();
   const kitchen = useQuery({ queryKey: foodKeys.kitchen, queryFn: foodApi.kitchen });
   const shopping = useQuery({ queryKey: foodKeys.shopping, queryFn: foodApi.shopping });
@@ -39,9 +43,10 @@ export default function HouseHomePage() {
 
   const add = useMutation({
     mutationFn: (productId: string) => foodApi.addLines([{ productId }], 'low_stock'),
-    onSuccess: ([line]) => {
+    onSuccess: ([line], productId) => {
       haptic('tap');
-      toast.success(`${line?.name ?? 'It'} is on the list`);
+      const product = things.find((p) => p.id === productId);
+      toast.success(t.onList(line ? lineTitle(line, product) : t.it));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -52,10 +57,10 @@ export default function HouseHomePage() {
       <PageHeader
         compact
         back="/home"
-        title="House"
+        title={t.title}
         subtitle={
           kitchen.data
-            ? `${plural(have.length, 'thing')} at home${low.length ? ` · ${low.length} running low` : ''}`
+            ? `${t.atHome(t.things(have.length))}${low.length ? ` · ${t.runningLowCount(low.length)}` : ''}`
             : ' '
         }
       />
@@ -65,7 +70,7 @@ export default function HouseHomePage() {
           className="rounded-[1.5rem] bg-ink-900 p-4 text-white shadow-[var(--shadow-tile)] sm:p-5 md:row-span-2"
         >
           <h2 id="low" className="text-[1.125rem] font-bold">
-            Running low
+            {t.runningLow}
           </h2>
           {kitchen.isPending ? (
             <Skeleton className="mt-3 h-24 rounded-2xl bg-white/10" />
@@ -77,45 +82,46 @@ export default function HouseHomePage() {
                     <FoodIcon name={p.icon} className="size-9" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{p.name}</span>
+                    <span className="block truncate font-semibold">{tr(p, 'name')}</span>
                     <span className="block text-sm text-white/65">
                       {p.trackMode === 'level'
                         ? p.level === 'out'
-                          ? 'Out'
-                          : 'Low'
-                        : `${p.total} left`}
+                          ? t.out
+                          : t.low
+                        : t.left(formatQty(p.total, p))}
                     </span>
                   </span>
                   <Button
                     size="sm"
                     variant="accent"
                     icon={AddIcon}
+                    className="shrink-0"
                     loading={add.isPending && add.variables === p.id}
                     onClick={() => add.mutate(p.id)}
                   >
-                    List
+                    {t.list}
                   </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm text-white/70">
-              Nothing. Give things a low limit (or mark a bottle low) and they show up here.
-            </p>
+            <p className="mt-2 text-sm text-white/70">{t.nothingLow}</p>
           )}
         </section>
 
-        <section aria-label="Kinds of things" className="grid grid-cols-3 gap-2">
+        <section aria-label={t.kinds} className="grid grid-cols-3 gap-2">
           {ROOMS.map((room) => {
             const count = have.filter((p) => p.category === room.category).length;
             return (
               <Link
                 key={room.category}
                 to={`/house/items?kind=${room.category}`}
-                className="press flex flex-col items-center gap-1 rounded-[1.25rem] bg-white p-3 text-center shadow-[var(--shadow-card)] transition-colors hover:bg-lav-50"
+                className="press flex min-w-0 flex-col items-center gap-1 rounded-[1.25rem] bg-white p-3 text-center shadow-[var(--shadow-card)] transition-colors hover:bg-lav-50"
               >
                 <FoodIconTile name={room.icon} className="size-12" />
-                <span className="text-sm font-semibold">{CATEGORY_LABEL[room.category]}</span>
+                <span className="w-full truncate text-sm font-semibold">
+                  {CATEGORY_LABEL[room.category]}
+                </span>
                 <span className="tabular text-xs text-ink-500">{count || '—'}</span>
               </Link>
             );
@@ -123,28 +129,23 @@ export default function HouseHomePage() {
         </section>
 
         <nav
-          aria-label="House"
+          aria-label={t.nav}
           className="overflow-hidden rounded-[1.5rem] bg-white shadow-[var(--shadow-card)]"
         >
           <ul className="divide-y divide-ink-100">
             <Row
               to="/house/items"
-              title="Everything at home"
-              detail={kitchen.data ? plural(have.length, 'thing') : ' '}
+              title={t.everything}
+              detail={kitchen.data ? t.things(have.length) : ' '}
               icon="cleaner-spray"
             />
             <Row
               to="/house/shopping"
-              title="House shopping"
-              detail={shopping.data ? `${lines.length} to buy` : ' '}
+              title={t.shopping}
+              detail={shopping.data ? t.toBuy(lines.length) : ' '}
               icon="paper-towels"
             />
-            <Row
-              to="/shopping"
-              title="All shopping"
-              detail="Food and the house, one trip"
-              icon="basket"
-            />
+            <Row to="/shopping" title={t.allShopping} detail={t.allShoppingHint} icon="basket" />
           </ul>
         </nav>
       </div>

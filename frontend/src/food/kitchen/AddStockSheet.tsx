@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { Button, Chips, Sheet, TextField, toast } from '@/components/ui';
+import { tr, type Translations } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
@@ -15,6 +17,7 @@ import {
   addDays,
   formatAmount,
   formatQty,
+  kindText,
   LOCATION_LABEL,
   localDate,
   packageUnits,
@@ -23,24 +26,17 @@ import {
 } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import type { BaseUnit, Location, TrackMode, Area } from '../types';
+import { kitchenT } from './kitchen.i18n';
 
-const COUNTED = [
-  { value: 'pcs' as const, label: 'Pieces' },
-  { value: 'g' as const, label: 'Weight' },
-  { value: 'ml' as const, label: 'Volume' },
-];
-
-const TRACKING = [
-  { value: 'exact' as const, label: 'By amount' },
-  { value: 'level' as const, label: 'Full · low · out' },
-];
+const COUNTED: BaseUnit[] = ['pcs', 'g', 'ml'];
+const TRACKING: Array<'exact' | 'level'> = ['exact', 'level'];
 
 /**
  * Putting food in the kitchen, in two quick steps: what (search, or tap a common food), then how
  * much — as packages when it comes in them (a jar of 400 g, two bottles of 0.5 l and one of 1.25
  * l), else an amount — of which kind, where and until when, all pre-filled from what the item
  * usually is. Basics kept by level are simply marked full. "Add & next" keeps the sheet open for
- * unpacking a whole bag.
+ * unpacking a whole bag. A name nobody knows yet can be given in the other languages too.
  */
 export function AddStockSheet({
   open,
@@ -54,6 +50,8 @@ export function AddStockSheet({
   /** From the House: the picker offers house things, and unknown names become house things. */
   area?: Area;
 }) {
+  const k = kitchenT();
+  const t = k.add;
   const queryClient = useQueryClient();
   const today = localDate();
   const [pick, setPick] = useState<PickedProduct | null>(initial ?? null);
@@ -67,6 +65,7 @@ export function AddStockSheet({
   const [expiresOn, setExpiresOn] = useState<string | null>(null);
   const [price, setPrice] = useState('');
   const [storeId, setStoreId] = useState<string>('none');
+  const [translations, setTranslations] = useState<Translations>({});
   const stores = useQuery({
     queryKey: [...foodKeys.all, 'stores'],
     queryFn: foodApi.stores,
@@ -75,6 +74,7 @@ export function AddStockSheet({
 
   const choose = (next: PickedProduct | null) => {
     setPick(next);
+    setTranslations({});
     if (!next) return;
     const packages = packageUnits(next);
     setByPackage(packages.length > 0);
@@ -114,6 +114,7 @@ export function AddStockSheet({
           icon: pick!.icon,
           category: pick!.category,
           location: pick!.location,
+          ...(Object.keys(translations).length ? { translations } : {}),
         });
         productId = created.id;
       }
@@ -145,16 +146,17 @@ export function AddStockSheet({
         haptic('success');
         void queryClient.invalidateQueries({ queryKey: foodKeys.all });
         const what = level
-          ? 'marked full'
+          ? t.markedFull
           : byPackage
             ? rows.map((row) => `${row.count} × ${formatQty(row.size, product)}`).join(' + ')
             : formatAmount(amount!, unit);
-        toast.success(`${product.name}${variant ? ` · ${variant}` : ''} added`, {
-          description: level ? what : `${what} · ${LOCATION_LABEL[location].toLowerCase()}`,
+        const kind = variant ? ` · ${kindText(variant, product)}` : '';
+        toast.success(t.added(`${tr(product, 'name')}${kind}`), {
+          description: level ? what : `${what} · ${LOCATION_LABEL[location]}`,
           // A level item has no piece to take back; anything else can be undone.
           action: lots.length
             ? {
-                label: 'Undo',
+                label: k.undo,
                 onClick: () =>
                   void Promise.all(lots.map((lot) => foodApi.removeLot(lot.id))).then(() =>
                     queryClient.invalidateQueries({ queryKey: foodKeys.all }),
@@ -169,14 +171,15 @@ export function AddStockSheet({
   };
 
   const fields = fieldErrors(save.error);
+  const name = pick ? tr(pick, 'name') : '';
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
       size="lg"
-      title={pick ? (level ? 'Bought it?' : 'How much?') : 'Add to kitchen'}
-      description={pick ? undefined : 'Search, or tap something common.'}
+      title={pick ? (level ? t.boughtIt : t.howMuch) : k.area[area].addTitle}
+      description={pick ? undefined : t.searchHint}
       footer={
         pick ? (
           <div className="flex flex-col gap-2.5 sm:flex-row-reverse">
@@ -186,7 +189,7 @@ export function AddStockSheet({
               loading={save.isPending && !next}
               disabled={!ready || (save.isPending && next)}
             >
-              {level ? 'Mark it full' : 'Add to kitchen'}
+              {level ? t.markFull : k.area[area].addTitle}
             </Button>
             <Button
               fullWidth
@@ -195,7 +198,7 @@ export function AddStockSheet({
               loading={save.isPending && next}
               disabled={!ready || (save.isPending && !next)}
             >
-              Add & next
+              {t.addNext}
             </Button>
           </div>
         ) : null
@@ -208,83 +211,94 @@ export function AddStockSheet({
           <div className="flex items-center gap-3 rounded-[1.25rem] bg-butter-100 p-2.5 pr-3">
             <FoodIconTile name={pick.icon} tone="bg-white" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[1.0625rem] font-bold">{pick.name}</p>
+              <p className="truncate text-[1.0625rem] font-bold">{name}</p>
               <p className="text-sm text-butter-800">
-                {pick.productId
-                  ? 'In your kitchen’s list'
-                  : pick.isNew
-                    ? 'New item'
-                    : 'From the food list'}
+                {pick.productId ? t.inList : pick.isNew ? t.newItem : t.fromCatalog}
               </p>
             </div>
             {initial ? null : (
               <Button size="sm" variant="ghost" onClick={() => choose(null)}>
-                Change
+                {t.change}
               </Button>
             )}
           </div>
 
           {pick.isNew ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex flex-col gap-2">
-                <span className="text-[0.8125rem] font-semibold text-ink-700">Kept track of</span>
-                <Chips
-                  label="Kept track of"
-                  tone="sheet"
-                  dense
-                  value={pick.trackMode === 'level' ? 'level' : 'exact'}
-                  options={TRACKING}
-                  onChange={(value: TrackMode) => setPick({ ...pick, trackMode: value })}
-                />
-              </div>
-              {pick.trackMode !== 'level' ? (
+            <>
+              <TranslationFields
+                fields={[{ key: 'name', label: t.name, maxLength: 80 }]}
+                value={translations}
+                onChange={setTranslations}
+              />
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                  <span className="text-[0.8125rem] font-semibold text-ink-700">Counted in</span>
+                  <span className="text-[0.8125rem] font-semibold text-ink-700">
+                    {t.keptTrackOf}
+                  </span>
                   <Chips
-                    label="Counted in"
+                    label={t.keptTrackOf}
                     tone="sheet"
                     dense
-                    value={pick.unit}
-                    options={COUNTED}
-                    onChange={(value: BaseUnit) => {
-                      setPick({ ...pick, unit: value });
-                      setUnit(value);
-                      setAmount(value === 'pcs' ? 1 : null);
-                    }}
+                    value={pick.trackMode === 'level' ? 'level' : 'exact'}
+                    options={TRACKING.map((value) => ({ value, label: t.tracking[value] }))}
+                    onChange={(value: TrackMode) => setPick({ ...pick, trackMode: value })}
                   />
                 </div>
-              ) : null}
-            </div>
+                {pick.trackMode !== 'level' ? (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[0.8125rem] font-semibold text-ink-700">
+                      {t.countedIn}
+                    </span>
+                    <Chips
+                      label={t.countedIn}
+                      tone="sheet"
+                      dense
+                      value={pick.unit}
+                      options={COUNTED.map((value) => ({ value, label: k.edit.counted[value] }))}
+                      onChange={(value: BaseUnit) => {
+                        setPick({ ...pick, unit: value });
+                        setUnit(value);
+                        setAmount(value === 'pcs' ? 1 : null);
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </>
           ) : null}
 
           {level ? (
             <p className="rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-700">
-              {pick.name} is kept as full, low or out. Adding it marks it{' '}
-              <span className="font-semibold">full</span>.
+              {t.levelBefore(name)}
+              <span className="font-semibold">{t.levelWord}</span>
+              {t.levelAfter}
             </p>
           ) : (
             <>
               <VariantChips
                 variants={pick.variants}
                 icons={pick.variantIcons}
+                translations={pick.translations}
                 value={variant}
                 onChange={setVariant}
               />
               {packages.length ? (
-                <div className="flex gap-1.5" role="radiogroup" aria-label="Entered as">
-                  {[
-                    [true, 'Packages'],
-                    [false, 'Amount'],
-                  ].map(([value, label]) => (
+                <div className="flex gap-1.5" role="radiogroup" aria-label={t.enteredAs}>
+                  {(
+                    [
+                      [true, t.byPackage],
+                      [false, t.byAmount],
+                    ] as const
+                  ).map(([value, label]) => (
                     <button
                       key={String(value)}
                       type="button"
                       role="radio"
                       aria-checked={byPackage === value}
-                      onClick={() => setByPackage(value as boolean)}
+                      onClick={() => setByPackage(value)}
                       className={`press h-8 rounded-pill px-3.5 text-sm font-semibold ${byPackage === value ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100'}`}
                     >
-                      {label as string}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -297,11 +311,11 @@ export function AddStockSheet({
                   onPackageName={setPackageName}
                   rows={rows}
                   onChange={setRows}
-                  label="What you got"
+                  label={t.whatYouGot}
                 />
               ) : (
                 <QuantityInput
-                  label="Amount"
+                  label={t.amount}
                   value={amount}
                   unit={unit}
                   units={unitsFor(pick)}
@@ -325,24 +339,24 @@ export function AddStockSheet({
 
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-3">
             <TextField
-              label={byPackage && rows.length > 1 ? 'Paid for all (lei)' : 'Paid (lei)'}
+              label={byPackage && rows.length > 1 ? t.paidAll : t.paid}
               inputMode="decimal"
-              placeholder="Optional"
+              placeholder={t.optional}
               value={price}
               onChange={(event) => setPrice(event.target.value)}
             />
             {stores.data?.length ? (
               <label className="flex min-w-0 flex-col gap-2">
-                <span className="text-[0.8125rem] font-semibold text-ink-700">Bought at</span>
+                <span className="text-[0.8125rem] font-semibold text-ink-700">{t.boughtAt}</span>
                 <select
                   value={storeId}
                   onChange={(event) => setStoreId(event.target.value)}
                   className="h-14 w-full rounded-[1.125rem] bg-ink-50 px-4 text-base text-ink-900 outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
                 >
-                  <option value="none">Not saying</option>
+                  <option value="none">{t.notSaying}</option>
                   {stores.data.map((store) => (
                     <option key={store.id} value={store.id}>
-                      {store.name}
+                      {tr(store, 'name')}
                     </option>
                   ))}
                 </select>

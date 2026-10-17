@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button, Sheet, toast } from '@/components/ui';
+import { formatList, tr, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -10,6 +11,8 @@ import { useCatalog } from '../catalog';
 import { formatAmount, formatQty, money, parseAmount } from '../format';
 import { FoodIcon } from '../icons/FoodIcon';
 import type { Product, ShoppingItem, Store } from '../types';
+import { lineTitle } from './names';
+import { shoppingT } from './shopping.i18n';
 
 /** "2 × 300 g · " for a line whose packages were recorded in the shop. */
 function gotText(line: ShoppingItem, products: Product[] | undefined): string | null {
@@ -34,12 +37,13 @@ export function CheckoutSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const t = shoppingT();
   return (
     <Sheet
       open={open}
       onClose={onClose}
-      title={store ? `Finish at ${store.name}` : 'Finish the shop'}
-      description="Check prices, then everything ticked goes into the kitchen."
+      title={store ? t.finishAt(tr(store, 'name')) : t.finish}
+      description={t.checkout.hint}
       size="lg"
     >
       {open ? (
@@ -63,6 +67,8 @@ function CheckoutForm({
   cart: ShoppingItem[];
   onClose: () => void;
 }) {
+  const s = shoppingT();
+  const t = s.checkout;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [prices, setPrices] = useState<Record<string, string>>(() =>
@@ -100,21 +106,26 @@ function CheckoutForm({
           ...(short(line) ? { keepRest: keepRest[line.id] ?? true } : {}),
         })),
       }),
-    onSuccess: ({ trip, stocked, leftOver }) => {
+    onSuccess: ({ trip, stocked, leftOver, notStockedItems, leftOverItems }) => {
       haptic('success');
+      const names = (lines: Array<{ name: string; translations?: Translations }>) =>
+        formatList(lines.map((line) => tr(line, 'name')));
+      const left = leftOverItems ? names(leftOverItems) : formatList(leftOver);
+      // Lines kept out of the kitchen on purpose aren't news; the ones it couldn't count are.
+      const skipped = new Set(cart.filter((line) => stock[line.id] === false).map((l) => l.name));
+      const uncounted = (notStockedItems ?? []).filter((line) => !skipped.has(line.name));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
-      toast.success(`Shop saved${trip.total !== null ? ` · ${money(trip.total)}` : ''}`, {
+      toast.success(`${t.saved}${trip.total !== null ? ` · ${money(trip.total)}` : ''}`, {
         description:
           [
-            stocked
-              ? `${stocked} ${stocked === 1 ? 'item is' : 'items are'} in your kitchen`
-              : null,
-            leftOver.length ? `Still to buy: ${leftOver.join(', ')}` : null,
+            stocked ? t.inKitchen(stocked) : null,
+            left ? t.stillToBuy(left) : null,
+            uncounted.length ? t.notCounted(names(uncounted)) : null,
           ]
             .filter(Boolean)
             .join('. ') || undefined,
         action: stocked
-          ? { label: 'Kitchen', onClick: () => navigate('/food/kitchen') }
+          ? { label: t.kitchen, onClick: () => navigate('/food/kitchen') }
           : undefined,
       });
       onClose();
@@ -125,58 +136,64 @@ function CheckoutForm({
   return (
     <div className="flex flex-col gap-4">
       <ul className="flex flex-col gap-2">
-        {cart.map((line) => (
-          <li key={line.id} className="flex items-center gap-3 rounded-2xl bg-ink-50 p-2.5">
-            <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white">
-              <FoodIcon name={line.icon} className="size-8" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.9375rem] font-semibold">{line.name}</span>
-              <label className="mt-0.5 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-ink-600">
-                <input
-                  type="checkbox"
-                  checked={stock[line.id] ?? true}
-                  onChange={(event) =>
-                    setStock((current) => ({ ...current, [line.id]: event.target.checked }))
-                  }
-                  className="size-4 accent-ink-900"
-                />
-                {gotText(line, catalog.data) ??
-                  (line.amount && line.unit ? `${formatAmount(line.amount, line.unit)} · ` : '')}
-                into the kitchen
-              </label>
-              {short(line) ? (
-                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-peach-800">
+        {cart.map((line) => {
+          const name = lineTitle(
+            line,
+            catalog.data?.find((p) => p.id === line.productId),
+          );
+          return (
+            <li key={line.id} className="flex items-center gap-3 rounded-2xl bg-ink-50 p-2.5">
+              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white">
+                <FoodIcon name={line.icon} className="size-8" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[0.9375rem] font-semibold">{name}</span>
+                <label className="mt-0.5 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-ink-600">
                   <input
                     type="checkbox"
-                    checked={keepRest[line.id] ?? true}
+                    checked={stock[line.id] ?? true}
                     onChange={(event) =>
-                      setKeepRest((current) => ({ ...current, [line.id]: event.target.checked }))
+                      setStock((current) => ({ ...current, [line.id]: event.target.checked }))
                     }
                     className="size-4 accent-ink-900"
                   />
-                  Keep the rest on the list
+                  {gotText(line, catalog.data) ??
+                    (line.amount && line.unit ? `${formatAmount(line.amount, line.unit)} · ` : '')}
+                  {t.intoKitchen}
                 </label>
-              ) : null}
-            </span>
-            <label className="flex w-28 shrink-0 items-center rounded-xl bg-white px-3 shadow-xs focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
-              <span className="sr-only">Price of {line.name} in lei</span>
-              <input
-                inputMode="decimal"
-                value={prices[line.id] ?? ''}
-                placeholder={line.estimate !== null ? `~${Math.round(line.estimate)}` : '—'}
-                onChange={(event) =>
-                  setPrices((current) => ({ ...current, [line.id]: event.target.value }))
-                }
-                className="tabular h-11 w-full min-w-0 bg-transparent text-right text-base font-semibold outline-none placeholder:font-medium placeholder:text-ink-400"
-              />
-              <span className="ml-1 text-sm text-ink-500">lei</span>
-            </label>
-          </li>
-        ))}
+                {short(line) ? (
+                  <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-peach-800">
+                    <input
+                      type="checkbox"
+                      checked={keepRest[line.id] ?? true}
+                      onChange={(event) =>
+                        setKeepRest((current) => ({ ...current, [line.id]: event.target.checked }))
+                      }
+                      className="size-4 accent-ink-900"
+                    />
+                    {t.keepRest}
+                  </label>
+                ) : null}
+              </span>
+              <label className="flex w-28 shrink-0 items-center rounded-xl bg-white px-3 shadow-xs focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
+                <span className="sr-only">{s.priceOf(name)}</span>
+                <input
+                  inputMode="decimal"
+                  value={prices[line.id] ?? ''}
+                  placeholder={line.estimate !== null ? `~${Math.round(line.estimate)}` : '—'}
+                  onChange={(event) =>
+                    setPrices((current) => ({ ...current, [line.id]: event.target.value }))
+                  }
+                  className="tabular h-11 w-full min-w-0 bg-transparent text-right text-base font-semibold outline-none placeholder:font-medium placeholder:text-ink-400"
+                />
+                <span className="ml-1 text-sm text-ink-500">lei</span>
+              </label>
+            </li>
+          );
+        })}
       </ul>
       <div className="flex items-baseline justify-between rounded-2xl bg-butter-100 px-4 py-3">
-        <span className="text-[0.9375rem] font-semibold">Total</span>
+        <span className="text-[0.9375rem] font-semibold">{s.total}</span>
         <span className="tabular text-h2 font-bold">
           {money(Math.round(total * 100) / 100)}
           {estimated > 0 ? (
@@ -187,7 +204,7 @@ function CheckoutForm({
         </span>
       </div>
       <Button fullWidth onClick={() => finish.mutate()} loading={finish.isPending}>
-        Save the shop
+        {t.save}
       </Button>
     </div>
   );

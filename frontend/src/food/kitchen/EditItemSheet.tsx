@@ -1,22 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
+import { TranslationFields } from '@/components/common/TranslationFields';
 import { Button, Chips, Sheet, Switch, TextField, toast } from '@/components/ui';
 import { DeleteIcon } from '@/components/ui/icons';
+import { tr, type Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage, fieldErrors } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
 import { LocationPicker } from '../components/LocationPicker';
-import { CATEGORY_LABEL, CATEGORY_ORDER, parseAmount } from '../format';
+import { CATEGORY_LABEL, CATEGORY_ORDER, parseAmount, unitWord } from '../format';
 import { FOOD_ICON_KEYS } from '../icons/art';
 import { FoodIcon } from '../icons/FoodIcon';
+import { iconLabel } from '../icons/registry';
 import type { BaseUnit, Category, Location, StockedProduct } from '../types';
+import { kitchenT } from './kitchen.i18n';
 
-const COUNTED = [
-  { value: 'pcs' as const, label: 'Pieces' },
-  { value: 'g' as const, label: 'Weight' },
-  { value: 'ml' as const, label: 'Volume' },
-];
+const COUNTED: BaseUnit[] = ['pcs', 'g', 'ml'];
 
 const numberOrNull = (text: string) => {
   const value = parseAmount(text);
@@ -35,6 +35,7 @@ export function EditItemSheet({
   onClose: () => void;
   onRemoved: () => void;
 }) {
+  const t = kitchenT().edit;
   const queryClient = useQueryClient();
   const stores = useQuery({
     queryKey: [...foodKeys.all, 'stores'],
@@ -42,6 +43,7 @@ export function EditItemSheet({
     enabled: open,
   });
   const [name, setName] = useState(product.name);
+  const [translations, setTranslations] = useState<Translations>(product.translations ?? {});
   const [icon, setIcon] = useState(product.icon);
   const [category, setCategory] = useState<Category>(product.category);
   const [unit, setUnit] = useState<BaseUnit>(product.unit);
@@ -67,6 +69,7 @@ export function EditItemSheet({
   }
   function reset() {
     setName(product.name);
+    setTranslations(product.translations ?? {});
     setIcon(product.icon);
     setCategory(product.category);
     setUnit(product.unit);
@@ -84,6 +87,7 @@ export function EditItemSheet({
     mutationFn: () =>
       foodApi.updateProduct(product.id, {
         name: name.trim(),
+        translations,
         icon,
         category,
         ...(unit !== product.unit ? { unit } : {}),
@@ -97,7 +101,7 @@ export function EditItemSheet({
         storeId: storeId === 'none' ? null : storeId,
       }),
     onSuccess: () => {
-      toast.success('Item saved');
+      toast.success(t.saved);
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -105,7 +109,7 @@ export function EditItemSheet({
   const remove = useMutation({
     mutationFn: () => foodApi.archiveProduct(product.id),
     onSuccess: () => {
-      toast.success(`${product.name} removed`);
+      toast.success(t.removed(tr(product, 'name')));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       setConfirmRemove(false);
       onClose();
@@ -115,14 +119,13 @@ export function EditItemSheet({
   });
   const fields = fieldErrors(save.error);
   const hasStock = product.lots.length > 0;
-  const base = unit === 'pcs' ? 'pcs' : unit;
 
   return (
     <>
       <Sheet
         open={open}
         onClose={onClose}
-        title="Edit item"
+        title={t.title}
         size="lg"
         footer={
           <Button
@@ -131,24 +134,32 @@ export function EditItemSheet({
             loading={save.isPending}
             disabled={!name.trim()}
           >
-            Save
+            {t.save}
           </Button>
         }
       >
         <div className="flex flex-col gap-5">
           <TextField
-            label="Name"
+            label={t.name}
             value={name}
             onChange={(event) => setName(event.target.value)}
             error={fields.name}
             maxLength={80}
           />
+          <TranslationFields
+            fields={[
+              { key: 'name', label: t.name, maxLength: 80 },
+              ...(product.note ? [{ key: 'note', label: t.note, multiline: true }] : []),
+            ]}
+            value={translations}
+            onChange={setTranslations}
+          />
 
           <fieldset>
-            <legend className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">Icon</legend>
+            <legend className="mb-2.5 text-[0.8125rem] font-semibold text-ink-700">{t.icon}</legend>
             <div
               role="radiogroup"
-              aria-label="Icon"
+              aria-label={t.icon}
               className="grid max-h-56 grid-cols-6 gap-1.5 overflow-y-auto rounded-2xl bg-ink-50 p-2 sm:grid-cols-8"
             >
               {FOOD_ICON_KEYS.map((key) => (
@@ -157,7 +168,7 @@ export function EditItemSheet({
                   type="button"
                   role="radio"
                   aria-checked={icon === key}
-                  aria-label={key.replace('-', ' ')}
+                  aria-label={iconLabel(key)}
                   onClick={() => setIcon(key)}
                   className={cx(
                     'press grid aspect-square place-items-center rounded-xl transition-colors',
@@ -173,7 +184,7 @@ export function EditItemSheet({
           </fieldset>
 
           <label className="flex flex-col gap-2">
-            <span className="text-[0.8125rem] font-semibold text-ink-700">Category</span>
+            <span className="text-[0.8125rem] font-semibold text-ink-700">{t.category}</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value as Category)}
@@ -188,16 +199,16 @@ export function EditItemSheet({
           </label>
 
           <div className="flex flex-col gap-2">
-            <span className="text-[0.8125rem] font-semibold text-ink-700">Counted in</span>
+            <span className="text-[0.8125rem] font-semibold text-ink-700">{t.countedIn}</span>
             <Chips
-              label="Counted in"
+              label={t.countedIn}
               tone="sheet"
               value={unit}
-              options={COUNTED}
+              options={COUNTED.map((value) => ({ value, label: t.counted[value] }))}
               onChange={(value) => !hasStock && setUnit(value)}
             />
             {hasStock ? (
-              <p className="text-sm text-ink-500">Use up or remove its stock to change this.</p>
+              <p className="text-sm text-ink-500">{t.useUpFirst}</p>
             ) : fields.unit ? (
               <p className="text-sm text-danger-600">{fields.unit}</p>
             ) : null}
@@ -205,43 +216,37 @@ export function EditItemSheet({
 
           <div className="grid grid-cols-2 gap-3">
             <TextField
-              label={
-                unit === 'pcs'
-                  ? 'One piece weighs (g)'
-                  : unit === 'g'
-                    ? 'One piece (g)'
-                    : 'One bottle/pack (ml)'
-              }
+              label={unit === 'pcs' ? t.pieceWeighs : unit === 'g' ? t.onePiece : t.oneBottle}
               inputMode="decimal"
-              placeholder="Optional"
+              placeholder={t.optional}
               value={pieceSize}
               onChange={(event) => setPieceSize(event.target.value)}
-              hint={unit === 'pcs' ? 'Lets recipes in grams use it' : 'Lets you count it in pieces'}
+              hint={unit === 'pcs' ? t.pieceHintPcs : t.pieceHint}
             />
             <TextField
-              label={`Running low under (${base})`}
+              label={t.lowUnder(unitWord(unit, 2))}
               inputMode="decimal"
-              placeholder="Optional"
+              placeholder={t.optional}
               value={minStock}
               onChange={(event) => setMinStock(event.target.value)}
-              hint="It shows on Food home"
+              hint={t.lowHint}
             />
           </div>
 
-          <LocationPicker label="Usually kept in" value={location} onChange={setLocation} />
+          <LocationPicker label={t.usuallyKeptIn} value={location} onChange={setLocation} />
 
           <div className="grid grid-cols-2 gap-3">
             <TextField
-              label="Keeps (days)"
+              label={t.keepsDays}
               inputMode="numeric"
-              placeholder="Optional"
+              placeholder={t.optional}
               value={shelfLife}
               onChange={(event) => setShelfLife(event.target.value)}
             />
             <TextField
-              label="Once opened (days)"
+              label={t.openedDays}
               inputMode="numeric"
-              placeholder="Optional"
+              placeholder={t.optional}
               value={openedDays}
               onChange={(event) => setOpenedDays(event.target.value)}
             />
@@ -249,16 +254,18 @@ export function EditItemSheet({
 
           {stores.data?.length ? (
             <label className="flex flex-col gap-2">
-              <span className="text-[0.8125rem] font-semibold text-ink-700">Usually bought at</span>
+              <span className="text-[0.8125rem] font-semibold text-ink-700">
+                {t.usuallyBoughtAt}
+              </span>
               <select
                 value={storeId}
                 onChange={(event) => setStoreId(event.target.value)}
                 className="h-14 rounded-[1.125rem] bg-ink-50 px-4 text-base outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
               >
-                <option value="none">Any store</option>
+                <option value="none">{t.anyStore}</option>
                 {stores.data.map((store) => (
                   <option key={store.id} value={store.id}>
-                    {store.name}
+                    {tr(store, 'name')}
                   </option>
                 ))}
               </select>
@@ -268,8 +275,8 @@ export function EditItemSheet({
           <Switch
             checked={alwaysThere}
             onChange={setAlwaysThere}
-            label="Always there"
-            hint="Like salt: never counted, never put on a list"
+            label={t.alwaysThere}
+            hint={t.alwaysThereHint}
           />
 
           {save.error && !Object.keys(fields).length ? (
@@ -282,7 +289,7 @@ export function EditItemSheet({
             className="self-start text-danger-600"
             onClick={() => setConfirmRemove(true)}
           >
-            Remove this item
+            {t.remove}
           </Button>
         </div>
       </Sheet>
@@ -292,9 +299,9 @@ export function EditItemSheet({
         onConfirm={() => remove.mutate()}
         loading={remove.isPending}
         tone="danger"
-        title={`Remove ${product.name}?`}
-        description="It leaves the kitchen and its stock is cleared. Recipes and past shops keep their copy."
-        confirmLabel="Remove"
+        title={t.confirmTitle(tr(product, 'name'))}
+        description={t.confirmText}
+        confirmLabel={t.confirm}
       />
     </>
   );

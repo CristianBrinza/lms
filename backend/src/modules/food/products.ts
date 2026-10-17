@@ -1,12 +1,22 @@
 import { nutritionOf, type NutritionEntry } from './nutrition';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import { LOCALES, mergeTranslations, type Translations } from '../../lib/i18n';
 import { isUuid } from '../users';
+import {
+  combine,
+  fieldIn,
+  presetLocalNames,
+  presetTranslations,
+  variantForms,
+  variantsTranslations,
+} from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import {
   findPreset,
   normalizeName,
   PRESETS,
+  presetByKey,
   presetOrGuess,
   sameName,
   variantIconsFor,
@@ -61,6 +71,12 @@ export interface Product extends Measured {
   storeId: string | null;
   note: string;
   archived: boolean;
+  /**
+   * Its name and note in other languages ({ ro: { name, note }, ru: …, en: … }): the catalog's for
+   * a catalog item, else what the household wrote. `variants` (read only) are its kinds in that
+   * language, in the same order as `variants`.
+   */
+  translations: Translations;
   createdAt: string;
   updatedAt: string;
 }
@@ -92,10 +108,63 @@ export interface ProductRow {
   created_at: Date;
   updated_at: Date;
   nutrition: NutritionEntry | null;
+  translations: Translations | null;
 }
 
 export const PRODUCT_COLUMNS =
-  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at, nutrition';
+  'id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, opened_days, opened_location, track_stock, track_mode, level, level_at, freezer_days, thawed_days, units, variants, min_stock, store_id, note, archived_at, created_at, updated_at, nutrition, translations';
+
+/** What is stored: the fields people translate, not the kinds the catalog adds when read. */
+export function storedTranslations(value: Translations | null | undefined): Translations {
+  const out: Translations = {};
+  for (const locale of LOCALES) {
+    const entry = value?.[locale];
+    if (!entry) continue;
+    const { variants: _variants, variant: _variant, ...rest } = entry;
+    if (Object.keys(rest).length) out[locale] = rest;
+  }
+  return out;
+}
+
+/**
+ * The catalog's names for a new item named like a catalog item ("Tomatoes", or "Roșii"): all three
+ * languages, with the name as written kept in its own language. Aliases don't count ("fish" isn't
+ * "Fish fillet"), so nothing is renamed by a loose match.
+ */
+export function catalogSeed(name: string): Translations {
+  const preset = findPreset(name);
+  if (!preset) return {};
+  const catalog = presetTranslations(preset.name);
+  if (!catalog.en) return {};
+  const [ro, ru] = presetLocalNames(preset.name);
+  const own = name.trim();
+  if (sameName(preset.name, name)) return combine(catalog, { en: { name: own } });
+  if (ro && sameName(ro, name)) return combine(catalog, { ro: { name: own } });
+  if (ru && sameName(ru, name)) return combine(catalog, { ru: { name: own } });
+  return {};
+}
+
+/** Translations without one field in every language (a renamed item's old `name`). */
+export function withoutField(value: Translations, field: string): Translations {
+  const out: Translations = {};
+  for (const locale of LOCALES) {
+    const entry = value[locale];
+    if (!entry) continue;
+    const { [field]: _dropped, ...rest } = entry;
+    if (Object.keys(rest).length) out[locale] = rest;
+  }
+  return out;
+}
+
+/** Every name an item goes by: its own, and its name in each language. */
+export function namesOf(product: { name: string; translations?: Translations | null }): string[] {
+  const names = [product.name];
+  for (const locale of LOCALES) {
+    const name = fieldIn(product.translations, 'name', locale);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
 
 export const productColumns = (alias: string) =>
   PRODUCT_COLUMNS.split(', ')
@@ -132,6 +201,10 @@ export function toProduct(row: ProductRow): Product {
     storeId: row.store_id,
     note: row.note,
     archived: row.archived_at !== null,
+    translations: combine(
+      storedTranslations(row.translations),
+      variantsTranslations(row.name, row.variants ?? []),
+    ),
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -170,10 +243,19 @@ export async function listProducts(ctx: FoodCtx, q = ''): Promise<Product[]> {
   const products = rows.map(toProduct);
   const query = normalizeName(q);
   if (!query) return products;
+  // Any of its names counts: "roș" and "помид" find Tomatoes.
   return products
-    .map((product) => ({ product, name: normalizeName(product.name) }))
-    .filter(({ name, product }) => name.includes(query) || sameName(product.name, q))
-    .sort((a, b) => Number(!a.name.startsWith(query)) - Number(!b.name.startsWith(query)))
+    .map((product) => ({ product, names: namesOf(product).map(normalizeName) }))
+    .filter(
+      ({ names, product }) =>
+        names.some((name) => name.includes(query)) ||
+        namesOf(product).some((name) => sameName(name, q)),
+    )
+    .sort(
+      (a, b) =>
+        Number(!a.names.some((name) => name.startsWith(query))) -
+        Number(!b.names.some((name) => name.startsWith(query))),
+    )
     .map(({ product }) => product);
 }
 
@@ -210,6 +292,8 @@ async function findByName(ctx: FoodCtx, name: string): Promise<ProductRow | null
   return (
     rows.find((row) => normalizeName(row.name) === normalizeName(name)) ??
     rows.find((row) => sameName(row.name, name)) ??
+    // Its name in another language: "Humus de casă" is the household's "Homemade hummus".
+    rows.find((row) => namesOf(row).some((other) => sameName(other, name))) ??
     null
   );
 }
@@ -236,8 +320,8 @@ async function insertProduct(
   const mode = modeOf(input) ?? preset?.track ?? 'exact';
   const { rows } = await ctx.db.query<ProductRow>(
     `INSERT INTO products (id, household_id, name, icon, category, unit, piece_size, piece_unit, location, shelf_life_days, min_stock, store_id, note, created_by, created_at, updated_at,
-                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants, opened_location)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+                           opened_days, track_stock, track_mode, level, freezer_days, thawed_days, units, variants, opened_location, translations)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
      RETURNING ${PRODUCT_COLUMNS}`,
     [
       randomUUID(),
@@ -267,6 +351,10 @@ async function insertProduct(
       ),
       input.variants ?? preset?.variants ?? [],
       input.openedLocation === undefined ? (preset?.openedLocation ?? null) : input.openedLocation,
+      // A catalog item arrives with its names in all three languages.
+      JSON.stringify(
+        storedTranslations(mergeTranslations(catalogSeed(input.name), input.translations)),
+      ),
     ],
   );
   return toProduct(rows[0]!);
@@ -334,10 +422,15 @@ export async function resolveNamed(
   return { product, variant: variantNamed(product, name) ?? '' };
 }
 
+/** A type of an item named in any language ("de mere" or "яблочный" is Juice's "Apple"). */
+function typeNamed(item: string, variants: readonly string[], word: string): string | undefined {
+  const wanted = normalizeName(word);
+  return variants.find((v) => variantForms(item, v).some((form) => normalizeName(form) === wanted));
+}
+
 /** The item's own type a word names ("mango peach" is its "Mango-peach"), if it has one. */
 function variantNamed(product: Product, word: string): string | null {
-  const wanted = normalizeName(word);
-  return product.variants.find((v) => normalizeName(v) === wanted) ?? null;
+  return typeNamed(product.name, product.variants, word) ?? null;
 }
 
 /** "mango peach juice" → Juice + "Mango peach", when Juice is an item that comes in types. */
@@ -346,19 +439,24 @@ export async function splitVariant(
   name: string,
 ): Promise<{ item: string; variant: string } | null> {
   const words = normalizeName(name).split(' ');
-  const { rows } = await ctx.db.query<{ name: string; variants: string[] }>(
-    `SELECT name, variants FROM products WHERE household_id = $1 AND cardinality(variants) > 0`,
+  const { rows } = await ctx.db.query<{
+    name: string;
+    variants: string[];
+    translations: Translations | null;
+  }>(
+    `SELECT name, variants, translations FROM products WHERE household_id = $1 AND cardinality(variants) > 0`,
     [ctx.actor.householdId],
   );
   const typed = [
-    ...rows.map((row) => ({ item: row.name, forms: [row.name], variants: row.variants })),
+    ...rows.map((row) => ({ item: row.name, forms: namesOf(row), variants: row.variants })),
     ...PRESETS.filter((preset) => preset.variants?.length).map((preset) => ({
       item: preset.name,
-      forms: [preset.name, ...(preset.aliases ?? [])],
+      forms: [preset.name, ...(preset.aliases ?? []), ...presetLocalNames(preset.name)],
       variants: preset.variants!,
     })),
   ];
-  // A type on its own ("Absolut", "Cheddar") finds its item, when only one item has it.
+  // A type on its own ("Absolut", "Cheddar") finds its item, when only one item has it. Only as
+  // written in the catalog: "ananas" alone is a pineapple, not Topic's Pineapple.
   const owners = new Set(
     typed
       .filter((t) => t.variants.some((v) => normalizeName(v) === words.join(' ')))
@@ -386,7 +484,7 @@ export async function splitVariant(
       cuts.forEach(({ head, rest }, index) => {
         if (rest.length > 3 || !sameName(head.join(' '), form)) return;
         // Through a loose alias ("oil"), only a type the item knows: "pumpkin seed oil" is its own item.
-        if (form !== item && !variants.some((v) => normalizeName(v) === rest.join(' '))) return;
+        if (form !== item && !typeNamed(item, variants, rest.join(' '))) return;
         const score = size * 2 + (index === 0 ? 1 : 0);
         if (best && score <= best.score) return;
         const variant = rest.join(' ');
@@ -446,12 +544,25 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
     const category =
       product.category === 'household' && preset.category !== 'household' ? preset.category : null;
     const location = category && product.location === 'other' ? preset.location : null;
-    if (!units && !variants.length && !openedLocation && !openedDays && !icon && !category)
+    // Its names in Romanian and Russian, for a catalog item (by its key, the catalog's own name)
+    // that has none yet; what the household wrote stays.
+    const stored = storedTranslations(row.translations);
+    const named = presetByKey(row.name) && !stored.ro?.name && !stored.ru?.name;
+    const translations = named ? mergeTranslations(presetTranslations(row.name), stored) : null;
+    if (
+      !units &&
+      !variants.length &&
+      !openedLocation &&
+      !openedDays &&
+      !icon &&
+      !category &&
+      !translations
+    )
       continue;
     await ctx.db.query(
       `UPDATE products SET units = coalesce($2::jsonb, units), variants = variants || $3::text[], opened_location = coalesce($4, opened_location),
               opened_days = coalesce($6, opened_days), icon = coalesce($7, icon), category = coalesce($8, category),
-              location = coalesce($9, location), updated_at = $5 WHERE id = $1`,
+              location = coalesce($9, location), translations = coalesce($10::jsonb, translations), updated_at = $5 WHERE id = $1`,
       [
         product.id,
         units ? JSON.stringify(units) : null,
@@ -462,6 +573,7 @@ export async function refreshFromCatalog(ctx: FoodCtx): Promise<number> {
         icon,
         category,
         location,
+        translations ? JSON.stringify(translations) : null,
       ],
     );
     changed += 1;
@@ -567,14 +679,26 @@ export async function updateProduct(
         { fields: { unit: 'It still has stock' } },
       );
   }
-  if (patch.name && normalizeName(patch.name) !== normalizeName(product.name)) {
-    const clash = await findByName(ctx, patch.name);
-    if (clash && clash.id !== id && normalizeName(clash.name) === normalizeName(patch.name)) {
+  const renamed = Boolean(
+    patch.name && normalizeName(patch.name) !== normalizeName(product.name),
+  );
+  if (renamed) {
+    const clash = await findByName(ctx, patch.name!);
+    if (clash && clash.id !== id && normalizeName(clash.name) === normalizeName(patch.name!)) {
       throw new AppError(409, 'EXISTS', `${clash.name} is already in your kitchen`, {
         fields: { name: 'Another item has this name' },
       });
     }
   }
+  // Renamed: the old name's translations no longer fit (a catalog name brings its own).
+  const before = storedTranslations(product.translations);
+  const base = renamed
+    ? mergeTranslations(withoutField(before, 'name'), catalogSeed(patch.name!))
+    : before;
+  const translations =
+    renamed || patch.translations !== undefined
+      ? JSON.stringify(storedTranslations(mergeTranslations(base, patch.translations)))
+      : undefined;
   const columns: Record<string, unknown> = {
     name: patch.name,
     icon: patch.icon,
@@ -597,6 +721,7 @@ export async function updateProduct(
     min_stock: patch.minStock,
     store_id: patch.storeId,
     note: patch.note,
+    translations,
     // null clears the household's own values: the catalog's count again.
     nutrition:
       patch.nutrition === undefined
@@ -611,8 +736,8 @@ export async function updateProduct(
     if (value === undefined) continue;
     values.push(value);
     sets.push(
-      column === 'nutrition'
-        ? `nutrition = $${values.length}::jsonb`
+      column === 'nutrition' || column === 'translations'
+        ? `${column} = $${values.length}::jsonb`
         : `${column} = $${values.length}`,
     );
   }

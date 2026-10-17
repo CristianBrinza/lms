@@ -1,3 +1,4 @@
+import { presetLocalNames } from './catalog-i18n';
 import type { BaseUnit } from './units';
 
 /**
@@ -2277,13 +2278,35 @@ export function sameName(a: string, b: string): boolean {
   return false;
 }
 
-/** The preset a typed name refers to, if any ("tomato", "Roșii" and "TOMATOES" all find Tomatoes). */
+/**
+ * The preset a typed name refers to, if any ("tomato", "Roșii", "помидоры" and "TOMATOES" all find
+ * Tomatoes): its English name first, then its aliases and its Romanian and Russian names.
+ */
 export function findPreset(name: string): Preset | null {
+  const known = presetCache.get(name);
+  if (known !== undefined) return known;
+  if (presetCache.size > 5000) presetCache.clear();
+  const found = lookUpPreset(name);
+  presetCache.set(name, found);
+  return found;
+}
+
+/** Names already looked up: lists of recipes ask about the same few names again and again. */
+const presetCache = new Map<string, Preset | null>();
+
+function lookUpPreset(name: string): Preset | null {
   for (const preset of PRESETS) {
     if (sameName(preset.name, name)) return preset;
     if (preset.aliases?.some((alias) => sameName(alias, name))) return preset;
   }
+  for (const preset of PRESETS)
+    if (presetLocalNames(preset.name).some((local) => sameName(local, name))) return preset;
   return null;
+}
+
+/** The catalog item a stored name is (its key, exactly: "Tomatoes"), not a loose match. */
+export function presetByKey(name: string): Preset | null {
+  return PRESETS.find((preset) => preset.name === name) ?? null;
 }
 
 /** Words in a name that say what kind of food it is, for names the catalog doesn't know. */
@@ -2690,4 +2713,5 @@ export function variantIconsFor(name: string): Record<string, string> {
   return VARIANT_ICONS[name] ?? {};
 }
 
-export const CATALOG_VERSION = 4;
+/** 5: catalog items and kitchenware get their Romanian and Russian names. */
+export const CATALOG_VERSION = 5;

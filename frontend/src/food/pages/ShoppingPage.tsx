@@ -12,6 +12,7 @@ import {
   StorefrontIcon,
   SwapIcon,
 } from '@/components/ui/icons';
+import { tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -25,24 +26,26 @@ import {
   CATEGORY_ORDER,
   formatAmount,
   formatQty,
+  kindOf,
   localDate,
   money,
   packageUnits,
   parseAmount,
-  relativeDay,
+  relativeDayInline,
   areaOf,
-  kindName,
 } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { BoughtSheet } from '../shopping/BoughtSheet';
 import { CheckoutSheet } from '../shopping/CheckoutSheet';
 import { LineSheet } from '../shopping/LineSheet';
 import { MoveSheet } from '../shopping/MoveSheet';
+import { lineName } from '../shopping/names';
 import { parseLine } from '../shopping/parseLine';
+import { shoppingT } from '../shopping/shopping.i18n';
 import { StoresSheet } from '../shopping/StoresSheet';
 import { STORE_TONE } from '../shopping/tones';
 import { TripsSheet } from '../shopping/TripsSheet';
-import type { Area, ShoppingItem, Store } from '../types';
+import type { Area, Product, ShoppingItem, Store } from '../types';
 
 type Tab = 'all' | 'any' | string;
 
@@ -59,18 +62,14 @@ export default function ShoppingPage() {
 
 type ListArea = Area | 'all';
 
-const LIST_TEXT = {
-  food: { title: 'Food shopping', back: '/food' },
-  house: { title: 'House shopping', back: '/house' },
-  all: { title: 'Shopping', back: '/home' },
-} as const;
+const LIST_BACK: Record<ListArea, string> = { food: '/food', house: '/house', all: '/home' };
 
 /**
  * The same lists, seen three ways: Food's (food only), the House's (house things only), and the
  * Shopping card's (everything, for one trip to Metro). Stores and carts are shared.
  */
 export function ShoppingScreen({ area }: { area: ListArea }) {
-  const text = LIST_TEXT[area];
+  const t = shoppingT();
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('store') ?? 'all';
   const setTab = (next: Tab) =>
@@ -103,6 +102,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
     [shopping.data, area],
   );
   const store = stores.find((s) => s.id === tab) ?? null;
+  const storeName = store ? tr(store, 'name') : null;
   const inTab = items.filter((line) =>
     tab === 'all' ? true : tab === 'any' ? !line.storeId : line.storeId === tab,
   );
@@ -118,29 +118,37 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
         ? (stores.find((s) => s.id === cartStores[0]) ?? null)
         : undefined
       : store;
+  const finishLabel =
+    checkoutStore === undefined
+      ? t.pickStore
+      : checkoutStore
+        ? t.finishAt(tr(checkoutStore, 'name'))
+        : t.finish;
+  const onFinish = () =>
+    checkoutStore === undefined ? setTab(cartStores[0] ?? 'any') : setCheckoutOpen(true);
 
   return (
     <Screen tone="white">
       <PageHeader
         compact
-        back={text.back}
-        title={text.title}
+        back={LIST_BACK[area]}
+        title={t.title[area]}
         subtitle={
           shopping.data
-            ? `${open.length} to buy${estimate > 0 ? ` · about ${money(Math.round(estimate))}` : ''}`
+            ? `${t.toBuy(open.length)}${estimate > 0 ? ` · ${t.about(money(Math.round(estimate)))}` : ''}`
             : ' '
         }
         actions={
           <>
             <IconButton
               icon={ReceiptIcon}
-              label="Past shops"
+              label={t.pastShops}
               size="sm"
               onClick={() => setTripsOpen(true)}
             />
             <IconButton
               icon={StorefrontIcon}
-              label="Stores"
+              label={t.stores}
               variant="ink"
               size="sm"
               onClick={() => setStoresOpen(true)}
@@ -162,7 +170,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
             <AddBar
               tab={tab}
               area={area}
-              storeName={store?.name ?? (tab === 'any' ? 'Any store' : null)}
+              storeName={storeName ?? (tab === 'any' ? t.anyStore : null)}
             />
             <RunningLow items={items} area={area} />
           </div>
@@ -175,7 +183,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
               </div>
             ) : shopping.error ? (
               <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-                <p className="font-semibold text-danger-700">Couldn’t load the lists</p>
+                <p className="font-semibold text-danger-700">{t.couldntLoad}</p>
                 <p className="mt-1 text-sm text-ink-600">{errorMessage(shopping.error)}</p>
                 <Button
                   size="sm"
@@ -183,19 +191,19 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                   className="mt-3"
                   onClick={() => void shopping.refetch()}
                 >
-                  Try again
+                  {t.tryAgain}
                 </Button>
               </div>
             ) : !inTab.length ? (
               <Empty
                 hasStores={stores.length > 0}
-                storeName={store?.name}
+                storeName={storeName ?? undefined}
                 onStores={() => setStoresOpen(true)}
               />
             ) : (
               <>
                 <Lines
-                  title="Buy today"
+                  title={t.buyToday}
                   tone="peach"
                   lines={now}
                   onEdit={setEditing}
@@ -209,7 +217,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                     {stores.map((s) => (
                       <Lines
                         key={s.id}
-                        title={s.name}
+                        title={tr(s, 'name')}
                         dot={STORE_TONE[s.tone].dot}
                         lines={later.filter((l) => l.storeId === s.id)}
                         onMove={() => setMoving(s.id)}
@@ -219,7 +227,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                       />
                     ))}
                     <Lines
-                      title="Any store"
+                      title={t.anyStore}
                       lines={later.filter((l) => !l.storeId)}
                       onMove={stores.length ? () => setMoving(null) : undefined}
                       onEdit={setEditing}
@@ -237,7 +245,7 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                           className="press inline-flex h-9 items-center gap-1.5 rounded-pill px-3 text-sm font-semibold text-lav-800 transition-colors hover:bg-lav-50"
                         >
                           <SwapIcon fontSize="inherit" className="text-[1.15rem]" />
-                          Move this list
+                          {t.moveThisList}
                         </button>
                       </div>
                     ) : null}
@@ -255,12 +263,12 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
                 )}
                 {!open.length && cart.length ? (
                   <p className="mb-6 rounded-3xl bg-mint-100 p-4 text-center text-[0.9375rem] font-semibold text-mint-800">
-                    Everything’s in the cart. Finish the shop {wide ? 'on the right' : 'below'}.
+                    {t.allInCart(wide)}
                   </p>
                 ) : null}
                 {wide ? null : (
                   <Lines
-                    title="In the cart"
+                    title={t.inCart}
                     lines={cart}
                     onEdit={setEditing}
                     onBought={setBought}
@@ -278,16 +286,8 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
             onEdit={setEditing}
             onBought={setBought}
             today={today}
-            label={
-              checkoutStore === undefined
-                ? 'Pick a store to finish'
-                : checkoutStore
-                  ? `Finish at ${checkoutStore.name}`
-                  : 'Finish the shop'
-            }
-            onFinish={() =>
-              checkoutStore === undefined ? setTab(cartStores[0] ?? 'any') : setCheckoutOpen(true)
-            }
+            label={finishLabel}
+            onFinish={onFinish}
           />
         ) : null}
       </div>
@@ -296,16 +296,8 @@ export function ShoppingScreen({ area }: { area: ListArea }) {
         <CartBar
           count={cart.length}
           total={cart.reduce((sum, line) => sum + (line.price ?? 0), 0)}
-          label={
-            checkoutStore === undefined
-              ? 'Pick a store to finish'
-              : checkoutStore
-                ? `Finish at ${checkoutStore.name}`
-                : 'Finish the shop'
-          }
-          onFinish={() =>
-            checkoutStore === undefined ? setTab(cartStores[0] ?? 'any') : setCheckoutOpen(true)
-          }
+          label={finishLabel}
+          onFinish={onFinish}
         />
       ) : null}
 
@@ -347,26 +339,27 @@ function StoreTabs({
   onTab: (tab: Tab) => void;
   onAddStore: () => void;
 }) {
+  const t = shoppingT();
   const count = (filter: (line: ShoppingItem) => boolean) =>
     items.filter((line) => !line.checked && filter(line)).length;
   const tabs = [
     {
       id: 'all',
-      label: 'All',
+      label: t.all,
       count: count(() => true),
       dot: null as string | null,
       soft: 'bg-ink-900 text-white',
     },
     ...stores.map((s) => ({
       id: s.id,
-      label: s.name,
+      label: tr(s, 'name'),
       count: count((l) => l.storeId === s.id),
       dot: STORE_TONE[s.tone].dot,
       soft: cx(STORE_TONE[s.tone].soft, 'text-ink-900 ring-2 ring-inset ring-ink-900'),
     })),
     {
       id: 'any',
-      label: 'Any store',
+      label: t.anyStore,
       count: count((l) => !l.storeId),
       dot: 'bg-ink-300',
       soft: 'bg-ink-100 text-ink-900 ring-2 ring-inset ring-ink-900',
@@ -375,34 +368,34 @@ function StoreTabs({
   return (
     <div
       role="tablist"
-      aria-label="Stores"
+      aria-label={t.stores}
       className="-mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none]"
     >
-      {tabs.map((t) => {
-        const active = t.id === tab;
+      {tabs.map((tabItem) => {
+        const active = tabItem.id === tab;
         return (
           <button
-            key={t.id}
+            key={tabItem.id}
             type="button"
             role="tab"
             aria-selected={active}
-            onClick={() => onTab(t.id)}
+            onClick={() => onTab(tabItem.id)}
             className={cx(
-              'press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill px-3.5 text-sm font-semibold transition-colors',
-              active ? t.soft : 'bg-white text-ink-800 shadow-xs hover:bg-ink-50',
+              'press inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill px-3.5 text-sm font-semibold transition-colors',
+              active ? tabItem.soft : 'bg-white text-ink-800 shadow-xs hover:bg-ink-50',
             )}
           >
-            {t.dot ? (
-              <span aria-hidden="true" className={cx('size-2.5 rounded-full', t.dot)} />
+            {tabItem.dot ? (
+              <span aria-hidden="true" className={cx('size-2.5 rounded-full', tabItem.dot)} />
             ) : null}
-            {t.label}
+            {tabItem.label}
             <span
               className={cx(
                 'tabular rounded-pill px-1.5 text-xs',
-                active && t.id === 'all' ? 'bg-white/15' : 'bg-ink-900/6',
+                active && tabItem.id === 'all' ? 'bg-white/15' : 'bg-ink-900/6',
               )}
             >
-              {t.count}
+              {tabItem.count}
             </span>
           </button>
         );
@@ -410,16 +403,17 @@ function StoreTabs({
       <button
         type="button"
         onClick={onAddStore}
-        className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-lav-100 px-3.5 text-sm font-semibold text-lav-800 hover:bg-lav-200"
+        className="press inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-pill bg-lav-100 px-3.5 text-sm font-semibold text-lav-800 hover:bg-lav-200"
       >
         <AddIcon fontSize="inherit" className="text-lg" />
-        Store
+        {t.store}
       </button>
     </div>
   );
 }
 
 function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; area: ListArea }) {
+  const t = shoppingT();
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
@@ -445,8 +439,8 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       if (line)
         toast.success(
-          `${line.name}${line.amount && line.unit ? ` · ${formatAmount(line.amount, line.unit)}` : ''}`,
-          { description: 'On the list', duration: 1800 },
+          `${lineName(line)}${line.amount && line.unit ? ` · ${formatAmount(line.amount, line.unit)}` : ''}`,
+          { description: t.onList, duration: 1800 },
         );
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -455,9 +449,12 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!parsed.name) return;
+    const typed = parsed.name.toLowerCase().slice(0, 3);
     const match =
       results.find(
-        (r) => exact && r.name.toLowerCase().startsWith(parsed.name.toLowerCase().slice(0, 3)),
+        (r) =>
+          exact &&
+          (r.name.toLowerCase().startsWith(typed) || tr(r, 'name').toLowerCase().startsWith(typed)),
       ) ?? (exact ? results[0] : undefined);
     add.mutate(
       match?.productId ? { productId: match.productId } : { name: match?.name ?? parsed.name },
@@ -469,7 +466,7 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
     <form onSubmit={submit} className="relative">
       <div className="flex items-center gap-2 rounded-[1rem] bg-white p-1 pl-3.5 shadow-[var(--shadow-xs),inset_0_0_0_1px_var(--color-ink-100)] focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
         <label htmlFor="add-line" className="sr-only">
-          Add to {storeName ?? 'the list'}
+          {storeName ? t.addTo(storeName) : t.addToList}
         </label>
         <input
           id="add-line"
@@ -478,9 +475,7 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
           onChange={(event) => setText(event.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => window.setTimeout(() => setFocused(false), 150)}
-          placeholder={
-            storeName ? `Add to ${storeName}: “2 tomatoes”` : 'Add “2 tomatoes”, “1 kg rice”…'
-          }
+          placeholder={storeName ? t.placeholderAt(storeName) : t.placeholder}
           autoComplete="off"
           enterKeyHint="done"
           className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-ink-500"
@@ -492,7 +487,7 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
           loading={add.isPending}
           disabled={!parsed.name}
         >
-          Add
+          {t.add}
         </Button>
       </div>
       {showSuggestions ? (
@@ -509,7 +504,7 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
               >
                 <FoodIcon name={pick.icon} className="size-8" />
                 <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold">
-                  {pick.name}
+                  {tr(pick, 'name')}
                 </span>
                 {parsed.amount ? (
                   <span className="text-sm text-ink-600">
@@ -526,6 +521,7 @@ function AddBar({ tab, storeName, area }: { tab: Tab; storeName: string | null; 
 }
 
 function RunningLow({ items, area }: { items: ShoppingItem[]; area: ListArea }) {
+  const t = shoppingT();
   const queryClient = useQueryClient();
   const kitchen = useQuery({ queryKey: foodKeys.kitchen, queryFn: foodApi.kitchen });
   const low = (kitchen.data ?? []).filter(
@@ -546,19 +542,19 @@ function RunningLow({ items, area }: { items: ShoppingItem[]; area: ListArea }) 
           key={product.id}
           type="button"
           onClick={() => add.mutate(product.id)}
-          className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-peach-100 pl-1 pr-2.5 text-sm font-semibold hover:bg-peach-200"
+          className="press inline-flex h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-pill bg-peach-100 pl-1 pr-2.5 text-sm font-semibold hover:bg-peach-200"
         >
           <FoodIcon name={product.icon} className="size-6" />
-          {product.name}
+          {tr(product, 'name')}
           <AddIcon fontSize="inherit" className="text-base text-peach-800" />
         </button>
       ))}
       <Link
         to="/food/plan?needs=1"
-        className="press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill bg-lav-100 px-3 text-sm font-semibold text-lav-800 hover:bg-lav-200"
+        className="press inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-lav-100 px-3 text-sm font-semibold text-lav-800 hover:bg-lav-200"
       >
         <CalendarIcon fontSize="inherit" className="text-base" />
-        What the plan needs
+        {t.planNeeds}
       </Link>
     </div>
   );
@@ -590,7 +586,12 @@ function Lines({
   showStore?: boolean;
   stores?: Store[];
 }) {
+  const t = shoppingT();
   if (!lines.length) return null;
+  const storeOf = (line: ShoppingItem) => {
+    const store = stores?.find((s) => s.id === line.storeId);
+    return store ? tr(store, 'name') : t.anyStore;
+  };
   return (
     <section className="mb-3.5">
       <h2 className="mb-1.5 flex items-center gap-2 px-1 text-[0.9375rem] font-bold">
@@ -601,17 +602,17 @@ function Lines({
             className="size-2.5 rounded-full bg-peach-200 ring-2 ring-peach-100"
           />
         ) : null}
-        {title}
+        <span className="min-w-0 truncate">{title}</span>
         <span className="tabular text-sm font-semibold text-ink-500">{lines.length}</span>
         {onMove ? (
           <button
             type="button"
             onClick={onMove}
-            aria-label={`Move ${title}’s list to another store`}
-            className="press -my-1 ml-auto inline-flex h-8 items-center gap-1 rounded-pill px-2.5 text-[0.8125rem] font-semibold text-lav-800 transition-colors hover:bg-lav-50"
+            aria-label={t.moveListOf(title)}
+            className="press -my-1 ml-auto inline-flex h-8 shrink-0 items-center gap-1 rounded-pill px-2.5 text-[0.8125rem] font-semibold text-lav-800 transition-colors hover:bg-lav-50"
           >
             <SwapIcon fontSize="inherit" className="text-[1.05rem]" />
-            Move
+            {t.move}
           </button>
         ) : null}
       </h2>
@@ -630,9 +631,7 @@ function Lines({
             onEdit={() => onEdit(line)}
             onBought={() => onBought(line)}
             today={today}
-            store={
-              showStore ? (stores?.find((s) => s.id === line.storeId)?.name ?? 'Any store') : null
-            }
+            store={showStore ? storeOf(line) : null}
           />
         ))}
       </ul>
@@ -653,12 +652,14 @@ function LineRow({
   today: string;
   store?: string | null;
 }) {
+  const t = shoppingT();
   const queryClient = useQueryClient();
   const catalog = useCatalog();
   const product = catalog.data?.find((p) => p.id === line.productId);
   const inPackages = Boolean(
     product && product.trackMode === 'exact' && packageUnits(product).length,
   );
+  const name = lineName(line, product);
   const [price, setPrice] = useState(line.price === null ? '' : String(line.price));
   const toggle = useMutation({
     mutationFn: (checked: boolean) => foodApi.updateLine(line.id, { checked }),
@@ -688,7 +689,7 @@ function LineRow({
     onSuccess: (_item, checked) => {
       // Into the cart: for things in packages, a nudge to say what was really taken.
       if (checked && inPackages && !line.bought)
-        toast('What did you get?', { action: { label: 'Say', onClick: onBought }, duration: 2500 });
+        toast(t.whatDidYouGet, { action: { label: t.say, onClick: onBought }, duration: 2500 });
     },
   });
   const savePrice = useMutation({
@@ -703,9 +704,7 @@ function LineRow({
         type="button"
         role="checkbox"
         aria-checked={line.checked}
-        aria-label={
-          line.checked ? `Take ${line.name} out of the cart` : `Put ${line.name} in the cart`
-        }
+        aria-label={line.checked ? t.takeOut(name) : t.putIn(name)}
         onClick={() => toggle.mutate(!line.checked)}
         className="press grid size-12 shrink-0 place-items-center"
       >
@@ -737,31 +736,27 @@ function LineRow({
               line.checked && 'text-ink-600 line-through decoration-ink-400',
             )}
           >
-            {kindName(line.name, line.variant, line.kindInName)}
+            {name}
           </span>
           <span className="block truncate text-[0.8125rem] text-ink-600">
             {line.checked && line.boughtTotal !== null && product ? (
               <Got line={line} product={product} />
             ) : (
               [
-                line.priority ? 'Important' : null,
-                line.needBy
-                  ? `for ${relativeDay(line.needBy, today).replace(/^(Today|Tomorrow)$/, (word) => word.toLowerCase())}`
-                  : null,
+                line.priority ? t.important : null,
+                line.needBy ? t.forDay(relativeDayInline(line.needBy, today)) : null,
                 store ?? null,
-                line.amount && line.unit
-                  ? `at least ${formatAmount(line.amount, line.unit)}`
-                  : null,
-                line.kindInName ? null : line.variant || null,
+                line.amount && line.unit ? t.atLeast(formatAmount(line.amount, line.unit)) : null,
+                line.kindInName || !line.variant ? null : kindOf(line, product),
                 line.note || null,
                 line.source === 'plan' && !line.needBy
-                  ? 'for the plan'
+                  ? t.forPlan
                   : line.source === 'ai'
-                    ? 'by Claude'
+                    ? t.byClaude
                     : null,
               ]
                 .filter(Boolean)
-                .join(' · ') || 'Tap to set how much'
+                .join(' · ') || t.tapToSet
             )}
           </span>
         </span>
@@ -772,16 +767,16 @@ function LineRow({
           onClick={onBought}
           className="press mr-1 h-8 shrink-0 rounded-pill bg-white px-2.5 text-xs font-semibold text-lav-800 shadow-xs"
         >
-          {line.bought ? 'Change' : 'What I got'}
+          {line.bought ? t.change : t.whatIGot}
         </button>
       ) : null}
       {line.checked ? (
         <label className="flex w-24 shrink-0 items-center rounded-xl bg-white px-2.5 shadow-xs focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
-          <span className="sr-only">Price of {line.name} in lei</span>
+          <span className="sr-only">{t.priceOf(name)}</span>
           <input
             inputMode="decimal"
             value={price}
-            placeholder={line.estimate !== null ? `~${Math.round(line.estimate)}` : 'Price'}
+            placeholder={line.estimate !== null ? `~${Math.round(line.estimate)}` : t.price}
             onChange={(event) => setPrice(event.target.value)}
             onBlur={() => {
               if ((parseAmount(price) ?? null) !== line.price) savePrice.mutate();
@@ -800,23 +795,21 @@ function LineRow({
 }
 
 /** "Got 600 g · 100 g extra", "Got 300 g · 200 g short". */
-function Got({
-  line,
-  product,
-}: {
-  line: ShoppingItem;
-  product: NonNullable<ReturnType<typeof useCatalog>['data']>[number];
-}) {
+function Got({ line, product }: { line: ShoppingItem; product: Product }) {
+  const t = shoppingT();
   const got = line.boughtTotal ?? 0;
   const diff = line.need === null ? null : got - line.need;
   return (
     <>
-      Got {formatQty(got, product)}
-      {line.variant ? ` · ${line.variant}` : ''}
+      {t.got(formatQty(got, product))}
+      {line.variant ? ` · ${kindOf(line, product)}` : ''}
       {diff === null || Math.abs(diff) < 1e-6 ? null : diff > 0 ? (
-        <span className="text-mint-800"> · {formatQty(diff, product)} extra</span>
+        <span className="text-mint-800"> · {t.extra(formatQty(diff, product))}</span>
       ) : (
-        <span className="font-semibold text-peach-800"> · {formatQty(-diff, product)} short</span>
+        <span className="font-semibold text-peach-800">
+          {' '}
+          · {t.short(formatQty(-diff, product))}
+        </span>
       )}
     </>
   );
@@ -838,14 +831,15 @@ function CartPanel({
   label: string;
   onFinish: () => void;
 }) {
+  const t = shoppingT();
   const total = cart.reduce((sum, line) => sum + (line.price ?? 0), 0);
   return (
     <aside
-      aria-label="Cart"
+      aria-label={t.cart}
       className="sticky top-3 mt-2.5 flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-[var(--shadow-card)]"
     >
       <header className="flex items-baseline justify-between gap-3 px-4 pb-2 pt-4">
-        <h2 className="text-h3 font-bold">In the cart</h2>
+        <h2 className="text-h3 font-bold">{t.inCart}</h2>
         <span className="tabular text-sm font-semibold text-ink-600">{cart.length}</span>
       </header>
       {cart.length ? (
@@ -861,13 +855,11 @@ function CartPanel({
           ))}
         </ul>
       ) : (
-        <p className="px-4 pb-4 text-sm text-ink-600">
-          Tick things as they go in the cart; what they cost can be typed here.
-        </p>
+        <p className="px-4 pb-4 text-sm text-ink-600">{t.cartHint}</p>
       )}
       <footer className="flex flex-col gap-2 border-t border-ink-100 p-4">
         <span className="flex items-baseline justify-between text-[0.9375rem] font-semibold">
-          Total{' '}
+          {t.total}{' '}
           <span className="tabular text-h3 font-bold">{money(Math.round(total * 100) / 100)}</span>
         </span>
         <Button fullWidth onClick={onFinish} disabled={!cart.length}>
@@ -889,12 +881,14 @@ function CartBar({
   label: string;
   onFinish: () => void;
 }) {
+  const t = shoppingT();
   return (
     <DockBar>
-      <span className="min-w-0 flex-1 text-[0.9375rem] font-semibold">
-        {count} in the cart{total > 0 ? ` · ${money(Math.round(total * 100) / 100)}` : ''}
+      <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold">
+        {t.countInCart(count)}
+        {total > 0 ? ` · ${money(Math.round(total * 100) / 100)}` : ''}
       </span>
-      <Button size="md" variant="soft" onClick={onFinish}>
+      <Button size="md" variant="soft" className="max-w-[60%] truncate" onClick={onFinish}>
         {label}
       </Button>
     </DockBar>
@@ -910,21 +904,17 @@ function Empty({
   storeName?: string;
   onStores: () => void;
 }) {
+  const t = shoppingT().empty;
   return (
     <div className="flex flex-col items-center rounded-[2rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
       <SceneArt scene="shopping" className="size-24" />
-      <h2 className="mt-4 text-h2 font-bold">
-        {storeName ? `Nothing for ${storeName}` : 'Nothing to buy'}
-      </h2>
+      <h2 className="mt-4 text-h2 font-bold">{storeName ? t.nothingFor(storeName) : t.nothing}</h2>
       <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
-        Type what you need above.{' '}
-        {hasStores
-          ? 'Each item can go to the store you buy it at.'
-          : 'Add your stores — Linella, Metro — to keep a list for each.'}
+        {t.typeAbove} {hasStores ? t.eachStore : t.addStoresHint}
       </p>
       {!hasStores ? (
         <Button icon={StorefrontIcon} className="mt-6" onClick={onStores}>
-          Add your stores
+          {t.addStores}
         </Button>
       ) : null}
     </div>

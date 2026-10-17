@@ -13,6 +13,7 @@ import {
   SearchIcon,
   SparkleIcon,
 } from '@/components/ui/icons';
+import { getLocale, intlLocale, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys } from '../api';
@@ -20,6 +21,7 @@ import { normalize } from '../catalog';
 import { FoodIcon, SceneArt } from '../icons/FoodIcon';
 import type { Recipe } from '../types';
 import { formatKcal } from '../nutrition';
+import { useRecipesT } from '../recipes.i18n';
 
 type Filter = 'all' | 'ready' | 'soon' | 'favorites';
 
@@ -37,6 +39,7 @@ const TILE = [
  * opened (?uses=<item>, from Food home), favourites, drinks and snacks by tag.
  */
 export default function RecipesPage() {
+  const t = useRecipesT();
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const [params, setParams] = useSearchParams();
   const uses = params.get('uses');
@@ -65,6 +68,7 @@ export default function RecipesPage() {
       (r) =>
         !query.trim() ||
         normalize(r.title).includes(normalize(query)) ||
+        normalize(tr(r, 'title')).includes(normalize(query)) ||
         r.ingredients.some((i) => normalize(i.name).includes(normalize(query))),
     )
     .sort((a, b) =>
@@ -72,7 +76,7 @@ export default function RecipesPage() {
         ? b.availability.useSoon - a.availability.useSoon
         : Number(b.favorite) - Number(a.favorite) ||
           Number(b.availability.ready) - Number(a.availability.ready) ||
-          a.title.localeCompare(b.title),
+          tr(a, 'title').localeCompare(tr(b, 'title'), intlLocale(getLocale())),
     );
   const ready = all.filter((r) => r.availability.ready).length;
 
@@ -81,17 +85,13 @@ export default function RecipesPage() {
       <PageHeader
         compact
         back="/food"
-        title="Recipes"
-        subtitle={
-          recipes.data
-            ? `${all.length} ${all.length === 1 ? 'recipe' : 'recipes'} · ${ready} ready to cook`
-            : ' '
-        }
+        title={t.title}
+        subtitle={recipes.data ? t.count(all.length, ready) : ' '}
         actions={
           <IconLink
             to="/food/recipes/new"
             icon={AddIcon}
-            label="New recipe"
+            label={t.newRecipe}
             variant="ink"
             size="sm"
           />
@@ -101,33 +101,33 @@ export default function RecipesPage() {
       {all.length ? (
         <div className="gutter-x mt-2.5 flex flex-col gap-2 md:px-5 lg:px-8">
           <TextField
-            label="Search recipes"
+            label={t.search}
             hideLabel
             dense
             icon={SearchIcon}
             surface="raised"
-            placeholder="A dish or an ingredient"
+            placeholder={t.searchPlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
           <Chips
-            label="Show"
+            label={t.show}
             tone="sheet"
             dense
             value={filter}
             onChange={setFilter}
             options={[
-              { value: 'all', label: 'All', count: all.length },
-              { value: 'ready', label: 'Ready to cook', count: ready },
+              { value: 'all', label: t.filter.all, count: all.length },
+              { value: 'ready', label: t.filter.ready, count: ready },
               {
                 value: 'soon',
-                label: 'Use it up',
+                label: t.filter.soon,
                 icon: FireIcon,
                 count: all.filter((r) => r.availability.useSoon > 0).length,
               },
               {
                 value: 'favorites',
-                label: 'Favourites',
+                label: t.filter.favorites,
                 icon: FavoriteIcon,
                 count: all.filter((r) => r.favorite).length,
               },
@@ -139,25 +139,25 @@ export default function RecipesPage() {
               onClick={() => setParams({}, { replace: true })}
               className="press inline-flex h-9 w-fit items-center gap-1.5 rounded-pill bg-peach-100 px-3.5 text-sm font-semibold text-peach-800"
             >
-              With {usesName?.toLowerCase() ?? 'this item'} · show all
+              {t.withItem(usesName?.toLowerCase() ?? null)}
             </button>
           ) : null}
           {tags.length ? (
             <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
-              {tags.map((t) => (
+              {tags.map((name) => (
                 <button
-                  key={t}
+                  key={name}
                   type="button"
-                  aria-pressed={tag === t}
-                  onClick={() => setTag(tag === t ? null : t)}
+                  aria-pressed={tag === name}
+                  onClick={() => setTag(tag === name ? null : name)}
                   className={cx(
                     'press h-9 shrink-0 rounded-pill px-3.5 text-sm font-semibold',
-                    tag === t
+                    tag === name
                       ? 'bg-ink-900 text-white'
                       : 'bg-white text-ink-700 shadow-xs hover:bg-ink-50',
                   )}
                 >
-                  #{t}
+                  #{name}
                 </button>
               ))}
             </div>
@@ -173,7 +173,7 @@ export default function RecipesPage() {
           </div>
         ) : recipes.error ? (
           <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load recipes</p>
+            <p className="font-semibold text-danger-700">{t.loadFailed}</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(recipes.error)}</p>
             <Button
               size="sm"
@@ -181,14 +181,14 @@ export default function RecipesPage() {
               className="mt-3"
               onClick={() => void recipes.refetch()}
             >
-              Try again
+              {t.tryAgain}
             </Button>
           </div>
         ) : !all.length ? (
           <Empty />
         ) : !shown.length ? (
           <p className="rounded-3xl bg-white p-6 text-center text-[0.9375rem] text-ink-600 shadow-[var(--shadow-card)]">
-            Nothing matches. Try another filter.
+            {t.noMatch}
           </p>
         ) : (
           <ul className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:gap-4 xl:grid-cols-4">
@@ -205,6 +205,7 @@ export default function RecipesPage() {
 }
 
 function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
+  const t = useRecipesT();
   const minutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0);
   const { availability } = recipe;
   return (
@@ -226,19 +227,21 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
         {recipe.createdVia === 'ai' ? (
           <span
             className="absolute left-2.5 top-2.5 grid size-8 place-items-center rounded-full bg-white text-base text-lav-700 shadow-xs"
-            title="Added by Claude"
+            title={t.addedByClaude}
           >
             <SparkleIcon fontSize="inherit" />
           </span>
         ) : null}
       </span>
       <span className="flex flex-1 flex-col p-2.5">
-        <span className="line-clamp-2 text-[0.9375rem] font-bold leading-snug">{recipe.title}</span>
+        <span className="line-clamp-2 text-[0.9375rem] font-bold leading-snug">
+          {tr(recipe, 'title')}
+        </span>
         <span className="mt-1 flex items-center gap-2.5 text-xs font-medium text-ink-600">
           {minutes ? (
             <span className="inline-flex items-center gap-1">
               <AccessTimeIcon fontSize="inherit" className="text-sm" />
-              {minutes} min
+              {t.minutes(minutes)}
             </span>
           ) : null}
           <span className="inline-flex items-center gap-1">
@@ -246,23 +249,25 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
             {recipe.servings}
           </span>
           {recipe.nutrition.known ? (
-            <span className="tabular">~{formatKcal(recipe.nutrition.perServing.kcal)} kcal</span>
+            <span className="tabular">
+              {t.kcalAbout(formatKcal(recipe.nutrition.perServing.kcal))}
+            </span>
           ) : null}
         </span>
         <span className="mt-auto flex flex-wrap gap-1 pt-2">
           {availability.total === 0 ? null : availability.ready ? (
             <span className="inline-flex h-6 items-center rounded-pill bg-mint-100 px-2 text-xs font-semibold text-mint-800">
-              Ready to cook
+              {t.readyToCook}
             </span>
           ) : (
             <span className="inline-flex h-6 items-center rounded-pill bg-peach-100 px-2 text-xs font-semibold text-peach-800">
-              {availability.missing.length} missing
+              {t.missing(availability.missing.length)}
             </span>
           )}
           {availability.useSoon ? (
             <span
               className="inline-flex h-6 items-center gap-0.5 rounded-pill bg-butter-100 px-2 text-xs font-semibold text-butter-800"
-              title="Uses food that expires soon"
+              title={t.usesSoon}
             >
               <FireIcon fontSize="inherit" className="text-sm" />
               {availability.useSoon}
@@ -275,20 +280,18 @@ function RecipeCard({ recipe, tone }: { recipe: Recipe; tone: string }) {
 }
 
 function Empty() {
+  const t = useRecipesT();
   return (
     <div className="flex flex-col items-center rounded-[2rem] bg-white px-6 py-10 text-center shadow-[var(--shadow-card)]">
       <SceneArt scene="recipes" className="size-24" />
-      <h2 className="mt-4 text-h2 font-bold">No recipes yet</h2>
-      <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">
-        Write down the dishes you make. Each ingredient links to your kitchen, so you can see what’s
-        ready to cook.
-      </p>
+      <h2 className="mt-4 text-h2 font-bold">{t.emptyTitle}</h2>
+      <p className="mt-2 max-w-sm text-[0.9375rem] text-ink-600">{t.emptyText}</p>
       <div className="mt-6 flex flex-wrap justify-center gap-2.5">
         <ButtonLink to="/food/recipes/new" icon={AddIcon}>
-          Add a recipe
+          {t.addRecipe}
         </ButtonLink>
         <ButtonLink to="/settings/ai" variant="tint" icon={SparkleIcon}>
-          Let Claude add some
+          {t.letClaude}
         </ButtonLink>
       </div>
     </div>

@@ -18,21 +18,20 @@ import { errorMessage, fieldErrors } from '@/lib/errors';
 import { fullName } from '@/lib/format';
 import { NoFoodIcon } from '@/pages/settings/icons';
 import { foodKeys, peopleApi } from '../api';
-import { CATEGORY_LABEL, CATEGORY_ORDER } from '../format';
+import { CATEGORY_LABEL, CATEGORY_ORDER, trText } from '../format';
+import { peopleT, usePeopleT } from '../people.i18n';
 import type { Category, KitchenPerson, Restriction } from '../types';
 
 type Kind = Restriction['kind'];
 
-const KIND_OPTIONS = [
-  { value: 'allergy' as const, label: 'Allergy' },
-  { value: 'avoid' as const, label: 'Avoids' },
-];
 const CATEGORIES = CATEGORY_ORDER.filter((category) => category !== 'household');
 
 function foodOf(restriction: Restriction): string {
-  if (restriction.productName) return restriction.productName;
-  if (restriction.category) return `All ${CATEGORY_LABEL[restriction.category].toLowerCase()}`;
-  return 'Unknown food';
+  const t = peopleT();
+  if (restriction.productName)
+    return trText(restriction.productName, restriction.productTranslations);
+  if (restriction.category) return t.allOf(CATEGORY_LABEL[restriction.category]);
+  return t.unknownFood;
 }
 
 /**
@@ -41,6 +40,7 @@ function foodOf(restriction: Restriction): string {
  * the danger marker; things avoided a quieter peach one.
  */
 export default function PeoplePage() {
+  const t = usePeopleT();
   const queryClient = useQueryClient();
   const data = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
   const [adding, setAdding] = useState<{ open: boolean; userId: string | null }>({
@@ -55,9 +55,9 @@ export default function PeoplePage() {
     mutationFn: (restriction: Restriction) => peopleApi.remove(restriction.id),
     onSuccess: (_, restriction) => {
       void refresh();
-      toast.success(`${foodOf(restriction)} removed for ${restriction.person}`, {
+      toast.success(t.removed(foodOf(restriction), restriction.person), {
         action: {
-          label: 'Undo',
+          label: t.undo,
           onClick: () =>
             void peopleApi
               .add({
@@ -83,14 +83,14 @@ export default function PeoplePage() {
       <PageHeader
         compact
         back="/settings"
-        title="People and allergies"
-        subtitle="Recipes and meals warn about these"
+        title={t.title}
+        subtitle={t.subtitle}
         actions={
           // One person: their card's own Add is enough.
           people.length > 1 ? (
             <IconButton
               icon={AddIcon}
-              label="Add an allergy or a food to avoid"
+              label={t.addAria}
               variant="ink"
               size="sm"
               onClick={() => setAdding({ open: true, userId: null })}
@@ -107,10 +107,10 @@ export default function PeoplePage() {
           </div>
         ) : data.error ? (
           <div className="rounded-3xl bg-white p-5 shadow-[var(--shadow-card)]">
-            <p className="font-semibold text-danger-700">Couldn’t load the people</p>
+            <p className="font-semibold text-danger-700">{t.loadFailed}</p>
             <p className="mt-1 text-sm text-ink-600">{errorMessage(data.error)}</p>
             <Button size="sm" variant="tint" className="mt-3" onClick={() => void data.refetch()}>
-              Try again
+              {t.tryAgain}
             </Button>
           </div>
         ) : (
@@ -152,16 +152,14 @@ function PersonCard({
   onRemove: (restriction: Restriction) => void;
   removing: string | null;
 }) {
+  const t = usePeopleT();
   const allergies = restrictions.filter((r) => r.kind === 'allergy').length;
   const avoided = restrictions.length - allergies;
   const summary = restrictions.length
-    ? [
-        allergies ? `${allergies} ${allergies === 1 ? 'allergy' : 'allergies'}` : null,
-        avoided ? `avoids ${avoided}` : null,
-      ]
+    ? [allergies ? t.allergies(allergies) : null, avoided ? t.avoids(avoided) : null]
         .filter(Boolean)
         .join(' · ')
-    : 'Eats everything';
+    : t.eatsEverything;
   const sorted = [...restrictions].sort((a, b) =>
     a.kind === b.kind ? foodOf(a).localeCompare(foodOf(b)) : a.kind === 'allergy' ? -1 : 1,
   );
@@ -179,11 +177,11 @@ function PersonCard({
         <button
           type="button"
           onClick={onAdd}
-          aria-label={`Add for ${person.name}`}
+          aria-label={t.addFor(person.name)}
           className="press flex h-11 shrink-0 items-center gap-1 rounded-pill bg-lav-100 px-3.5 text-sm font-semibold text-ink-900 hover:bg-lav-200"
         >
           <AddIcon fontSize="inherit" className="text-[1.15rem]" />
-          Add
+          {t.add}
         </button>
       </header>
       {sorted.length ? (
@@ -218,7 +216,7 @@ function PersonCard({
                       allergy ? 'text-danger-700' : 'text-peach-800',
                     )}
                   >
-                    {allergy ? 'Allergy' : 'Avoids'}
+                    {allergy ? t.allergy : t.avoidsLabel}
                     {restriction.note ? (
                       <span className="font-medium text-ink-600"> · {restriction.note}</span>
                     ) : null}
@@ -228,8 +226,8 @@ function PersonCard({
                   type="button"
                   onClick={() => onRemove(restriction)}
                   disabled={removing === restriction.id}
-                  aria-label={`Remove ${foodOf(restriction)} for ${person.name}`}
-                  title="Remove"
+                  aria-label={t.removeFor(foodOf(restriction), person.name)}
+                  title={t.remove}
                   className="press grid size-11 shrink-0 place-items-center rounded-full text-[1.2rem] text-ink-500 hover:bg-white hover:text-ink-900 disabled:opacity-40"
                 >
                   <CloseIcon fontSize="inherit" />
@@ -254,6 +252,7 @@ function AddRestrictionSheet({
   userId: string | null;
   onClose: () => void;
 }) {
+  const t = usePeopleT();
   const queryClient = useQueryClient();
   const [person, setPerson] = useState('');
   const [kind, setKind] = useState<Kind>('allergy');
@@ -284,7 +283,7 @@ function AddRestrictionSheet({
         ...(note.trim() ? { note: note.trim() } : {}),
       }),
     onSuccess: (restriction) => {
-      toast.success(`${foodOf(restriction)} added for ${restriction.person}`);
+      toast.success(t.added(foodOf(restriction), restriction.person));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
     },
@@ -297,7 +296,7 @@ function AddRestrictionSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={who ? `For ${who.name}` : 'Allergy or food to avoid'}
+      title={who ? t.forPerson(who.name) : t.sheetTitle}
       footer={
         <div className="flex flex-col gap-2">
           {save.isError && !Object.keys(fields).length ? (
@@ -309,7 +308,7 @@ function AddRestrictionSheet({
             loading={save.isPending}
             disabled={!ready}
           >
-            {kind === 'allergy' ? 'Add allergy' : 'Add food to avoid'}
+            {kind === 'allergy' ? t.addAllergy : t.addAvoid}
           </Button>
         </div>
       }
@@ -323,9 +322,9 @@ function AddRestrictionSheet({
       >
         {people.length > 1 ? (
           <div>
-            <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Who</p>
+            <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.who}</p>
             <Chips
-              label="Who"
+              label={t.who}
               tone="sheet"
               dense
               value={person}
@@ -335,40 +334,41 @@ function AddRestrictionSheet({
           </div>
         ) : null}
         <div>
-          <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">What it is</p>
+          <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.whatItIs}</p>
           <Chips
-            label="What it is"
+            label={t.whatItIs}
             tone="sheet"
             dense
             value={kind}
             onChange={setKind}
-            options={KIND_OPTIONS}
+            options={[
+              { value: 'allergy' as const, label: t.allergy },
+              { value: 'avoid' as const, label: t.avoidsLabel },
+            ]}
           />
           <p className="mt-1.5 text-sm text-ink-600">
-            {kind === 'allergy'
-              ? 'A hazard: shown with a warning everywhere it appears.'
-              : 'Doesn’t eat it: a gentler note on recipes and meals.'}
+            {kind === 'allergy' ? t.allergyHint : t.avoidHint}
           </p>
         </div>
         <div>
-          <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">Which food</p>
+          <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-700">{t.whichFood}</p>
           <Chips
-            label="Which food"
+            label={t.whichFood}
             tone="sheet"
             dense
             value={by}
             onChange={setBy}
             options={[
-              { value: 'item' as const, label: 'One food' },
-              { value: 'category' as const, label: 'A whole kind' },
+              { value: 'item' as const, label: t.oneFood },
+              { value: 'category' as const, label: t.wholeKind },
             ]}
           />
           {by === 'item' ? (
             <TextField
               className="mt-2.5"
-              label="Food"
+              label={t.food}
               hideLabel
-              placeholder="Honey, peanuts, mushrooms…"
+              placeholder={t.foodPlaceholder}
               value={name}
               onChange={(event) => setName(event.target.value)}
               error={fields.name}
@@ -377,7 +377,7 @@ function AddRestrictionSheet({
           ) : (
             <div
               role="radiogroup"
-              aria-label="Kind of food"
+              aria-label={t.kindOfFood}
               className="mt-2.5 flex flex-wrap gap-1.5"
             >
               {CATEGORIES.map((value) => (
@@ -401,8 +401,8 @@ function AddRestrictionSheet({
           )}
         </div>
         <TextField
-          label="Note"
-          placeholder="Optional: “only raw”, “makes him ill”"
+          label={t.note}
+          placeholder={t.notePlaceholder}
           value={note}
           onChange={(event) => setNote(event.target.value)}
           error={fields.note}

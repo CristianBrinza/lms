@@ -12,17 +12,19 @@ import {
   FoodIcon as EatIcon,
   SparkleIcon,
 } from '@/components/ui/icons';
+import { formatList, tr } from '@/i18n';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { foodApi, foodKeys, peopleApi } from '../api';
 import { ExpiryChip } from '../components/ExpiryChip';
 import { MealStatus } from '../components/MealStatus';
-import { dayLong, formatQty, LOCATION_LABEL, localDate, plural, SLOT_LABEL } from '../format';
+import { dayLong, formatQty, LOCATION_LABEL, localDate, SLOT_LABEL } from '../format';
 import { FoodIcon, FoodIconTile, SceneArt } from '../icons/FoodIcon';
 import { KitchenwareEntry } from '../kitchenware/KitchenwareEntry';
-import { eatenBy, formatKcal } from '../nutrition';
+import { eatenBy, formatKcal, kcalUnit } from '../nutrition';
 import { AteSheet } from '../plan/AteSheet';
 import type { FoodOverview } from '../types';
+import { foodHomeT } from './home.i18n';
 
 /**
  * Food's front door. On a phone, "Today" comes first (what's for lunch, what's opened, what to use
@@ -31,6 +33,7 @@ import type { FoodOverview } from '../types';
  * lead on the left and Today stands beside them.
  */
 export default function FoodHomePage() {
+  const t = foodHomeT();
   const today = localDate();
   const overview = useQuery({
     queryKey: [...foodKeys.overview, today],
@@ -44,7 +47,12 @@ export default function FoodHomePage() {
       className="lg:grid lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start lg:gap-x-6 lg:pr-8"
     >
       <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-        <PageHeader compact back="/home" title="Food" subtitle={data ? data.kitchen.name : ' '} />
+        <PageHeader
+          compact
+          back="/home"
+          title={t.title}
+          subtitle={data ? data.kitchen.name : ' '}
+        />
       </div>
 
       <div className="gutter-x mt-3 md:px-5 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-6 lg:px-0">
@@ -59,61 +67,57 @@ export default function FoodHomePage() {
       </div>
 
       <section
-        aria-label="Sections"
+        aria-label={t.sections}
         className="gutter-x mt-3 md:px-5 lg:col-start-1 lg:row-start-2 lg:mt-5 lg:px-8"
       >
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-3 lg:grid-cols-2 lg:gap-4">
           <SectionCard
             to="/food/kitchen"
-            title="Kitchen"
+            title={t.kitchen}
             scene="kitchen"
             tone="ink"
             index={0}
             value={data ? String(data.stock.products) : null}
-            unit={data ? (data.stock.products === 1 ? 'item' : 'items') : ''}
+            unit={data ? t.itemsWord(data.stock.products) : ''}
             detail={
               data
                 ? data.stock.expiring.length
-                  ? `${data.stock.expiring.length} to use soon`
-                  : 'Nothing expiring'
+                  ? t.toUseSoon(data.stock.expiring.length)
+                  : t.nothingExpiring
                 : null
             }
           />
           <SectionCard
             to="/food/recipes"
-            title="Recipes"
+            title={t.recipes}
             scene="recipes"
             tone="butter"
             index={1}
             value={data ? String(data.recipes.total) : null}
-            unit={data ? (data.recipes.total === 1 ? 'recipe' : 'recipes') : ''}
+            unit={data ? t.recipesWord(data.recipes.total) : ''}
             detail={
-              data
-                ? data.recipes.total
-                  ? `${data.recipes.ready} ready to cook`
-                  : 'Add your first'
-                : null
+              data ? (data.recipes.total ? t.readyToCook(data.recipes.ready) : t.addFirst) : null
             }
           />
           <SectionCard
             to="/food/shopping"
-            title="Shopping"
+            title={t.shopping}
             scene="shopping"
             tone="cyan"
             index={2}
             value={data ? String(data.shopping.open) : null}
-            unit="to buy"
+            unit={t.toBuyWord}
             detail={data ? shoppingDetail(data) : null}
           />
           <SectionCard
             to="/food/plan"
-            title="Plan"
+            title={t.plan}
             scene="plan"
             tone="white"
             index={3}
             value={data ? String(data.meals.plannedThisWeek) : null}
-            unit={data ? (data.meals.plannedThisWeek === 1 ? 'meal' : 'meals') : ''}
-            detail={data ? 'planned this week' : null}
+            unit={data ? t.mealsWord(data.meals.plannedThisWeek) : ''}
+            detail={data ? t.plannedThisWeek : null}
           />
         </div>
         {/* Beside the four areas, not one of them: pots, pans, glasses — clean or in the wash. */}
@@ -127,11 +131,12 @@ export default function FoodHomePage() {
 }
 
 function shoppingDetail(data: FoodOverview): string {
+  const t = foodHomeT();
   const stores = data.shopping.stores.filter((s) => s.open > 0);
-  if (!stores.length) return data.shopping.open ? 'On the list' : 'Lists are empty';
+  if (!stores.length) return data.shopping.open ? t.onList : t.listsEmpty;
   return stores
     .slice(0, 2)
-    .map((s) => `${s.name} ${s.open}`)
+    .map((s) => `${tr(s, 'name')} ${s.open}`)
     .join(' · ');
 }
 
@@ -190,7 +195,7 @@ function SectionCard({
       )}
     >
       <span className="flex items-center justify-between gap-2">
-        <span className="text-[1.125rem] font-bold leading-tight tracking-[-0.02em] lg:text-[1.375rem]">
+        <span className="min-w-0 truncate text-[1.125rem] font-bold leading-tight tracking-[-0.02em] lg:text-[1.375rem]">
           {title}
         </span>
         <span
@@ -203,7 +208,7 @@ function SectionCard({
           <ArrowOutIcon fontSize="inherit" />
         </span>
       </span>
-      <span className="mt-1.5 flex items-baseline gap-1.5">
+      <span className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5">
         {value === null ? (
           <Skeleton className="h-7 w-10 opacity-40" />
         ) : (
@@ -216,7 +221,7 @@ function SectionCard({
       <span
         className={cx('mt-1 line-clamp-2 max-w-[62%] text-xs font-medium leading-snug', t.muted)}
       >
-        {detail ?? '\u00a0'}
+        {detail ?? ' '}
       </span>
       {/* The drawing sits wholly inside the corner, clear of the text. */}
       <SceneArt
@@ -240,6 +245,7 @@ function Today({
   onRetry: () => void;
   today: string;
 }) {
+  const t = foodHomeT();
   return (
     <section
       aria-labelledby="today-title"
@@ -247,7 +253,7 @@ function Today({
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="today-title" className="text-h3 font-bold">
-          Today
+          {t.today}
         </h2>
         <span className="truncate text-[0.8125rem] font-medium text-ink-500">{dayLong(today)}</span>
       </div>
@@ -259,10 +265,10 @@ function Today({
         </div>
       ) : error ? (
         <div className="mt-4 rounded-2xl bg-danger-50 p-4">
-          <p className="text-sm font-semibold text-danger-700">Couldn’t load your kitchen</p>
+          <p className="text-sm font-semibold text-danger-700">{t.couldntLoad}</p>
           <p className="mt-1 text-sm text-ink-600">{errorMessage(error)}</p>
           <Button size="sm" variant="outline" className="mt-3" onClick={onRetry}>
-            Try again
+            {t.tryAgain}
           </Button>
         </div>
       ) : overview ? (
@@ -299,6 +305,7 @@ function Today({
  * Health, and the quick way to log something eaten outside the plan.
  */
 function Eaten({ meals }: { meals: FoodOverview['meals']['today'] }) {
+  const t = foodHomeT();
   const me = useUser();
   const [logging, setLogging] = useState(false);
   const people = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
@@ -312,15 +319,24 @@ function Eaten({ meals }: { meals: FoodOverview['meals']['today'] }) {
           className="press inline-flex min-w-0 items-center gap-1 text-sm font-semibold text-ink-700 hover:text-ink-900"
         >
           <span className="truncate">
-            Eaten today: <span className="tabular text-ink-900">{formatKcal(eaten.kcal)} kcal</span>
+            {t.eatenToday}{' '}
+            <span className="tabular text-ink-900">
+              {formatKcal(eaten.kcal)} {kcalUnit()}
+            </span>
           </span>
           <ChevronRightIcon fontSize="inherit" className="shrink-0 text-base text-ink-500" />
         </Link>
       ) : (
-        <span className="text-sm text-ink-500">Nothing eaten yet</span>
+        <span className="min-w-0 text-sm text-ink-500">{t.nothingEaten}</span>
       )}
-      <Button size="sm" variant="tint" icon={EatIcon} onClick={() => setLogging(true)}>
-        I ate something
+      <Button
+        size="sm"
+        variant="tint"
+        icon={EatIcon}
+        className="shrink-0"
+        onClick={() => setLogging(true)}
+      >
+        {t.ateSomething}
       </Button>
       <AteSheet open={logging} onClose={() => setLogging(false)} />
     </div>
@@ -328,21 +344,21 @@ function Eaten({ meals }: { meals: FoodOverview['meals']['today'] }) {
 }
 
 function Meals({ overview }: { overview: FoodOverview }) {
+  const t = foodHomeT();
   const meals = overview.meals.today;
   if (!meals.length) {
+    const next = overview.meals.upcoming[0];
     return (
       <div className="mt-2.5 flex items-center gap-3 rounded-2xl bg-ink-50 p-2.5">
         <FoodIconTile name="pot" tone="bg-white" className="size-10 rounded-xl [&>svg]:size-7" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[0.9375rem] font-semibold">No meals today</p>
+          <p className="truncate text-[0.9375rem] font-semibold">{t.noMeals}</p>
           <p className="truncate text-sm text-ink-600">
-            {overview.meals.upcoming[0]
-              ? `Next: ${overview.meals.upcoming[0].title}`
-              : 'Plan what to cook'}
+            {next ? t.next(tr(next, 'title')) : t.planWhat}
           </p>
         </div>
         <ButtonLink to="/food/plan" size="sm" variant="primary" icon={AddIcon}>
-          Plan
+          {t.planButton}
         </ButtonLink>
       </div>
     );
@@ -370,11 +386,11 @@ function Meals({ overview }: { overview: FoodOverview }) {
                   meal.status === 'done' && 'line-through decoration-ink-400',
                 )}
               >
-                {meal.title}
+                {tr(meal, 'title')}
               </span>
               <span className="block truncate text-sm text-ink-600">
-                {meal.time ?? SLOT_LABEL[meal.slot]} · {plural(meal.servings, 'serving')}
-                {meal.toGo ? ' · to go' : ''}
+                {meal.time ?? SLOT_LABEL[meal.slot]} · {t.servings(meal.servings)}
+                {meal.toGo ? ` · ${t.toGo}` : ''}
               </span>
               <ToolWarning meal={meal} />
             </span>
@@ -388,32 +404,34 @@ function Meals({ overview }: { overview: FoodOverview }) {
 
 /** Kitchenware a planned meal needs that is still dirty or in the dishwasher. */
 function ToolWarning({ meal }: { meal: FoodOverview['meals']['today'][number] }) {
+  const t = foodHomeT();
   if (meal.status !== 'planned') return null;
   const dirty = meal.tools.filter((tool) => tool.status === 'dirty');
   const washing = meal.tools.filter((tool) => tool.status === 'washing');
   if (!dirty.length && !washing.length) return null;
+  const names = (tools: typeof dirty) =>
+    formatList(tools.map((tool) => tr(tool, 'name').toLowerCase()));
   return (
     <span className="mt-0.5 block truncate text-xs font-semibold text-peach-800">
-      {dirty.length
-        ? `Wash first: ${dirty.map((t) => t.name.toLowerCase()).join(', ')}`
-        : `In the dishwasher: ${washing.map((t) => t.name.toLowerCase()).join(', ')}`}
+      {dirty.length ? t.washFirst(names(dirty)) : t.inDishwasher(names(washing))}
     </span>
   );
 }
 
 /** Packages already started: use them before they spoil, rather than opening new ones. */
 function Opened({ overview, today }: { overview: FoodOverview; today: string }) {
+  const t = foodHomeT();
   const items = overview.stock.opened;
   if (!items.length) return null;
   return (
     <div className="mt-3.5 md:mt-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[0.9375rem] font-bold">Opened, use first</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="min-w-0 truncate text-[0.9375rem] font-bold">{t.openedFirst}</h3>
         <Link
           to="/food/kitchen"
-          className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
+          className="inline-flex shrink-0 items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
         >
-          Kitchen
+          {t.kitchen}
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
       </div>
@@ -430,9 +448,11 @@ function Opened({ overview, today }: { overview: FoodOverview; today: string }) 
                 className="size-10 rounded-xl [&>svg]:size-7"
               />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[0.9375rem] font-semibold">{item.name}</span>
+                <span className="block truncate text-[0.9375rem] font-semibold">
+                  {tr(item, 'name')}
+                </span>
                 <span className="block truncate text-xs text-ink-600">
-                  {formatQty(item.quantity, item)} left · {LOCATION_LABEL[item.location]}
+                  {t.left(formatQty(item.quantity, item))} · {LOCATION_LABEL[item.location]}
                 </span>
               </span>
               <ExpiryChip expiresOn={item.expiresOn} today={today} compact />
@@ -441,9 +461,9 @@ function Opened({ overview, today }: { overview: FoodOverview; today: string }) 
               <Link
                 to={`/food/recipes?uses=${item.productId}`}
                 className="press inline-flex h-8 shrink-0 items-center rounded-pill bg-ink-900 px-3 text-xs font-semibold text-white"
-                aria-label={`Recipes with ${item.name}`}
+                aria-label={t.recipesWith(tr(item, 'name'))}
               >
-                {plural(item.recipes, 'recipe')}
+                {t.recipeCount(item.recipes)}
               </Link>
             ) : null}
           </li>
@@ -455,6 +475,7 @@ function Opened({ overview, today }: { overview: FoodOverview; today: string }) 
 
 /** What can be cooked right now from the kitchen, the ones using up food first. */
 function CookIdeas({ planned }: { planned: Set<string> }) {
+  const t = foodHomeT();
   const recipes = useQuery({ queryKey: foodKeys.recipes, queryFn: foodApi.recipes });
   const ideas = (recipes.data ?? [])
     .filter((r) => r.availability.ready && r.availability.total > 0 && !planned.has(r.id))
@@ -466,13 +487,13 @@ function CookIdeas({ planned }: { planned: Set<string> }) {
   if (!ideas.length) return null;
   return (
     <div className="mt-3.5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[0.9375rem] font-bold">From what you have</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="min-w-0 truncate text-[0.9375rem] font-bold">{t.fromWhatYouHave}</h3>
         <Link
           to="/food/recipes"
-          className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
+          className="inline-flex shrink-0 items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
         >
-          Recipes
+          {t.recipes}
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
       </div>
@@ -490,16 +511,16 @@ function CookIdeas({ planned }: { planned: Set<string> }) {
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[0.9375rem] font-semibold">
-                  {recipe.title}
+                  {tr(recipe, 'title')}
                 </span>
                 <span className="block truncate text-xs text-ink-600">
                   {recipe.availability.useSoon
-                    ? `Uses ${plural(recipe.availability.useSoon, 'thing')} to eat soon`
-                    : 'Everything’s in the kitchen'}
+                    ? t.usesSoon(recipe.availability.useSoon)
+                    : t.allInKitchen}
                 </span>
               </span>
               <span className="inline-flex h-8 shrink-0 items-center rounded-pill bg-ink-900 px-3 text-xs font-semibold text-white">
-                Cook
+                {t.cook}
               </span>
             </Link>
           </li>
@@ -510,19 +531,20 @@ function CookIdeas({ planned }: { planned: Set<string> }) {
 }
 
 function UseSoon({ overview, today }: { overview: FoodOverview; today: string }) {
+  const t = foodHomeT();
   // Opened packages are listed above already.
   const opened = new Set(overview.stock.opened.map((item) => item.lotId));
   const items = overview.stock.expiring.filter((item) => !opened.has(item.lotId));
   if (!items.length) return null;
   return (
     <div className="mt-3.5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-[0.9375rem] font-bold">Use soon</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="min-w-0 truncate text-[0.9375rem] font-bold">{t.useSoon}</h3>
         <Link
           to="/food/kitchen"
-          className="inline-flex items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
+          className="inline-flex shrink-0 items-center text-sm font-semibold text-lav-700 hover:text-lav-800"
         >
-          Kitchen
+          {t.kitchen}
           <ChevronRightIcon fontSize="inherit" className="text-lg" />
         </Link>
       </div>
@@ -537,7 +559,7 @@ function UseSoon({ overview, today }: { overview: FoodOverview; today: string })
                 <FoodIcon name={item.icon} className="size-8" />
                 <ExpiryChip expiresOn={item.expiresOn} today={today} compact />
               </span>
-              <span className="truncate text-sm font-semibold">{item.name}</span>
+              <span className="truncate text-sm font-semibold">{tr(item, 'name')}</span>
               <span className="-mt-1.5 text-xs font-medium text-ink-600">
                 {formatQty(item.quantity, item)}
               </span>
@@ -550,12 +572,13 @@ function UseSoon({ overview, today }: { overview: FoodOverview; today: string })
 }
 
 function RunningLow({ overview }: { overview: FoodOverview }) {
+  const t = foodHomeT();
   const queryClient = useQueryClient();
   const add = useMutation({
     mutationFn: (item: FoodOverview['stock']['low'][number]) =>
       foodApi.addLines([{ productId: item.productId }], 'low_stock'),
     onSuccess: (_lines, item) => {
-      toast.success(`${item.name} is on the list`);
+      toast.success(t.onListToast(tr(item, 'name')));
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -564,7 +587,7 @@ function RunningLow({ overview }: { overview: FoodOverview }) {
   if (!items.length) return null;
   return (
     <div className="mt-3.5">
-      <h3 className="text-[0.9375rem] font-bold">Running low</h3>
+      <h3 className="text-[0.9375rem] font-bold">{t.runningLow}</h3>
       <ul className="mt-2 flex flex-wrap gap-1.5">
         {items.map((item) => (
           <li key={item.productId}>
@@ -573,12 +596,12 @@ function RunningLow({ overview }: { overview: FoodOverview }) {
               onClick={() => add.mutate(item)}
               disabled={add.isPending && add.variables?.productId === item.productId}
               className="press inline-flex h-10 items-center gap-1.5 rounded-pill bg-peach-100 pl-1 pr-3 text-sm font-semibold text-ink-900 transition-colors hover:bg-peach-200 disabled:opacity-60"
-              aria-label={`Add ${item.name} to the shopping list`}
+              aria-label={t.addToList(tr(item, 'name'))}
             >
               <span className="grid size-8 place-items-center rounded-full bg-white">
                 <FoodIcon name={item.icon} className="size-6" />
               </span>
-              {item.name}
+              {tr(item, 'name')}
               <AddIcon fontSize="inherit" className="text-lg text-peach-800" />
             </button>
           </li>
@@ -589,6 +612,7 @@ function RunningLow({ overview }: { overview: FoodOverview }) {
 }
 
 function AskClaude({ className }: { className?: string }) {
+  const t = foodHomeT();
   return (
     <Link
       to="/settings/ai"
@@ -601,10 +625,8 @@ function AskClaude({ className }: { className?: string }) {
         <SparkleIcon fontSize="inherit" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-[0.9375rem] font-semibold">Plan with Claude</span>
-        <span className="block text-[0.8125rem] leading-snug text-ink-600">
-          Claude can plan the week, fill the lists and save recipes.
-        </span>
+        <span className="block text-[0.9375rem] font-semibold">{t.planWithClaude}</span>
+        <span className="block text-[0.8125rem] leading-snug text-ink-600">{t.claudeHint}</span>
       </span>
       <ChevronRightIcon
         fontSize="inherit"

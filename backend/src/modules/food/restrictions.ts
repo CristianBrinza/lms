@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
+import type { Translations } from '../../lib/i18n';
+import { onlyFields } from './catalog-i18n';
 import { age } from '../profile';
 import { avatarUrl, isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
@@ -19,6 +21,8 @@ export interface Restriction {
   kind: 'allergy' | 'avoid';
   productId: string | null;
   productName: string | null;
+  /** The item's name in other languages ({ ro: { name } }). */
+  productTranslations: Translations;
   category: Category | null;
   note: string;
 }
@@ -69,10 +73,11 @@ export async function listRestrictions(ctx: FoodCtx): Promise<Restriction[]> {
     kind: Restriction['kind'];
     product_id: string | null;
     product_name: string | null;
+    product_translations: Translations | null;
     category: Category | null;
     note: string;
   }>(
-    `SELECT r.id, r.user_id, u.name AS person, r.kind, r.product_id, p.name AS product_name, r.category, r.note
+    `SELECT r.id, r.user_id, u.name AS person, r.kind, r.product_id, p.name AS product_name, p.translations AS product_translations, r.category, r.note
        FROM food_restrictions r JOIN users u ON u.id = r.user_id LEFT JOIN products p ON p.id = r.product_id
       WHERE r.household_id = $1 ORDER BY u.name, r.kind, coalesce(p.name, r.category)`,
     [ctx.actor.householdId],
@@ -84,6 +89,7 @@ export async function listRestrictions(ctx: FoodCtx): Promise<Restriction[]> {
     kind: r.kind,
     productId: r.product_id,
     productName: r.product_name,
+    productTranslations: onlyFields(r.product_translations, ['name']),
     category: r.category,
     note: r.note,
   }));

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { z } from 'zod';
 import { AppError } from '../../lib/errors';
+import { mergeTranslations, type Translations } from '../../lib/i18n';
 import { isUuid } from '../users';
 import type { FoodCtx } from './kitchen';
 import type { STORE_TONES, StoreInput, StorePatch } from './schemas';
@@ -15,6 +16,8 @@ export interface Store {
   open: number;
   /** Lines in the cart, not yet checked out. */
   inCart: number;
+  /** Its name in other languages ({ ro: { name } }), when the household gave one. */
+  translations: Translations;
   createdAt: string;
 }
 
@@ -25,6 +28,7 @@ interface StoreRow {
   sort: number;
   open: number;
   in_cart: number;
+  translations: Translations | null;
   created_at: Date;
 }
 
@@ -35,12 +39,13 @@ const toStore = (row: StoreRow): Store => ({
   sort: row.sort,
   open: row.open,
   inCart: row.in_cart,
+  translations: row.translations ?? {},
   createdAt: row.created_at.toISOString(),
 });
 
 export async function listStores(ctx: FoodCtx): Promise<Store[]> {
   const { rows } = await ctx.db.query<StoreRow>(
-    `SELECT s.id, s.name, s.tone, s.sort, s.created_at,
+    `SELECT s.id, s.name, s.tone, s.sort, s.created_at, s.translations,
             count(i.id) FILTER (WHERE i.checked_at IS NULL)::int AS open,
             count(i.id) FILTER (WHERE i.checked_at IS NOT NULL)::int AS in_cart
        FROM stores s LEFT JOIN shopping_items i ON i.store_id = s.id AND i.trip_id IS NULL
@@ -77,8 +82,16 @@ export async function createStore(ctx: FoodCtx, input: z.infer<typeof StoreInput
   );
   const id = randomUUID();
   await ctx.db.query(
-    'INSERT INTO stores (id, household_id, name, tone, sort, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-    [id, ctx.actor.householdId, input.name, input.tone ?? 'butter', rows[0]!.next, ctx.now],
+    'INSERT INTO stores (id, household_id, name, tone, sort, created_at, translations) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    [
+      id,
+      ctx.actor.householdId,
+      input.name,
+      input.tone ?? 'butter',
+      rows[0]!.next,
+      ctx.now,
+      JSON.stringify(mergeTranslations({}, input.translations)),
+    ],
   );
   return findStore(ctx, id);
 }
@@ -88,14 +101,18 @@ export async function updateStore(
   id: string,
   patch: z.infer<typeof StorePatch>,
 ): Promise<Store> {
-  await findStore(ctx, id);
+  const store = await findStore(ctx, id);
   if (patch.name && (await nameTaken(ctx, patch.name, id)))
     throw new AppError(409, 'EXISTS', `${patch.name} is already a store`, {
       fields: { name: 'You already have this store' },
     });
+  const translations =
+    patch.translations === undefined
+      ? null
+      : JSON.stringify(mergeTranslations(store.translations, patch.translations));
   await ctx.db.query(
-    'UPDATE stores SET name = coalesce($2, name), tone = coalesce($3, tone), sort = coalesce($4, sort) WHERE id = $1',
-    [id, patch.name ?? null, patch.tone ?? null, patch.sort ?? null],
+    'UPDATE stores SET name = coalesce($2, name), tone = coalesce($3, tone), sort = coalesce($4, sort), translations = coalesce($5::jsonb, translations) WHERE id = $1',
+    [id, patch.name ?? null, patch.tone ?? null, patch.sort ?? null, translations],
   );
   return findStore(ctx, id);
 }

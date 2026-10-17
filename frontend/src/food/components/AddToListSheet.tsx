@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Button, Sheet, Switch, toast } from '@/components/ui';
+import { tr } from '@/i18n';
 import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys } from '../api';
 import { useCatalog } from '../catalog';
-import { formatAmount, fromBase, localDate, naturalUnit, unitsFor } from '../format';
+import { formatAmount, fromBase, kindText, localDate, naturalUnit, unitsFor } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
 import type { IngredientLine } from '../types';
+import { foodUiT } from './components.i18n';
 import { QuantityInput } from './QuantityInput';
 
 /**
@@ -23,8 +25,9 @@ export function AddToListSheet({
   needBy?: string | null;
   onClose: () => void;
 }) {
+  const t = foodUiT().addToList;
   return (
-    <Sheet open={Boolean(line)} onClose={onClose} title="Add to the list">
+    <Sheet open={Boolean(line)} onClose={onClose} title={t.title}>
       {line ? <Form key={line.id} line={line} needBy={needBy ?? null} onClose={onClose} /> : null}
     </Sheet>
   );
@@ -39,6 +42,7 @@ function Form({
   needBy: string | null;
   onClose: () => void;
 }) {
+  const t = foodUiT().addToList;
   const queryClient = useQueryClient();
   const catalog = useCatalog();
   const stores = useQuery({ queryKey: [...foodKeys.all, 'stores'], queryFn: foodApi.stores });
@@ -54,6 +58,9 @@ function Form({
   // Bought the day before it's eaten.
   const [by, setBy] = useState(needBy ?? '');
   const [priority, setPriority] = useState(false);
+  // The item's name in this language when it has one; else the line as the recipe says it.
+  const name =
+    product && tr(product, 'name') !== product.name ? tr(product, 'name') : tr(line, 'name');
 
   const add = useMutation({
     mutationFn: () =>
@@ -73,8 +80,8 @@ function Form({
       ),
     onSuccess: () => {
       haptic('success');
-      toast.success(`${line.name} is on the list`, {
-        description: amount ? `at least ${formatAmount(amount, unit)}` : undefined,
+      toast.success(t.onList(name), {
+        description: amount ? t.atLeast(formatAmount(amount, unit)) : undefined,
       });
       void queryClient.invalidateQueries({ queryKey: foodKeys.all });
       onClose();
@@ -88,18 +95,16 @@ function Form({
         <FoodIconTile name={line.icon} tone="bg-white" />
         <span className="min-w-0">
           <span className="block truncate text-[1.0625rem] font-bold">
-            {line.name}
-            {line.variant ? ` · ${line.variant}` : ''}
+            {name}
+            {line.variant ? ` · ${kindText(line.variant, product)}` : ''}
           </span>
           <span className="block text-sm text-peach-800">
-            {line.reservedFor
-              ? `What there is is kept for ${line.reservedFor.title}`
-              : 'Not enough in the kitchen'}
+            {line.reservedFor ? t.keptFor(tr(line.reservedFor, 'title')) : t.notEnough}
           </span>
         </span>
       </div>
       <QuantityInput
-        label="At least"
+        label={t.atLeastLabel}
         value={amount}
         unit={unit}
         units={measured ? unitsFor(measured) : [unit]}
@@ -110,22 +115,22 @@ function Form({
       />
       <div className="grid grid-cols-2 gap-3">
         <label className="flex min-w-0 flex-col gap-2">
-          <span className="text-[0.8125rem] font-semibold text-ink-700">Store</span>
+          <span className="text-[0.8125rem] font-semibold text-ink-700">{t.store}</span>
           <select
             value={storeId}
             onChange={(event) => setStoreId(event.target.value)}
             className="h-12 w-full rounded-[1.125rem] bg-ink-50 px-4 text-base outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
           >
-            <option value="any">Any store</option>
+            <option value="any">{t.anyStore}</option>
             {(stores.data ?? []).map((store) => (
               <option key={store.id} value={store.id}>
-                {store.name}
+                {tr(store, 'name')}
               </option>
             ))}
           </select>
         </label>
         <label className="flex min-w-0 flex-col gap-2">
-          <span className="text-[0.8125rem] font-semibold text-ink-700">Needed by</span>
+          <span className="truncate text-[0.8125rem] font-semibold text-ink-700">{t.neededBy}</span>
           <input
             type="date"
             value={by}
@@ -138,11 +143,11 @@ function Form({
       <Switch
         checked={priority}
         onChange={setPriority}
-        label="Important"
-        hint="Shown first on the list"
+        label={t.important}
+        hint={t.importantHint}
       />
       <Button fullWidth onClick={() => add.mutate()} loading={add.isPending}>
-        Add to the list
+        {t.add}
       </Button>
     </div>
   );
