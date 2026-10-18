@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
-import { decodePhoto, encodePhoto, imageSize, sniff } from '../drinks/photos';
+import { decodePhoto, encodePhoto, imageSize, rasterizeSvg, sniff } from '../drinks/photos';
 import type { FoodCtx } from '../food/kitchen';
 import { isUuid } from '../users';
-import { findItem, photoUrl } from './items';
+import { findItem, itemsById, photoUrl } from './items';
 import type { PHOTO_KINDS, PhotoInput, PhotoKind } from './schemas';
 
 /**
@@ -130,6 +130,44 @@ async function findPhoto(ctx: FoodCtx, id: string): Promise<PhotoRow> {
   return rows[0];
 }
 
+const SVG_MAX = 2 * 1024 * 1024;
+const SVG_PREFIX = 'data:image/svg+xml;base64,';
+
+/** Checks an SVG drawing is plain artwork: no scripts, handlers, embedded pages or outside links. */
+export function checkSvg(svg: string) {
+  const bad = (message: string) =>
+    new AppError(400, 'VALIDATION', message, { fields: { image: message } });
+  if (!/<svg[\s>]/i.test(svg)) throw bad('Not an SVG drawing');
+  if (/<script/i.test(svg)) throw bad('Scripts are not allowed in a drawing');
+  if (/<foreignObject/i.test(svg)) throw bad('foreignObject is not allowed in a drawing');
+  if (/\son[a-z]+\s*=/i.test(svg)) throw bad('Event handlers are not allowed in a drawing');
+  if (/<!ENTITY|<!DOCTYPE[^>]*\[/i.test(svg)) throw bad('Entities are not allowed in a drawing');
+  for (const match of svg.matchAll(/(?:href|src)\s*=\s*["']\s*([^"']*)["']/gi)) {
+    const target = match[1]!.trim().toLowerCase();
+    if (/^(https?:|\/\/|file:|ftp:|javascript:)/.test(target) || target.startsWith('data:'))
+      throw bad('External links are not allowed in a drawing');
+  }
+  if (/url\(\s*["']?\s*(https?:|\/\/|file:)/i.test(svg) || /@import/i.test(svg))
+    throw bad('External links are not allowed in a drawing');
+}
+
+/** An SVG drawing (sent with vector: true) → a transparent PNG data URL, ready to store. */
+export async function vectorToPng(image: string): Promise<string> {
+  const text = image.trim();
+  if (!text.startsWith(SVG_PREFIX))
+    throw new AppError(400, 'VALIDATION', 'A vector drawing is a data:image/svg+xml;base64 URL', {
+      fields: { image: 'Not a drawing' },
+    });
+  const bytes = Buffer.from(text.slice(SVG_PREFIX.length).replace(/\s+/g, ''), 'base64');
+  if (bytes.length > SVG_MAX)
+    throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'That drawing is too large (2 MB at most)', {
+      fields: { image: 'Too large' },
+    });
+  checkSvg(bytes.toString('utf8'));
+  const png = await rasterizeSvg(bytes);
+  return `data:image/png;base64,${png.toString('base64')}`;
+}
+
 /** Stores an upload for a piece (or a look's backdrop) and returns it. */
 async function store(
   ctx: FoodCtx,
@@ -188,8 +226,13 @@ async function store(
   return toPhoto(await findPhoto(ctx, id));
 }
 
-export async function addPhoto(ctx: FoodCtx, itemId: string, input: PhotoInput) {
+export async function addPhoto(ctx: FoodCtx, itemId: string, rawInput: PhotoInput) {
   await findItem(ctx, itemId);
+  if (rawInput.vector && (rawInput.rotates || !rawInput.replaces))
+    throw new AppError(400, 'VALIDATION', 'A vector drawing replaces the front or back photo', {
+      fields: { replaces: 'Required' },
+    });
+  const input = rawInput.vector ? { ...rawInput, image: await vectorToPng(rawInput.image) } : rawInput;
   let photo: Photo;
   if (input.rotates) {
     // The same photo, turned: it takes the old one's place, flags and links; the old file goes.
@@ -225,8 +268,35 @@ export async function addPhoto(ctx: FoodCtx, itemId: string, input: PhotoInput) 
       needsCutout: input.needsCutout,
     });
   }
+  // A drawing has arrived: the request is done (front is enough).
+  if (input.vector && photo.kind === 'front')
+    await ctx.db.query('UPDATE closet_items SET vector_requested_at = NULL WHERE id = $1', [itemId]);
   await ctx.db.query('UPDATE closet_items SET updated_at = $2 WHERE id = $1', [itemId, ctx.now]);
   return { photo, storage: await photoStorage(ctx) };
+}
+
+/** Pieces waiting for a vector drawing, oldest request first, with the photos to draw from. */
+export async function vectorRequests(ctx: FoodCtx) {
+  const { rows } = await ctx.db.query<{ id: string }>(
+    `SELECT id FROM closet_items WHERE household_id = $1 AND vector_requested_at IS NOT NULL
+      ORDER BY vector_requested_at, id`,
+    [ctx.actor.householdId],
+  );
+  const ids = rows.map((r) => r.id);
+  const items = await itemsById(ctx, ids);
+  const photos = await photosOf(ctx, ids);
+  return {
+    requests: ids.flatMap((id) => {
+      const item = items.get(id);
+      if (!item) return [];
+      const list = photos.get(id) ?? [];
+      const pick = (kind: string) => {
+        const p = list.find((x) => x.kind === kind);
+        return p ? { id: p.id, url: p.full } : null;
+      };
+      return [{ id, name: item.name, ownerName: item.ownerName, front: pick('front'), back: pick('back') }];
+    }),
+  };
 }
 
 /** A look's own backdrop photo (replacing the one it had). */
@@ -266,8 +336,13 @@ export async function updatePhoto(
 export async function removePhoto(ctx: FoodCtx, id: string) {
   const row = await findPhoto(ctx, id);
   await ctx.tx(async (tx) => {
+    // The original comes back, and can have its background removed again.
     if (row.cutout_of)
-      await tx.db.query('UPDATE closet_photos SET superseded = false WHERE id = $1', [row.cutout_of]);
+      await tx.db.query(
+        `UPDATE closet_photos SET superseded = false,
+           needs_cutout = (kind IN ('front', 'back') AND NOT has_alpha) WHERE id = $1`,
+        [row.cutout_of],
+      );
     await tx.db.query('DELETE FROM closet_photos WHERE id = $1', [id]);
   });
 }

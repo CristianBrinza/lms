@@ -13,6 +13,7 @@ import {
   pageItems,
   markWashed,
   removeItem,
+  setVectorRequest,
   updateItem,
 } from './items';
 import {
@@ -24,7 +25,7 @@ import {
   setBackdropPhoto,
   updateLook,
 } from './looks';
-import { addPhoto, photoBytes, removePhoto, updatePhoto } from './photos';
+import { addPhoto, photoBytes, removePhoto, updatePhoto, vectorRequests } from './photos';
 import { addPlace, listPlaces, removePlace, reorderPlaces, updatePlace } from './places';
 import {
   BulkInput,
@@ -121,6 +122,13 @@ export function closetRoutes(deps: AppDeps) {
     const input = await readJson(c, WornInput);
     return c.json(await logWorn(ctx(c), { itemIds: [c.req.param('id')], wornOn: input.wornOn }), 201);
   });
+  app.post('/items/:id/vector-request', async (c) =>
+    c.json(await setVectorRequest(ctx(c), c.req.param('id'), true)),
+  );
+  app.delete('/items/:id/vector-request', async (c) =>
+    c.json(await setVectorRequest(ctx(c), c.req.param('id'), false)),
+  );
+  app.get('/vector-requests', async (c) => c.json(await vectorRequests(ctx(c))));
   app.post('/items/:id/photos', async (c) =>
     c.json(await addPhoto(ctx(c), c.req.param('id'), await readJson(c, PhotoInput)), 201),
   );

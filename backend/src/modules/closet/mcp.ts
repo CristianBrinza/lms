@@ -4,7 +4,7 @@ import { householdPeople } from '../drinks/drinks';
 import type { Tool, ToolEnv } from '../mcp/tools';
 import { addItem, listItems, updateItem, type Item } from './items';
 import { addLook, listLooks } from './looks';
-import { addPhoto } from './photos';
+import { addPhoto, vectorRequests } from './photos';
 import { addPlace, findByPath, listPlaces, pathText, placeTree, type Place } from './places';
 import {
   CareInput,
@@ -177,12 +177,21 @@ export const CLOSET_TOOLS: Tool[] = [
     },
   }),
   tool({
+    name: 'closet_vector_requests',
+    title: 'Pieces waiting for a vector drawing',
+    description:
+      'Pieces someone asked Claude to draw as a vector (with logos and details): id, name, owner and the front/back photos (id and url) to draw from. Answer each with closet_add_photo: the SVG, vector true, replaces the front (then back) photo id.',
+    access: 'read',
+    input: z.object({}),
+    run: async (env) => vectorRequests(env.ctx),
+  }),
+  tool({
     name: 'closet_add_photo',
     title: 'Add a photo to a piece',
     description:
-      'A photo of a piece: image as a data URL or plain base64 (JPEG, PNG, WebP or HEIC, up to 12 MB; shrunk on the server). kind: front (default; the first is the cover), back, label (the care label: kept with the piece, read it into closet_set_care), detail. Front and back photos from a chat keep their background: they are marked needsCutout, and the app removes the background in the browser with one tap.',
+      'A photo of a piece: image as a data URL or plain base64 (JPEG, PNG, WebP or HEIC, up to 12 MB; shrunk on the server). kind: front (default; the first is the cover), back, label (the care label: kept with the piece, read it into closet_set_care), detail. To give a piece a vector drawing (see closet_vector_requests), send the SVG as image (data:image/svg+xml;base64,…, up to 2 MB, no scripts, handlers or external links), vector true, and replaces the photo id it is drawn from; it is rasterized to a transparent PNG. Front and back photos from a chat keep their background: they are marked needsCutout, and the app removes the background in the browser with one tap.',
     access: 'write',
-    input: z.object({ itemId: z.uuid() }).and(PhotoInput.omit({ replaces: true })),
+    input: z.object({ itemId: z.uuid() }).and(PhotoInput),
     run: async (env, { itemId, ...input }) => {
       const { photo } = await addPhoto(env.ctx, itemId, input);
       return {

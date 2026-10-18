@@ -1455,6 +1455,14 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
         'furniture', 'shelf', 'rail', 'drawer', 'box', 'vacuum_bag', 'hook', 'section'));
     `,
   },
+  {
+    version: 43,
+    name: 'closet: vector drawing requests',
+    sql: `
+      -- Set when someone asks Claude to draw the piece as a vector; cleared when the drawing arrives.
+      ALTER TABLE closet_items ADD COLUMN vector_requested_at timestamptz;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

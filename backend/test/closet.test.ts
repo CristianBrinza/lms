@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasAlpha } from '../src/modules/closet/photos';
+import { checkSvg, hasAlpha } from '../src/modules/closet/photos';
 import { findByPath } from '../src/modules/closet/places';
 import { areaOf, toolArea } from '../src/modules/live/publish';
 import { tokenMayAccess } from '../src/modules/tokens';
@@ -205,9 +205,38 @@ describe('closet: photos', () => {
     detail = (await ana.b.get(`/api/closet/items/${item.id}`)).body;
     expect(detail.photos.map((p: any) => p.id)).toEqual([front.body.photo.id, label.body.photo.id]);
     expect(detail.originals).toEqual([]);
+    expect(detail.item.needsCutout).toBe(true);
 
     expect((await ana.b.patch(`/api/closet/photos/${front.body.photo.id}`, { needsCutout: false })).body.photo.needsCutout).toBe(false);
     expect((await ana.b.post(`/api/closet/items/${item.id}/photos`, { image: 'data:image/png;base64,aGVsbG8gd29ybGQh' })).status).toBe(400);
+  });
+
+  it('takes vector drawing requests, lists them, and refuses unsafe SVGs', async () => {
+    const { ana, ion } = await family();
+    const { item } = (await ana.b.post('/api/closet/items', { name: 'Logo tee', category: 'tops' })).body;
+    const front = await ana.b.post(`/api/closet/items/${item.id}/photos`, { image: CUTOUT });
+    expect(item.vectorRequested).toBe(false);
+    expect((await ion.b.post(`/api/closet/items/${item.id}/vector-request`, {})).body.item.vectorRequested).toBe(true);
+    const listed = (await ana.b.get('/api/closet/vector-requests')).body.requests;
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ id: item.id, name: 'Logo tee', ownerName: 'Ana', back: null });
+    expect(listed[0].front.id).toBe(front.body.photo.id);
+    expect((await ana.b.delete(`/api/closet/items/${item.id}/vector-request`)).body.item.vectorRequested).toBe(false);
+    expect((await ana.b.get('/api/closet/vector-requests')).body.requests).toEqual([]);
+    // A drawing must say it is a drawing, and replace a photo.
+    const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64')}`;
+    expect((await ana.b.post(`/api/closet/items/${item.id}/photos`, { image: svg })).status).toBe(400);
+    expect((await ana.b.post(`/api/closet/items/${item.id}/photos`, { image: svg, vector: true })).status).toBe(400);
+    expect(() => checkSvg('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10z"/></svg>')).not.toThrow();
+    for (const bad of [
+      '<svg><script>alert(1)</script></svg>',
+      '<svg onload="x()"></svg>',
+      '<svg><foreignObject/></svg>',
+      '<svg><image href="https://example.com/a.png"/></svg>',
+      '<svg><image xlink:href="//example.com/a.png"/></svg>',
+      '<svg><image href="file:///etc/passwd"/></svg>',
+    ])
+      expect(() => checkSvg(bad)).toThrow();
   });
 
   it('reads transparency from the bytes', () => {

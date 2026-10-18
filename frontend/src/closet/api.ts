@@ -77,6 +77,7 @@ export interface Item {
   photos: number;
   needsCutout: boolean;
   hasLabel: boolean;
+  vectorRequested: boolean;
   wears: number;
   lastWorn: string | null;
   costPerWear: number | null;
@@ -210,6 +211,8 @@ export const closetApi = {
     id: string,
     body: { image: string; kind?: PhotoKind; needsCutout?: boolean; replaces?: string; rotates?: string },
   ) => api.post<{ photo: Photo; storage: Storage_ }>(`/closet/items/${id}/photos`, body),
+  requestVector: (id: string) => api.post<{ item: Item }>(`/closet/items/${id}/vector-request`, {}),
+  cancelVector: (id: string) => api.delete<{ item: Item }>(`/closet/items/${id}/vector-request`),
   updatePhoto: (id: string, patch: { kind?: PhotoKind; cover?: true; needsCutout?: boolean }) =>
     api.patch<{ photo: Photo }>(`/closet/photos/${id}`, patch),
   removePhoto: (id: string) => api.delete<void>(`/closet/photos/${id}`),

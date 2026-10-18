@@ -175,6 +175,32 @@ async function shrink(vips: string, bytes: Buffer, mime: Mime): Promise<Encoded>
   }
 }
 
+/**
+ * An SVG drawing as a transparent PNG about 1600 px on the long side (librsvg through vips).
+ * The caller has already checked the SVG is safe.
+ */
+export async function rasterizeSvg(bytes: Buffer): Promise<Buffer> {
+  const vips = await findVips();
+  if (!vips)
+    throw new AppError(501, 'UNAVAILABLE', 'Vector drawings need the image tools on the server');
+  return oneAtATime(async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'lms-svg-'));
+    try {
+      const source = join(dir, 'in.svg');
+      const out = join(dir, 'out.png');
+      await writeFile(source, bytes);
+      await run(vips, [source, '--size', '1600x1600', '-o', out], { timeout: 120_000, env: VIPS_ENV });
+      return await readFile(out);
+    } catch {
+      throw new AppError(400, 'VALIDATION', 'That drawing couldn’t be read', {
+        fields: { image: 'Not a drawing' },
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+}
+
 /** The upload as it will be stored: shrunk by vips, or kept as is when that's small and plain. */
 export async function encodePhoto(bytes: Buffer, mime: Mime): Promise<Encoded> {
   const vips = await findVips();

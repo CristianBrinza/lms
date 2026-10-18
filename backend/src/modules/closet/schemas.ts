@@ -355,6 +355,10 @@ export const PhotoInput = z.object({
     .uuid()
     .optional()
     .describe('The photo this cut-out replaces: it takes its place, and the original is kept'),
+  vector: z
+    .boolean()
+    .optional()
+    .describe('image is an SVG drawing (data:image/svg+xml;base64,…, up to 2 MB, no scripts or external links); it is rasterized to a transparent PNG. Use with replaces'),
   rotates: z
     .uuid()
     .optional()

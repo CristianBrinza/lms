@@ -1,5 +1,8 @@
 import { storage } from '@/lib/storage';
 import { nearestColor, type ClosetColor } from './catalog';
+import { refineCutout, type Raster } from './refine';
+import { autoDeskew } from './straighten';
+import { volumeRaster } from './volume';
 
 /**
  * Photos of pieces, all in the browser: turned upright and shrunk, the background lifted off (the
@@ -132,6 +135,38 @@ export function dominantColors(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
     .map(([name]) => name);
+}
+
+export const decodeRaster = async (blob: Blob): Promise<Raster> => {
+  const bitmap = await createImageBitmap(blob);
+  try {
+    const node = canvas(bitmap.width, bitmap.height);
+    const context = node.getContext('2d', { willReadFrequently: true })!;
+    context.drawImage(bitmap, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, node.width, node.height);
+    return { data, width, height };
+  } finally {
+    bitmap.close();
+  }
+};
+
+export async function encodeRaster(raster: Raster): Promise<Blob> {
+  const node = canvas(raster.width, raster.height);
+  node.getContext('2d')!.putImageData(new ImageData(raster.data as Uint8ClampedArray<ArrayBuffer>, raster.width, raster.height), 0, 0);
+  const blob = await toBlob(node, 'image/png');
+  if (!blob) throw new Error('png');
+  return blob;
+}
+
+/**
+ * The cut-out after the model: clean mask, colour corrected from the original photo's background,
+ * cropped; with `volume` also the soft 3D look. A transparent PNG either way.
+ */
+export async function polishCutout(original: Blob, cut: Blob, volume: boolean): Promise<Blob> {
+  const [photo, mask] = await Promise.all([decodeRaster(original), decodeRaster(cut)]);
+  let refined = autoDeskew(refineCutout(mask, photo));
+  if (volume) refined = volumeRaster(refined);
+  return encodeRaster(refined);
 }
 
 export interface Finished {

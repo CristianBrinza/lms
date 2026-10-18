@@ -23,6 +23,8 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
   const pullRef = useRef(0);
   const startY = useRef<number | null>(null);
   const armed = useRef(false);
+  const startX = useRef(0);
+  const axis = useRef<'x' | 'y' | null>(null);
 
   useEffect(() => {
     if (!window.matchMedia('(pointer: coarse)').matches) return;
@@ -33,14 +35,29 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
     const onStart = (event: TouchEvent) => {
       const blocked =
         refreshing ||
+        (event.target instanceof Element && event.target.closest('[data-no-pull]') !== null) ||
         window.scrollY > 0 ||
         document.documentElement.hasAttribute('data-scroll-locked');
       startY.current = blocked ? null : (event.touches[0]?.clientY ?? null);
+      startX.current = event.touches[0]?.clientX ?? 0;
+      axis.current = null;
       armed.current = false;
     };
     const onMove = (event: TouchEvent) => {
       if (startY.current === null) return;
       const dy = (event.touches[0]?.clientY ?? 0) - startY.current;
+      // A sideways swipe (a photo strip, a row of cards) belongs to the browser's own scrolling:
+      // decide the direction once, early, and never cancel a horizontal gesture because the
+      // finger drifted down a little.
+      if (axis.current === null) {
+        const dx = (event.touches[0]?.clientX ?? 0) - startX.current;
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        axis.current = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+      if (axis.current === 'x') {
+        startY.current = null;
+        return;
+      }
       if (dy <= 0 || window.scrollY > 0) {
         if (pullRef.current) set(0);
         setDragging(false);

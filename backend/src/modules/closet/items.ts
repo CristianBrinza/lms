@@ -58,6 +58,7 @@ interface ItemRow {
   has_label: boolean;
   wears: number;
   last_worn: string | null;
+  vector_requested_at: Date | null;
 }
 
 /** A piece with its cover, photo counts and how often it was worn. */
@@ -65,7 +66,7 @@ const SELECT = `SELECT i.id, i.owner_id, u.name AS owner_name, i.created_by, i.n
     i.subcategory, i.colors, i.materials, i.size, i.size_system, i.brand, i.price::text, i.currency,
     i.bought_on::text, i.store, i.seasons, i.occasions, i.fit, i.condition, i.issues,
     i.condition_notes, i.tags, i.notes, i.url, i.status, i.lent_to, i.favorite, i.place_id,
-    i.storage, i.care, i.storage_advice, i.made_in, i.label_text, i.created_at, i.updated_at,
+    i.storage, i.care, i.storage_advice, i.made_in, i.label_text, i.vector_requested_at, i.created_at, i.updated_at,
     cover.id AS cover_id, cover.has_alpha AS cover_alpha, coalesce(pc.photos, 0) AS photos,
     coalesce(pc.cutouts, 0) AS cutouts, coalesce(pc.label, false) AS has_label,
     coalesce(w.wears, 0) AS wears, w.last_worn
@@ -134,6 +135,7 @@ export const toItem = (row: ItemRow) => {
     photos: row.photos,
     needsCutout: row.cutouts > 0,
     hasLabel: row.has_label,
+    vectorRequested: row.vector_requested_at !== null,
     wears: row.wears,
     lastWorn: row.last_worn,
     costPerWear: price !== null && row.wears > 0 ? Math.round((price / row.wears) * 100) / 100 : null,
@@ -438,4 +440,14 @@ export async function markWashed(ctx: FoodCtx, input: { ids?: string[]; all?: bo
     }
   });
   return { items: [...(await itemsById(ctx, [...found.keys()])).values()] };
+}
+
+/** Asks Claude for a vector drawing of the piece (or takes the request back). */
+export async function setVectorRequest(ctx: FoodCtx, id: string, requested: boolean) {
+  await findItem(ctx, id);
+  await ctx.db.query(
+    'UPDATE closet_items SET vector_requested_at = $2 WHERE id = $1 AND household_id = $3',
+    [id, requested ? ctx.now : null, ctx.actor.householdId],
+  );
+  return { item: await findItem(ctx, id) };
 }

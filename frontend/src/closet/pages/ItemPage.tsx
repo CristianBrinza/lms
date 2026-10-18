@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
 import { Button, IconButton, Sheet, Skeleton, toast } from '@/components/ui';
 import {
   AddPhotoIcon,
   CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   DeleteIcon,
   EditIcon,
   FavoriteBorderIcon,
@@ -22,6 +24,8 @@ import { haptic } from '@/lib/haptics';
 import { closetApi, closetKeys, type ItemDetail, type Photo, type PhotoKind, type Status } from '../api';
 import { STATUSES, STORAGE_ADVICE, type Material } from '../catalog';
 import { CareSymbols } from '../components/CareSymbols';
+import { TouchUp } from '../components/TouchUp';
+import { StraightenSheet } from '../components/StraightenSheet';
 import { ItemSheet } from '../components/ItemSheet';
 import {
   ClosetScreen,
@@ -32,12 +36,12 @@ import {
   Swatch,
 } from '../components/parts';
 import { recentPlaces, rememberPlace, useOwner } from '../state';
-import { cutOut, finish, preparePhoto } from '../images';
+import { cutOut, finish, polishCutout, preparePhoto } from '../images';
 import { useClosetT } from '../i18n';
 import { placeName, placePath } from '../places';
-import { addVolume } from '../volume';
+import { slideIndex } from '../gallery';
 
-type CutMode = 'plain' | '3d';
+type CutMode = 'plain' | '3d' | 'vector';
 
 /** Cut-outs first (front, back), then the photos as taken, then the label, then details. */
 const galleryRank = (photo: Photo) =>
@@ -464,9 +468,25 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [choosing, setChoosing] = useState(false);
+  const [touching, setTouching] = useState<Blob | null>(null);
+  const [touchingId, setTouchingId] = useState<string | null>(null);
+  const [straightening, setStraightening] = useState<{ photo: Photo; blob: Blob } | null>(null);
   const photos = galleryOrder(detail.photos, detail.originals);
   const current: Photo | undefined = photos[Math.min(index, photos.length - 1)];
-  const pending = photos.filter((p) => p.needsCutout && !p.superseded && (p.kind === 'front' || p.kind === 'back'));
+  // Any front/back photo that still has its background, flagged or not, so a cut-out can always be redone.
+  const isBare = (p: Photo) => !p.superseded && !p.hasAlpha && (p.kind === 'front' || p.kind === 'back');
+  const pending = photos.filter(isBare);
+
+  const goTo = (i: number) => {
+    const track = strip.current;
+    if (track) track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
+  };
+
+  // A new cut-out arrives: show the first photo once (the strip is never written back to otherwise).
+  const lead = photos[0]?.id;
+  useEffect(() => {
+    strip.current?.scrollTo({ left: 0 });
+  }, [lead, detail.photos.length]);
 
   const upload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -491,20 +511,16 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   /** Every front/back photo that still has its background, one at a time. */
   const removeBackgrounds = async (mode: CutMode) => {
     setChoosing(false);
+    if (mode === 'vector') {
+      await act(() => closetApi.requestVector(detail.item.id));
+      return;
+    }
     for (const photo of pending) {
       setBusy(photo.id);
       setProgress(0);
       try {
         const source = await (await fetch(photo.full, { credentials: 'same-origin' })).blob();
-        let cut = await cutOut(source, setProgress);
-        if (mode === '3d') {
-          const bitmap = await createImageBitmap(cut);
-          try {
-            cut = await addVolume(bitmap);
-          } finally {
-            bitmap.close();
-          }
-        }
+        const cut = await polishCutout(source, await cutOut(source, setProgress), mode === '3d');
         const done = await finish(cut, true);
         URL.revokeObjectURL(done.previewUrl);
         await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, replaces: photo.id });
@@ -534,6 +550,55 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
     }
   };
 
+  const openStraighten = async (photo: Photo) => {
+    setBusy(photo.id);
+    try {
+      setStraightening({ photo, blob: await (await fetch(photo.full, { credentials: 'same-origin' })).blob() });
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openTouchUp = async (photo: Photo) => {
+    setBusy(photo.id);
+    try {
+      setTouching(await (await fetch(photo.full, { credentials: 'same-origin' })).blob());
+      setTouchingId(photo.id);
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const saveTouchUp = async (result: Blob) => {
+    if (!touchingId) return;
+    try {
+      const done = await finish(result, true);
+      URL.revokeObjectURL(done.previewUrl);
+      await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, rotates: touchingId });
+      setTouching(null);
+      onChanged();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+
+  const saveStraightened = async (result: Blob) => {
+    if (!straightening) return;
+    try {
+      const done = await finish(result, true);
+      URL.revokeObjectURL(done.previewUrl);
+      await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, rotates: straightening.photo.id });
+      setStraightening(null);
+      onChanged();
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+
   const act = async (work: () => Promise<unknown>) => {
     try {
       await work();
@@ -547,13 +612,18 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
     <div>
       <input ref={input} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={(e) => void upload(e)} />
       {photos.length ? (
+        <div className="relative">
         <div
           ref={strip}
-          onScroll={(e) => setIndex(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
+          onScroll={(e) => {
+            const next = slideIndex(e.currentTarget.scrollLeft, e.currentTarget.clientWidth, photos.length);
+            setIndex((was) => (was === next ? was : next));
+          }}
+          style={{ touchAction: 'pan-x pan-y' }}
           className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain rounded-[1.75rem] shadow-[var(--shadow-card)] [scrollbar-width:none]"
         >
           {photos.map((photo, i) => (
-            <figure key={photo.id} className="w-full shrink-0 snap-center">
+            <figure key={photo.id} className="w-full shrink-0 snap-center [scroll-snap-stop:always]">
               <Studio
                 cover={{ id: photo.id, thumb: photo.thumb, full: photo.full, hasAlpha: photo.hasAlpha }}
                 size="full"
@@ -573,20 +643,54 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
             </figure>
           ))}
         </div>
+        {photos.length > 1 ? (
+        <div className="absolute bottom-3 right-3 flex gap-2">
+          {index > 0 ? (
+            <button
+              type="button"
+              aria-label={t.prevPhoto}
+              onClick={() => goTo(index - 1)}
+              className="press flex size-9 items-center justify-center rounded-full bg-white/80 text-[1.4rem] text-ink-900 shadow-[var(--shadow-xs)] backdrop-blur-md"
+            >
+              <ChevronLeftIcon fontSize="inherit" />
+            </button>
+          ) : null}
+          {index < photos.length - 1 ? (
+            <button
+              type="button"
+              aria-label={t.nextPhoto}
+              onClick={() => goTo(index + 1)}
+              className="press flex size-9 items-center justify-center rounded-full bg-white/80 text-[1.4rem] text-ink-900 shadow-[var(--shadow-xs)] backdrop-blur-md"
+            >
+              <ChevronRightIcon fontSize="inherit" />
+            </button>
+          ) : null}
+        </div>
+        ) : null}
+        </div>
       ) : (
         <Studio cover={null} className="aspect-[4/5] rounded-[1.75rem] shadow-[var(--shadow-card)]" />
       )}
 
       {photos.length > 1 ? (
-        <div aria-hidden="true" className="mt-3 flex justify-center gap-1.5">
+        <div className="mt-1.5 flex justify-center">
           {photos.map((photo, i) => (
-            <span key={photo.id} className={cx('h-1.5 rounded-pill transition-all duration-300', i === index ? 'w-5 bg-ink-900' : 'w-1.5 bg-ink-300')} />
+            <button
+              key={photo.id}
+              type="button"
+              aria-label={`${i + 1} / ${photos.length}`}
+              aria-current={i === index}
+              onClick={() => goTo(i)}
+              className="flex h-6 items-center px-[3px]"
+            >
+              <span className={cx('h-1.5 rounded-pill transition-all duration-300', i === index ? 'w-5 bg-ink-900' : 'w-1.5 bg-ink-300')} />
+            </button>
           ))}
         </div>
       ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {current?.needsCutout ? (
+        {current && isBare(current) ? (
           <Button size="sm" icon={SparkleIcon} loading={busy === current.id} disabled={busy !== null} onClick={() => setChoosing(true)}>
             {t.removeBg}
           </Button>
@@ -596,9 +700,27 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
             {t.rotate}
           </Button>
         ) : null}
-        {current && index > 0 && current.kind !== 'label' && !current.superseded ? (
-          <Button size="sm" variant="tint" icon={StarIcon} onClick={() => void act(() => closetApi.updatePhoto(current.id, { cover: true }))}>
-            {t.setCover}
+        {current?.hasAlpha ? (
+          <Button size="sm" variant="tint" disabled={busy !== null} onClick={() => void openStraighten(current)}>
+            {t.straighten}
+          </Button>
+        ) : null}
+        {current?.hasAlpha ? (
+          <Button size="sm" variant="tint" disabled={busy !== null} onClick={() => void openTouchUp(current)}>
+            {t.touchUp}
+          </Button>
+        ) : null}
+        {current && !current.superseded && (current.kind === 'front' || current.kind === 'back') ? (
+          <Button
+            size="sm"
+            variant={detail.item.cover?.id === current.id ? 'primary' : 'tint'}
+            icon={StarIcon}
+            aria-pressed={detail.item.cover?.id === current.id}
+            onClick={() => {
+              if (detail.item.cover?.id !== current.id) void act(() => closetApi.updatePhoto(current.id, { cover: true }));
+            }}
+          >
+            {t.coverChip}
           </Button>
         ) : null}
         <Button
@@ -638,19 +760,34 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
           />
         ) : null}
       </div>
-      {current?.needsCutout ? <p className="mt-2 text-xs text-ink-500">{t.removeBgHint}</p> : null}
+      {detail.item.vectorRequested ? (
+        <p className="mt-2 flex items-center gap-2 text-sm text-ink-700" aria-live="polite">
+          <SparkleIcon fontSize="inherit" className="text-lav-600" />
+          <span>{t.vectorWaiting}</span>
+          <button
+            type="button"
+            className="font-semibold text-lav-700 underline-offset-2 hover:underline"
+            onClick={() => void act(() => closetApi.cancelVector(detail.item.id))}
+          >
+            {t.vectorCancel}
+          </button>
+        </p>
+      ) : null}
+      {current && isBare(current) ? <p className="mt-2 text-xs text-ink-500">{t.removeBgHint}</p> : null}
       {photos.length > 1 ? <p className="sr-only">{formatNumber(index + 1)}</p> : null}
+      <TouchUp source={touching} onClose={() => setTouching(null)} onSave={saveTouchUp} />
+      <StraightenSheet source={straightening?.blob ?? null} onClose={() => setStraightening(null)} onSave={saveStraightened} />
       <Sheet open={choosing} onClose={() => setChoosing(false)} title={t.cutChoiceTitle} description={t.cutChoiceBody(pending.length)}>
         <div className="flex flex-col gap-2.5">
-          {(['plain', '3d'] as const).map((mode) => (
+          {(['plain', '3d', 'vector'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => void removeBackgrounds(mode)}
               className="press rounded-2xl bg-ink-50 p-4 text-left hover:bg-ink-100"
             >
-              <span className="block text-[0.9375rem] font-semibold text-ink-900">{mode === '3d' ? t.cut3d : t.cutOnly}</span>
-              <span className="mt-0.5 block text-sm text-ink-600">{mode === '3d' ? t.cut3dHint : t.cutOnlyHint}</span>
+              <span className="block text-[0.9375rem] font-semibold text-ink-900">{mode === 'vector' ? t.cutVector : mode === '3d' ? t.cut3d : t.cutOnly}</span>
+              <span className="mt-0.5 block text-sm text-ink-600">{mode === 'vector' ? t.cutVectorHint : mode === '3d' ? t.cut3dHint : t.cutOnlyHint}</span>
             </button>
           ))}
         </div>
