@@ -4,6 +4,7 @@ import { toast } from '@/components/ui';
 import { ArrowOutIcon, ChevronRightIcon, HourglassIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { areasT } from './i18n';
+import { useAreaLive } from './useAreaLive';
 import { TONES, type Area } from './registry';
 
 /**
@@ -14,6 +15,7 @@ import { TONES, type Area } from './registry';
 export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
   const tone = TONES[area.tone];
   const Icon = area.icon;
+  const live = useAreaLive(area.id);
   if (area.wide && area.to) return <AreaRow area={{ ...area, to: area.to }} index={index} />;
   const classes = cx(
     'group/tile relative flex aspect-[4/5] w-full flex-col rounded-[1.75rem] p-4 text-left sm:aspect-[5/5] sm:p-5 lg:aspect-[6/5] lg:p-6',
@@ -32,7 +34,7 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
         <Icon fontSize="inherit" className={cx('mt-0.5 shrink-0 text-[1.35rem]', tone.muted)} />
       </span>
       <span className={cx('mt-1.5 line-clamp-3 text-sm font-medium', tone.muted)}>
-        {area.summary}
+        {live.summary ?? area.summary}
       </span>
       <span className="mt-auto flex items-center justify-between gap-2">
         <span
@@ -49,6 +51,16 @@ export function AreaTile({ area, index = 0 }: { area: Area; index?: number }) {
         >
           {area.to ? <ArrowOutIcon fontSize="inherit" /> : <HourglassIcon fontSize="inherit" />}
         </span>
+        {live.badge ? (
+          <span
+            className={cx(
+              'tabular inline-flex h-8 min-w-8 items-center justify-center rounded-pill px-2.5 text-sm font-bold',
+              tone.chip,
+            )}
+          >
+            {live.badge}
+          </span>
+        ) : null}
         {area.to ? null : (
           <span
             className={cx(

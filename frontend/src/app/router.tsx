@@ -129,6 +129,17 @@ const closetRoutes: RouteObject = {
   ],
 };
 
+/** The medicine cabinet, treatments and doses. Fixed screens before a medicine's `:id`. */
+const medicationRoutes: RouteObject = {
+  path: 'medication',
+  children: [
+    { index: true, lazy: page(() => import('@/medication/pages/MedicationHomePage')) },
+    { path: 'history', lazy: page(() => import('@/medication/pages/HistoryPage')) },
+    { path: 'export', lazy: page(() => import('@/medication/pages/ExportPage')) },
+    { path: ':id', lazy: page(() => import('@/medication/pages/MedicinePage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -175,6 +186,7 @@ const routes: RouteObject[] = [
               watchingRoutes,
               drinksRoutes,
               closetRoutes,
+              medicationRoutes,
               { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,
             ],

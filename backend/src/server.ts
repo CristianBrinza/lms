@@ -8,6 +8,7 @@ import { cleanup } from './db/migrations';
 import { clientIpResolver, proxyTrust } from './lib/client-ip';
 import { loadDotEnv } from './lib/dotenv';
 import { resetTryons } from './modules/closet/tryon';
+import { runMedicationReminders } from './modules/medication/notify';
 import { runReminders } from './modules/reminders/service';
 import { createDeps, prepare } from './runtime';
 
@@ -61,10 +62,13 @@ async function main() {
     cleanupTimer = setInterval(tidy, 60 * 60 * 1000);
     // Reminders: a look every minute at what is due (only when push keys are configured).
     if (deps.push) {
-      reminderTimer = setInterval(
-        () => void runReminders(deps).catch((error) => console.error('[reminders] failed', error)),
-        60 * 1000,
-      );
+      reminderTimer = setInterval(() => {
+        void runReminders(deps).catch((error) => console.error('[reminders] failed', error));
+        // The medicine cabinet: dose reminders and the expiry digest, on the same clock.
+        void runMedicationReminders(deps).catch((error) =>
+          console.error('[medication] reminders failed', error),
+        );
+      }, 60 * 1000);
       console.info('[reminders] on');
     }
   });

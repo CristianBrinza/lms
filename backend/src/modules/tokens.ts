@@ -160,6 +160,9 @@ export function tokenMayAccess(scope: TokenScope, method: string, path: string):
   // The closet: everyone's clothes at home, their photos, places, looks and days worn.
   if (path === '/api/closet' || path.startsWith('/api/closet/'))
     return scope === 'food:read' ? read : true;
+  // Medication: the household's medicine cabinet, treatments and doses taken, like the kitchen.
+  if (path === '/api/medication' || path.startsWith('/api/medication/'))
+    return scope === 'food:read' ? read : true;
   if (path.startsWith('/api/admin/')) return scope === 'admin';
   return false;
 }

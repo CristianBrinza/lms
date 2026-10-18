@@ -1476,6 +1476,133 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
         CHECK (kind IN ('front', 'back', 'label', 'detail', 'backdrop', 'tryon'));
     `,
   },
+  {
+    version: 45,
+    name: 'medication: the medicine cabinet, treatments, doses taken and expiry alerts',
+    sql: `
+      -- A medicine the household keeps: shared by default, or one person's (owner_id).
+      CREATE TABLE medication_medicines (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        owner_id uuid REFERENCES users(id) ON DELETE SET NULL,
+        name text NOT NULL,
+        substance text NOT NULL DEFAULT '',
+        strength text NOT NULL DEFAULT '',
+        form text NOT NULL DEFAULT 'tablet'
+          CHECK (form IN ('tablet', 'capsule', 'syrup', 'drops', 'spray', 'cream', 'injection', 'sachet', 'other')),
+        -- What quantities count: pcs (tablets, capsules, sachets, ampoules), ml, g, doses (sprays).
+        unit text NOT NULL DEFAULT 'pcs' CHECK (unit IN ('pcs', 'ml', 'g', 'doses')),
+        rx boolean NOT NULL DEFAULT false,
+        color text NOT NULL DEFAULT '',
+        shape text NOT NULL DEFAULT '',
+        notes text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX medication_medicines_household ON medication_medicines (household_id, lower(name));
+
+      -- A stock lot: a box, blister, bottle or tube, with its own expiry and count.
+      CREATE TABLE medication_packages (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        medicine_id uuid NOT NULL REFERENCES medication_medicines(id) ON DELETE CASCADE,
+        kind text NOT NULL DEFAULT 'box' CHECK (kind IN ('box', 'blister', 'bottle', 'tube')),
+        quantity numeric(10, 3) NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+        original numeric(10, 3) NOT NULL DEFAULT 0,
+        expires_on date,
+        -- Printed as a month only: expires_on is its last day.
+        expiry_month_only boolean NOT NULL DEFAULT false,
+        batch text NOT NULL DEFAULT '',
+        opened_on date,
+        use_within_days integer CHECK (use_within_days IS NULL OR use_within_days > 0),
+        place text NOT NULL DEFAULT '',
+        -- expired is worked out from the dates, never stored.
+        status text NOT NULL DEFAULT 'ok' CHECK (status IN ('ok', 'finished', 'discarded')),
+        -- The most urgent expiry alert already sent (90, 30, 7 or 0 days), so each is sent once.
+        alerted_level integer,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX medication_packages_medicine ON medication_packages (medicine_id, status);
+      CREATE INDEX medication_packages_household ON medication_packages (household_id, status, expires_on);
+
+      CREATE TABLE medication_photos (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        medicine_id uuid NOT NULL REFERENCES medication_medicines(id) ON DELETE CASCADE,
+        position integer NOT NULL DEFAULT 0,
+        kind text NOT NULL DEFAULT 'front' CHECK (kind IN ('front', 'back', 'blister', 'leaflet', 'other')),
+        mime text NOT NULL,
+        "full" bytea NOT NULL,
+        thumb bytea NOT NULL,
+        width integer,
+        height integer,
+        bytes integer NOT NULL,
+        created_at timestamptz NOT NULL
+      );
+      CREATE INDEX medication_photos_medicine ON medication_photos (medicine_id, position);
+
+      -- A course or schedule of one medicine for one person.
+      CREATE TABLE medication_treatments (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        medicine_id uuid NOT NULL REFERENCES medication_medicines(id) ON DELETE CASCADE,
+        person_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        dose numeric(10, 3) NOT NULL CHECK (dose > 0),
+        kind text NOT NULL CHECK (kind IN ('times', 'interval', 'prn')),
+        times text[] NOT NULL DEFAULT '{}',
+        weekdays integer[] NOT NULL DEFAULT '{}',
+        interval_hours integer CHECK (interval_hours IS NULL OR interval_hours BETWEEN 1 AND 72),
+        max_per_day integer CHECK (max_per_day IS NULL OR max_per_day > 0),
+        start_on date NOT NULL,
+        end_kind text NOT NULL DEFAULT 'none' CHECK (end_kind IN ('none', 'date', 'days', 'doses')),
+        end_on date,
+        end_days integer,
+        end_doses integer,
+        stopped_on date,
+        instructions text[] NOT NULL DEFAULT '{}',
+        notes text NOT NULL DEFAULT '',
+        low_days integer NOT NULL DEFAULT 5,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX medication_treatments_household ON medication_treatments (household_id, person_id);
+      CREATE INDEX medication_treatments_medicine ON medication_treatments (medicine_id);
+
+      -- One dose: generated per day from the schedule (due_time set), or an as-needed intake
+      -- (due_time NULL, taken straight away).
+      CREATE TABLE medication_doses (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        treatment_id uuid NOT NULL REFERENCES medication_treatments(id) ON DELETE CASCADE,
+        medicine_id uuid NOT NULL REFERENCES medication_medicines(id) ON DELETE CASCADE,
+        person_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        due_on date NOT NULL,
+        due_time text,
+        status text NOT NULL DEFAULT 'due' CHECK (status IN ('due', 'taken', 'skipped')),
+        amount numeric(10, 3) NOT NULL,
+        taken_at timestamptz,
+        skip_reason text NOT NULL DEFAULT '',
+        snoozed_until timestamptz,
+        notified_at timestamptz,
+        renotified_at timestamptz,
+        -- Which packages the dose came out of and how much: [{ "id": "…", "amount": 1 }], for undo.
+        deductions jsonb NOT NULL DEFAULT '[]'::jsonb,
+        shortfall numeric(10, 3) NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL
+      );
+      CREATE UNIQUE INDEX medication_doses_slot ON medication_doses (treatment_id, due_on, due_time)
+        WHERE due_time IS NOT NULL;
+      CREATE INDEX medication_doses_day ON medication_doses (household_id, due_on);
+      CREATE INDEX medication_doses_person ON medication_doses (person_id, due_on);
+
+      -- What the reminder clock already sent today (one digest, one message per dose and again).
+      CREATE TABLE medication_notified (
+        key text PRIMARY KEY,
+        sent_at timestamptz NOT NULL
+      );
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

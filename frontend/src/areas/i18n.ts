@@ -8,7 +8,8 @@ type AreaId =
   | 'travel'
   | 'watching'
   | 'drinks'
-  | 'closet';
+  | 'closet'
+  | 'medication';
 type AreaWords = Record<AreaId, { name: string; summary: string }>;
 
 /** The life areas' names and lines, and the tile's own words. */
@@ -22,6 +23,7 @@ const en = {
     watching: { name: 'Watching', summary: 'Shows and films, episode by episode.' },
     drinks: { name: 'Drinks', summary: 'The cellar, and every glass worth remembering.' },
     closet: { name: 'Virtual Closet', summary: 'Every piece, where it lives, how to care for it.' },
+    medication: { name: 'Medication', summary: 'The medicine cabinet, doses and expiry dates.' },
   } as AreaWords,
   soon: 'Soon',
   building: (name: string) => `${name} is being built`,
@@ -42,6 +44,7 @@ const ro: typeof en = {
     watching: { name: 'Filme și seriale', summary: 'Ce ai văzut, episod cu episod.' },
     drinks: { name: 'Băuturi', summary: 'Colecția și fiecare pahar care merită ținut minte.' },
     closet: { name: 'Dulap virtual', summary: 'Fiecare lucru, unde stă și cum se îngrijește.' },
+    medication: { name: 'Medicamente', summary: 'Dulăpiorul cu medicamente, dozele și datele de expirare.' },
   },
   soon: 'În curând',
   building: (name: string) => `${name}: în lucru`,
@@ -59,6 +62,7 @@ const ru: typeof en = {
     watching: { name: 'Кино и сериалы', summary: 'Что вы смотрели, серия за серией.' },
     drinks: { name: 'Напитки', summary: 'Коллекция и каждый бокал, который стоит запомнить.' },
     closet: { name: 'Виртуальный шкаф', summary: 'Каждая вещь, где она лежит и как за ней ухаживать.' },
+    medication: { name: 'Лекарства', summary: 'Аптечка, приём и сроки годности.' },
   },
   soon: 'Скоро',
   building: (name: string) => `${name}: в разработке`,

@@ -28,6 +28,7 @@ export function areaOf(path: string): LiveArea | null {
   if (/^\/api\/wishlist(\/|$)/.test(path)) return 'wishlist';
   if (/^\/api\/drinks(\/|$)/.test(path)) return 'drinks';
   if (/^\/api\/closet(\/|$)/.test(path)) return 'closet';
+  if (/^\/api\/medication(\/|$)/.test(path)) return 'medication';
   if (/^\/api\/me\/reminders(\/|$)/.test(path)) return 'reminders';
   // Names, pictures, paydays and household seats: the profile, the admin's people screens.
   if (/^\/api\/me(\/avatar)?$/.test(path)) return 'people';
@@ -41,6 +42,7 @@ export function toolArea(name: string): LiveArea {
   if (/^buy_list/.test(name)) return 'wishlist';
   if (/^drinks_/.test(name)) return 'drinks';
   if (/^closet_/.test(name)) return 'closet';
+  if (/^medication_/.test(name)) return 'medication';
   if (/trip|packing|gear|bag/.test(name)) return 'travel';
   if (/exercise|routine|equipment|workout|training|health|nutrition|energy|goal/.test(name))
     return 'training';

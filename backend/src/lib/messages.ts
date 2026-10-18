@@ -181,6 +181,49 @@ export const MESSAGES: Record<string, Pair> = {
   },
   'No picture': { ro: 'Nu e nicio poză', ru: 'Фото нет' },
 
+  // ------------------------------------------------------------ medication
+  'That medicine isn’t in your cabinet': {
+    ro: 'Medicamentul ăsta nu e în dulăpiorul tău',
+    ru: 'Этого лекарства нет в вашей аптечке',
+  },
+  'That package isn’t in your cabinet': {
+    ro: 'Ambalajul ăsta nu e în dulăpiorul tău',
+    ru: 'Этой упаковки нет в вашей аптечке',
+  },
+  'That treatment isn’t in your cabinet': {
+    ro: 'Tratamentul ăsta nu e în dulăpiorul tău',
+    ru: 'Этого лечения нет в вашей аптечке',
+  },
+  'That dose isn’t in your treatments': {
+    ro: 'Doza asta nu e în tratamentele tale',
+    ru: 'Этой дозы нет в ваших лечениях',
+  },
+  'Say which medicine': { ro: 'Spune ce medicament e', ru: 'Укажите лекарство' },
+  'No one at home by that id': { ro: 'Nu e nimeni acasă cu acest id', ru: 'Дома нет человека с таким id' },
+  'Add at least one time': { ro: 'Adaugă cel puțin o oră', ru: 'Добавьте хотя бы одно время' },
+  'Say every how many hours': { ro: 'Spune din câte în câte ore', ru: 'Укажите, через сколько часов' },
+  'Pick the last day': { ro: 'Alege ultima zi', ru: 'Выберите последний день' },
+  'Say for how many days': { ro: 'Spune pentru câte zile', ru: 'Укажите, на сколько дней' },
+  'Say how many doses': { ro: 'Spune câte doze', ru: 'Укажите, сколько доз' },
+  'Use a date like 2027-03-31 or a month like 2027-03': {
+    ro: 'Folosește o dată ca 2027-03-31 sau o lună ca 2027-03',
+    ru: 'Укажите дату вроде 2027-03-31 или месяц вроде 2027-03',
+  },
+  'That dose was already taken': { ro: 'Doza asta a fost deja luată', ru: 'Эта доза уже принята' },
+  'That dose was already answered': {
+    ro: 'Doza asta are deja un răspuns',
+    ru: 'На эту дозу уже ответили',
+  },
+  'That treatment has ended': { ro: 'Tratamentul s-a încheiat', ru: 'Это лечение закончено' },
+  'That treatment has a schedule: take its dose from Today': {
+    ro: 'Tratamentul are program: ia doza din „Azi”',
+    ru: 'У этого лечения есть расписание: примите дозу на вкладке «Сегодня»',
+  },
+  'Ask for at most two months at a time': {
+    ro: 'Cere cel mult două luni odată',
+    ru: 'Запрашивайте не больше двух месяцев за раз',
+  },
+
   // ------------------------------------------------------------ drinks: cellar and tastings
   'That drink isn’t in your cellar': {
     ro: 'Băutura asta nu e în colecția ta',

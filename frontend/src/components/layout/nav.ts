@@ -28,7 +28,7 @@ export function navItems(): readonly NavItem[] {
       to: '/home',
       label: t.home,
       icon: HomeIcon,
-      alsoActive: /^\/(food|training|house|travel|shopping|drinks|closet)(\/|$)/,
+      alsoActive: /^\/(food|training|house|travel|shopping|drinks|closet|medication)(\/|$)/,
     },
     { to: '/statistics', label: t.statistics, icon: InsightsIcon },
     { to: '/settings', label: t.settings, icon: SettingsIcon, alsoActive: /^\/admin(\/|$)/ },

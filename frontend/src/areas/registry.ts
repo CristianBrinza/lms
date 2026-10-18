@@ -1,6 +1,7 @@
 import {
   BasketIcon,
   CheckroomIcon,
+  MedicationIcon,
   FoodIcon,
   HouseIcon,
   LuggageIcon,
@@ -55,6 +56,7 @@ export const AREAS: readonly Area[] = [
   area('watching', { icon: MovieIcon, tone: 'pink', to: '/watching' }),
   area('drinks', { icon: WineBarIcon, tone: 'peach', to: '/drinks' }),
   area('closet', { icon: CheckroomIcon, tone: 'lav', to: '/closet' }),
+  area('medication', { icon: MedicationIcon, tone: 'mint', to: '/medication' }),
 ];
 
 /**

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -8,12 +9,19 @@ import { AREAS, type Area } from './registry';
 
 const toastInfo = vi.hoisted(() => vi.fn());
 vi.mock('@/components/ui', () => ({ toast: { info: toastInfo } }));
+// Medication's tile asks for its summary; nothing answers here.
+vi.mock('@/medication/api', async (original) => ({
+  ...(await original<Record<string, unknown>>()),
+  medicationApi: { summary: () => new Promise(() => undefined) },
+}));
 
 const renderGrid = (areas: readonly Area[]) =>
   render(
-    <MemoryRouter>
-      <AreaGrid areas={areas} />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <AreaGrid areas={areas} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('dashboard area tiles', () => {

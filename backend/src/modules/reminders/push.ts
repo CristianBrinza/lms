@@ -8,6 +8,11 @@ export interface PushMessage {
   url: string;
   /** Same tag replaces the previous notification instead of piling up. */
   tag: string;
+  /**
+   * Buttons on the notification (where the phone shows them): tapping one sends `post` (a path of
+   * this API) as the signed-in person, without opening the app.
+   */
+  actions?: Array<{ action: string; title: string; post: string }>;
 }
 
 export interface PushTarget {

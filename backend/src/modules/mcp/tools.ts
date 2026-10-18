@@ -151,6 +151,7 @@ import { WATCHING_TOOLS } from '../watching/mcp';
 import { WISHLIST_TOOLS } from '../wishlist/mcp';
 import { DRINKS_TOOLS } from '../drinks/mcp';
 import { CLOSET_TOOLS } from '../closet/mcp';
+import { MEDICATION_TOOLS } from '../medication/mcp';
 
 /**
  * The tools Claude gets over MCP. Each calls the same service the app's screens use, so the rules
@@ -1451,6 +1452,8 @@ export const TOOLS: Tool[] = [
   ...DRINKS_TOOLS,
   // ---------------------------------------------------------------- the closet
   ...CLOSET_TOOLS,
+  // ---------------------------------------------------------------- the medicine cabinet
+  ...MEDICATION_TOOLS,
 ];
 
 /** JSON Schema for a tool's input: the zod schema, without the noise (uuid regexes, $schema). */

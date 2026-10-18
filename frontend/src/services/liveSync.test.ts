@@ -8,6 +8,7 @@ import { watchingKeys } from '@/watching/api';
 import { wishlistKeys } from '@/wishlist/api';
 import { drinksKeys } from '@/drinks/api';
 import { closetKeys } from '@/closet/api';
+import { medicationKeys } from '@/medication/api';
 import { invalidateAreas, liveTargets } from './liveSync';
 import { queryKeys } from './queries';
 
@@ -31,6 +32,7 @@ describe('live sync: which queries an area’s change refetches', () => {
     expect(keysOf('wishlist')).toEqual([wishlistKeys.all]);
     expect(keysOf('drinks')).toEqual([drinksKeys.all]);
     expect(keysOf('closet')).toEqual([closetKeys.all]);
+    expect(keysOf('medication')).toEqual([medicationKeys.all, wishlistKeys.all]);
     expect(keysOf('reminders')).toEqual([foodKeys.reminders]);
     expect(keysOf('paydays')).toEqual([paydaysQueryKey]);
     expect(keysOf('people')).toEqual([

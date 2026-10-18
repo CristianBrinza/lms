@@ -15,6 +15,7 @@ export const LIVE_AREAS = [
   'wishlist',
   'drinks',
   'closet',
+  'medication',
   'reminders',
   'people',
   'paydays',

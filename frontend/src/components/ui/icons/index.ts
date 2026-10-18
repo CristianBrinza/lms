@@ -129,3 +129,7 @@ export { default as WineBarIcon } from '@mui/icons-material/WineBarRounded';
 export { default as CheckroomIcon } from '@mui/icons-material/CheckroomRounded';
 export { default as LiquorIcon } from '@mui/icons-material/LiquorRounded';
 export { default as AddPhotoIcon } from '@mui/icons-material/AddAPhotoRounded';
+export { default as MedicationIcon } from '@mui/icons-material/MedicationRounded';
+export { default as PrintIcon } from '@mui/icons-material/PrintRounded';
+export { default as SnoozeIcon } from '@mui/icons-material/SnoozeRounded';
+export { default as SkipNextIcon } from '@mui/icons-material/SkipNextRounded';
