@@ -72,9 +72,9 @@ function brandPlugin(): Plugin {
     async closeBundle() {
       if (!headersFile) return;
       const headers = await readFile(headersFile, 'utf8');
-      const scriptSrc = /script-src 'self';/;
-      if (!scriptSrc.test(headers)) throw new Error(`${headersFile}: no "script-src 'self';" to add the splash gate hash to`);
-      await writeFile(headersFile, headers.replace(scriptSrc, `script-src 'self' ${SPLASH_GATE_CSP};`));
+      const scriptSrc = /script-src 'self'/;
+      if (!scriptSrc.test(headers)) throw new Error(`${headersFile}: no "script-src 'self'" to add the splash gate hash to`);
+      await writeFile(headersFile, headers.replace(scriptSrc, `script-src 'self' ${SPLASH_GATE_CSP}`));
     },
   };
 }
@@ -174,6 +174,21 @@ const MANIFEST: Partial<ManifestOptions> = {
   ],
 };
 
+/**
+ * onnxruntime-web's own WebAssembly (about 24 MB): the closet's cut-out gives the runtime the copy
+ * it fetches from IMG.LY's CDN with its model, so the one Vite would emit is never asked for.
+ */
+function dropOnnxWasm(): Plugin {
+  return {
+    name: 'lms:drop-onnx-wasm',
+    apply: 'build',
+    generateBundle(_, bundle) {
+      for (const name of Object.keys(bundle))
+        if (name.startsWith('assets/ort-wasm') && name.endsWith('.wasm')) delete bundle[name];
+    },
+  };
+}
+
 /** Admin screens: their chunks go to assets/admin/, which the installed app never precaches. */
 const ADMIN_MODULE = /[\\/]src[\\/]pages[\\/]admin[\\/]/;
 
@@ -222,6 +237,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       brandPlugin(),
       versionPlugin(build),
+      dropOnnxWasm(),
       devAppPlugin(),
       VitePWA({
         registerType: 'prompt',
@@ -244,6 +260,17 @@ export default defineConfig(({ mode }) => {
           clientsClaim: false,
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
           runtimeCaching: [
+            {
+              // The closet's cut-out model and runtime (IMG.LY's CDN, fetched on the cut-out screen
+              // only): tens of megabytes, kept once on the device rather than fetched again.
+              urlPattern: ({ url }) => url.origin === 'https://staticimgly.com',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'lms-closet-cutout',
+                expiration: { maxEntries: 60, maxAgeSeconds: 180 * 86_400, purgeOnQuotaError: true },
+                cacheableResponse: { statuses: [200] },
+              },
+            },
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/assets/admin/'),
               handler: 'CacheFirst',

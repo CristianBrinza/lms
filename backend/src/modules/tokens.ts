@@ -157,6 +157,9 @@ export function tokenMayAccess(scope: TokenScope, method: string, path: string):
   // Drinks: the household's cellar and tastings, like the kitchen (label photos included).
   if (path === '/api/drinks' || path.startsWith('/api/drinks/'))
     return scope === 'food:read' ? read : true;
+  // The closet: everyone's clothes at home, their photos, places, looks and days worn.
+  if (path === '/api/closet' || path.startsWith('/api/closet/'))
+    return scope === 'food:read' ? read : true;
   if (path.startsWith('/api/admin/')) return scope === 'admin';
   return false;
 }

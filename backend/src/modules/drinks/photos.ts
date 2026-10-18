@@ -23,6 +23,8 @@ type PhotoKind = (typeof PHOTO_KINDS)[number];
 const run = promisify(execFile);
 const MAX_UPLOAD = 12 * 1024 * 1024;
 const MAX_AS_IS = 1.5 * 1024 * 1024;
+/** One thread per photo: the server is small and shared (the API container has 1 GB). */
+const VIPS_ENV = { ...process.env, VIPS_CONCURRENCY: '1' };
 
 let vipsPath: Promise<string | null> | null = null;
 /** Where vipsthumbnail is, looked up once (PATH can't change while the server runs). */
@@ -148,9 +150,11 @@ async function shrink(vips: string, bytes: Buffer, mime: Mime): Promise<Encoded>
     // ">" only ever shrinks; vipsthumbnail turns the picture upright by its EXIF and strips it.
     await run(vips, [source, '--size', '1600x1600>', '-o', `${full}[Q=78,strip]`], {
       timeout: 120_000,
+      env: VIPS_ENV,
     });
     await run(vips, [full, '--size', '480x480>', '-o', `${thumb}[Q=78,strip]`], {
       timeout: 60_000,
+      env: VIPS_ENV,
     });
     const out = await readFile(full);
     const size = imageSize(out);

@@ -118,6 +118,17 @@ const drinksRoutes: RouteObject = {
   ],
 };
 
+/** The closet: everyone's clothes. Fixed screens before a piece's `:id`. */
+const closetRoutes: RouteObject = {
+  path: 'closet',
+  children: [
+    { index: true, lazy: page(() => import('@/closet/pages/ClosetHomePage')) },
+    { path: 'add', lazy: page(() => import('@/closet/pages/AddPage')) },
+    { path: 'places', lazy: page(() => import('@/closet/pages/PlacesPage')) },
+    { path: ':id', lazy: page(() => import('@/closet/pages/ItemPage')) },
+  ],
+};
+
 const routes: RouteObject[] = [
   {
     element: <Root />,
@@ -163,6 +174,7 @@ const routes: RouteObject[] = [
               wishlistRoutes,
               watchingRoutes,
               drinksRoutes,
+              closetRoutes,
               { path: 'shopping', lazy: page(() => import('@/shopping/ShoppingAllPage')) },
               adminRoutes,
             ],

@@ -223,6 +223,51 @@ export const MESSAGES: Record<string, Pair> = {
     ru: 'Не удалось прочитать фото',
   },
 
+  // ------------------------------------------------------------ the closet
+  'That piece isn’t in your closet': {
+    ro: 'Lucrul ăsta nu e în dulapul tău',
+    ru: 'Этой вещи нет в вашем шкафу',
+  },
+  'That place isn’t in your home': { ro: 'Locul ăsta nu e în casa ta', ru: 'Этого места нет у вас дома' },
+  'A room can’t be inside another place': {
+    ro: 'O cameră nu poate fi în alt loc',
+    ru: 'Комната не может быть внутри другого места',
+  },
+  'Furniture goes in a room': { ro: 'Mobila stă într-o cameră', ru: 'Мебель стоит в комнате' },
+  'A place can’t go inside itself': {
+    ro: 'Un loc nu poate fi în el însuși',
+    ru: 'Место не может быть внутри самого себя',
+  },
+  'That look isn’t here': { ro: 'Ținuta asta nu e aici', ru: 'Этого образа здесь нет' },
+  'That day isn’t in the calendar': { ro: 'Ziua asta nu e în calendar', ru: 'Этого дня нет в календаре' },
+  'That packing list isn’t here': {
+    ro: 'Lista de bagaj nu e aici',
+    ru: 'Этого списка вещей здесь нет',
+  },
+  'That piece isn’t on the list': { ro: 'Lucrul ăsta nu e pe listă', ru: 'Этой вещи нет в списке' },
+  'Pick a look or the pieces worn': {
+    ro: 'Alege o ținută sau lucrurile purtate',
+    ru: 'Выберите образ или надетые вещи',
+  },
+  'Pick a kind from the list': { ro: 'Alege un tip din listă', ru: 'Выберите вид из списка' },
+  'The materials add up to more than 100%': {
+    ro: 'Materialele trec de 100%',
+    ru: 'В сумме материалов больше 100%',
+  },
+  'Use a web address (https://…)': {
+    ro: 'Folosește o adresă web (https://…)',
+    ru: 'Укажите веб-адрес (https://…)',
+  },
+  'Nothing to add': { ro: 'Nu e nimic de adăugat', ru: 'Нечего добавлять' },
+  'Pick what was washed': { ro: 'Alege ce s-a spălat', ru: 'Выберите, что постирано' },
+  'The closet’s photo storage is full': {
+    ro: 'Spațiul pentru pozele din dulap e plin',
+    ru: 'Место для фото шкафа закончилось',
+  },
+  'Say what kind of place it is': { ro: 'Spune ce fel de loc e', ru: 'Укажите, что это за место' },
+  'Pick the pieces of the look': { ro: 'Alege lucrurile ținutei', ru: 'Выберите вещи для образа' },
+  'Not a page': { ro: 'Nu e o pagină', ru: 'Это не страница' },
+
   // ------------------------------------------------------------ admin: people and kitchens
   'Choose member or admin': {
     ro: 'Alege: membru sau administrator',

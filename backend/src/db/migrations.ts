@@ -1289,6 +1289,161 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE meal_ingredients ADD COLUMN included boolean;
     `,
   },
+  {
+    version: 41,
+    name: 'closet: everyone’s clothes, where they are kept, looks, days worn and packing lists',
+    sql: `
+      -- Where things are kept, the household's: rooms hold furniture, furniture holds sections
+      -- (shelves numbered from the bottom, rails, drawers, boxes, hooks).
+      CREATE TABLE closet_places (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        parent_id uuid REFERENCES closet_places(id) ON DELETE CASCADE,
+        kind text NOT NULL CHECK (kind IN ('room', 'furniture', 'shelf', 'rail', 'drawer', 'box',
+          'hook', 'section')),
+        name text NOT NULL DEFAULT '',
+        number integer CHECK (number BETWEEN 1 AND 99),
+        side text NOT NULL DEFAULT '' CHECK (side IN ('', 'left', 'middle', 'right')),
+        position integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX closet_places_household ON closet_places (household_id, parent_id, position);
+
+      -- One piece, one person's (the household sees each other's closets). Kinds and scales are
+      -- checked by the API; care is the label's ISO 3758 symbols as JSON.
+      CREATE TABLE closet_items (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+        name text NOT NULL DEFAULT '',
+        category text NOT NULL DEFAULT '',
+        subcategory text NOT NULL DEFAULT '',
+        colors text[] NOT NULL DEFAULT '{}',
+        -- [{ "material": "cotton", "percent": 95 }, …]
+        materials jsonb NOT NULL DEFAULT '[]'::jsonb,
+        size text NOT NULL DEFAULT '',
+        size_system text NOT NULL DEFAULT '',
+        brand text NOT NULL DEFAULT '',
+        price numeric(12, 2),
+        currency text NOT NULL DEFAULT 'MDL',
+        bought_on date,
+        store text NOT NULL DEFAULT '',
+        seasons text[] NOT NULL DEFAULT '{}',
+        occasions text[] NOT NULL DEFAULT '{}',
+        fit text NOT NULL DEFAULT '',
+        condition text NOT NULL DEFAULT '',
+        issues text[] NOT NULL DEFAULT '{}',
+        condition_notes text NOT NULL DEFAULT '',
+        tags text[] NOT NULL DEFAULT '{}',
+        notes text NOT NULL DEFAULT '',
+        url text NOT NULL DEFAULT '',
+        status text NOT NULL DEFAULT 'clean' CHECK (status IN ('clean', 'to_wash', 'at_cleaners',
+          'lent', 'wishlist', 'archived', 'sold', 'donated')),
+        lent_to text NOT NULL DEFAULT '',
+        favorite boolean NOT NULL DEFAULT false,
+        place_id uuid REFERENCES closet_places(id) ON DELETE SET NULL,
+        storage text NOT NULL DEFAULT '',
+        care jsonb,
+        storage_advice text NOT NULL DEFAULT '',
+        made_in text NOT NULL DEFAULT '',
+        label_text text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX closet_items_owner ON closet_items (household_id, owner_id, status);
+      CREATE INDEX closet_items_recent ON closet_items (household_id, owner_id, created_at DESC, id DESC);
+      CREATE INDEX closet_items_place ON closet_items (place_id) WHERE place_id IS NOT NULL;
+
+      -- A look: pieces laid out on a canvas ({ v: 1, items: [{ itemId, x, y, scale, rotation, z }] }).
+      -- Pieces are referenced by id inside the JSON, so deleting a piece never deletes a look:
+      -- the look keeps a placeholder with its name.
+      CREATE TABLE closet_looks (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name text NOT NULL DEFAULT '',
+        canvas jsonb NOT NULL DEFAULT '{"v": 1, "items": []}'::jsonb,
+        backdrop jsonb NOT NULL DEFAULT '{"kind": "studio"}'::jsonb,
+        seasons text[] NOT NULL DEFAULT '{}',
+        occasions text[] NOT NULL DEFAULT '{}',
+        notes text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX closet_looks_owner ON closet_looks (household_id, owner_id, updated_at DESC);
+
+      -- Photos of a piece (front, back, label, detail) or a look's own backdrop, shrunk on upload
+      -- (WebP, 1600 px and a 480 px thumb, transparency kept). A cut-out replaces its original in
+      -- the gallery and keeps it (superseded), so the background can come back.
+      CREATE TABLE closet_photos (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        item_id uuid REFERENCES closet_items(id) ON DELETE CASCADE,
+        look_id uuid REFERENCES closet_looks(id) ON DELETE CASCADE,
+        position integer NOT NULL DEFAULT 0,
+        kind text NOT NULL DEFAULT 'front' CHECK (kind IN ('front', 'back', 'label', 'detail', 'backdrop')),
+        mime text NOT NULL,
+        "full" bytea NOT NULL,
+        thumb bytea NOT NULL,
+        width integer,
+        height integer,
+        bytes integer NOT NULL,
+        has_alpha boolean NOT NULL DEFAULT false,
+        needs_cutout boolean NOT NULL DEFAULT false,
+        cutout_of uuid REFERENCES closet_photos(id) ON DELETE SET NULL,
+        superseded boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL,
+        CHECK (num_nonnulls(item_id, look_id) = 1)
+      );
+      CREATE INDEX closet_photos_item ON closet_photos (item_id, position) WHERE item_id IS NOT NULL;
+      CREATE INDEX closet_photos_look ON closet_photos (look_id) WHERE look_id IS NOT NULL;
+      -- The household's photo bytes, summed before every upload (a soft cap of 1 GB, a hard 2 GB).
+      CREATE INDEX closet_photos_household ON closet_photos (household_id) INCLUDE (bytes);
+
+      -- The calendar: a day someone wore a look or some pieces (or planned to: planned ones don't
+      -- count as worn). Pieces by id, so a deleted piece leaves the day as it was.
+      CREATE TABLE closet_wears (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        worn_on date NOT NULL,
+        look_id uuid REFERENCES closet_looks(id) ON DELETE SET NULL,
+        item_ids uuid[] NOT NULL DEFAULT '{}',
+        note text NOT NULL DEFAULT '',
+        planned boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX closet_wears_owner ON closet_wears (household_id, owner_id, worn_on);
+      CREATE INDEX closet_wears_items ON closet_wears USING gin (item_ids);
+
+      -- Packing lists: a trip, the pieces going (ticked when packed) and the looks they came from.
+      CREATE TABLE closet_trips (
+        id uuid PRIMARY KEY,
+        household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+        owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name text NOT NULL,
+        destination text NOT NULL DEFAULT '',
+        starts_on date,
+        ends_on date,
+        notes text NOT NULL DEFAULT '',
+        look_ids uuid[] NOT NULL DEFAULT '{}',
+        back_at timestamptz,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX closet_trips_owner ON closet_trips (household_id, owner_id, starts_on);
+      CREATE TABLE closet_trip_items (
+        trip_id uuid NOT NULL REFERENCES closet_trips(id) ON DELETE CASCADE,
+        item_id uuid NOT NULL REFERENCES closet_items(id) ON DELETE CASCADE,
+        packed boolean NOT NULL DEFAULT false,
+        position integer NOT NULL DEFAULT 0,
+        PRIMARY KEY (trip_id, item_id)
+      );
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

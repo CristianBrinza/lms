@@ -14,6 +14,7 @@ import {
   requestContext,
 } from './middleware/security';
 import { drinksRoutes } from './modules/drinks/routes';
+import { closetRoutes } from './modules/closet/routes';
 import { backupRoutes } from './modules/admin/backup';
 import { adminRoutes } from './modules/admin/routes';
 import { authRoutes } from './modules/auth/routes';
@@ -32,8 +33,9 @@ import { oauthMetadataRoutes, oauthRoutes } from './modules/oauth';
 import { reminderRoutes } from './modules/reminders/routes';
 import { webApp, webVersion } from './web';
 
-/** Where a drink's photo arrives: its own route, and MCP (drinks_add_photo). */
-const PHOTO_PATHS = /^\/api\/(drinks\/[^/]+\/photos|mcp(\/.*)?)$/;
+/** Where a photo arrives: a drink's or a closet piece's own route, a look's backdrop, and MCP. */
+const PHOTO_PATHS =
+  /^\/api\/(drinks\/[^/]+\/photos|closet\/items\/[^/]+\/photos|closet\/looks\/[^/]+\/backdrop|mcp(\/.*)?)$/;
 
 export function createApp(deps: AppDeps) {
   const app = new Hono<AppEnv>();
@@ -69,6 +71,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/watching', watchingRoutes(deps));
   app.route('/api/wishlist', wishlistRoutes(deps));
   app.route('/api/drinks', drinksRoutes(deps));
+  app.route('/api/closet', closetRoutes(deps));
   app.route('/api/users', avatarRoutes(deps));
   app.route(
     '/api/mcp',
