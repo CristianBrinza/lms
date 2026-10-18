@@ -289,12 +289,27 @@ function dateFormat(name: string, options: Intl.DateTimeFormatOptions): Intl.Dat
 export const weekdayShort = (day: string) =>
   dateFormat('weekday', { weekday: 'short' }).format(parseDay(day));
 /** "5 Oct", "5 oct.", "5 окт.". */
+/** Another year than this one shows its year: "18 oct. 2027" is not next week. */
+const otherYear = (day: string) => day.slice(0, 4) !== localDate().slice(0, 4);
 export const dayAndMonth = (day: string) =>
-  dateFormat('dayMonth', { day: 'numeric', month: 'short' }).format(parseDay(day));
-/** "Monday 5 October", "Luni, 5 octombrie", "Понедельник, 5 октября". */
+  otherYear(day)
+    ? dateFormat('dayMonthYear', { day: 'numeric', month: 'short', year: 'numeric' }).format(
+        parseDay(day),
+      )
+    : dateFormat('dayMonth', { day: 'numeric', month: 'short' }).format(parseDay(day));
+/** "Monday 5 October", "Luni, 5 octombrie", "Понедельник, 5 октября" (with the year when not this one). */
 export const dayLong = (day: string) =>
   capitalized(
-    dateFormat('long', { weekday: 'long', day: 'numeric', month: 'long' }).format(parseDay(day)),
+    otherYear(day)
+      ? dateFormat('longYear', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }).format(parseDay(day))
+      : dateFormat('long', { weekday: 'long', day: 'numeric', month: 'long' }).format(
+          parseDay(day),
+        ),
   );
 
 /** "Today", "Tomorrow", "Yesterday", else "Mon, 5 Oct". */

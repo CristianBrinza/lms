@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { AddIcon } from '@/components/ui/icons';
 import type { Translations } from '@/i18n';
 import { cx } from '@/lib/cx';
@@ -36,64 +36,71 @@ export function VariantChips({
   const [typing, setTyping] = useState(custom);
   const options = ['', ...variants];
   const shown = label ?? t.label;
+  const other = typing ? (
+    <span className="inline-flex h-9 shrink-0 items-center rounded-pill bg-white px-3 ring-2 ring-ink-900">
+      <label htmlFor={id} className="sr-only">
+        {t.another}
+      </label>
+      <input
+        id={id}
+        autoFocus
+        value={value}
+        maxLength={40}
+        placeholder={t.another}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-32 bg-transparent text-sm font-semibold outline-none"
+      />
+    </span>
+  ) : (
+    <button
+      type="button"
+      onClick={() => {
+        setTyping(true);
+        onChange('');
+      }}
+      className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-butter-100 px-3 text-sm font-semibold hover:bg-butter-200"
+    >
+      <AddIcon fontSize="inherit" className="text-base" />
+      {t.other}
+    </button>
+  );
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[0.8125rem] font-semibold text-ink-700">{shown}</span>
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] md:flex-wrap">
-        {options.map((option) => {
+      <div
+        className={cx(
+          '-mx-1 flex gap-1.5 px-1 pb-0.5',
+          variants.length > 4 ? 'flex-wrap' : 'overflow-x-auto [scrollbar-width:none] md:flex-wrap',
+        )}
+      >
+        {options.map((option, index) => {
           const on = !typing && option.toLowerCase() === value.toLowerCase();
           return (
-            <button
-              key={option || 'any'}
-              type="button"
-              aria-pressed={on}
-              onClick={() => {
-                setTyping(false);
-                onChange(option);
-              }}
-              className={cx(
-                'press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill text-sm font-semibold transition-colors',
-                icons[option.toLowerCase()] ? 'pr-3.5 pl-1.5' : 'px-3.5',
-                on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
-              )}
-            >
-              {icons[option.toLowerCase()] ? (
-                <span className="grid size-6 place-items-center rounded-full bg-white">
-                  <FoodIcon name={icons[option.toLowerCase()]!} className="size-5" />
-                </span>
-              ) : null}
-              {option ? kindText(option, { variants, translations }) : (anyLabel ?? t.any)}
-            </button>
+            <Fragment key={option || 'any'}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => {
+                  setTyping(false);
+                  onChange(option);
+                }}
+                className={cx(
+                  'press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-pill text-sm font-semibold transition-colors',
+                  icons[option.toLowerCase()] ? 'pr-3.5 pl-1.5' : 'px-3.5',
+                  on ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700 hover:bg-ink-100',
+                )}
+              >
+                {icons[option.toLowerCase()] ? (
+                  <span className="grid size-6 place-items-center rounded-full bg-white">
+                    <FoodIcon name={icons[option.toLowerCase()]!} className="size-5" />
+                  </span>
+                ) : null}
+                {option ? kindText(option, { variants, translations }) : (anyLabel ?? t.any)}
+              </button>
+              {index === 0 ? other : null}
+            </Fragment>
           );
         })}
-        {typing ? (
-          <span className="inline-flex h-9 shrink-0 items-center rounded-pill bg-white px-3 ring-2 ring-ink-900">
-            <label htmlFor={id} className="sr-only">
-              {t.another}
-            </label>
-            <input
-              id={id}
-              autoFocus
-              value={value}
-              maxLength={40}
-              placeholder={t.another}
-              onChange={(event) => onChange(event.target.value)}
-              className="w-32 bg-transparent text-sm font-semibold outline-none"
-            />
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              setTyping(true);
-              onChange('');
-            }}
-            className="press inline-flex h-9 shrink-0 items-center gap-1 rounded-pill bg-butter-100 px-3 text-sm font-semibold hover:bg-butter-200"
-          >
-            <AddIcon fontSize="inherit" className="text-base" />
-            {t.other}
-          </button>
-        )}
       </div>
     </div>
   );
