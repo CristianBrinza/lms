@@ -208,7 +208,7 @@ export const closetApi = {
   worn: (id: string, wornOn?: string) => api.post<unknown>(`/closet/items/${id}/worn`, { wornOn }),
   addPhoto: (
     id: string,
-    body: { image: string; kind?: PhotoKind; needsCutout?: boolean; replaces?: string },
+    body: { image: string; kind?: PhotoKind; needsCutout?: boolean; replaces?: string; rotates?: string },
   ) => api.post<{ photo: Photo; storage: Storage_ }>(`/closet/items/${id}/photos`, body),
   updatePhoto: (id: string, patch: { kind?: PhotoKind; cover?: true; needsCutout?: boolean }) =>
     api.patch<{ photo: Photo }>(`/closet/photos/${id}`, patch),

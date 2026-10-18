@@ -191,7 +191,21 @@ async function store(
 export async function addPhoto(ctx: FoodCtx, itemId: string, input: PhotoInput) {
   await findItem(ctx, itemId);
   let photo: Photo;
-  if (input.replaces) {
+  if (input.rotates) {
+    // The same photo, turned: it takes the old one's place, flags and links; the old file goes.
+    const old = await findPhoto(ctx, input.rotates);
+    if (old.item_id !== itemId) throw new AppError(404, 'NOT_FOUND', 'No picture');
+    photo = await store(ctx, { itemId }, input.image, {
+      kind: old.kind,
+      needsCutout: old.needs_cutout,
+      position: old.position,
+      cutoutOf: old.cutout_of,
+    });
+    await ctx.db.query('UPDATE closet_photos SET superseded = $2 WHERE id = $1', [photo.id, old.superseded]);
+    await ctx.db.query('UPDATE closet_photos SET cutout_of = $2 WHERE cutout_of = $1', [old.id, photo.id]);
+    await ctx.db.query('DELETE FROM closet_photos WHERE id = $1', [old.id]);
+    photo = { ...photo, superseded: old.superseded };
+  } else if (input.replaces) {
     // A cut-out (or a better photo) in the original's place; the original is kept.
     const original = await findPhoto(ctx, input.replaces);
     if (original.item_id !== itemId) throw new AppError(404, 'NOT_FOUND', 'No picture');

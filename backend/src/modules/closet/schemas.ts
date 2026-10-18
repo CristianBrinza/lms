@@ -355,6 +355,10 @@ export const PhotoInput = z.object({
     .uuid()
     .optional()
     .describe('The photo this cut-out replaces: it takes its place, and the original is kept'),
+  rotates: z
+    .uuid()
+    .optional()
+    .describe('The photo this one is a turned copy of: it takes its place and links, and the old file goes'),
 });
 export type PhotoInput = z.infer<typeof PhotoInput>;
 

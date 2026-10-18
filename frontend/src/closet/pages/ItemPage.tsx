@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ConfirmSheet } from '@/components/common/ConfirmSheet';
-import { Button, IconButton, Skeleton, toast } from '@/components/ui';
+import { Button, IconButton, Sheet, Skeleton, toast } from '@/components/ui';
 import {
   AddPhotoIcon,
   CheckIcon,
@@ -11,6 +11,7 @@ import {
   FavoriteBorderIcon,
   FavoriteIcon,
   PlaceIcon,
+  ReplayIcon,
   SparkleIcon,
   StarIcon,
 } from '@/components/ui/icons';
@@ -34,6 +35,37 @@ import { recentPlaces, rememberPlace, useOwner } from '../state';
 import { cutOut, finish, preparePhoto } from '../images';
 import { useClosetT } from '../i18n';
 import { placeName, placePath } from '../places';
+import { addVolume } from '../volume';
+
+type CutMode = 'plain' | '3d';
+
+/** Cut-outs first (front, back), then the photos as taken, then the label, then details. */
+const galleryRank = (photo: Photo) =>
+  (photo.kind === 'label' ? 2 : photo.kind === 'detail' ? 3 : photo.superseded ? 1 : 0) * 2 + (photo.kind === 'back' ? 1 : 0);
+const galleryOrder = (photos: Photo[], originals: Photo[]) =>
+  [...photos, ...originals]
+    .map((photo, i) => ({ photo, i }))
+    .sort((a, b) => galleryRank(a.photo) - galleryRank(b.photo) || a.i - b.i)
+    .map(({ photo }) => photo);
+
+/** A photo turned 90° clockwise, as a blob (PNG when it has transparency). */
+async function rotateBlob(source: Blob, keepAlpha: boolean): Promise<Blob> {
+  const bitmap = await createImageBitmap(source);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.height;
+    canvas.height = bitmap.width;
+    const context = canvas.getContext('2d')!;
+    context.translate(canvas.width, 0);
+    context.rotate(Math.PI / 2);
+    context.drawImage(bitmap, 0, 0);
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('rotate'))), keepAlpha ? 'image/png' : 'image/jpeg', 0.92),
+    );
+  } finally {
+    bitmap.close();
+  }
+}
 
 const day = (iso: string) =>
   new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'short' }).format(new Date(`${iso}T12:00:00`));
@@ -431,8 +463,10 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   const [adding, setAdding] = useState<PhotoKind | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const photos = detail.photos;
+  const [choosing, setChoosing] = useState(false);
+  const photos = galleryOrder(detail.photos, detail.originals);
   const current: Photo | undefined = photos[Math.min(index, photos.length - 1)];
+  const pending = photos.filter((p) => p.needsCutout && !p.superseded && (p.kind === 'front' || p.kind === 'back'));
 
   const upload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -454,19 +488,47 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
     }
   };
 
-  const removeBackground = async (photo: Photo) => {
+  /** Every front/back photo that still has its background, one at a time. */
+  const removeBackgrounds = async (mode: CutMode) => {
+    setChoosing(false);
+    for (const photo of pending) {
+      setBusy(photo.id);
+      setProgress(0);
+      try {
+        const source = await (await fetch(photo.full, { credentials: 'same-origin' })).blob();
+        let cut = await cutOut(source, setProgress);
+        if (mode === '3d') {
+          const bitmap = await createImageBitmap(cut);
+          try {
+            cut = await addVolume(bitmap);
+          } finally {
+            bitmap.close();
+          }
+        }
+        const done = await finish(cut, true);
+        URL.revokeObjectURL(done.previewUrl);
+        await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, replaces: photo.id });
+        haptic('success');
+        onChanged();
+      } catch (error) {
+        toast.error(error instanceof Error && error.message ? t.cutFailed : errorMessage(error));
+        break;
+      }
+    }
+    setBusy(null);
+  };
+
+  const rotate = async (photo: Photo) => {
     setBusy(photo.id);
-    setProgress(0);
     try {
       const source = await (await fetch(photo.full, { credentials: 'same-origin' })).blob();
-      const cut = await cutOut(source, setProgress);
-      const done = await finish(cut, true);
+      const turned = await rotateBlob(source, photo.hasAlpha);
+      const done = await finish(turned, photo.hasAlpha);
       URL.revokeObjectURL(done.previewUrl);
-      await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, replaces: photo.id });
-      haptic('success');
+      await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, rotates: photo.id });
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error && error.message ? t.cutFailed : errorMessage(error));
+      toast.error(errorMessage(error));
     } finally {
       setBusy(null);
     }
@@ -499,7 +561,7 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
                 className="aspect-[4/5]"
               >
                 <span className="absolute left-3 top-3 rounded-pill bg-white/90 px-2.5 py-1 text-xs font-semibold text-ink-700 shadow-[var(--shadow-xs)]">
-                  {t.photoKind[photo.kind]}
+                  {photo.superseded ? `${t.originalTag} · ${t.photoKind[photo.kind]}` : t.photoKind[photo.kind]}
                 </span>
                 {busy === photo.id ? (
                   <span className="absolute inset-x-3 bottom-3 rounded-2xl bg-white/90 p-3 text-sm font-semibold text-ink-900 shadow-[var(--shadow-xs)]" aria-live="polite">
@@ -525,11 +587,16 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
 
       <div className="mt-3 flex flex-wrap gap-2">
         {current?.needsCutout ? (
-          <Button size="sm" icon={SparkleIcon} loading={busy === current.id} disabled={busy !== null} onClick={() => void removeBackground(current)}>
+          <Button size="sm" icon={SparkleIcon} loading={busy === current.id} disabled={busy !== null} onClick={() => setChoosing(true)}>
             {t.removeBg}
           </Button>
         ) : null}
-        {current && index > 0 && current.kind !== 'label' ? (
+        {current ? (
+          <Button size="sm" variant="tint" icon={ReplayIcon} disabled={busy !== null} onClick={() => void rotate(current)}>
+            {t.rotate}
+          </Button>
+        ) : null}
+        {current && index > 0 && current.kind !== 'label' && !current.superseded ? (
           <Button size="sm" variant="tint" icon={StarIcon} onClick={() => void act(() => closetApi.updatePhoto(current.id, { cover: true }))}>
             {t.setCover}
           </Button>
@@ -561,7 +628,7 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
             {t.addLabel}
           </Button>
         ) : null}
-        {current ? (
+        {current && !current.superseded ? (
           <IconButton
             icon={DeleteIcon}
             label={t.removePhoto}
@@ -572,10 +639,22 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
         ) : null}
       </div>
       {current?.needsCutout ? <p className="mt-2 text-xs text-ink-500">{t.removeBgHint}</p> : null}
-      {detail.originals.some((o) => photos.some((p) => p.cutoutOf === o.id && p.id === current?.id)) ? (
-        <p className="mt-2 text-xs text-ink-500">{t.showOriginal}</p>
-      ) : null}
       {photos.length > 1 ? <p className="sr-only">{formatNumber(index + 1)}</p> : null}
+      <Sheet open={choosing} onClose={() => setChoosing(false)} title={t.cutChoiceTitle} description={t.cutChoiceBody(pending.length)}>
+        <div className="flex flex-col gap-2.5">
+          {(['plain', '3d'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => void removeBackgrounds(mode)}
+              className="press rounded-2xl bg-ink-50 p-4 text-left hover:bg-ink-100"
+            >
+              <span className="block text-[0.9375rem] font-semibold text-ink-900">{mode === '3d' ? t.cut3d : t.cutOnly}</span>
+              <span className="mt-0.5 block text-sm text-ink-600">{mode === '3d' ? t.cut3dHint : t.cutOnlyHint}</span>
+            </button>
+          ))}
+        </div>
+      </Sheet>
     </div>
   );
 }
