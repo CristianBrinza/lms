@@ -44,18 +44,21 @@ import { slideIndex } from '../gallery';
 type CutMode = 'plain' | '3d' | 'vector' | 'tryon';
 
 /** Which friendly reason a try-on failure carries (the server writes `failed: <reason>`). */
-const tryonReasonKey = (status: string) =>
-  /quota/i.test(status)
-    ? 'quota'
-    : /busy/i.test(status)
-      ? 'busy'
-      : /starting up/i.test(status)
-        ? 'asleep'
-        : /too long/i.test(status)
-          ? 'timeout'
-          : /mannequin/i.test(status)
-            ? 'fit'
-            : 'failed';
+const tryonReasonKey = (full: string) => {
+  const status = full.replace(/\s*\[[^\]]*\]\s*$/, '');
+  if (/quota/i.test(status)) return 'quota';
+  if (/busy/i.test(status)) return 'busy';
+  if (/starting up/i.test(status)) return 'asleep';
+  if (/too long/i.test(status)) return 'timeout';
+  if (/mannequin/i.test(status)) return 'fit';
+  return 'failed';
+};
+
+/** The cause the server kept for an error it didn't recognise (`failed: <reason> [<cause>]`), shown after the reason. */
+const tryonDetail = (status: string) => {
+  const cause = /\[([^\]]+)\]\s*$/.exec(status)?.[1];
+  return cause && tryonReasonKey(status) === 'failed' ? ` (${cause})` : '';
+};
 
 /** Cut-outs first (front, back), then the AI try-ons, then the photos as taken, then the label, then details. */
 const galleryRank = (photo: Photo) =>
@@ -487,7 +490,8 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   const [mannequinSheet, setMannequinSheet] = useState(false);
   const mannequins = useQuery({ queryKey: ['closet', 'mannequins'], queryFn: closetApi.mannequins, enabled: mannequinSheet });
   const lastMannequin = mannequins.data?.mannequins.find((m) => m.userId === detail.item.ownerId)?.mannequin ?? null;
-  const tryonRunning = detail.item.tryonStatus === 'running';
+  const ghostRunning = detail.item.tryonStatus === 'ghost';
+  const tryonRunning = detail.item.tryonStatus === 'running' || ghostRunning;
   const tryonFailed = detail.item.tryonStatus.startsWith('failed:');
   const [touching, setTouching] = useState<Blob | null>(null);
   const [touchingId, setTouchingId] = useState<string | null>(null);
@@ -537,6 +541,14 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
       setMannequinSheet(true);
       return;
     }
+    if (mode === '3d') {
+      // A server job: the try-on, cut down to the garment alone, becomes this photo's cut-out.
+      await act(async () => {
+        await closetApi.ghost(detail.item.id, { photoId: (pending[0] ?? garmentPhoto)?.id });
+        toast.success(t.ghostStarted);
+      });
+      return;
+    }
     if (mode === 'vector') {
       await act(() => closetApi.requestVector(detail.item.id));
       return;
@@ -546,7 +558,7 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
       setProgress(0);
       try {
         const source = await (await fetch(photo.full, { credentials: 'same-origin' })).blob();
-        const cut = await polishCutout(source, await cutOut(source, setProgress), mode === '3d');
+        const cut = await polishCutout(source, await cutOut(source, setProgress, photo.id));
         const done = await finish(cut, true);
         URL.revokeObjectURL(done.previewUrl);
         await closetApi.addPhoto(detail.item.id, { image: done.dataUrl, replaces: photo.id });
@@ -802,11 +814,12 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
       {tryonRunning ? (
         <p className="mt-2 flex items-center gap-2 text-sm text-ink-700" aria-live="polite">
           <SparkleIcon fontSize="inherit" className="animate-pulse text-lav-600" />
-          <span>{t.tryonRunning}</span>
+          <span>{ghostRunning ? t.ghostRunning : t.tryonRunning}</span>
         </p>
       ) : tryonFailed ? (
         <p className="mt-2 text-sm text-ink-700" role="status">
           {t.tryonReasons[tryonReasonKey(detail.item.tryonStatus)]}
+          {tryonDetail(detail.item.tryonStatus)}
         </p>
       ) : null}
       {detail.item.vectorRequested ? (

@@ -1,5 +1,5 @@
 /**
- * Cleans a cut-out before it is stored (both "Background only" and "3D effect"): a crisp alpha
+ * Cleans a cut-out before it is stored ("Background only"): a crisp alpha
  * mask without stray islands or pinholes, the garment's colour corrected from the white towel it
  * lay on, and a tight crop. Pure pixel maths on RGBA arrays, so it is tested without a browser.
  */
@@ -74,6 +74,122 @@ export function keepLargestBlob(data: Uint8ClampedArray, width: number, height: 
   }
   for (let p = 0; p < n; p++) if (!keep[p]) data[p * 4 + 3] = 0;
   return bestSize;
+}
+
+/** A square box test over a binary mask: true where the whole (all=true) or any (all=false) (2r+1) window is set; outside the picture counts as `outside`. */
+function boxWindow(mask: Uint8Array, width: number, height: number, r: number, all: boolean, outside: number): Uint8Array {
+  const pass = (src: Uint8Array, w: number, h: number, horizontal: boolean): Uint8Array => {
+    const out = new Uint8Array(w * h);
+    const lines = horizontal ? h : w;
+    const length = horizontal ? w : h;
+    const at = (line: number, i: number) => (horizontal ? line * w + i : i * w + line);
+    for (let line = 0; line < lines; line++) {
+      // Running count of set cells in [i - r, i + r], cells outside the picture counting as `outside`.
+      let count = 0;
+      for (let i = -r; i <= r; i++) count += i < 0 || i >= length ? outside : src[at(line, i)]!;
+      for (let i = 0; i < length; i++) {
+        out[at(line, i)] = all ? (count === 2 * r + 1 ? 1 : 0) : count > 0 ? 1 : 0;
+        const leave = i - r;
+        const enter = i + r + 1;
+        count -= leave < 0 || leave >= length ? outside : src[at(line, leave)]!;
+        count += enter < 0 || enter >= length ? outside : src[at(line, enter)]!;
+      }
+    }
+    return out;
+  };
+  return pass(pass(mask, width, height, true), width, height, false);
+}
+
+/** Labels the 4-connected blobs of a binary mask (ids from 1); returns the ids, sizes and which touch the picture's edge. */
+function blobs(mask: Uint8Array, width: number, height: number) {
+  const n = width * height;
+  const label = new Int32Array(n);
+  const stack = new Int32Array(n);
+  const sizes: number[] = [0];
+  const edge: boolean[] = [false];
+  let next = 0;
+  for (let start = 0; start < n; start++) {
+    if (!mask[start] || label[start]) continue;
+    next++;
+    let size = 0;
+    let top = 0;
+    let touches = false;
+    stack[top++] = start;
+    label[start] = next;
+    while (top) {
+      const p = stack[--top]!;
+      size++;
+      const x = p % width;
+      const y = (p - x) / width;
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) touches = true;
+      const visit = (q: number) => {
+        if (mask[q] && !label[q]) {
+          label[q] = next;
+          stack[top++] = q;
+        }
+      };
+      if (x > 0) visit(p - 1);
+      if (x < width - 1) visit(p + 1);
+      if (y > 0) visit(p - width);
+      if (y < height - 1) visit(p + width);
+    }
+    sizes.push(size);
+    edge.push(touches);
+  }
+  return { label, sizes, edge, count: next };
+}
+
+/**
+ * Removes what touches the picture's edge but hangs on the garment only by a thin neck (a towel
+ * strip along the top, a bed corner): an opening of the mask by ~1.5% of the picture. Blobs that
+ * survive the erosion and touch the edge without being the largest go, and so do thin slivers
+ * touching the edge that the opening cut off; the garment is dilated back to its own outline. The
+ * edge itself is not eroded, so a garment cropped by the frame keeps its cut side.
+ */
+export function dropEdgeStrips(data: Uint8ClampedArray, width: number, height: number, share = 0.015) {
+  const n = width * height;
+  const r = Math.max(2, Math.round(Math.min(width, height) * share));
+  if (width <= 2 * r + 2 || height <= 2 * r + 2) return;
+  const mask = new Uint8Array(n);
+  for (let p = 0; p < n; p++) mask[p] = data[p * 4 + 3]! >= 128 ? 1 : 0;
+  const eroded = boxWindow(mask, width, height, r, true, 1);
+  const first = blobs(eroded, width, height);
+  if (!first.count) return;
+  let main = 1;
+  for (let id = 2; id <= first.count; id++) if (first.sizes[id]! > first.sizes[main]!) main = id;
+  const core = new Uint8Array(n);
+  for (let p = 0; p < n; p++) {
+    const id = first.label[p]!;
+    if (id && (id === main || !first.edge[id])) core[p] = 1;
+  }
+  const grown = boxWindow(core, width, height, r, false, 0);
+  const rest = new Uint8Array(n);
+  for (let p = 0; p < n; p++) rest[p] = mask[p] && !grown[p] ? 1 : 0;
+  const slivers = blobs(rest, width, height);
+  const drop = new Uint8Array(n);
+  for (let p = 0; p < n; p++) if (rest[p] && slivers.edge[slivers.label[p]!]) drop[p] = 1;
+  // Also the edge blobs that the erosion kept apart, with the rim the opening gave them.
+  const apart = new Uint8Array(n);
+  for (let p = 0; p < n; p++) {
+    const id = first.label[p]!;
+    if (id && id !== main && first.edge[id]) apart[p] = 1;
+  }
+  const apartGrown = boxWindow(apart, width, height, r, false, 0);
+  for (let p = 0; p < n; p++) if (apartGrown[p] && mask[p] && !grown[p]) drop[p] = 1;
+  // Soft pixels next to a dropped region go too (a 2 px rim), so no halo of towel stays.
+  let zone = drop;
+  for (let round = 0; round < 2; round++) {
+    const next = zone.slice();
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const p = y * width + x;
+        if (zone[p]) continue;
+        if ((x > 0 && zone[p - 1]) || (x < width - 1 && zone[p + 1]) || (y > 0 && zone[p - width]) || (y < height - 1 && zone[p + width]))
+          next[p] = 1;
+      }
+    zone = next;
+  }
+  for (let p = 0; p < n; p++) if (zone[p] && !grown[p]) data[p * 4 + 3] = 0;
 }
 
 /**
@@ -270,6 +386,7 @@ export function refineCutout(cut: Raster, original: Raster | null): Raster {
   const data = new Uint8ClampedArray(cut.data);
   const gains = same ? backgroundGains(same.data, cut.data, width, height) : null;
   sharpenAlpha(data);
+  dropEdgeStrips(data, width, height);
   keepLargestBlob(data, width, height);
   fillSmallHoles(data, width, height, same ? same.data : null);
   if (gains) applyGains(data, gains);

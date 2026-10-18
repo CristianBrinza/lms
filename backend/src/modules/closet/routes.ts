@@ -62,7 +62,8 @@ import {
   tripDetail,
   updateTrip,
 } from './trips';
-import { listMannequins, setMannequin, startTryon } from './tryon';
+import { photoMatte } from './matte';
+import { listMannequins, setMannequin, startGhost, startTryon } from './tryon';
 import { addWear, listWears, logWorn, removeWear, updateWear } from './wears';
 
 const OwnerQuery = z.object({ owner: z.string().trim().max(60).optional() });
@@ -146,6 +147,15 @@ export function closetRoutes(deps: AppDeps) {
     return c.json(await startTryon(deps, ctx(c), c.req.param('id'), input.data), 202);
   });
 
+  // "3D effect": the same try-on, cut down to the garment alone, which becomes the photo's cut-out.
+  app.post('/items/:id/ghost', async (c) => {
+    const body: unknown = await c.req.json().catch(() => ({}));
+    const input = TryonInput.safeParse(body ?? {});
+    if (!input.success)
+      throw new AppError(400, 'VALIDATION', 'photoId must be a photo id', { fields: { photoId: 'Invalid' } });
+    return c.json(await startGhost(deps, ctx(c), c.req.param('id'), input.data), 202);
+  });
+
   // Mannequins: which store mannequin each person's try-ons dress.
   app.get('/mannequins', async (c) => c.json(await listMannequins(ctx(c))));
   app.put('/mannequins/:userId', async (c) =>
@@ -167,6 +177,14 @@ export function closetRoutes(deps: AppDeps) {
     if (c.req.header('if-none-match') === etag) return c.body(null, 304, headers);
     return c.body(new Uint8Array(photo.data), 200, { ...headers, 'content-type': photo.mime });
   });
+  // The cut-out of a photo from the BiRefNet Space (RGBA PNG, full size); the browser falls back to its own model.
+  app.post('/photos/:id/matte', async (c) =>
+    c.body(new Uint8Array(await photoMatte(deps, ctx(c), c.req.param('id'))), 200, {
+      'content-type': 'image/png',
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    }),
+  );
   app.patch('/photos/:id', async (c) =>
     c.json(await updatePhoto(ctx(c), c.req.param('id'), await readJson(c, PhotoPatch))),
   );

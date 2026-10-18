@@ -2,7 +2,6 @@ import { storage } from '@/lib/storage';
 import { nearestColor, type ClosetColor } from './catalog';
 import { refineCutout, type Raster } from './refine';
 import { autoDeskew } from './straighten';
-import { volumeRaster } from './volume';
 
 /**
  * Photos of pieces, all in the browser: turned upright and shrunk, the background lifted off (the
@@ -159,13 +158,12 @@ export async function encodeRaster(raster: Raster): Promise<Blob> {
 }
 
 /**
- * The cut-out after the model: clean mask, colour corrected from the original photo's background,
- * cropped; with `volume` also the soft 3D look. A transparent PNG either way.
+ * The cut-out after the model: clean mask (strips of towel or bed at the edges gone), colour corrected from the original photo's background,
+ * cropped, and straightened. A transparent PNG.
  */
-export async function polishCutout(original: Blob, cut: Blob, volume: boolean): Promise<Blob> {
+export async function polishCutout(original: Blob, cut: Blob): Promise<Blob> {
   const [photo, mask] = await Promise.all([decodeRaster(original), decodeRaster(cut)]);
-  let refined = autoDeskew(refineCutout(mask, photo));
-  if (volume) refined = volumeRaster(refined);
+  const refined = autoDeskew(refineCutout(mask, photo));
   return encodeRaster(refined);
 }
 
@@ -220,13 +218,38 @@ export const modelReady = () => storage.get(MODEL_KEY) === '1';
 export const markModelReady = () => storage.set(MODEL_KEY, '1');
 
 /**
- * Lifts the piece off its background, in the browser. The library and its model are fetched only
- * the first time this runs (a separate chunk), and the model is cached by the browser after that.
+ * The matte of a stored photo from the server: BiRefNet on a free Hugging Face Space, a cut-out
+ * PNG at the photo's full size. Null when the server or the Space can't do it right now.
+ */
+async function serverCutOut(photoId: string): Promise<Blob | null> {
+  try {
+    const response = await fetch(`/api/closet/photos/${photoId}/matte`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      signal: AbortSignal.timeout(130_000),
+    });
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return blob.type === 'image/png' && blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lifts the piece off its background. A stored photo (`photoId`) goes to the server's BiRefNet
+ * first; when that fails, or for a photo not uploaded yet, the browser's own model does it. The
+ * library and model are fetched only the first time (a separate chunk) and cached after that.
  */
 export async function cutOut(
   source: Blob,
   onProgress: (fraction: number) => void,
+  photoId?: string,
 ): Promise<Blob> {
+  if (photoId) {
+    const matte = await serverCutOut(photoId);
+    if (matte) return matte;
+  }
   const { removeBackground } = await import('./cutout');
   const blob = await removeBackground(source, onProgress);
   markModelReady();

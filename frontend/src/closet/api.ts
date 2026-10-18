@@ -216,6 +216,8 @@ export const closetApi = {
   ) => api.post<{ photo: Photo; storage: Storage_ }>(`/closet/items/${id}/photos`, body),
   requestVector: (id: string) => api.post<{ item: Item }>(`/closet/items/${id}/vector-request`, {}),
   cancelVector: (id: string) => api.delete<{ item: Item }>(`/closet/items/${id}/vector-request`),
+  ghost: (id: string, body: { photoId?: string }) =>
+    api.post<{ status: 'ghost'; itemId: string }>(`/closet/items/${id}/ghost`, body),
   tryon: (id: string, body: { photoId?: string; mannequin?: Mannequin }) =>
     api.post<{ status: 'running'; itemId: string }>(`/closet/items/${id}/tryon`, body),
   mannequins: () => api.get<{ mannequins: { userId: string; mannequin: Mannequin | null }[] }>('/closet/mannequins'),

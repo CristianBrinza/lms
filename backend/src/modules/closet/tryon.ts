@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { Client } from '@gradio/client';
 import type { AppDeps } from '../../context';
 import { AppError } from '../../lib/errors';
 import { findVips } from '../drinks/photos';
@@ -12,7 +11,10 @@ import { publishChange } from '../live/publish';
 import { isUuid } from '../users';
 import { findItem, type Item } from './items';
 import type { Mannequin } from './schemas';
-import { storePhoto } from './photos';
+import { ghostPng, partsFor, PARSING_ENDPOINT, PARSING_SPACE, type Part } from './ghost';
+import { addPhoto, storePhoto } from './photos';
+import type { PhotoInput } from './schemas';
+import { connectSpace, createGate, fetchSpaceFile, fileUrl, type SpaceClient } from './space';
 
 /**
  * Virtual try-on: dresses a piece on the a store mannequin with IDM-VTON, a free Hugging Face
@@ -29,34 +31,10 @@ export const TRYON_TIMEOUT_MS = 3 * 60 * 1000;
 // ------------------------------------------------------------------ the Space
 
 /** One call to the Space: the inputs by name, the outputs in order. */
-export interface TryonClient {
-  predict(endpoint: string, payload: Record<string, unknown>, signal: AbortSignal): Promise<unknown[]>;
-}
+export type TryonClient = SpaceClient;
 type Connect = (token: string | null) => Promise<TryonClient>;
 
-const realConnect: Connect = async (token) => {
-  const client = await Client.connect(TRYON_SPACE, token ? { token: token as `hf_${string}` } : {});
-  return {
-    async predict(endpoint, payload, signal) {
-      const job = client.submit(endpoint, payload);
-      const stop = () => void job.cancel().catch(() => undefined);
-      signal.addEventListener('abort', stop, { once: true });
-      try {
-        let data: unknown[] | null = null;
-        for await (const message of job) {
-          if (message.type === 'data') data = message.data as unknown[];
-          if (message.type === 'status' && message.stage === 'error')
-            throw new Error(String(message.message ?? message.title ?? 'error'));
-        }
-        if (signal.aborted) throw new Error('timeout');
-        if (!data) throw new Error('no result');
-        return data;
-      } finally {
-        signal.removeEventListener('abort', stop);
-      }
-    },
-  };
-};
+const realConnect: Connect = (token) => connectSpace(TRYON_SPACE, token);
 
 let connect: Connect = realConnect;
 /** Tests swap the Space for a fake; call with nothing to put the real one back. */
@@ -129,14 +107,7 @@ export function tryonErrorMessage(error: unknown): string {
 
 /** The URL of the output picture in the Space's answer (its first output). */
 export function resultUrl(data: unknown[]): string | null {
-  const first = data[0];
-  if (typeof first === 'string') return first;
-  if (first && typeof first === 'object') {
-    const file = first as { url?: unknown; path?: unknown };
-    if (typeof file.url === 'string') return file.url;
-    if (typeof file.path === 'string' && /^https?:/.test(file.path)) return file.path;
-  }
-  return null;
+  return fileUrl(data[0]);
 }
 
 // ------------------------------------------------------------------ images
@@ -193,11 +164,56 @@ export async function loadMannequin(which: Mannequin): Promise<{ bytes: Buffer; 
         // not this one
       }
     }
-  throw new AppError(
-    503,
-    'MANNEQUIN_MISSING',
-    'The mannequin pictures are not installed on the server yet (backend/assets/tryon)',
-  );
+  // An explicit pictures folder that lacks them is an error; the Space's examples are only the default.
+  if (process.env.TRYON_ASSETS_DIR)
+    throw new AppError(
+      503,
+      'MANNEQUIN_MISSING',
+      'The mannequin pictures are not installed on the server yet (backend/assets/tryon)',
+    );
+  return spaceExample(which);
+}
+
+/**
+ * Until the store mannequins are installed: the try-on Space's own example people (a woman and a
+ * man, full length), read from its /config, fetched once and kept in memory. They are only the
+ * picture the garment is put on, never shown or stored as a photo of anyone.
+ */
+const EXAMPLE_PEOPLE: Record<Mannequin, string> = { male: 'sam1 1.jpg', female: '00121_00.jpg' };
+const examples = new Map<Mannequin, Promise<{ bytes: Buffer; mime: string }>>();
+
+async function fetchExample(which: Mannequin): Promise<{ bytes: Buffer; mime: string }> {
+  const origin = `https://${TRYON_SPACE.replace('/', '-').replace(/_/g, '-').toLowerCase()}.hf.space`;
+  const config = (await (await fetch(`${origin}/config`)).json()) as {
+    components?: { type: string; props?: { components?: string[]; samples?: unknown[][] } }[];
+  };
+  const wanted = EXAMPLE_PEOPLE[which];
+  for (const component of config.components ?? []) {
+    if (component.type !== 'dataset' || component.props?.components?.[0] !== 'imageeditor') continue;
+    for (const sample of component.props.samples ?? []) {
+      const background = (sample[0] as { background?: { url?: string } } | undefined)?.background;
+      if (!background?.url || decodeURIComponent(background.url.split('/').pop() ?? '') !== wanted) continue;
+      const bytes = await fetchSpaceFile(background.url, null);
+      return { bytes, mime: 'image/jpeg' };
+    }
+  }
+  throw new Error('example person not found');
+}
+
+function spaceExample(which: Mannequin): Promise<{ bytes: Buffer; mime: string }> {
+  let found = examples.get(which);
+  if (!found) {
+    found = fetchExample(which).catch(() => {
+      examples.delete(which); // try again next time
+      throw new AppError(
+        503,
+        'MANNEQUIN_MISSING',
+        'The try-on could not get a person picture: the mannequins are not installed and the try-on service did not answer',
+      );
+    });
+    examples.set(which, found);
+  }
+  return found;
 }
 
 /** Every household person and the mannequin they picked (null: not yet). */
@@ -223,12 +239,8 @@ export async function setMannequin(ctx: FoodCtx, userId: string, mannequin: Mann
 /** Pieces being dressed now (or waiting their turn), so a second tap doesn't start a second one. */
 const active = new Set<string>();
 /** One try-on at a time for the whole server: the Space's free quota is small and shared. */
-let queue: Promise<unknown> = Promise.resolve();
-const oneAtATime = <T>(work: () => Promise<T>): Promise<T> => {
-  const next = queue.then(work, work);
-  queue = next.catch(() => undefined);
-  return next;
-};
+const gate = createGate();
+const oneAtATime = gate.run;
 
 async function setStatus(deps: AppDeps, itemId: string, status: string) {
   await deps.db.query('UPDATE closet_items SET tryon_status = $2 WHERE id = $1', [itemId, status]);
@@ -241,6 +253,32 @@ interface Job {
   person: { bytes: Buffer; mime: string };
   garment: { bytes: Buffer; mime: string };
   description: string;
+  /** 'ghost': the worn garment alone becomes the cut-out of `photoId`; else the picture is a try-on photo. */
+  ghost?: { photoId: string; parts: Part[] };
+}
+
+type ParsingConnect = (token: string | null) => Promise<SpaceClient>;
+const realParsing: ParsingConnect = (token) => connectSpace(PARSING_SPACE, token);
+let connectParsing: ParsingConnect = realParsing;
+/** Tests swap the clothes-parsing Space for a fake; call with nothing to put the real one back. */
+export function setParsingClient(next?: ParsingConnect) {
+  connectParsing = next ?? realParsing;
+}
+
+/** The ghost-mannequin step: the worn garment cut out of the try-on picture, as a PNG data URL. */
+async function ghostImage(url: string, token: string | null, parts: Part[], signal: AbortSignal): Promise<string> {
+  const worn = await fetchSpaceFile(url, token);
+  const parsing = await connectParsing(token);
+  const data = await parsing.predict(
+    PARSING_ENDPOINT,
+    { img: new Blob([new Uint8Array(worn)], { type: 'image/webp' }) },
+    signal,
+  );
+  const mapUrl = fileUrl(data[0]);
+  if (!mapUrl) throw new Error('no clothes map');
+  const png = await ghostPng(worn, await fetchSpaceFile(mapUrl, token), parts);
+  if (!png) throw new Error('no clothes found in the try-on picture');
+  return `data:image/png;base64,${png.toString('base64')}`;
 }
 
 async function download(url: string, token: string | null): Promise<string> {
@@ -249,6 +287,17 @@ async function download(url: string, token: string | null): Promise<string> {
   const bytes = Buffer.from(await response.arrayBuffer());
   const mime = response.headers.get('content-type')?.split(';')[0] ?? 'image/webp';
   return `data:${mime.startsWith('image/') ? mime : 'image/webp'};base64,${bytes.toString('base64')}`;
+}
+
+/** The part of an unrecognised error worth showing: one short line, no URLs or tokens. */
+export function errorDetail(error: unknown): string {
+  return textOf(error)
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/hf_[A-Za-z0-9]+/g, '')
+    .replace(/[\r\n[\]]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 90);
 }
 
 /** The queue's unit of work: call the Space, store the picture, set the status, tell the apps. */
@@ -270,14 +319,22 @@ async function execute(job: Job): Promise<void> {
     const data = await Promise.race([client.predict(TRYON_ENDPOINT, payload, controller.signal), aborted]);
     const url = resultUrl(data);
     if (!url) throw new Error('no result picture');
-    const image = await download(url, token);
-    // The gallery shows try-ons after the cut-outs and before the originals (the app orders them).
-    await storePhoto(foodCtx(deps, actor), { itemId }, image, { kind: 'tryon', needsCutout: false });
+    if (job.ghost) {
+      const image = await ghostImage(url, token, job.ghost.parts, controller.signal);
+      // The ghost takes the photo's place as its cut-out; the original stays (superseded).
+      await addPhoto(foodCtx(deps, actor), itemId, { image, replaces: job.ghost.photoId } as PhotoInput);
+    } else {
+      const image = await download(url, token);
+      // The gallery shows try-ons after the cut-outs and before the originals (the app orders them).
+      await storePhoto(foodCtx(deps, actor), { itemId }, image, { kind: 'tryon', needsCutout: false });
+    }
     await setStatus(deps, itemId, '');
   } catch (error) {
     const message = tryonErrorMessage(error);
     if (message === TRYON_MESSAGES.failed) console.error('[closet] try-on failed:', textOf(error).slice(0, 200));
-    await setStatus(deps, itemId, `failed: ${message}`).catch(() => undefined);
+    // An error nobody mapped keeps its own words after the friendly line: "failed: <reason> [<cause>]".
+    const detail = message === TRYON_MESSAGES.failed ? errorDetail(error) : '';
+    await setStatus(deps, itemId, `failed: ${message}${detail ? ` [${detail}]` : ''}`).catch(() => undefined);
   } finally {
     clearTimeout(timer);
     active.delete(itemId);
@@ -292,7 +349,7 @@ async function execute(job: Job): Promise<void> {
 
 /** Marks every try-on that was running when the server stopped as failed (called at start). */
 export async function resetTryons(deps: Pick<AppDeps, 'db'>) {
-  await deps.db.query(`UPDATE closet_items SET tryon_status = $1 WHERE tryon_status = 'running'`, [
+  await deps.db.query(`UPDATE closet_items SET tryon_status = $1 WHERE tryon_status IN ('running', 'ghost')`, [
     `failed: ${TRYON_MESSAGES.failed}`,
   ]);
 }
@@ -306,24 +363,29 @@ export async function startTryon(
   ctx: FoodCtx,
   itemId: string,
   options: { photoId?: string; mannequin?: Mannequin } = {},
+  ghost = false,
 ) {
   const { photoId } = options;
   const item = await findItem(ctx, itemId);
   if (active.has(item.id))
     throw new AppError(409, 'CONFLICT', 'A try-on of this piece is already running');
+  const parts = ghost ? partsFor(item.category) : null;
+  if (ghost && !parts)
+    throw new AppError(400, 'NOT_WORN', 'The 3D effect is for clothes worn on the body: tops, bottoms, dresses and coats');
   const saved = (
     await ctx.db.query<{ closet_mannequin: Mannequin | null }>(
       'SELECT closet_mannequin FROM users WHERE id = $1',
       [item.ownerId],
     )
   ).rows[0]?.closet_mannequin;
-  const which = options.mannequin ?? saved;
+  // The ghost needs a body to drape the garment on, not a choice: the saved one, else a woman.
+  const which = options.mannequin ?? saved ?? (ghost ? 'female' : undefined);
   if (!which)
     throw new AppError(400, 'NO_MANNEQUIN', 'Pick a mannequin first: male or female', {
       fields: { mannequin: 'Missing' },
     });
   const model = await loadMannequin(which);
-  if (!saved) await setMannequin(ctx, item.ownerId, which);
+  if (!saved && !ghost) await setMannequin(ctx, item.ownerId, which);
   const wanted = photoId ?? item.cover?.id;
   if (!wanted || !isUuid(wanted))
     throw new AppError(400, 'VALIDATION', 'Add a photo of the piece first', {
@@ -337,7 +399,8 @@ export async function startTryon(
   if (!garment || garment.kind === 'label' || garment.kind === 'tryon')
     throw new AppError(404, 'NOT_FOUND', 'No such photo of this piece');
   const flat = await flattenOnWhite(garment.full, garment.mime);
-  await setStatus(deps, item.id, 'running');
+  const status = ghost ? 'ghost' : 'running';
+  await setStatus(deps, item.id, status);
   active.add(item.id);
   const job: Job = {
     deps,
@@ -346,10 +409,19 @@ export async function startTryon(
     person: model,
     garment: flat,
     description: garmentDescription(item),
+    ...(ghost && parts ? { ghost: { photoId: wanted, parts } } : {}),
   };
   void oneAtATime(() => execute(job));
-  return { status: 'running' as const, itemId: item.id };
+  return { status, itemId: item.id };
 }
 
+/** "3D effect": a try-on whose result is cut down to the garment alone and replaces the photo's cut-out. */
+export const startGhost = (
+  deps: AppDeps,
+  ctx: FoodCtx,
+  itemId: string,
+  options: { photoId?: string; mannequin?: Mannequin } = {},
+) => startTryon(deps, ctx, itemId, options, true);
+
 /** For tests: resolves when no try-on is queued or running. */
-export const tryonIdle = (): Promise<void> => queue.then(() => undefined);
+export const tryonIdle = (): Promise<void> => gate.idle();

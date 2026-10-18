@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { refineCutout, sharpenAlpha, type Raster } from './refine';
-import { volumePadding, volumeRaster } from './volume';
+import { dropEdgeStrips, refineCutout, sharpenAlpha, type Raster } from './refine';
 
 function raster(width: number, height: number, fill: (x: number, y: number) => [number, number, number, number]): Raster {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -37,33 +36,32 @@ describe('refineCutout', () => {
   });
 });
 
-describe('volumeRaster', () => {
-  const garment = refineCutout(cut, original);
-  const result = volumeRaster(garment);
-  const { left, top } = volumePadding(garment.width, garment.height);
-  it('adds no white and keeps inside shading gentle', () => {
-    for (let y = 0; y < garment.height; y++)
-      for (let x = 0; x < garment.width; x++) {
-        const src = px(garment, x, y);
-        if (src[3] !== 255) continue;
-        const dst = px(result, x + left, y + top);
-        for (let c = 0; c < 3; c++) {
-          expect(dst[c]!).toBeLessThanOrEqual(Math.min(255, src[c]! * 1.03 + 2));
-          expect(dst[c]!).toBeGreaterThanOrEqual(src[c]! * 0.7 - 2);
-        }
-      }
+describe('dropEdgeStrips', () => {
+  // A 200 x 200 picture: a garment (60..140 square) with a towel strip along the top edge (rows 0..20,
+  // all across), joined to the garment by a thin neck (6 px wide), and a bed corner at the bottom left.
+  const scene = raster(200, 200, (x, y) => {
+    if (x >= 60 && x < 140 && y >= 50 && y < 150) return [20, 20, 20, 255];
+    if (y < 20) return [240, 240, 240, 255]; // the towel strip along the top
+    if (x >= 97 && x < 103 && y >= 20 && y < 50) return [240, 240, 240, 255]; // the neck
+    if (x < 30 && y >= 170) return [230, 230, 230, 255]; // a corner
+    return [0, 0, 0, 0];
   });
-  it('leaves the outside transparent except in the shadow', () => {
-    expect(result.height).toBeGreaterThan(garment.height);
-    expect(px(result, 0, 0)[3]).toBe(0);
-    expect(px(result, result.width - 1, 0)[3]).toBe(0);
-    // shadow strictly below the hem, never above the garment's top
-    const aboveTop = Array.from({ length: result.width }, (_, x) => px(result, x, top - 1)[3]!);
-    expect(Math.max(...aboveTop)).toBe(0);
-    const hem = top + garment.height - 6;
-    const below = Array.from({ length: result.width }, (_, x) => px(result, x, hem + 6)[3]!);
-    expect(Math.max(...below)).toBeGreaterThan(0);
-    expect(Math.max(...below)).toBeLessThanOrEqual(Math.round(0.18 * 255) + 1);
+  it('removes the strip and the corner but keeps the garment whole', () => {
+    const data = new Uint8ClampedArray(scene.data);
+    dropEdgeStrips(data, 200, 200);
+    const alpha = (x: number, y: number) => data[(y * 200 + x) * 4 + 3]!;
+    expect(alpha(100, 5)).toBe(0);
+    expect(alpha(10, 190)).toBe(0);
+    expect(alpha(61, 51)).toBe(255); // the garment's corner survives the opening
+    expect(alpha(139, 149)).toBe(255);
+    expect(alpha(100, 100)).toBe(255);
+  });
+  it('keeps a garment that the picture itself cuts off', () => {
+    const cropped = raster(100, 100, (x) => (x >= 20 && x < 80 ? [10, 10, 10, 255] : [0, 0, 0, 0]));
+    const data = new Uint8ClampedArray(cropped.data);
+    dropEdgeStrips(data, 100, 100);
+    expect(data[(0 * 100 + 50) * 4 + 3]).toBe(255);
+    expect(data[(99 * 100 + 21) * 4 + 3]).toBe(255);
   });
 });
 
