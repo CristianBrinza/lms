@@ -9,9 +9,12 @@ import { removeBackground as remove, type Config } from '@imgly/background-remov
 let running: Promise<unknown> = Promise.resolve();
 
 export function removeBackground(source: Blob, onProgress: (fraction: number) => void): Promise<Blob> {
+  // WebGPU where the browser really has it (desktop Chrome); elsewhere (iPhone Safari) the CPU
+  // with the small quantized model, which fits a phone's memory.
+  const gpu = typeof navigator !== 'undefined' && 'gpu' in navigator;
   const config: Config = {
-    model: 'isnet_fp16',
-    device: 'gpu',
+    model: gpu ? 'isnet_fp16' : 'isnet_quint8',
+    device: gpu ? 'gpu' : 'cpu',
     output: { format: 'image/png' },
     fetchArgs: { cache: 'force-cache' },
     progress: (key, current, total) => {
@@ -19,10 +22,17 @@ export function removeBackground(source: Blob, onProgress: (fraction: number) =>
     },
   };
   // One photo at a time: the model is big, and phones have little memory.
-  const next = running.then(
-    () => remove(source, config),
-    () => remove(source, config),
-  );
+  const run = async () => {
+    try {
+      return await remove(source, config);
+    } catch (error) {
+      // The GPU path can fail on some devices: try once more on the CPU with the small model.
+      console.error('[closet] cut-out failed', error);
+      if (config.device !== 'gpu') throw error;
+      return remove(source, { ...config, device: 'cpu', model: 'isnet_quint8' });
+    }
+  };
+  const next = running.then(run, run);
   running = next.catch(() => undefined);
   return next;
 }

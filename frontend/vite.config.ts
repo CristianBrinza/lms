@@ -53,6 +53,54 @@ const SPLASH_GATE_CSP = `'sha256-${createHash('sha256').update(SPLASH_GATE_SCRIP
  * Icons, favicon and iOS launch screens from brand/logo.svg; the inline splash logo; and the
  * splash gate (src/lib/splashGate.ts), with its hash added to `script-src` in the built _headers.
  */
+/**
+ * The background remover bundles ndarray 1.0, which compiles its views with `new Function` — our
+ * CSP has no 'unsafe-eval', so the cut-out failed. Swap that block for a small eval-free ndarray
+ * with the same surface it uses (construct, get, set, data, shape, stride, offset).
+ */
+const NDARRAY_NO_EVAL = `var require_ndarray = __commonJS({ "ndarray-no-eval"(exports, module) {
+  function View(data, shape, stride, offset) {
+    this.data = data; this.shape = shape; this.stride = stride; this.offset = offset;
+    this.dimension = shape.length; this.size = shape.reduce(function (a, b) { return a * b; }, 1);
+  }
+  View.prototype.index = function () {
+    var i = this.offset;
+    for (var k = 0; k < arguments.length; k++) i += this.stride[k] * arguments[k];
+    return i;
+  };
+  View.prototype.get = function () { return this.data[this.index.apply(this, arguments)]; };
+  View.prototype.set = function () {
+    var args = Array.prototype.slice.call(arguments), v = args.pop();
+    return (this.data[this.index.apply(this, args)] = v);
+  };
+  module.exports = function ndarray(data, shape, stride, offset) {
+    shape = shape || [data.length];
+    if (!stride) {
+      stride = new Array(shape.length);
+      for (var i = shape.length - 1, s = 1; i >= 0; i--) { stride[i] = s; s *= shape[i]; }
+    }
+    if (offset === undefined) {
+      offset = 0;
+      for (var j = 0; j < shape.length; j++) if (stride[j] < 0) offset -= (shape[j] - 1) * stride[j];
+    }
+    return new View(data, shape, stride, offset);
+  };
+}});`;
+
+function ndarrayWithoutEval(): Plugin {
+  return {
+    name: 'lms-ndarray-no-eval',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes('@imgly/background-removal') || !code.includes('var require_ndarray = __commonJS(')) return;
+      const start = code.indexOf('var require_ndarray = __commonJS(');
+      const end = code.indexOf('\n});\n', start);
+      if (end < 0) this.error('ndarray block not found in @imgly/background-removal');
+      return { code: code.slice(0, start) + NDARRAY_NO_EVAL + code.slice(end + 4), map: null };
+    },
+  };
+}
+
 function brandPlugin(): Plugin {
   let headersFile: string | null = null;
   return {
@@ -174,21 +222,6 @@ const MANIFEST: Partial<ManifestOptions> = {
   ],
 };
 
-/**
- * onnxruntime-web's own WebAssembly (about 24 MB): the closet's cut-out gives the runtime the copy
- * it fetches from IMG.LY's CDN with its model, so the one Vite would emit is never asked for.
- */
-function dropOnnxWasm(): Plugin {
-  return {
-    name: 'lms:drop-onnx-wasm',
-    apply: 'build',
-    generateBundle(_, bundle) {
-      for (const name of Object.keys(bundle))
-        if (name.startsWith('assets/ort-wasm') && name.endsWith('.wasm')) delete bundle[name];
-    },
-  };
-}
-
 /** Admin screens: their chunks go to assets/admin/, which the installed app never precaches. */
 const ADMIN_MODULE = /[\\/]src[\\/]pages[\\/]admin[\\/]/;
 
@@ -235,9 +268,9 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      ndarrayWithoutEval(),
       brandPlugin(),
       versionPlugin(build),
-      dropOnnxWasm(),
       devAppPlugin(),
       VitePWA({
         registerType: 'prompt',
@@ -252,7 +285,7 @@ export default defineConfig(({ mode }) => {
           importScripts: ['update-sw.js', 'push-sw.js'],
           globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,webmanifest}'],
           // Admin code, launch screens and the version probe stay out of the install.
-          globIgnores: ['**/assets/admin/**', '**/splash/**', 'version.json', '**/figtree-{vietnamese,cyrillic,cyrillic-ext}-*.woff2'],
+          globIgnores: ['**/assets/admin/**', '**/assets/ort-wasm*.wasm', '**/splash/**', 'version.json', '**/figtree-{vietnamese,cyrillic,cyrillic-ext}-*.woff2'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api\//, /^\/version\.json$/, /^\/health$/],
           cleanupOutdatedCaches: true,
