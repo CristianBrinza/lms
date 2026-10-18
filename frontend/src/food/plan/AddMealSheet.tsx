@@ -8,9 +8,12 @@ import { errorMessage } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys, peopleApi } from '../api';
 import { normalize } from '../catalog';
+import { parseOptions } from '../choices';
+import { ChoiceSwitch } from '../components/ChoiceSwitch';
+import { SectionHeading } from '../components/SectionHeading';
 import { addDays, SLOT_TIME } from '../format';
 import { FoodIconTile } from '../icons/FoodIcon';
-import type { OutKind, Recipe, Slot } from '../types';
+import type { OutKind, Recipe, RecipeChoice, Slot } from '../types';
 import { relativeDay, relativeDayInline, usePlanT, weekdayShort } from './i18n';
 import { OUT_KINDS } from './out';
 
@@ -18,7 +21,8 @@ const SLOTS: Slot[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
 /**
  * Putting a meal on the plan in three taps: the day, the time (a meal slot or exact), and a recipe
- * — ready-to-cook ones first — or just a name ("Eat out"). Servings default to the recipe's.
+ * — ready-to-cook ones first — or just a name ("Eat out"). Servings default to the recipe's. A
+ * recipe with choices (coffee or tea) shows them to pick from, the last one made first.
  */
 export function AddMealSheet({
   open,
@@ -26,12 +30,15 @@ export function AddMealSheet({
   day,
   today,
   recipeId,
+  options,
 }: {
   open: boolean;
   onClose: () => void;
   day: string;
   today: string;
   recipeId?: string | null;
+  /** Options picked on the recipe page, comma-separated ids. */
+  options?: string | null;
 }) {
   const t = usePlanT();
   return (
@@ -42,6 +49,7 @@ export function AddMealSheet({
           day={day}
           today={today}
           recipeId={recipeId ?? null}
+          options={parseOptions(options ?? null)}
           onClose={onClose}
         />
       ) : null}
@@ -53,11 +61,13 @@ function Form({
   day: initialDay,
   today,
   recipeId,
+  options,
   onClose,
 }: {
   day: string;
   today: string;
   recipeId: string | null;
+  options: string[];
   onClose: () => void;
 }) {
   const t = usePlanT();
@@ -73,6 +83,12 @@ function Form({
   // Eating out, planned ahead (a restaurant on Saturday): nothing is taken from the kitchen.
   const [out, setOut] = useState<OutKind | null>(null);
   const recipe = recipes.data?.find((r) => r.id === picked) ?? null;
+  // Coffee or tea: picked here, else as picked on the recipe page, else the recipe's default.
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const chosenFor = (choice: RecipeChoice) =>
+    picks[choice.id] ??
+    options.find((id) => choice.options.some((o) => o.id === id)) ??
+    choice.chosen;
   // At least everyone in the kitchen (a one-person recipe for the two of us comes out doubled);
   // a batch recipe keeps its own yield.
   const people = useQuery({ queryKey: foodKeys.people, queryFn: peopleApi.list });
@@ -88,7 +104,10 @@ function Form({
         ...(out
           ? { out: { kind: out, place: title.trim() }, title: title.trim() || t.out[out] }
           : recipe
-            ? { recipeId: recipe.id }
+            ? {
+                recipeId: recipe.id,
+                ...(recipe.choices.length ? { options: recipe.choices.map(chosenFor) } : {}),
+              }
             : { title: title.trim() }),
         servings: shownServings,
       }),
@@ -223,7 +242,23 @@ function Form({
               {t.change}
             </Button>
           </div>
-        ) : (
+        ) : null}
+        {recipe?.choices.map((choice) => (
+          <div key={choice.id} className="mt-3 px-1">
+            {choice.course ? (
+              <SectionHeading className="mb-1.5">{t.partKind[choice.course]}</SectionHeading>
+            ) : null}
+            <ChoiceSwitch
+              choice={choice}
+              value={chosenFor(choice)}
+              onChange={(optionId) =>
+                setPicks((current) => ({ ...current, [choice.id]: optionId }))
+              }
+              ready={Object.fromEntries(choice.options.map((o) => [o.id, o.availability.ready]))}
+            />
+          </div>
+        ))}
+        {recipe ? null : (
           <div className="flex flex-col gap-2">
             <TextField
               label={t.findRecipe}

@@ -116,7 +116,7 @@ export const ProductInput = z.object({
     .describe(
       'exact: amounts and dates (meat, cheese); level: just full/low/out (spices, sauces, oil); none: always there',
     ),
-  level: z.enum(LEVELS).optional().describe('For level items: full, low or out'),
+  level: z.enum(LEVELS).optional().describe('For level items: full, half, low or out'),
   freezerDays: z
     .number()
     .int()
@@ -418,6 +418,19 @@ export const UndoInput = z.object({
 
 const minutesField = z.number().int().min(0).max(10_000).nullable().optional();
 
+/**
+ * A meal's sections, in eating order: first course, second (the main dish, "dish"), side, sauce,
+ * dessert, drinks. A meal part is one of them; a recipe's lines and choices can name theirs.
+ */
+export const MEAL_PART_KINDS = ['first', 'dish', 'side', 'sauce', 'dessert', 'drink'] as const;
+export type Course = (typeof MEAL_PART_KINDS)[number];
+/** A course; "second" and "main" are the main dish. */
+export const courseField = z
+  .enum([...MEAL_PART_KINDS, 'second', 'main'], {
+    error: 'first, dish (second, main), side, sauce, dessert or drink',
+  })
+  .transform((value): Course => (value === 'second' || value === 'main' ? 'dish' : value));
+
 export const IngredientInput = z.object({
   productId: idField.optional().describe('A kitchen item; omitted: found (or created) by name'),
   name: nameField.describe('As the recipe says it: "Tomatoes", "Beef steak"'),
@@ -440,6 +453,15 @@ export const IngredientInput = z.object({
     .max(40)
     .optional()
     .describe('Only this type will do (Vodka: "Finlandia"); omit for any'),
+  course: courseField
+    .nullable()
+    .optional()
+    .describe(
+      'The section of the meal it is for, when the recipe has several: first, dish (second course), side, sauce, dessert, drink',
+    ),
+  translations: Translations.optional().describe(
+    'Its name in other languages, for a line not kept in the kitchen: { "ro": { "name": "Apă" }, "ru": { "name": "Вода" } } (kitchen items bring their own)',
+  ),
   or: z
     .array(
       z.object({
@@ -540,6 +562,56 @@ export const WashInput = z.object({
 });
 export type WashInput = z.infer<typeof WashInput>;
 
+/** One way to make a part of a recipe: “Creamy coffee”, with its own lines and steps. */
+export const RecipeOptionInput = z.object({
+  id: idField
+    .optional()
+    .describe('Keep an existing option (its id from get_recipe) when saving it again'),
+  name: z.string().trim().min(1, 'Name the option').max(80, 'Keep it under 80 characters'),
+  ingredients: z
+    .array(IngredientInput)
+    .max(30, 'At most 30 ingredients per option')
+    .optional()
+    .describe(
+      'Only this option’s lines, as for the recipe: [{ name: "Tea bag", amount: 1, unit: "pcs" }]',
+    ),
+  steps: z
+    .array(z.string().trim().min(1).max(2000))
+    .max(30)
+    .optional()
+    .describe('Its own steps, done after the recipe’s'),
+  translations: Translations.optional().describe(
+    'Its name and steps in other languages: { "ro": { "name": "Ceai", "steps": ["…"] }, "ru": { … }, "en": { … } }',
+  ),
+});
+export type RecipeOptionInput = z.infer<typeof RecipeOptionInput>;
+
+/** A named choice in a recipe (Drink): one of its options is made each time. */
+export const RecipeChoiceInput = z.object({
+  id: idField.optional().describe('Keep an existing choice (its id from get_recipe)'),
+  name: z.string().trim().min(1, 'Name the choice').max(80, 'Keep it under 80 characters'),
+  course: courseField
+    .nullable()
+    .optional()
+    .describe('The section it is in (drink for coffee or tea); its options’ lines go there'),
+  options: z
+    .array(RecipeOptionInput)
+    .min(2, 'Give it at least two options')
+    .max(6, 'At most 6 options'),
+  translations: Translations.optional().describe(
+    'Its name in other languages: { "ro": { "name": "Băutură" }, "ru": { "name": "Напиток" }, "en": { "name": "Drink" } }',
+  ),
+});
+export type RecipeChoiceInput = z.infer<typeof RecipeChoiceInput>;
+
+/** Options picked for a recipe, by id or by name (“Tea”); a choice left out takes its default. */
+export const OptionPicksField = z
+  .array(z.string().trim().min(1).max(80))
+  .max(10)
+  .describe(
+    'For a recipe with choices: the option to use in each, by id or name (["Tea"]); a choice left out uses the one picked last time, else its first',
+  );
+
 export const RecipeInput = z.object({
   title: z
     .string()
@@ -572,6 +644,13 @@ export const RecipeInput = z.object({
     .max(20)
     .optional()
     .describe('Kitchenware it needs: [{ name: "Big pot" }, { name: "Colander" }]'),
+  choices: z
+    .array(RecipeChoiceInput)
+    .max(5, 'At most 5 choices')
+    .optional()
+    .describe(
+      'Parts made one way or another, each a named choice of options with their own ingredients (and steps): [{ name: "Drink", options: [{ name: "Creamy coffee", ingredients: […] }, { name: "Tea", ingredients: […] }] }]. The recipe’s own ingredients are always used; one option per choice is added. Given, it replaces the choices (send ids back to keep them).',
+    ),
   translations: Translations.optional().describe(
     'The recipe in other languages: { "ro": { "title": "…", "description": "…", "notes": "…", "steps": ["…"] }, "ru": { … }, "en": { … } }',
   ),
@@ -605,10 +684,19 @@ export const MealIngredientInput = IngredientInput.extend({
     .describe(
       'Which option to use: 0 the main item, 1… an alternative (or); null: the first there is',
     ),
+  optionId: idField
+    .nullable()
+    .optional()
+    .describe('The recipe choice’s option this line came with; keep it when sending lines back'),
+  included: z
+    .boolean()
+    .nullable()
+    .optional()
+    .describe(
+      'Optional lines only: true counts it for this meal (needed, bought, eaten, taken), false leaves it out; null as usual',
+    ),
 });
 export type MealIngredientInput = z.infer<typeof MealIngredientInput>;
-
-export const MEAL_PART_KINDS = ['dish', 'side', 'sauce', 'drink'] as const;
 
 export const MealPartInput = z
   .object({
@@ -623,13 +711,16 @@ export const MealPartInput = z
       .max(120)
       .optional()
       .describe('Needed without a recipe ("Coffee", "Bread with Philadelphia and salmon")'),
-    kind: z.enum(MEAL_PART_KINDS).optional().describe('dish (default), side, sauce or drink'),
+    kind: courseField
+      .optional()
+      .describe('Its section: first, dish (second course, default), side, sauce, dessert or drink'),
     servings: z.number().int().min(1).max(100).optional().describe('Default: the meal’s servings'),
     ingredients: z
       .array(IngredientInput)
       .max(40)
       .optional()
       .describe('Its own lines, for a part without a recipe (or replacing the recipe’s)'),
+    options: OptionPicksField.optional(),
   })
   .refine((body) => Boolean(body.recipeId || body.title), {
     message: 'Pick a recipe or name it',
@@ -639,7 +730,7 @@ export type MealPartInput = z.infer<typeof MealPartInput>;
 
 export const MealPartPatchFields = z.object({
   title: z.string().trim().min(1).max(120),
-  kind: z.enum(MEAL_PART_KINDS),
+  kind: courseField,
   servings: z.number().int().min(1).max(100).describe('Its lines scale with it'),
 });
 export const MealPartPatch = MealPartPatchFields.partial().refine(
@@ -697,6 +788,7 @@ export const MealInput = z
       .max(60)
       .optional()
       .describe('Replaces the recipe’s ingredients for this meal only'),
+    options: OptionPicksField.optional(),
     parts: z
       .array(MealPartInput)
       .max(10)
@@ -793,13 +885,34 @@ export const ChoiceInput = z.object({
     .describe('0 the main item, 1… an alternative; null: the first there is'),
 });
 
+/** Switches a planned meal's recipe choice to another option. */
+export const MealOptionInput = z.object({
+  option: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .describe('The option to use, by id or name (“Tea”); its choice’s lines are swapped'),
+});
+
+/** An optional line of a planned meal, switched on or off for that meal. */
+export const IncludedInput = z.object({
+  included: z
+    .boolean()
+    .nullable()
+    .describe(
+      'true: use it this time (needed, bought, counted in what was eaten, taken from the kitchen); false: leave it out entirely; null: as usual',
+    ),
+});
+
 export const CookInput = z.object({
   servings: z.number().int().min(1).max(100).optional(),
+  options: OptionPicksField.optional(),
   choices: z
     .record(z.string().regex(/^\d+$/), z.number().int().min(0).max(4))
     .optional()
     .describe(
-      'Per ingredient (its position, from 0), which option to use: 0 the main item, 1… an alternative',
+      'Per ingredient (its position, from 0: the recipe’s lines, then each chosen option’s), which alternative to use: 0 the main item, 1… an alternative',
     ),
   leftovers: CompleteMealInput.shape.leftovers,
 });
@@ -808,7 +921,7 @@ export const RangeQuery = z
   .object({ from: dateField, to: dateField })
   .refine((r) => r.from <= r.to, { message: '“from” must be before “to”', path: ['to'] });
 
-export const LevelInput = z.object({ level: z.enum(LEVELS, { error: 'Full, low or out' }) });
+export const LevelInput = z.object({ level: z.enum(LEVELS, { error: 'Full, half, low or out' }) });
 
 export const RestrictionInput = z
   .object({

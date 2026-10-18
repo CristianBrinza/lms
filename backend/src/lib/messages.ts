@@ -331,9 +331,9 @@ export const MESSAGES: Record<string, Pair> = {
     ro: 'Prețul nu poate fi negativ',
     ru: 'Цена не может быть отрицательной',
   },
-  'Full, low or out': {
-    ro: 'Plin, pe terminate sau terminat',
-    ru: 'Полно, мало или закончилось',
+  'Full, half, low or out': {
+    ro: 'Plin, pe jumătate, pe terminate sau terminat',
+    ru: 'Полно, наполовину, мало или закончилось',
   },
   'Say how much': { ro: 'Spune cât', ru: 'Укажите, сколько' },
   'Say which item': { ro: 'Spune ce produs', ru: 'Укажите, какой продукт' },

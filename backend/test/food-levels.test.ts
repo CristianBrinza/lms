@@ -86,6 +86,39 @@ describe('food: kept by level, frozen, guessed', () => {
     });
   });
 
+  it('keeps half (medium) between full and low: still in stock, not a reason to shop', async () => {
+    const b = await cook();
+    const sauce = (await b.post('/api/food/stock', { name: 'Jam', quantity: 1 })).body
+      .product;
+    const id = sauce.id;
+    expect(sauce).toMatchObject({ trackMode: 'level', level: 'full' });
+    const recipe = (
+      await b.post('/api/food/recipes', {
+        title: 'Toast with jam',
+        ingredients: [{ name: 'Jam', amount: 2, unit: 'tbsp' }],
+      })
+    ).body.recipe;
+
+    const half = await b.put(`/api/food/products/${id}/level`, { level: 'half' });
+    expect(half.status).toBe(200);
+    expect(half.body.product.level).toBe('half');
+    const kitchen = (await b.get('/api/food/kitchen')).body.products;
+    expect(kitchen.find((p: any) => p.id === id)).toMatchObject({ level: 'half', low: false });
+    const overview = (await b.get('/api/food/overview?today=2026-10-02')).body;
+    expect(overview.stock.low).toEqual([]);
+    expect(overview.stock.products).toBe(1);
+    expect((await b.get(`/api/food/recipes/${recipe.id}`)).body.recipe.availability).toMatchObject({
+      ready: true,
+    });
+    await b.post('/api/food/meals', { date: '2026-10-05', recipeId: recipe.id });
+    expect((await b.get('/api/food/plan/needs?from=2026-10-05&to=2026-10-05')).body.lines).toEqual(
+      [],
+    );
+
+    const bad = await b.put(`/api/food/products/${id}/level`, { level: 'medium' });
+    expect(bad.status).toBe(400);
+  });
+
   it('freezing restarts the date, thawing shortens it', async () => {
     t.setNow(NOW);
     const b = await cook();

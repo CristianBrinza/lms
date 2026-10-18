@@ -20,12 +20,17 @@ import { haptic } from '@/lib/haptics';
 import { foodApi, foodKeys, peopleApi } from '../api';
 import { normalize, useCatalog } from '../catalog';
 import { AddToListSheet } from '../components/AddToListSheet';
+import { isIncluded, sectionsOf } from '../choices';
+import { SectionHeading } from '../components/SectionHeading';
+import { ChoiceSwitch } from '../components/ChoiceSwitch';
 import { MealStatus } from '../components/MealStatus';
 import { NutritionStrip } from '../components/NutritionStrip';
 import { WhoEats } from '../components/WhoEats';
 import { formatKcal } from '../nutrition';
 import { OptionChips } from '../components/OptionChips';
 import { EatOutSheet } from './EatOutSheet';
+import { KindPicker } from './KindPicker';
+import { hasKinds } from '../lots';
 import { clockTime, dayAndMonth, dayLong, usePlanT } from './i18n';
 import { formatAmount, formatQty, LOCATION_LABEL, parseAmount, trText } from '../format';
 import { openedText } from '../opened';
@@ -46,6 +51,7 @@ import type {
  * Philadelphia and salmon on the side, a sauce: when, for how many, each part with what it takes
  * from the kitchen (change an amount or pick the exact piece, for this day only), what instead
  * when there isn't enough, the kitchenware and whether it's clean, and the big button: eaten. A
+ * recipe's choice (coffee or tea) switches here; an optional line can be left out this time. A
  * sheet on phones; a panel beside the day on tablets (MealPanel).
  */
 export function MealSheet({
@@ -68,7 +74,7 @@ export function MealSheet({
     >
       {meal ? (
         <MealBody
-          key={`${meal.id}-${meal.status}-${meal.servings}-${meal.ingredients.length}`}
+          key={`${meal.id}-${meal.status}-${meal.servings}-${meal.ingredients.length}-${mealChoices(meal)}`}
           meal={meal}
           kitchen={kitchen}
           onClose={onClose}
@@ -109,7 +115,7 @@ export function MealPanel({
         />
       </header>
       <MealBody
-        key={`${meal.id}-${meal.status}-${meal.servings}-${meal.ingredients.length}`}
+        key={`${meal.id}-${meal.status}-${meal.servings}-${meal.ingredients.length}-${mealChoices(meal)}`}
         meal={meal}
         kitchen={kitchen}
         onClose={onClose}
@@ -118,12 +124,18 @@ export function MealPanel({
   );
 }
 
-type Draft = Record<string, { amount: string; lotId: string | null }>;
+/** A line as changed here before saving: its amount, the piece, the kind (which tea). */
+type LineDraft = { amount: string; lotId: string | null; variant: string };
+type Draft = Record<string, LineDraft>;
+
+/** The options a meal's parts make: switching one remounts the body, its lines being new. */
+const mealChoices = (meal: Meal) =>
+  meal.parts.flatMap((part) => part.choices.map((choice) => choice.chosen)).join(',');
 
 /** Lines as the API takes them back, keeping what each one is (its part, kind, alternatives). */
 function asInput(
   line: IngredientLine,
-  draft: { amount: string; lotId: string | null } | undefined,
+  draft: LineDraft | undefined,
 ): IngredientInput {
   const amount = draft ? parseAmount(draft.amount) : line.amount;
   return {
@@ -135,7 +147,12 @@ function asInput(
     optional: line.optional,
     lotId: draft ? draft.lotId : line.lotId,
     partId: line.partId,
-    ...(line.variant ? { variant: line.variant } : {}),
+    optionId: line.optionId,
+    course: line.course,
+    // Lines not kept in the kitchen keep their names in other languages.
+    ...(!line.productId && line.translations ? { translations: line.translations } : {}),
+    ...(line.optional && line.included !== null ? { included: line.included } : {}),
+    ...((draft ? draft.variant : line.variant) ? { variant: draft ? draft.variant : line.variant } : {}),
     ...(line.alternatives.length
       ? {
           or: line.alternatives.map((alt) => ({
@@ -172,13 +189,15 @@ function MealBody({
     Object.fromEntries(
       meal.ingredients.map((i) => [
         i.id,
-        { amount: i.amount === null ? '' : String(i.amount), lotId: i.lotId },
+        { amount: i.amount === null ? '' : String(i.amount), lotId: i.lotId, variant: i.variant },
       ]),
     ),
   );
   const dirty = meal.ingredients.some((i) => {
     const d = draft[i.id]!;
-    return (parseAmount(d.amount) ?? null) !== i.amount || d.lotId !== i.lotId;
+    return (
+      (parseAmount(d.amount) ?? null) !== i.amount || d.lotId !== i.lotId || d.variant !== i.variant
+    );
   });
   const done = meal.status === 'done';
 
@@ -592,7 +611,7 @@ function PartBlock({
   draft: Draft;
   done: boolean;
   single: boolean;
-  onDraft: (id: string, next: { amount: string; lotId: string | null }) => void;
+  onDraft: (id: string, next: LineDraft) => void;
   onMissing: (line: IngredientLine) => void;
 }) {
   const t = usePlanT();
@@ -607,6 +626,15 @@ function PartBlock({
     mutationFn: () => foodApi.removePart(meal.id, part!.id),
     onSuccess: () => {
       toast.success(t.partOff(tr(part!, 'title')));
+      void refresh();
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  // Coffee or tea for this meal: that choice's lines are swapped.
+  const pick = useMutation({
+    mutationFn: (optionId: string) => foodApi.setOption(meal.id, part!.id, optionId),
+    onSuccess: () => {
+      haptic('tap');
       void refresh();
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -665,21 +693,39 @@ function PartBlock({
       ) : !part && meal.parts.length ? (
         <header className="border-b border-ink-100 px-3 py-2 text-sm font-bold">{t.also}</header>
       ) : null}
-      {lines.length ? (
-        <ul className="divide-y divide-ink-100">
-          {lines.map((line) => (
-            <IngredientRow
-              key={line.id}
-              mealId={meal.id}
-              line={line}
-              product={kitchen.find((p) => p.id === line.productId)}
-              draft={draft[line.id]!}
-              disabled={done}
-              onChange={(next) => onDraft(line.id, next)}
-              onMissing={() => onMissing(line)}
-            />
-          ))}
-        </ul>
+      {lines.length || part?.choices.length ? (
+        // Its sections (Felul doi, Băuturi…), each with its choices (coffee or tea) and lines.
+        sectionsOf(lines, part?.choices ?? []).map((section) => (
+          <div key={section.course ?? '-'} className="border-b border-ink-100 last:border-0">
+            {section.course ? (
+              <SectionHeading className="px-3 pt-2.5">{t.partKind[section.course]}</SectionHeading>
+            ) : null}
+            {section.choices.map((choice) => (
+              <ChoiceSwitch
+                key={choice.id}
+                className="px-3 pt-2"
+                choice={choice}
+                value={pick.isPending ? pick.variables : choice.chosen}
+                onChange={(optionId) => pick.mutate(optionId)}
+                disabled={done || pick.isPending}
+              />
+            ))}
+            <ul className="divide-y divide-ink-100">
+              {section.lines.map((line) => (
+                <IngredientRow
+                  key={line.id}
+                  mealId={meal.id}
+                  line={line}
+                  product={kitchen.find((p) => p.id === line.productId)}
+                  draft={draft[line.id]!}
+                  disabled={done}
+                  onChange={(next) => onDraft(line.id, next)}
+                  onMissing={() => onMissing(line)}
+                />
+              ))}
+            </ul>
+          </div>
+        ))
       ) : (
         <p className="px-3 py-2.5 text-sm text-ink-500">{t.nothingTaken}</p>
       )}
@@ -699,9 +745,9 @@ function IngredientRow({
   mealId: string;
   line: IngredientLine;
   product?: StockedProduct;
-  draft: { amount: string; lotId: string | null };
+  draft: LineDraft;
   disabled: boolean;
-  onChange: (next: { amount: string; lotId: string | null }) => void;
+  onChange: (next: LineDraft) => void;
   onMissing: () => void;
 }) {
   const t = usePlanT();
@@ -712,6 +758,14 @@ function IngredientRow({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: foodKeys.all }),
     onError: (error) => toast.error(errorMessage(error)),
   });
+  // An optional line, in or out this time: out, it isn't needed, bought, eaten or taken.
+  const include = useMutation({
+    mutationFn: (value: boolean) => foodApi.setIncluded(mealId, line.id, value),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: foodKeys.all }),
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+  const included = include.isPending ? include.variables : isIncluded(line);
+  const off = line.optional && !included;
   const lots =
     product?.trackMode === 'exact'
       ? product.lots.filter(
@@ -720,6 +774,16 @@ function IngredientRow({
       : [];
   // Which piece to use (the 2 kg steak, the opened jar): only when asked, or already chosen.
   const [choosing, setChoosing] = useState(Boolean(draft.lotId));
+  // An item with kinds (twelve teas) is picked by name, in a sheet.
+  const pieces = product?.trackMode === 'exact' ? product.lots : [];
+  const byKind = hasKinds(pieces);
+  const [picking, setPicking] = useState(false);
+  const pickedLot = draft.lotId ? pieces.find((lot) => lot.id === draft.lotId) : undefined;
+  const pickedKind = pickedLot?.variant || draft.variant;
+  const kindLot = pickedKind
+    ? pieces.find((lot) => lot.variant.toLowerCase() === pickedKind.toLowerCase())
+    : undefined;
+  const pickedName = kindLot ? tr(kindLot, 'variant') || kindLot.variant : pickedKind || null;
   const allergy = line.warnings.some((w) => w.kind === 'allergy');
   const altUnit = line.using ? line.alternatives[line.chosen - 1]?.baseUnit : null;
   const measured = altUnit
@@ -727,7 +791,7 @@ function IngredientRow({
     : (product ?? (line.baseUnit ? { unit: line.baseUnit } : null));
   return (
     <li className="flex flex-col gap-1.5 px-3 py-2">
-      <div className="flex items-center gap-2.5">
+      <div className={cx('flex items-center gap-2.5 transition-opacity', off && 'opacity-50')}>
         <FoodIconTile
           name={line.using?.icon ?? line.icon}
           className="size-9 rounded-xl [&>svg]:size-6"
@@ -752,10 +816,12 @@ function IngredientRow({
           <span
             className={cx(
               'block truncate text-xs',
-              line.enough === false ? 'font-semibold text-peach-800' : 'text-ink-600',
+              line.enough === false && !off ? 'font-semibold text-peach-800' : 'text-ink-600',
             )}
           >
-            {line.using
+            {off
+              ? t.leftOut
+              : line.using
               ? line.enough === false
                 ? t.missingOf(
                     line.missing && measured ? formatQty(line.missing, measured) : null,
@@ -775,7 +841,7 @@ function IngredientRow({
                     : line.note || t.notKept}
           </span>
         </span>
-        {line.enough === false && !disabled && line.productId ? (
+        {line.enough === false && !disabled && line.productId && !off ? (
           <button
             type="button"
             onClick={onMissing}
@@ -785,7 +851,7 @@ function IngredientRow({
             <AddShoppingCartIcon fontSize="inherit" />
           </button>
         ) : null}
-        {line.unit && line.amount !== null && !disabled ? (
+        {off ? null : line.unit && line.amount !== null && !disabled ? (
           <label className="flex w-24 shrink-0 items-center rounded-xl bg-ink-50 px-2.5 focus-within:bg-white focus-within:shadow-[inset_0_0_0_2px_var(--color-ink-900)]">
             <span className="sr-only">{t.amountOf(tr(line, 'name'))}</span>
             <input
@@ -802,7 +868,37 @@ function IngredientRow({
           </span>
         ) : null}
       </div>
-      {line.alternatives.length ? (
+      {line.optional ? (
+        <div className="ml-[2.875rem] flex items-center gap-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={included}
+            aria-label={t.includeLine(tr(line, 'name'))}
+            disabled={disabled || include.isPending}
+            onClick={() => {
+              haptic('tap');
+              include.mutate(!included);
+            }}
+            className={cx(
+              'group/switch relative inline-flex h-6 w-10 shrink-0 items-center rounded-pill transition-colors duration-200 disabled:opacity-45',
+              included ? 'bg-ink-900' : 'bg-ink-200',
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cx(
+                'absolute left-0.5 size-5 rounded-full shadow-[0_2px_6px_rgb(29_29_36/0.25)] transition-[translate,background-color] duration-200',
+                included ? 'translate-x-4 bg-butter-300' : 'translate-x-0 bg-white',
+              )}
+            />
+          </button>
+          <span className="text-xs font-semibold text-ink-700" aria-hidden="true">
+            {t.include}
+          </span>
+        </div>
+      ) : null}
+      {line.alternatives.length && !off ? (
         <div className="ml-[2.875rem]">
           <OptionChips
             line={line}
@@ -812,7 +908,30 @@ function IngredientRow({
           />
         </div>
       ) : null}
-      {lots.length > 1 && !disabled && !line.using && !choosing ? (
+      {byKind && !disabled && !line.using && !off && product ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="press ml-[2.875rem] inline-flex h-8 w-fit max-w-[calc(100%-2.875rem)] items-center gap-1.5 rounded-pill bg-lav-100 px-3 text-xs font-semibold text-lav-800 hover:bg-lav-200"
+          >
+            <span className="truncate">
+              {pickedName
+                ? `${t.use}: ${pickedName}${pickedLot ? ` · ${formatQty(pickedLot.quantity, product)}` : ''}`
+                : t.whichOne}
+            </span>
+          </button>
+          <KindPicker
+            open={picking}
+            onClose={() => setPicking(false)}
+            product={product}
+            lots={pieces}
+            value={{ variant: draft.variant, lotId: draft.lotId }}
+            onPick={(next) => onChange({ ...draft, ...next })}
+          />
+        </>
+      ) : null}
+      {lots.length > 1 && !disabled && !line.using && !choosing && !off && !byKind ? (
         <button
           type="button"
           onClick={() => setChoosing(true)}
@@ -821,7 +940,7 @@ function IngredientRow({
           {t.whichOne}
         </button>
       ) : null}
-      {lots.length > 1 && !disabled && !line.using && choosing ? (
+      {lots.length > 1 && !disabled && !line.using && choosing && !off && !byKind ? (
         <label className="ml-[2.875rem] flex items-center gap-2 text-xs text-ink-600">
           <span>{t.use}</span>
           <select
@@ -895,7 +1014,7 @@ function Tools({ tools }: { tools: ToolNeed[] }) {
   );
 }
 
-const PART_KINDS: PartKind[] = ['dish', 'side', 'sauce', 'drink'];
+const PART_KINDS: PartKind[] = ['first', 'dish', 'side', 'sauce', 'dessert', 'drink'];
 
 /**
  * More on the plate: a recipe (another dish, a sauce made apart, a coffee) or something simple —
@@ -919,9 +1038,11 @@ function AddPartForm({ meal, onClose }: { meal: Meal; onClose: () => void }) {
   const [query, setQuery] = useState('');
   const typed = parseLine(query);
   const tagFor: Record<PartKind, string[]> = {
+    first: ['soup', 'first'],
     dish: [],
     side: ['side', 'salad', 'snack'],
     sauce: ['sauce'],
+    dessert: ['dessert', 'cake', 'sweet'],
     drink: ['drink', 'coffee', 'tea', 'cocktail'],
   };
   const list = (recipes.data ?? [])

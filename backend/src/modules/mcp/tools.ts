@@ -5,6 +5,7 @@ import { Translations, type Locale } from '../../lib/i18n';
 import type { FoodCtx } from '../food/kitchen';
 import {
   addMealPart,
+  chooseMealOption,
   completeMeal,
   eatOut,
   cookRecipe,
@@ -14,6 +15,7 @@ import {
   removeMealPart,
   reopenMeal,
   setLineChoice,
+  setLineIncluded,
   setMealIngredients,
   updateMeal,
   updateMealPart,
@@ -22,7 +24,7 @@ import {
 } from '../food/meals';
 import { IconInput, listIcons, saveIcon } from '../food/icons';
 import { archiveTool, listTools, markDirty, saveTool, TOOL_ICONS, wash } from '../food/kitchenware';
-import { FOOD_ICONS } from '../food/presets';
+import { FOOD_ICONS, LEVELS } from '../food/presets';
 import { overview } from '../food/overview';
 import { planNeeds } from '../food/plan';
 import { createProduct, listProducts, updateProduct } from '../food/products';
@@ -42,6 +44,9 @@ import {
   CompleteMealInput,
   CookInput,
   EatOutInput,
+  IncludedInput,
+  MealOptionInput,
+  OptionPicksField,
   dateField,
   idField,
   locationField,
@@ -241,6 +246,7 @@ const stockItem = (p: StockedProduct) => ({
 
 const lines = (items: Recipe['ingredients']) =>
   items.map((i) => ({
+    id: i.id,
     ...(i.productId ? { productId: i.productId } : {}),
     ...(i.lotId ? { lotId: i.lotId } : {}),
     name: i.name,
@@ -248,6 +254,8 @@ const lines = (items: Recipe['ingredients']) =>
     unit: i.unit,
     ...(i.note ? { note: i.note } : {}),
     ...(i.optional ? { optional: true } : {}),
+    ...(i.included !== null ? { included: i.included } : {}),
+    ...(i.course ? { course: i.course } : {}),
     ...(i.inStock !== null ? { inStock: i.inStock, baseUnit: i.baseUnit, enough: i.enough } : {}),
     ...(i.reservedFor ? { reservedFor: `${i.reservedFor.title} (${i.reservedFor.date})` } : {}),
     ...(i.warnings.length
@@ -293,6 +301,27 @@ const recipeFull = (r: Recipe) => ({
   notes: r.notes || undefined,
   ingredients: lines(r.ingredients),
   steps: r.steps,
+  ...(r.choices.length
+    ? {
+        // Made one way or another: the recipe's own lines plus one option of each choice.
+        choices: r.choices.map((c) => ({
+          id: c.id,
+          name: c.name,
+          ...(c.course ? { course: c.course } : {}),
+          ...withTranslations(c),
+          chosen: c.options.find((o) => o.id === c.chosen)?.name,
+          options: c.options.map((o) => ({
+            id: o.id,
+            name: o.name,
+            ...withTranslations(o),
+            ready: o.availability.ready,
+            missing: o.availability.missing.map((m) => m.name),
+            ingredients: lines(o.ingredients),
+            ...(o.steps.length ? { steps: o.steps } : {}),
+          })),
+        })),
+      }
+    : {}),
 });
 
 const meal = (m: Meal) => ({
@@ -308,6 +337,20 @@ const meal = (m: Meal) => ({
   ...(m.note ? { note: m.note } : {}),
   ingredients: lines(m.ingredients),
   missing: m.availability.missing.map((x) => `${x.name} (${x.missing} ${x.unit})`),
+  ...(m.parts.some((p) => p.choices.length)
+    ? {
+        // Recipe choices of its parts and what this meal makes (switch with choose_meal_option).
+        choices: m.parts.flatMap((p) =>
+          p.choices.map((c) => ({
+            partId: p.id,
+            part: p.title,
+            choice: c.name,
+            options: c.options.map((o) => o.name),
+            chosen: c.options.find((o) => o.id === c.chosen)?.name ?? null,
+          })),
+        ),
+      }
+    : {}),
 });
 
 // ---------------------------------------------------------------- the tools
@@ -504,11 +547,11 @@ export const TOOLS: Tool[] = [
   }),
   tool({
     name: 'set_level',
-    title: 'Full, low or out',
+    title: 'Full, half, low or out',
     description:
-      'For items kept by level (spices, sauces, oil): say they are full, running low, or out. Out or low items show on the plan’s shopping needs.',
+      'For items kept by level (spices, sauces, oil): say they are full, half (medium), running low, or out. Out or low items show on the plan’s shopping needs.',
     access: 'write',
-    input: z.object({ productId: idField, level: z.enum(['full', 'low', 'out']) }),
+    input: z.object({ productId: idField, level: z.enum(LEVELS) }),
     run: async ({ ctx }, args) => {
       const product = await setLevel(ctx, args.productId, args.level);
       return { item: product.name, level: product.level };
@@ -662,16 +705,22 @@ export const TOOLS: Tool[] = [
   tool({
     name: 'get_recipe',
     title: 'One recipe',
-    description: 'Full recipe: ingredients with stock, steps. Optionally scaled to other servings.',
+    description:
+      'Full recipe: ingredients with stock, steps, and its choices (options with their own ingredients and steps). Optionally scaled to other servings, with options picked (by name or id) for its availability.',
     access: 'read',
-    input: z.object({ recipeId: idField, servings: z.number().int().min(1).max(100).optional() }),
-    run: async ({ ctx }, args) => recipeFull(await getRecipe(ctx, args.recipeId, args.servings)),
+    input: z.object({
+      recipeId: idField,
+      servings: z.number().int().min(1).max(100).optional(),
+      options: OptionPicksField.optional(),
+    }),
+    run: async ({ ctx }, args) =>
+      recipeFull(await getRecipe(ctx, args.recipeId, args.servings, args.options)),
   }),
   tool({
     name: 'save_recipe',
     title: 'Save a recipe',
     description:
-      'Create a recipe, or replace fields of one (recipeId). Ingredients: name as the kitchen calls it + amount + unit; omit amount for “to taste”; link: false for tap water. Steps are short imperative sentences.',
+      'Create a recipe, or replace fields of one (recipeId). Ingredients: name as the kitchen calls it + amount + unit; omit amount for “to taste”; link: false for tap water (give it translations: { ro: { name: "Apă" }, ru: { name: "Вода" } } when it isn’t a catalog name). Steps are short imperative sentences. A meal of several courses names each line’s course (first, dish = second course, side, sauce, dessert, drink) and each choice’s course. A part made one way or another (breakfast with a drink: creamy coffee or tea) is a choice: choices: [{ name: "Drink", options: [{ name: "Creamy coffee", ingredients: […], steps: […] }, { name: "Tea", ingredients: […] }] }], names translated (en, ro, ru). Choices sent replace the old ones; send their ids (from get_recipe) back to keep them. A single swapped item (milk or cream) stays an ingredient’s or.',
     access: 'write',
     input: RecipeInput.partial().and(
       z.object({ recipeId: idField.optional(), ...translationsField }),
@@ -701,7 +750,7 @@ export const TOOLS: Tool[] = [
     name: 'cook_now',
     title: 'Cook a recipe now',
     description:
-      'Cook a recipe right now: makes a meal for today and takes its ingredients from the kitchen; optional leftovers as portions.',
+      'Cook a recipe right now: makes a meal for today and takes its ingredients from the kitchen; optional leftovers as portions. For a recipe with choices, options names the option made (["Tea"]); otherwise the one picked last time, else the first.',
     access: 'write',
     input: CookInput.and(z.object({ recipeId: idField })),
     run: async ({ ctx }, { recipeId, ...input }) => {
@@ -721,7 +770,7 @@ export const TOOLS: Tool[] = [
     name: 'plan_meal',
     title: 'Plan a meal',
     description:
-      'Put a meal on a day: from a recipe (ingredients copied and scaled to servings) or just named. Time HH:MM or a slot.',
+      'Put a meal on a day: from a recipe (ingredients copied and scaled to servings) or just named. Time HH:MM or a slot. A recipe with choices takes the options named in options (["Tea"]), else the one picked last time, else the first; only those options’ ingredients are planned, bought and taken.',
     access: 'write',
     input: translatable(MealInput),
     run: async ({ ctx }, args) => meal(await planMeal(ctx, args)),
@@ -767,6 +816,30 @@ export const TOOLS: Tool[] = [
     }),
     run: async ({ ctx }, { mealId, lineId, choice }) =>
       meal(await setLineChoice(ctx, mealId, lineId, choice)),
+  }),
+  tool({
+    name: 'choose_meal_option',
+    title: 'Coffee or tea',
+    description:
+      'For a planned meal from a recipe with choices: makes another option (by name or id, e.g. "Tea"). That choice’s ingredients are swapped, scaled to the part’s servings, and the plan, shopping needs, nutrition and cooking follow. partId only when two parts have the same option.',
+    access: 'write',
+    input: z.object({
+      mealId: idField,
+      option: MealOptionInput.shape.option,
+      partId: idField.optional(),
+    }),
+    run: async ({ ctx }, { mealId, option, partId }) =>
+      meal(await chooseMealOption(ctx, mealId, option, partId)),
+  }),
+  tool({
+    name: 'include_ingredient',
+    title: 'Optional: in or out',
+    description:
+      'For a planned meal’s optional line (sugar in the tea): included true uses it this time (needed, bought, counted in what was eaten, taken from the kitchen); false leaves it out of everything for that meal; null back to usual.',
+    access: 'write',
+    input: z.object({ mealId: idField, lineId: idField, included: IncludedInput.shape.included }),
+    run: async ({ ctx }, { mealId, lineId, included }) =>
+      meal(await setLineIncluded(ctx, mealId, lineId, included)),
   }),
   tool({
     name: 'add_meal_part',

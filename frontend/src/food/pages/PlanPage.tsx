@@ -262,9 +262,10 @@ export default function PlanPage() {
         day={adding.day}
         today={today}
         recipeId={params.get('recipe')}
+        options={params.get('options')}
         onClose={() => {
           setAdding({ open: false, day });
-          set({ recipe: null });
+          set({ recipe: null, options: null });
         }}
       />
       <AteSheet open={params.get('ate') === '1'} onClose={() => set({ ate: null })} />

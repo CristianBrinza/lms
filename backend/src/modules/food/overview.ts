@@ -2,7 +2,7 @@ import type { Translations } from '../../lib/i18n';
 import { onlyFields } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
 import { listMeals, type Meal } from './meals';
-import type { FoodIcon } from './presets';
+import type { FoodIcon, Level } from './presets';
 import { listRecipes } from './recipes';
 import { listShopping } from './shopping';
 import { kitchen, localDate } from './stock';
@@ -52,7 +52,7 @@ export interface FoodOverview {
       total: number;
       minStock: number;
       unit: BaseUnit;
-      level: 'full' | 'low' | 'out' | null;
+      level: Level | null;
     }>;
   };
   recipes: { total: number; ready: number; favorites: number };

@@ -44,6 +44,10 @@ export const foodUiT = messages({
       all: (n: number) => `All ${n}`,
       without: (names: string) => `Without: ${names} (values unknown)`,
     },
+    choice: {
+      pick: (name: string) => `${name}: pick one`,
+      missing: 'something missing',
+    },
     options: {
       use: (name: string) => `${name}: use`,
       need: (amount: string) => `need ${amount}`,
@@ -126,6 +130,10 @@ export const foodUiT = messages({
       all: (n: number) =>
         plural(n, { one: 'Pentru # porție', few: 'Pentru # porții', other: 'Pentru # de porții' }),
       without: (names: string) => `Fără: ${names} (valori necunoscute)`,
+    },
+    choice: {
+      pick: (name: string) => `${name}: alege`,
+      missing: 'lipsește ceva',
     },
     options: {
       use: (name: string) => `${name}: ce folosești`,
@@ -216,6 +224,10 @@ export const foodUiT = messages({
           other: 'На # порции',
         }),
       without: (names: string) => `Без учёта: ${names} (значения неизвестны)`,
+    },
+    choice: {
+      pick: (name: string) => `${name}: выберите`,
+      missing: 'чего-то не хватает',
     },
     options: {
       use: (name: string) => `${name}: что использовать`,

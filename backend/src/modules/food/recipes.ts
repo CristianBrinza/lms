@@ -23,16 +23,44 @@ import {
   type IngredientLine,
   type StockInfo,
 } from './ingredients';
+import { choicesOf, pickOptions, saveChoices, withChoiceCourses } from './choices';
 import { checkIcon } from './icons';
 import type { FoodCtx } from './kitchen';
 import type { FoodIcon } from './presets';
 import { withoutField } from './products';
-import type { RecipeInput } from './schemas';
+import type { Course, RecipeInput } from './schemas';
 
 /**
  * Recipes: ingredients linked to kitchen items, steps, servings. Each comes with how ready it is
  * to cook from what is in the kitchen, and how much of it would use up food about to expire.
  */
+
+/** One way to make a choice (Creamy coffee): its own lines and steps, and whether it can be made. */
+export interface RecipeOption {
+  id: string;
+  name: string;
+  /** Its name and steps in other languages ({ ro: { name, steps } }). */
+  translations: Translations;
+  /** Done after the recipe's own steps. */
+  steps: string[];
+  ingredients: IngredientLine[];
+  availability: Availability;
+}
+
+/** A part made one way or another (Drink: creamy coffee or tea). */
+export interface RecipeChoice {
+  id: string;
+  name: string;
+  /** The section of the meal it is in (drink); null: none named. */
+  course: Course | null;
+  /** Its name in other languages ({ ro: { name } }). */
+  translations: Translations;
+  options: RecipeOption[];
+  /** The option in use here: asked for, else picked last time, else the first. */
+  chosen: string;
+  /** The option picked last time (null: none yet). */
+  remembered: string | null;
+}
 
 export interface Recipe {
   id: string;
@@ -54,13 +82,17 @@ export interface Recipe {
   updatedAt: string;
   /** Servings the ingredient amounts and availability are shown for. */
   shownServings: number;
+  /** The recipe's own lines, always used; each choice's options carry theirs. */
   ingredients: IngredientLine[];
+  /** Of its own lines and the chosen options' lines. */
   availability: Availability;
+  /** Parts made one way or another, each with the option in use. */
+  choices: RecipeChoice[];
   /** Kitchenware it needs, and whether it is clean now. */
   tools: ToolNeed[];
   timesCooked: number;
   lastCooked: string | null;
-  /** Energy and nutrients for the servings shown, and per serving. */
+  /** Energy and nutrients for the servings shown, and per serving (with the chosen options). */
   nutrition: DishSummary;
 }
 
@@ -97,6 +129,7 @@ function toRecipe(
   shownServings: number,
   tools: ToolNeed[],
   nutrition: DishSummary,
+  choices: RecipeChoice[],
 ): Recipe {
   return {
     id: row.id,
@@ -116,8 +149,9 @@ function toRecipe(
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     shownServings,
-    ingredients: lines.lines,
+    ingredients: lines.lines.filter((line) => !line.optionId),
     availability: lines.availability,
+    choices,
     tools,
     timesCooked: row.times_cooked,
     lastCooked: row.last_cooked,
@@ -130,6 +164,7 @@ async function build(
   rows: RecipeRow[],
   stock?: Map<string, StockInfo>,
   servings?: number,
+  picks?: string[],
 ): Promise<Recipe[]> {
   const snapshot = stock ?? (await stockSnapshot(ctx));
   const ingredients = await ingredientRows(
@@ -145,15 +180,45 @@ async function build(
     rows.map((r) => r.id),
   );
   const tools = needs.size ? await listTools(ctx) : [];
+  const choices = await choicesOf(
+    ctx,
+    rows.map((r) => r.id),
+  );
   return rows.map((row) => {
     const shown = servings ?? row.servings;
-    const lines = describeLines(
-      ingredients.get(row.id) ?? [],
-      snapshot,
-      ctx.now,
-      shown / row.servings,
-      { reserved, restrictions },
-    );
+    const describe = (list: typeof all) =>
+      describeLines(list, snapshot, ctx.now, shown / row.servings, { reserved, restrictions });
+    const recipeChoices = choices.get(row.id) ?? [];
+    const all = withChoiceCourses(ingredients.get(row.id) ?? [], recipeChoices);
+    const own = all.filter((line) => !line.option_id);
+    const picked = pickOptions(recipeChoices, picks);
+    const optionLines = (id: string) => all.filter((line) => line.option_id === id);
+    // What will be made: its own lines, and of each choice the option in use.
+    const lines = describe([
+      ...own,
+      ...recipeChoices.flatMap((choice) => optionLines(picked.get(choice.id)!)),
+    ]);
+    const described: RecipeChoice[] = recipeChoices.map((choice) => ({
+      id: choice.id,
+      name: choice.name,
+      course: choice.course,
+      translations: choice.translations,
+      chosen: picked.get(choice.id)!,
+      remembered: choice.options.some((o) => o.id === choice.last_option_id)
+        ? choice.last_option_id
+        : null,
+      options: choice.options.map((option) => {
+        const own = describe(optionLines(option.id));
+        return {
+          id: option.id,
+          name: option.name,
+          translations: option.translations,
+          steps: option.steps,
+          ingredients: own.lines,
+          availability: own.availability,
+        };
+      }),
+    }));
     return toRecipe(
       row,
       lines,
@@ -167,6 +232,7 @@ async function build(
         sumLines(lines.lines.map(lineAsCooked), (id) => snapshot.get(id)?.product),
         shown,
       ),
+      described,
     );
   });
 }
@@ -180,14 +246,20 @@ export async function listRecipes(ctx: FoodCtx): Promise<Recipe[]> {
   return build(ctx, rows);
 }
 
-export async function getRecipe(ctx: FoodCtx, id: string, servings?: number): Promise<Recipe> {
+/** One recipe, for `servings` (default its own), with the options picked (by id or name) in use. */
+export async function getRecipe(
+  ctx: FoodCtx,
+  id: string,
+  servings?: number,
+  options?: string[],
+): Promise<Recipe> {
   if (!isUuid(id)) throw new AppError(404, 'NOT_FOUND', 'Recipe not found');
   const { rows } = await ctx.db.query<RecipeRow>(
     `${RECIPE_SELECT} WHERE r.id = $1 AND r.household_id = $2 AND r.archived_at IS NULL`,
     [id, ctx.actor.householdId],
   );
   if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'Recipe not found');
-  return (await build(ctx, rows, undefined, servings))[0]!;
+  return (await build(ctx, rows, undefined, servings, options))[0]!;
 }
 
 export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Recipe> {
@@ -220,12 +292,13 @@ export async function createRecipe(ctx: FoodCtx, input: RecipeInput): Promise<Re
       ],
     );
     await insertIngredientRows(tx, 'recipe_ingredients', id, ingredients);
+    if (input.choices?.length) await saveChoices(tx, id, input.choices);
     if (input.tools) await setRecipeTools(tx, id, input.tools);
   });
   return getRecipe(ctx, id);
 }
 
-/** Changes what is given; `ingredients`, when given, replace the list. */
+/** Changes what is given; `ingredients` and `choices`, when given, replace theirs. */
 export async function updateRecipe(
   ctx: FoodCtx,
   id: string,
@@ -280,6 +353,7 @@ export async function updateRecipe(
         id,
         await resolveIngredients(tx, patch.ingredients),
       );
+    if (patch.choices) await saveChoices(tx, id, patch.choices);
     if (patch.tools) await setRecipeTools(tx, id, patch.tools);
   });
   return getRecipe(ctx, id);
@@ -294,6 +368,7 @@ export async function deleteRecipe(ctx: FoodCtx, id: string): Promise<void> {
   ]);
 }
 
+/** All of a recipe's lines: its own (option_id null) and every option's. */
 export async function recipeIngredients(ctx: FoodCtx, id: string) {
   return (await ingredientRows(ctx, 'recipe_ingredients', [id])).get(id) ?? [];
 }

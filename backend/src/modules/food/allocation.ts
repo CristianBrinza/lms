@@ -1,5 +1,6 @@
 import {
   ingredientRows,
+  lineCounts,
   neededBase,
   type Alternative,
   type IngredientRow,
@@ -160,7 +161,7 @@ export async function allocatePlan(
     const ref = { id: meal.id, title: meal.title, translations: meal.translations, date: meal.date };
     for (const row of ingredients.get(meal.id) ?? []) {
       const info = row.product_id ? stock.get(row.product_id) : undefined;
-      if (!info || info.product.trackMode !== 'exact' || row.optional) continue;
+      if (!info || info.product.trackMode !== 'exact' || !lineCounts(row)) continue;
       const need = wanted(row, info);
       if (need === null) continue;
       // Picked for this meal: that option, enough or not.

@@ -46,7 +46,7 @@ export interface Product extends Measured {
   openedDays: number | null;
   /** Where it goes once opened (an opened can: the fridge); null: it stays where it is. */
   openedLocation: Location | null;
-  /** exact: amounts and dates; level: full / low / out; none: always there (never counted or listed). */
+  /** exact: amounts and dates; level: full / half / low / out; none: always there (never counted or listed). */
   trackMode: TrackMode;
   /** For level items: how much is left, roughly. */
   level: Level;

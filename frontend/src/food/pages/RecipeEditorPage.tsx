@@ -26,8 +26,19 @@ import { isCustomIcon, useCustomIcons } from '../icons/custom';
 import { FoodIcon } from '../icons/FoodIcon';
 import { IconGroupLabel } from '../icons/IconGroupLabel';
 import { useIconsT } from '../icons/icons.i18n';
+import { COURSE_ORDER } from '../choices';
+import { usePlanT } from '../plan/i18n';
 import { useRecipesT } from '../recipes.i18n';
-import type { Recipe, RecipeInput, ToolNeedInput, Unit } from '../types';
+import type {
+  IngredientInput,
+  IngredientLine,
+  PartKind,
+  Recipe,
+  RecipeChoiceInput,
+  RecipeInput,
+  ToolNeedInput,
+  Unit,
+} from '../types';
 
 const DISHES = [
   'pot',
@@ -61,10 +72,14 @@ interface Row {
   or: string;
   /** False for what the kitchen doesn't keep (tap water): never checked or taken. */
   kept: boolean;
+  /** The section of the meal it is for ('' none). */
+  course: PartKind | '';
+  /** A line not kept in the kitchen keeps its names in other languages (Apă, Вода). */
+  translations?: Translations;
 }
 
 let nextKey = 1;
-const blankRow = (): Row => ({
+const blankRow = (course: PartKind | '' = ''): Row => ({
   key: nextKey++,
   name: '',
   amount: '',
@@ -74,6 +89,79 @@ const blankRow = (): Row => ({
   variant: '',
   or: '',
   kept: true,
+  course,
+});
+
+/** A line as the editor shows it. */
+const lineRow = (i: IngredientLine): Row => ({
+  key: nextKey++,
+  productId: i.productId ?? undefined,
+  name: i.name,
+  amount: i.amount === null ? '' : String(i.amount),
+  unit: i.unit ?? '',
+  note: i.note,
+  optional: i.optional,
+  variant: i.variant,
+  or: i.alternatives.map((alt) => alt.name).join(', '),
+  kept: Boolean(i.productId),
+  course: i.course ?? '',
+  ...(i.productId ? {} : { translations: i.translations }),
+});
+
+/** A row as the API takes it. */
+const rowInput = (r: Row): IngredientInput => ({
+  ...(r.productId ? { productId: r.productId } : {}),
+  name: r.name.trim(),
+  amount: parseAmount(r.amount),
+  unit: parseAmount(r.amount) && r.unit ? r.unit : null,
+  note: r.note.trim(),
+  optional: r.optional,
+  ...(r.kept ? {} : { link: false }),
+  ...(r.course ? { course: r.course } : {}),
+  ...(!r.kept && r.translations ? { translations: r.translations } : {}),
+  ...(r.variant.trim() ? { variant: r.variant.trim() } : {}),
+  ...(r.or.trim()
+    ? {
+        or: r.or
+          .split(',')
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .slice(0, 4)
+          .map((name) => ({ name })),
+      }
+    : {}),
+});
+
+/** A choice being written: its section and options, each with its own lines and steps. */
+interface ChoiceDraft {
+  key: number;
+  id?: string;
+  name: string;
+  course: PartKind | '';
+  options: Array<{ key: number; id?: string; name: string; rows: Row[]; steps: string }>;
+}
+
+const blankOption = () => ({ key: nextKey++, name: '', rows: [blankRow()], steps: '' });
+
+/** Whole: a name and at least two named options. */
+const choiceReady = (choice: ChoiceDraft) =>
+  Boolean(choice.name.trim()) && choice.options.filter((o) => o.name.trim()).length >= 2;
+
+const choiceInput = (choice: ChoiceDraft): RecipeChoiceInput => ({
+  ...(choice.id ? { id: choice.id } : {}),
+  name: choice.name.trim(),
+  course: choice.course || null,
+  options: choice.options
+    .filter((o) => o.name.trim())
+    .map((o) => ({
+      ...(o.id ? { id: o.id } : {}),
+      name: o.name.trim(),
+      ingredients: o.rows.filter((r) => r.name.trim()).map(rowInput),
+      steps: o.steps
+        .split('\n')
+        .map((step) => step.trim())
+        .filter(Boolean),
+    })),
 });
 
 interface ToolRow {
@@ -176,19 +264,23 @@ function Editor({ initial }: { initial?: Recipe }) {
   const [tags, setTags] = useState(initial?.tags.join(', ') ?? '');
   const [rows, setRows] = useState<Row[]>(() =>
     initial?.ingredients.length
-      ? initial.ingredients.map((i) => ({
-          key: nextKey++,
-          productId: i.productId ?? undefined,
-          name: i.name,
-          amount: i.amount === null ? '' : String(i.amount),
-          unit: i.unit ?? '',
-          note: i.note,
-          optional: i.optional,
-          variant: i.variant,
-          or: i.alternatives.map((alt) => alt.name).join(', '),
-          kept: Boolean(i.productId),
-        }))
+      ? initial.ingredients.map(lineRow)
       : [blankRow(), blankRow()],
+  );
+  const [choices, setChoices] = useState<ChoiceDraft[]>(() =>
+    (initial?.choices ?? []).map((choice) => ({
+      key: nextKey++,
+      id: choice.id,
+      name: choice.name,
+      course: choice.course ?? '',
+      options: choice.options.map((option) => ({
+        key: nextKey++,
+        id: option.id,
+        name: option.name,
+        rows: option.ingredients.length ? option.ingredients.map(lineRow) : [blankRow()],
+        steps: option.steps.join('\n'),
+      })),
+    })),
   );
   const [tools, setTools] = useState<ToolRow[]>(() =>
     (initial?.tools ?? []).map((t) => ({
@@ -234,28 +326,9 @@ function Editor({ initial }: { initial?: Recipe }) {
     sourceUrl: sourceUrl.trim(),
     notes: notes.trim(),
     favorite,
-    ingredients: rows
-      .filter((r) => r.name.trim())
-      .map((r) => ({
-        ...(r.productId ? { productId: r.productId } : {}),
-        name: r.name.trim(),
-        amount: parseAmount(r.amount),
-        unit: parseAmount(r.amount) && r.unit ? r.unit : null,
-        note: r.note.trim(),
-        optional: r.optional,
-        ...(r.kept ? {} : { link: false }),
-        ...(r.variant.trim() ? { variant: r.variant.trim() } : {}),
-        ...(r.or.trim()
-          ? {
-              or: r.or
-                .split(',')
-                .map((name) => name.trim())
-                .filter(Boolean)
-                .slice(0, 4)
-                .map((name) => ({ name })),
-            }
-          : {}),
-      })),
+    ingredients: rows.filter((r) => r.name.trim()).map(rowInput),
+    // Sent when there are any, or to clear the ones the recipe had.
+    ...(choices.length || initial?.choices.length ? { choices: choices.map(choiceInput) } : {}),
     tools: tools.map((tool): ToolNeedInput => ({
       ...(tool.toolId ? { toolId: tool.toolId } : { name: tool.name }),
       count: tool.count,
@@ -305,8 +378,15 @@ function Editor({ initial }: { initial?: Recipe }) {
       : (fields[`ingredients.${index}.unit`] ?? fields[`ingredients.${index}.lotId`]);
   };
 
+  const [choicesError, setChoicesError] = useState(false);
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (!choices.every(choiceReady)) {
+      setChoicesError(true);
+      haptic('error');
+      return;
+    }
+    setChoicesError(false);
     save.mutate();
   };
 
@@ -472,6 +552,15 @@ function Editor({ initial }: { initial?: Recipe }) {
             {t.addIngredient}
           </Button>
         </section>
+
+        <ChoicesEditor
+          choices={choices}
+          onChange={(next) => {
+            setChoices(next);
+            if (choicesError && next.every(choiceReady)) setChoicesError(false);
+          }}
+          error={choicesError}
+        />
 
         <ToolsEditor tools={tools} onChange={setTools} />
 
@@ -810,11 +899,226 @@ function IngredientEditor({
           />
           {t.notKept}
         </label>
+        <CourseSelect
+          value={row.course}
+          onChange={(course) => onChange({ ...row, course })}
+          className="ml-auto"
+        />
       </div>
       {error ? (
         <p className="mt-1.5 pl-[3.25rem] text-sm font-medium text-danger-600">{error}</p>
       ) : null}
     </li>
+  );
+}
+
+/** Which section of the meal a line or a choice is for (none, first course, second…). */
+function CourseSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: PartKind | '';
+  onChange: (value: PartKind | '') => void;
+  className?: string;
+}) {
+  const t = useRecipesT();
+  const plan = usePlanT();
+  return (
+    <select
+      aria-label={t.section}
+      value={value}
+      onChange={(event) => onChange(event.target.value as PartKind | '')}
+      className={cx(
+        'h-8 min-w-0 rounded-lg bg-ink-50 px-2 text-sm font-medium text-ink-700 outline-none focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]',
+        className,
+      )}
+    >
+      <option value="">{value ? t.noSection : t.section}</option>
+      {COURSE_ORDER.map((course) => (
+        <option key={course} value={course}>
+          {plan.partKind[course]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Parts made one way or another — the drink is a creamy coffee or a tea: each choice is named and
+ * put in a section, and each of its options has its own ingredient lines (the same rows as the
+ * recipe's) and its own steps.
+ */
+function ChoicesEditor({
+  choices,
+  onChange,
+  error,
+}: {
+  choices: ChoiceDraft[];
+  onChange: (choices: ChoiceDraft[]) => void;
+  error: boolean;
+}) {
+  const t = useRecipesT();
+  const change = (key: number, next: Partial<ChoiceDraft>) =>
+    onChange(choices.map((c) => (c.key === key ? { ...c, ...next } : c)));
+  const changeOption = (
+    choice: ChoiceDraft,
+    key: number,
+    next: Partial<ChoiceDraft['options'][number]>,
+  ) =>
+    change(choice.key, {
+      options: choice.options.map((o) => (o.key === key ? { ...o, ...next } : o)),
+    });
+  return (
+    <section>
+      <h2 className="px-1 text-h3 font-bold">{t.choices}</h2>
+      <p className="mb-2.5 mt-1 px-1 text-sm text-ink-600">{t.choicesHint}</p>
+      <div className="flex flex-col gap-3">
+        {choices.map((choice) => (
+          <div
+            key={choice.key}
+            className={cx(
+              'flex flex-col gap-3 rounded-[1.75rem] bg-butter-50 p-3 ring-1 ring-inset',
+              error && !choiceReady(choice) ? 'ring-danger-600' : 'ring-butter-200',
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <input
+                aria-label={t.choiceName}
+                value={choice.name}
+                placeholder={t.choicePlaceholder}
+                maxLength={80}
+                onChange={(event) => change(choice.key, { name: event.target.value })}
+                className="h-11 min-w-0 flex-1 rounded-xl bg-white px-3 text-[0.9375rem] font-bold outline-none placeholder:font-medium placeholder:text-ink-500 focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
+              />
+              <CourseSelect
+                value={choice.course}
+                onChange={(course) => change(choice.key, { course })}
+                className="h-11 rounded-xl bg-white"
+              />
+              <button
+                type="button"
+                aria-label={t.removeChoice}
+                onClick={() => onChange(choices.filter((c) => c.key !== choice.key))}
+                className="press grid size-10 shrink-0 place-items-center rounded-full text-lg text-ink-500 hover:bg-white"
+              >
+                <DeleteIcon fontSize="inherit" />
+              </button>
+            </div>
+            {choice.options.map((option, index) => (
+              <div
+                key={option.key}
+                className="flex flex-col gap-2.5 rounded-[1.5rem] bg-white/70 p-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-butter-300 text-sm font-bold">
+                    {index + 1}
+                  </span>
+                  <input
+                    aria-label={t.option(index + 1)}
+                    value={option.name}
+                    placeholder={index === 0 ? t.optionPlaceholder : t.option(index + 1)}
+                    maxLength={80}
+                    onChange={(event) =>
+                      changeOption(choice, option.key, { name: event.target.value })
+                    }
+                    className="h-10 min-w-0 flex-1 rounded-xl bg-ink-50 px-3 text-[0.9375rem] font-semibold outline-none placeholder:font-medium placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
+                  />
+                  <button
+                    type="button"
+                    aria-label={t.removeOption}
+                    onClick={() =>
+                      change(choice.key, {
+                        options: choice.options.filter((o) => o.key !== option.key),
+                      })
+                    }
+                    className="press grid size-9 shrink-0 place-items-center rounded-full text-ink-500 hover:bg-ink-50"
+                  >
+                    <CloseIcon fontSize="inherit" />
+                  </button>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {option.rows.map((row) => (
+                    <IngredientEditor
+                      key={row.key}
+                      row={row}
+                      onChange={(next) =>
+                        changeOption(choice, option.key, {
+                          rows: option.rows.map((r) => (r.key === row.key ? next : r)),
+                        })
+                      }
+                      onRemove={() =>
+                        changeOption(choice, option.key, {
+                          rows: option.rows.filter((r) => r.key !== row.key),
+                        })
+                      }
+                    />
+                  ))}
+                </ul>
+                <Button
+                  type="button"
+                  variant="tint"
+                  size="sm"
+                  icon={AddIcon}
+                  className="w-fit"
+                  onClick={() =>
+                    changeOption(choice, option.key, { rows: [...option.rows, blankRow()] })
+                  }
+                >
+                  {t.addIngredient}
+                </Button>
+                <label className="flex flex-col gap-1.5">
+                  <span className="px-1 text-[0.8125rem] font-semibold text-ink-700">
+                    {t.optionSteps}
+                  </span>
+                  <textarea
+                    rows={2}
+                    value={option.steps}
+                    placeholder={t.optionStepsPlaceholder}
+                    onChange={(event) =>
+                      changeOption(choice, option.key, { steps: event.target.value })
+                    }
+                    className="min-h-16 resize-y rounded-xl bg-ink-50 px-3 py-2.5 text-[0.9375rem] outline-none placeholder:text-ink-500 focus:bg-white focus:shadow-[inset_0_0_0_2px_var(--color-ink-900)]"
+                  />
+                </label>
+              </div>
+            ))}
+            {choice.options.length < 6 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon={AddIcon}
+                className="w-fit"
+                onClick={() => change(choice.key, { options: [...choice.options, blankOption()] })}
+              >
+                {t.addOption}
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      {error ? (
+        <p className="mt-2 px-1 text-sm font-medium text-danger-600">{t.needTwoOptions}</p>
+      ) : null}
+      {choices.length < 5 ? (
+        <Button
+          type="button"
+          variant="tint"
+          size="md"
+          icon={AddIcon}
+          className="mt-3"
+          onClick={() =>
+            onChange([
+              ...choices,
+              { key: nextKey++, name: '', course: '', options: [blankOption(), blankOption()] },
+            ])
+          }
+        >
+          {t.addChoice}
+        </Button>
+      ) : null}
+    </section>
   );
 }
 

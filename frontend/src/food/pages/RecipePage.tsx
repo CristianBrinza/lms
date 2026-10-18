@@ -28,38 +28,45 @@ import { foodApi, foodKeys } from '../api';
 import { DockBar } from '../components/DockBar';
 import { formatAmount, formatQty, localDate } from '../format';
 import { AddToListSheet } from '../components/AddToListSheet';
+import { chosenOption, cookChoices, linesInUse, sectionsOf, stepsInUse } from '../choices';
+import { ChoiceSwitch } from '../components/ChoiceSwitch';
+import { SectionHeading } from '../components/SectionHeading';
 import { OptionChips } from '../components/OptionChips';
 import { withChoice } from '../options';
 import { openedText } from '../opened';
 import { FoodIcon, FoodIconTile } from '../icons/FoodIcon';
 import { NutritionStrip } from '../components/NutritionStrip';
-import { clockTime, relativeDayInline } from '../plan/i18n';
+import { clockTime, relativeDayInline, usePlanT } from '../plan/i18n';
 import { useRecipesT } from '../recipes.i18n';
-import type { IngredientLine, Recipe, ToolNeed } from '../types';
+import type { IngredientLine, Recipe, RecipeChoice, ToolNeed } from '../types';
 
 /**
  * A recipe, scaled to how many are eating: what's in the kitchen and what's missing (tap it to
  * put it on a list), which kind or what instead (milk, or whipped cream), who must not eat what,
  * the kitchenware it needs and whether it's clean, the steps with a cook mode that keeps the
  * screen on (full screen on a tablet on the counter), and "Cook now", which takes the ingredients
- * out of the kitchen and says what it opened.
+ * out of the kitchen and says what it opened. A part made one way or another (Drink: creamy coffee
+ * or tea) is a segmented choice that swaps its lines and steps.
  */
 export default function RecipePage() {
   const t = useRecipesT();
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [servings, setServings] = useState<number | null>(null);
+  // Coffee or tea: the option picked here per choice (else the recipe's default).
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const options = Object.values(picks);
   const recipe = useQuery({
-    queryKey: foodKeys.recipe(id, servings ?? undefined),
-    queryFn: () => foodApi.recipe(id, servings ?? undefined),
+    queryKey: foodKeys.recipe(id, servings ?? undefined, options.length ? options : undefined),
+    queryFn: () => foodApi.recipe(id, servings ?? undefined, options),
     placeholderData: keepPreviousData,
   });
   const [cooking, setCooking] = useState(false);
-  // Milk or whipped cream: what was picked here, by the ingredient's place (else the recipe's pick).
-  const [choices, setChoices] = useState<Record<number, number>>({});
+  // Milk or whipped cream: what was picked here, by line (else the recipe's pick).
+  const [choices, setChoices] = useState<Record<string, number>>({});
   const data = recipe.data;
   const lines = data
-    ? data.ingredients.map((line, index) => withChoice(line, choices[index] ?? line.chosen))
+    ? linesInUse(data).map((line) => withChoice(line, choices[line.id] ?? line.chosen))
     : [];
 
   const favorite = useMutation({
@@ -156,13 +163,18 @@ export default function RecipePage() {
             lines={lines}
             servings={shown}
             onServings={setServings}
-            onChoose={(index, choice) => setChoices((current) => ({ ...current, [index]: choice }))}
+            onChoose={(lineId, choice) =>
+              setChoices((current) => ({ ...current, [lineId]: choice }))
+            }
+            onPick={(choiceId, optionId) =>
+              setPicks((current) => ({ ...current, [choiceId]: optionId }))
+            }
           />
           <Tools tools={data.tools} />
         </div>
 
         <div className="mt-6 md:mt-0">
-          <Steps recipe={data} servings={shown} />
+          <Steps recipe={data} lines={lines} servings={shown} />
           {notes ? (
             <section className="mt-6">
               <h2 className="text-h3 font-bold">{t.notes}</h2>
@@ -206,7 +218,15 @@ function Actions({ recipe, onCook }: { recipe: Recipe; onCook: () => void }) {
         size="md"
         icon={CalendarIcon}
         fullWidth
-        onClick={() => navigate(`/food/plan?recipe=${recipe.id}`)}
+        onClick={() =>
+          navigate(
+            `/food/plan?recipe=${recipe.id}${
+              recipe.choices.length
+                ? `&options=${recipe.choices.map((choice) => choice.chosen).join(',')}`
+                : ''
+            }`,
+          )
+        }
       >
         {t.planIt}
       </Button>
@@ -223,14 +243,17 @@ function Ingredients({
   servings,
   onServings,
   onChoose,
+  onPick,
 }: {
   recipe: Recipe;
   lines: IngredientLine[];
   servings: number;
   onServings: (value: number) => void;
-  onChoose: (index: number, choice: number) => void;
+  onChoose: (lineId: string, choice: number) => void;
+  onPick: (choiceId: string, optionId: string) => void;
 }) {
   const t = useRecipesT();
+  const plan = usePlanT();
   const queryClient = useQueryClient();
   const [missingLine, setMissingLine] = useState<IngredientLine | null>(null);
   const missing = lines.filter((i) => i.enough === false && !i.optional);
@@ -292,17 +315,40 @@ function Ingredients({
         </div>
       </div>
       <NutritionStrip nutrition={recipe.nutrition} servings={servings} />
-      {recipe.ingredients.length ? (
-        <ul className="mt-3 flex flex-col">
-          {lines.map((line, index) => (
-            <IngredientRow
-              key={line.id}
-              line={line}
-              onMissing={() => setMissingLine(line)}
-              onChoose={(choice) => onChoose(index, choice)}
-            />
-          ))}
-        </ul>
+      {lines.length || recipe.choices.length ? (
+        // By section (Felul doi, Băuturi…): its lines, then its choices with the option in use.
+        sectionsOf(
+          lines.filter((line) => !line.optionId),
+          recipe.choices,
+        ).map((section) => (
+          <div key={section.course ?? '-'} className="mt-3">
+            {section.course ? (
+              <SectionHeading className="px-1">{plan.partKind[section.course]}</SectionHeading>
+            ) : null}
+            {section.lines.length ? (
+              <ul className="flex flex-col">
+                {section.lines.map((line) => (
+                  <IngredientRow
+                    key={line.id}
+                    line={line}
+                    onMissing={() => setMissingLine(line)}
+                    onChoose={(choice) => onChoose(line.id, choice)}
+                  />
+                ))}
+              </ul>
+            ) : null}
+            {section.choices.map((choice) => (
+              <ChoiceBlock
+                key={choice.id}
+                choice={choice}
+                lines={lines.filter((line) => line.optionId === choice.chosen)}
+                onPick={(optionId) => onPick(choice.id, optionId)}
+                onMissing={setMissingLine}
+                onChoose={onChoose}
+              />
+            ))}
+          </div>
+        ))
       ) : (
         <p className="mt-3 px-1 text-sm text-ink-600">{t.noIngredients}</p>
       )}
@@ -328,6 +374,42 @@ function Ingredients({
       ) : null}
       <AddToListSheet line={missingLine} onClose={() => setMissingLine(null)} />
     </section>
+  );
+}
+
+/** A part made one way or another: the switch, then the lines of the option in use. */
+function ChoiceBlock({
+  choice,
+  lines,
+  onPick,
+  onMissing,
+  onChoose,
+}: {
+  choice: RecipeChoice;
+  lines: IngredientLine[];
+  onPick: (optionId: string) => void;
+  onMissing: (line: IngredientLine) => void;
+  onChoose: (lineId: string, choice: number) => void;
+}) {
+  return (
+    <div className="mt-2 rounded-[1.5rem] bg-butter-50 p-3 pb-1">
+      <ChoiceSwitch
+        choice={choice}
+        value={choice.chosen}
+        onChange={onPick}
+        ready={Object.fromEntries(choice.options.map((o) => [o.id, o.availability.ready]))}
+      />
+      <ul className="mt-1 flex flex-col">
+        {lines.map((line) => (
+          <IngredientRow
+            key={line.id}
+            line={line}
+            onMissing={() => onMissing(line)}
+            onChoose={(value) => onChoose(line.id, value)}
+          />
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -534,9 +616,30 @@ function useWakeLock(on: boolean) {
   }, [on]);
 }
 
-function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
+function Steps({
+  recipe,
+  lines,
+  servings,
+}: {
+  recipe: Recipe;
+  lines: IngredientLine[];
+  servings: number;
+}) {
   const t = useRecipesT();
-  const steps = tr(recipe, 'steps');
+  const own = tr(recipe, 'steps');
+  // Each option in use adds its own steps after the recipe's, under its name.
+  const groups = recipe.choices.flatMap((choice) => {
+    const option = chosenOption(choice);
+    const steps = option ? tr(option, 'steps') : [];
+    return option && steps.length ? [{ id: option.id, title: tr(option, 'name'), steps }] : [];
+  });
+  const steps = stepsInUse(own, recipe.choices, (option) => tr(option, 'steps'));
+  // Where each option's steps start: its name above them.
+  const starts = new Map<number, string>();
+  groups.reduce((at, group) => {
+    starts.set(at, group.title);
+    return at + group.steps.length;
+  }, own.length);
   const [cookMode, setCookMode] = useState(false);
   const [done, setDone] = useState<Set<number>>(new Set());
   const toggle = (index: number) =>
@@ -559,8 +662,12 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
       <ol className="mt-3 flex flex-col gap-2.5">
         {steps.map((step, index) => {
           const isDone = done.has(index);
+          const heading = starts.get(index);
           return (
             <li key={index}>
+              {heading ? (
+                <h3 className="mb-2 mt-2 px-1 text-[0.9375rem] font-bold">{heading}</h3>
+              ) : null}
               <button
                 type="button"
                 onClick={() => toggle(index)}
@@ -593,7 +700,13 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
         })}
       </ol>
       {cookMode ? (
-        <CookMode recipe={recipe} servings={servings} onClose={() => setCookMode(false)} />
+        <CookMode
+          recipe={recipe}
+          steps={steps}
+          lines={lines}
+          servings={servings}
+          onClose={() => setCookMode(false)}
+        />
       ) : null}
     </section>
   );
@@ -606,15 +719,20 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
  */
 function CookMode({
   recipe,
+  steps,
+  lines,
   servings,
   onClose,
 }: {
   recipe: Recipe;
+  /** The recipe's steps and those of the options in use. */
+  steps: string[];
+  /** The lines in use: its own and the chosen options'. */
+  lines: IngredientLine[];
   servings: number;
   onClose: () => void;
 }) {
   const t = useRecipesT();
-  const steps = tr(recipe, 'steps');
   const title = tr(recipe, 'title');
   const [step, setStep] = useState(0);
   const [added, setAdded] = useState<Set<string>>(new Set());
@@ -653,7 +771,7 @@ function CookMode({
         <aside className="hidden w-[18rem] shrink-0 overflow-y-auto rounded-[1.75rem] bg-white p-3 md:block lg:w-[22rem]">
           <h2 className="px-1 text-[0.9375rem] font-bold">{t.ingredients}</h2>
           <ul className="mt-1">
-            {recipe.ingredients.map((line) => {
+            {lines.map((line) => {
               const on = added.has(line.id);
               return (
                 <li key={line.id}>
@@ -763,11 +881,8 @@ function CookSheet({
   const blocked = lines.filter(
     (line) => line.alternatives.length && !line.optional && line.enough === false,
   );
-  const choices = Object.fromEntries(
-    lines.flatMap((line, index) =>
-      line.alternatives.length ? [[String(index), line.chosen]] : [],
-    ),
-  );
+  // By position among the lines in use: the recipe's, then each chosen option's.
+  const choices = cookChoices(lines);
   const queryClient = useQueryClient();
   const [leftovers, setLeftovers] = useState(0);
   const cook = useMutation({
@@ -775,6 +890,9 @@ function CookSheet({
       foodApi.cook(recipe.id, {
         servings,
         choices,
+        ...(recipe.choices.length
+          ? { options: recipe.choices.map((choice) => choice.chosen) }
+          : {}),
         ...(leftovers ? { leftovers: { portions: leftovers } } : {}),
       }),
     onSuccess: ({ meal, shortfalls, opened }) => {

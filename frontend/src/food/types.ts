@@ -289,6 +289,15 @@ export interface IngredientLine {
   lotId: string | null;
   /** The meal part it belongs to (meals only). */
   partId: string | null;
+  /** The recipe choice's option it comes with (Creamy coffee); null: always used. */
+  optionId: string | null;
+  /** The section of the meal it is for (drink, first, dish…); null: none named. */
+  course: PartKind | null;
+  /**
+   * Planned meals, optional lines: true counts it this time (needed, eaten, taken), false leaves
+   * it out; null: as usual (taken if there, never needed).
+   */
+  included: boolean | null;
   /** Only this type will do ('' for any). */
   variant: string;
   /** Or one of these instead, in order. */
@@ -396,14 +405,51 @@ export interface Recipe {
   createdAt: string;
   updatedAt: string;
   shownServings: number;
+  /** Its own lines, always used; each choice's options carry theirs. */
   ingredients: IngredientLine[];
+  /** Of its own lines and the chosen options'. */
   availability: Availability;
+  /** Parts made one way or another (Drink: creamy coffee or tea). */
+  choices: RecipeChoice[];
   tools: ToolNeed[];
   timesCooked: number;
   lastCooked: string | null;
   nutrition: DishNutrition;
   /** Its title, description, steps and notes in other languages (shown with `tr`). */
   translations?: Translations;
+}
+
+/** One way to make a choice: its own lines and steps, and whether it can be made now. */
+export interface RecipeOption {
+  id: string;
+  name: string;
+  /** Its name and steps in other languages ({ ro: { name, steps } }). */
+  translations?: Translations;
+  steps: string[];
+  ingredients: IngredientLine[];
+  availability: Availability;
+}
+
+export interface RecipeChoice {
+  id: string;
+  name: string;
+  /** The section it is in (drink); null: none named. */
+  course: PartKind | null;
+  translations?: Translations;
+  options: RecipeOption[];
+  /** In use: asked for, else picked last time, else the first. */
+  chosen: string;
+  remembered: string | null;
+}
+
+export interface MealPartChoice {
+  id: string;
+  name: string;
+  course: PartKind | null;
+  translations?: Translations;
+  options: Array<{ id: string; name: string; translations?: Translations }>;
+  /** The option this meal makes; null: none. */
+  chosen: string | null;
 }
 
 export interface Meal {
@@ -435,7 +481,8 @@ export interface Meal {
   translations?: Translations;
 }
 
-export type PartKind = 'dish' | 'side' | 'sauce' | 'drink';
+/** A meal's sections in eating order; dish is the second (main) course. */
+export type PartKind = 'first' | 'dish' | 'side' | 'sauce' | 'dessert' | 'drink';
 export type OutKind = 'restaurant' | 'delivery' | 'party' | 'work' | 'other';
 
 export interface MealPart {
@@ -447,6 +494,8 @@ export interface MealPart {
   kind: PartKind;
   servings: number;
   icon: string;
+  /** Its recipe's choices and the option this meal makes. */
+  choices: MealPartChoice[];
 }
 
 export interface MealPartInput {
@@ -455,6 +504,8 @@ export interface MealPartInput {
   kind?: PartKind;
   servings?: number;
   ingredients?: IngredientInput[];
+  /** Options of its recipe's choices, by id. */
+  options?: string[];
 }
 
 export type ToolKind =
@@ -633,6 +684,11 @@ export interface IngredientInput {
   link?: boolean;
   lotId?: string | null;
   partId?: string | null;
+  optionId?: string | null;
+  included?: boolean | null;
+  course?: PartKind | null;
+  /** Its name in other languages, for a line not kept in the kitchen ({ ro: { name: 'Apă' } }). */
+  translations?: Translations;
   variant?: string;
   or?: Array<{
     productId?: string;
@@ -657,8 +713,24 @@ export interface RecipeInput {
   favorite?: boolean;
   ingredients?: IngredientInput[];
   tools?: ToolNeedInput[];
+  /** Replaces the choices; ids keep them (and what was picked last time). */
+  choices?: RecipeChoiceInput[];
   /** Per language: title, description, notes (strings) and steps (an array). */
   translations?: Translations;
+}
+
+export interface RecipeChoiceInput {
+  id?: string;
+  name: string;
+  course?: PartKind | null;
+  translations?: Translations;
+  options: Array<{
+    id?: string;
+    name: string;
+    ingredients?: IngredientInput[];
+    steps?: string[];
+    translations?: Translations;
+  }>;
 }
 
 export interface KitchenPerson {

@@ -9,6 +9,7 @@ import { foodCtx, requireKitchen } from './kitchen';
 import {
   addMealPart,
   ateNow,
+  chooseMealOption,
   completeMeal,
   cookRecipe,
   deleteMeal,
@@ -19,6 +20,7 @@ import {
   removeMealPart,
   reopenMeal,
   setLineChoice,
+  setLineIncluded,
   setMealIngredients,
   uncookMeal,
   updateMeal,
@@ -72,6 +74,8 @@ import {
   LevelInput,
   LotPatch,
   ChoiceInput,
+  IncludedInput,
+  MealOptionInput,
   EatOutInput,
   MealIngredientsInput,
   MealInput,
@@ -300,11 +304,19 @@ export function foodRoutes(deps: AppDeps) {
     c.json({ recipe: await createRecipe(ctx(c), await readJson(c, RecipeInput)) }, 201),
   );
   app.get('/recipes/:id', async (c) => {
-    const { servings } = readQuery(
+    const { servings, options } = readQuery(
       c,
-      z.object({ servings: z.coerce.number().int().min(1).max(100).optional() }),
+      z.object({
+        servings: z.coerce.number().int().min(1).max(100).optional(),
+        // The options to show in use, comma-separated ids (or names).
+        options: z.string().max(1000).optional(),
+      }),
     );
-    return c.json({ recipe: await getRecipe(ctx(c), c.req.param('id'), servings) });
+    const picks = options
+      ?.split(',')
+      .map((pick) => pick.trim())
+      .filter(Boolean);
+    return c.json({ recipe: await getRecipe(ctx(c), c.req.param('id'), servings, picks) });
   });
   app.patch('/recipes/:id', async (c) =>
     c.json({
@@ -349,6 +361,26 @@ export function foodRoutes(deps: AppDeps) {
         c.req.param('id'),
         c.req.param('lineId'),
         (await readJson(c, ChoiceInput)).choice,
+      ),
+    }),
+  );
+  app.put('/meals/:id/ingredients/:lineId/included', async (c) =>
+    c.json({
+      meal: await setLineIncluded(
+        ctx(c),
+        c.req.param('id'),
+        c.req.param('lineId'),
+        (await readJson(c, IncludedInput)).included,
+      ),
+    }),
+  );
+  app.put('/meals/:id/parts/:partId/option', async (c) =>
+    c.json({
+      meal: await chooseMealOption(
+        ctx(c),
+        c.req.param('id'),
+        (await readJson(c, MealOptionInput)).option,
+        c.req.param('partId'),
       ),
     }),
   );

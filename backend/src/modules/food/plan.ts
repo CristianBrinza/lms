@@ -1,7 +1,7 @@
 import type { Translations } from '../../lib/i18n';
 import { allocatePlan } from './allocation';
 import { combine, onlyFields } from './catalog-i18n';
-import { ingredientRows, lineTranslations, stockSnapshot } from './ingredients';
+import { ingredientRows, lineCounts, lineTranslations, stockSnapshot } from './ingredients';
 import type { FoodCtx } from './kitchen';
 import { CATEGORIES, type Category, type FoodIcon } from './presets';
 import type { Product } from './products';
@@ -39,7 +39,7 @@ export interface NeedLine {
   toBuyAmount: number;
   toBuyUnit: Unit;
   storeId: string | null;
-  /** Level items: low or out (toBuy is then one, with no amount). */
+  /** Level items: low or out (toBuy is then one, with no amount). Full and half aren't needs. */
   level: 'low' | 'out' | null;
   /** The first day something is short (the meal's day): buy it before. */
   needBy: string | null;
@@ -71,7 +71,7 @@ function levelLine(product: Product, total: number, needBy: string): NeedLine {
     toBuyAmount: 1,
     toBuyUnit: 'pcs',
     storeId: product.storeId,
-    level: product.level === 'full' ? null : product.level,
+    level: product.level === 'low' || product.level === 'out' ? product.level : null,
     needBy,
     meals: [],
   };
@@ -107,7 +107,7 @@ export async function planNeeds(
       date: meal.date,
     };
     for (const row of ingredients.get(meal.id) ?? []) {
-      if (row.optional) continue;
+      if (!lineCounts(row)) continue;
       // The option this meal takes (milk, or the whipped cream picked or used instead).
       const option = allocation.lines.get(row.id)?.option ?? 0;
       const productId =
@@ -119,7 +119,7 @@ export async function planNeeds(
       const product = info.product;
       if (product.trackMode === 'level') {
         // Not measured: on the list when it is low or out, needed by the first meal using it.
-        if (product.level === 'full') continue;
+        if (product.level !== 'low' && product.level !== 'out') continue;
         const line = lines.get(product.id) ?? levelLine(product, info.total, meal.date);
         if (!line.meals.some((m) => m.id === meal.id)) line.meals.push(ref);
         lines.set(product.id, line);

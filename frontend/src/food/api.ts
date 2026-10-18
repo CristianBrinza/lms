@@ -55,7 +55,8 @@ export const foodKeys = {
   trips: ['food', 'trips'] as const,
   trip: (id: string) => ['food', 'trip', id] as const,
   recipes: ['food', 'recipes'] as const,
-  recipe: (id: string, servings?: number) => ['food', 'recipe', id, servings ?? null] as const,
+  recipe: (id: string, servings?: number, options?: string[]) =>
+    ['food', 'recipe', id, servings ?? null, options?.join(',') ?? null] as const,
   meals: (from: string, to: string) => ['food', 'meals', from, to] as const,
   needs: (from: string, to: string) => ['food', 'needs', from, to] as const,
   keys: ['me', 'keys'] as const,
@@ -109,6 +110,8 @@ export interface MealBody {
   note?: string;
   toGo?: boolean;
   ingredients?: IngredientInput[];
+  /** Options of the recipe's choices, by id. */
+  options?: string[];
   parts?: MealPartInput[];
   out?: { kind: OutKind; place?: string; cost?: number | null };
 }
@@ -250,8 +253,12 @@ export const foodApi = {
     ),
 
   recipes: () => api.get<{ recipes: Recipe[] }>('/food/recipes').then((r) => r.recipes),
-  recipe: (id: string, servings?: number) =>
-    api.get<{ recipe: Recipe }>(`/food/recipes/${id}${query({ servings })}`).then((r) => r.recipe),
+  recipe: (id: string, servings?: number, options?: string[]) =>
+    api
+      .get<{
+        recipe: Recipe;
+      }>(`/food/recipes/${id}${query({ servings, options: options?.length ? options.join(',') : undefined })}`)
+      .then((r) => r.recipe),
   createRecipe: (body: RecipeInput) =>
     api.post<{ recipe: Recipe }>('/food/recipes', body).then((r) => r.recipe),
   updateRecipe: (id: string, body: Partial<RecipeInput>) =>
@@ -259,7 +266,12 @@ export const foodApi = {
   deleteRecipe: (id: string) => api.delete<void>(`/food/recipes/${id}`),
   cook: (
     id: string,
-    body: { servings?: number; leftovers?: { portions: number }; choices?: Record<string, number> },
+    body: {
+      servings?: number;
+      leftovers?: { portions: number };
+      choices?: Record<string, number>;
+      options?: string[];
+    },
   ) =>
     api.post<{ meal: Meal; shortfalls: Shortfall[]; opened: Opened[] }>(
       `/food/recipes/${id}/cook`,
@@ -288,6 +300,14 @@ export const foodApi = {
   setChoice: (mealId: string, lineId: string, choice: number | null) =>
     api
       .put<{ meal: Meal }>(`/food/meals/${mealId}/ingredients/${lineId}/choice`, { choice })
+      .then((r) => r.meal),
+  setIncluded: (mealId: string, lineId: string, included: boolean | null) =>
+    api
+      .put<{ meal: Meal }>(`/food/meals/${mealId}/ingredients/${lineId}/included`, { included })
+      .then((r) => r.meal),
+  setOption: (mealId: string, partId: string, option: string) =>
+    api
+      .put<{ meal: Meal }>(`/food/meals/${mealId}/parts/${partId}/option`, { option })
       .then((r) => r.meal),
   addPart: (mealId: string, body: MealPartInput) =>
     api.post<{ meal: Meal }>(`/food/meals/${mealId}/parts`, body).then((r) => r.meal),

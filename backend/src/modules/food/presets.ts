@@ -433,12 +433,12 @@ export function freezingFor(item: {
 }
 
 /**
- * exact: amounts and dates, lot by lot (meat, cheese, each steak). level: just full, low or out
+ * exact: amounts and dates, lot by lot (meat, cheese, each steak). level: just full, half, low or out
  * (spices, sauces, oil): never weighed, never deducted, on the list when low. none: always there.
  */
 export const TRACK_MODES = ['exact', 'level', 'none'] as const;
 export type TrackMode = (typeof TRACK_MODES)[number];
-export const LEVELS = ['full', 'low', 'out'] as const;
+export const LEVELS = ['full', 'half', 'low', 'out'] as const;
 export type Level = (typeof LEVELS)[number];
 
 /** Days once opened, for the presets where it matters. */
@@ -1035,7 +1035,7 @@ const RAW_PRESETS: readonly Preset[] = [
   ]),
   P('Hummus', 'jar', 'snacks', 'g', 'fridge', 7, undefined, ['хумус']),
   // The house: bathroom, cleaning, laundry, paper, pets and the rest. Counted things (rolls,
-  // tablets, cartridges) are counted; bottles are kept by level (full / low / out).
+  // tablets, cartridges) are counted; bottles are kept by level (full / half / low / out).
   P('Shampoo', 'shampoo', 'bathroom', 'ml', 'bathroom', undefined, undefined, [
     'șampon',
     'sampon',
@@ -2233,7 +2233,7 @@ export const PRESETS: readonly Preset[] = RAW_PRESETS.map((preset) => ({
   ...(EXTRA[preset.name] ?? {}),
   ...(OPENED[preset.name] ? { openedDays: OPENED[preset.name] } : {}),
   // Bottles (oils, sauces, vinegar, essences) are counted in ml, so recipes take off what they use;
-  // dry spices by the jar stay full / low / out.
+  // dry spices by the jar stay full / half / low / out.
   ...((preset.category === 'spices' && preset.unit !== 'ml') ||
   BY_LEVEL.has(preset.name) ||
   (areaOf(preset.category) === 'house' && preset.unit === 'ml')

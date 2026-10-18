@@ -37,10 +37,13 @@ How it works
 - Real portions: coffee is weighed (about 10 g a cup; 20 g of beans and 300 g of milk make two lattes); a recipe for drinks is a recipe like any other (tags: drink).
 - pour moves some of one lot into another (the big oil bottle into the small one on the desk).
 - A meal can have several parts (add_meal_part): a dish, sides, sauces, drinks, each from a recipe or named with its own ingredients.
+- Courses: a meal is made of sections — first course, second (dish), side, sauce, dessert, drinks — any of them (just a coffee is drinks only). A meal part's kind is its course; a recipe of several courses gives each ingredient and each choice its course (breakfast: eggs on toast in dish, the coffee-or-tea choice in drink).
+- A recipe can have choices: a part made one way or another, several ingredients at once (breakfast's Drink: creamy coffee or tea), each option with its own ingredients and steps (save_recipe choices). Planning or cooking takes the option named (options: ["Tea"]), else the one picked last time, else the first; only its ingredients are needed, bought, counted and taken. Switch a planned meal's option with choose_meal_option. One swapped item (milk or cream) stays an ingredient's or.
+- An optional line of a planned meal can be switched on or off for that meal (include_ingredient): off, it is left out of the shopping, nutrition and what cooking takes.
 - Opening a package (or cooking part of it) shortens its expiry and moves it where it belongs once open; complete_meal reports what it opened — suggest using those soon.
 - Kitchenware (list_kitchenware): pots, pans, glasses, even pens, with clean / dirty / in the dishwasher. Recipes list the kitchenware they need (tools); cooking makes it dirty; wash_kitchenware by hand or machine. Warn when a planned meal's kitchenware is dirty.
 - Stock is kept as lots: each steak or package is its own lot with its own expiry. Using stock takes the lot you name, else opened lots first, then the soonest to expire.
-- Spices, sauces, oil and similar are kept by level instead (trackedBy: level): full, low or out — set it with set_level; they are never weighed or deducted. Buying one makes it full again.
+- Spices, sauces, oil and similar are kept by level instead (trackedBy: level): full, half (medium), low or out — set it with set_level; they are never weighed or deducted. Buying one makes it full again.
 - Moving a lot to the freezer (update_lot location: freezer) resets its expiry to the item's frozen days; taking it out gives it the thawed days.
 - A meal copies its recipe's ingredients, scaled to its servings; change them for that day with update_meal (e.g. pick a lotId). complete_meal takes them from the kitchen and can keep leftovers; reopen_meal undoes it.
 - plan_needs says what to buy for planned meals, minus stock and what is already listed. Add those lines with add_to_shopping_list (source "plan"), to each item's usual store unless told otherwise.

@@ -269,7 +269,7 @@ async function eatenByDay(
   }
   if (!cooked.length) return out;
   const { rows: lines } = await ctx.db.query<MealLineRow>(
-    `SELECT meal_id, product_id, amount, unit, variant, choice, alternatives FROM meal_ingredients WHERE meal_id = ANY($1::uuid[]) AND NOT optional`,
+    `SELECT meal_id, product_id, amount, unit, variant, choice, alternatives FROM meal_ingredients WHERE meal_id = ANY($1::uuid[]) AND coalesce(included, NOT optional)`,
     [cooked.map((m) => m.id)],
   );
   const ids = new Set<string>();

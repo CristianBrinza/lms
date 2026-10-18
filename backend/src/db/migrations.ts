@@ -1226,6 +1226,69 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE watch_episode_marks ADD COLUMN reactions text[] NOT NULL DEFAULT '{}';
     `,
   },
+  {
+    version: 39,
+    name: 'food: a fourth level, half (medium), between full and low',
+    sql: `
+      -- The inline CHECK from migration 4 got Postgres's default name, products_level_check.
+      ALTER TABLE products DROP CONSTRAINT IF EXISTS products_level_check;
+      ALTER TABLE products ADD CONSTRAINT products_level_check
+        CHECK (level IN ('full', 'half', 'low', 'out'));
+    `,
+  },
+  {
+    version: 40,
+    name: 'food: recipe choices (Drink: creamy coffee or tea) with their own lines and steps; courses; translated lines; optional lines switched on or off per meal',
+    sql: `
+      -- A named group of alternative parts of a recipe; one option is used per meal.
+      CREATE TABLE recipe_choices (
+        id uuid PRIMARY KEY,
+        recipe_id uuid NOT NULL REFERENCES recipes (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        translations jsonb NOT NULL DEFAULT '{}'::jsonb,
+        sort integer NOT NULL DEFAULT 0,
+        -- The option picked last time (planned, switched or cooked): the default next time.
+        last_option_id uuid
+      );
+      CREATE INDEX recipe_choices_recipe_idx ON recipe_choices (recipe_id, sort);
+
+      CREATE TABLE recipe_options (
+        id uuid PRIMARY KEY,
+        choice_id uuid NOT NULL REFERENCES recipe_choices (id) ON DELETE CASCADE,
+        name text NOT NULL,
+        steps text[] NOT NULL DEFAULT '{}',
+        translations jsonb NOT NULL DEFAULT '{}'::jsonb,
+        sort integer NOT NULL DEFAULT 0
+      );
+      CREATE INDEX recipe_options_choice_idx ON recipe_options (choice_id, sort);
+      ALTER TABLE recipe_choices ADD CONSTRAINT recipe_choices_last_option_fkey
+        FOREIGN KEY (last_option_id) REFERENCES recipe_options (id) ON DELETE SET NULL;
+
+      -- An option's own lines; NULL: the recipe's lines, always used.
+      ALTER TABLE recipe_ingredients ADD COLUMN option_id uuid REFERENCES recipe_options (id) ON DELETE CASCADE;
+      CREATE INDEX recipe_ingredients_option_idx ON recipe_ingredients (option_id) WHERE option_id IS NOT NULL;
+      -- A meal copies only the chosen options' lines, each knowing its option, and keeps which were chosen.
+      ALTER TABLE meal_ingredients ADD COLUMN option_id uuid REFERENCES recipe_options (id) ON DELETE SET NULL;
+      ALTER TABLE meal_parts ADD COLUMN options uuid[] NOT NULL DEFAULT '{}';
+      -- Courses: a meal (and a recipe) is made of sections — first course, second (dish), side,
+      -- sauce, dessert, drinks. Meal parts gain the new kinds; lines and choices can name theirs.
+      ALTER TABLE meal_parts DROP CONSTRAINT IF EXISTS meal_parts_kind_check;
+      ALTER TABLE meal_parts ADD CONSTRAINT meal_parts_kind_check
+        CHECK (kind IN ('first', 'dish', 'side', 'sauce', 'dessert', 'drink'));
+      ALTER TABLE recipe_choices ADD COLUMN course text
+        CHECK (course IN ('first', 'dish', 'side', 'sauce', 'dessert', 'drink'));
+      ALTER TABLE recipe_ingredients ADD COLUMN course text
+        CHECK (course IN ('first', 'dish', 'side', 'sauce', 'dessert', 'drink'));
+      ALTER TABLE meal_ingredients ADD COLUMN course text
+        CHECK (course IN ('first', 'dish', 'side', 'sauce', 'dessert', 'drink'));
+      -- A line's own name in other languages (Water: Apă, Вода), for lines not kept in the kitchen.
+      ALTER TABLE recipe_ingredients ADD COLUMN translations jsonb NOT NULL DEFAULT '{}'::jsonb;
+      ALTER TABLE meal_ingredients ADD COLUMN translations jsonb NOT NULL DEFAULT '{}'::jsonb;
+      -- An optional line switched for one meal: true counts it like any line (needed, bought,
+      -- eaten, taken), false leaves it out everywhere; NULL: as before (taken if there, not needed).
+      ALTER TABLE meal_ingredients ADD COLUMN included boolean;
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

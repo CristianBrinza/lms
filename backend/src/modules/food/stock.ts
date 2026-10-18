@@ -4,7 +4,7 @@ import { isUuid } from '../users';
 import type { Translations } from '../../lib/i18n';
 import { variantTranslations, type KindNames } from './catalog-i18n';
 import type { FoodCtx } from './kitchen';
-import { freezingFor, OPENED_BY_CATEGORY, type Level, type Location } from './presets';
+import { freezingFor, LEVELS, OPENED_BY_CATEGORY, type Level, type Location } from './presets';
 import {
   findProduct,
   PRODUCT_COLUMNS,
@@ -91,7 +91,7 @@ export function serverNote(note: string, kind?: string): ServerNote | null {
   if (!note) return null;
   const fixed = FIXED_NOTES[note];
   if (fixed) return { key: fixed, values: {} };
-  if (kind === 'level' && (note === 'full' || note === 'low' || note === 'out'))
+  if (kind === 'level' && (LEVELS as readonly string[]).includes(note))
     return { key: 'level', values: { level: note } };
   const moved = /^([a-z]+) → ([a-z]+)(?:, keeps until (\d{4}-\d{2}-\d{2}))?$/.exec(note);
   if (moved && kind !== undefined && kind === 'moved')
@@ -242,7 +242,7 @@ function defaultExpiry(product: Product, location: Location, now: Date): string 
 }
 
 /**
- * Sets a level item's level (full, low, out). Level items have no lots: buying one makes it full,
+ * Sets a level item's level (full, half, low, out). Level items have no lots: buying one makes it full,
  * and people say when it runs low or out.
  */
 export async function setLevel(ctx: FoodCtx, productId: string, level: Level): Promise<Product> {
@@ -252,7 +252,7 @@ export async function setLevel(ctx: FoodCtx, productId: string, level: Level): P
       throw new AppError(
         409,
         'NOT_LEVEL',
-        `${product.name} is counted in amounts; change it to “full / low / out” first`,
+        `${product.name} is counted in amounts; change it to “full / half / low / out” first`,
       );
     await tx.db.query(
       'UPDATE products SET level = $2, level_at = $3, archived_at = NULL WHERE id = $1',
@@ -773,7 +773,7 @@ export function stocked(product: Product, lots: Lot[]): StockedProduct {
       .sort()[0] ?? null;
   const low =
     product.trackMode === 'level'
-      ? product.level !== 'full'
+      ? product.level === 'low' || product.level === 'out'
       : product.minStock !== null && product.minStock > 0 && total < product.minStock;
   return { ...product, total, lots, nextExpiry, low };
 }

@@ -1,12 +1,12 @@
 import { findPreset, kindIcon, sameName } from './presets';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../lib/errors';
-import type { Translations } from '../../lib/i18n';
+import { cleanTranslations, type Translations } from '../../lib/i18n';
 import type { LineAllocation, PlannedMealRef } from './allocation';
-import { combine, onlyFields, variantTranslations } from './catalog-i18n';
+import { combine, onlyFields, presetTranslations, variantTranslations } from './catalog-i18n';
 import { warningsFor, type Restriction, type Warning } from './restrictions';
 import type { FoodCtx } from './kitchen';
-import type { FoodIcon } from './presets';
+import type { FoodIcon, Level } from './presets';
 import {
   findProduct,
   kindNamesOf,
@@ -18,7 +18,7 @@ import {
   type Product,
   type ProductRow,
 } from './products';
-import type { IngredientInput, MealIngredientInput } from './schemas';
+import type { Course, IngredientInput, MealIngredientInput } from './schemas';
 import { localDate } from './stock';
 import { canConvert, round, toBase, type BaseUnit } from './units';
 
@@ -35,6 +35,15 @@ export interface IngredientLine {
   lotId: string | null;
   /** The meal part it belongs to (meals only). */
   partId: string | null;
+  /** The recipe choice's option it comes with (Creamy coffee); null: always used. */
+  optionId: string | null;
+  /** The section of the meal it is for (drink, first, dish…); null: none named. */
+  course: Course | null;
+  /**
+   * An optional line switched for this meal: true counts it like any line, false leaves it out
+   * (not needed, bought, eaten or taken); null: as usual (taken if there, never needed).
+   */
+  included: boolean | null;
   /** Only this type will do (Finlandia); '' for any. */
   variant: string;
   /** Or one of these instead, in order. */
@@ -77,8 +86,8 @@ export interface IngredientLine {
   optional: boolean;
   /** In stock now, in the product's base unit; null when not linked or not counted. */
   inStock: number | null;
-  /** For level items: full, low or out. */
-  level: 'full' | 'low' | 'out' | null;
+  /** For level items: full, half, low or out. */
+  level: Level | null;
   baseUnit: BaseUnit | null;
   /** Enough in stock for this line (null when it isn't checked). */
   enough: boolean | null;
@@ -120,7 +129,11 @@ export function lineTranslations(
   product: Product | undefined,
   variant: string | undefined,
 ): Translations {
-  if (!product) return {};
+  // Not kept in the kitchen (tap water): the catalog's names for it, when it is a known thing.
+  if (!product) {
+    const known = findPreset(name);
+    return known && sameName(known.name, name) ? presetTranslations(known.name) : {};
+  }
   const preset = findPreset(name);
   const same =
     namesOf(product).some((other) => sameName(other, name)) ||
@@ -138,6 +151,14 @@ export interface IngredientRow {
   lot_id?: string | null;
   /** Which part of a meal the line belongs to (meals only; null: the meal's own). */
   part_id?: string | null;
+  /** The recipe choice's option the line belongs to (null: always used). */
+  option_id?: string | null;
+  /** The section of the meal it is for; null: none named. */
+  course?: Course | null;
+  /** Its own name in other languages (lines not kept in the kitchen: Water, Apă). */
+  translations?: Translations | null;
+  /** Planned meals: an optional line switched on (true) or off (false); null: as usual. */
+  included?: boolean | null;
   name: string;
   /** Only this type will do; '' for any. */
   variant?: string;
@@ -151,6 +172,18 @@ export interface IngredientRow {
   optional: boolean;
   sort: number;
 }
+
+/**
+ * Whether a line counts for what is needed, bought and eaten: a line that isn't optional, or an
+ * optional one switched on for the meal. One switched off counts for nothing, not even cooking.
+ */
+export function lineCounts(row: { optional: boolean; included?: boolean | null }): boolean {
+  if (row.included === false) return false;
+  return row.included === true || !row.optional;
+}
+
+/** Whether cooking takes it from the kitchen: everything but an optional line switched off. */
+export const lineTaken = (row: { included?: boolean | null }) => row.included !== false;
 
 export interface Alternative {
   product_id: string | null;
@@ -340,12 +373,19 @@ export function describeLines(
       reservedFor = null;
     }
     const expiresSoon = Boolean(info?.nextExpiry && info.nextExpiry <= soon && total > 0);
-    const translations = lineTranslations(row.name, info?.product, row.variant);
+    // What the recipe wrote for it in other languages wins over the kitchen's names.
+    const translations = combine(
+      lineTranslations(row.name, info?.product, row.variant),
+      row.translations,
+    );
     lines.push({
       id: row.id,
       productId: row.product_id,
       lotId: row.lot_id ?? null,
       partId: row.part_id ?? null,
+      optionId: row.option_id ?? null,
+      course: row.course ?? null,
+      included: row.optional ? (row.included ?? null) : null,
       variant: row.variant ?? '',
       alternatives,
       mainEnough,
@@ -370,6 +410,8 @@ export function describeLines(
       expiresSoon,
       warnings: warningsFor(options.restrictions ?? [], info?.product),
     });
+    // Left out of this meal: nothing about it counts.
+    if (!lineTaken(row)) continue;
     if (expiresSoon) availability.useSoon += 1;
     for (const warning of warningsFor(options.restrictions ?? [], info?.product))
       availability.warnings.push({
@@ -377,7 +419,7 @@ export function describeLines(
         item: row.name,
         translations: onlyFields(translations, ['name'], { name: 'item' }),
       });
-    if (!counted || row.optional) continue;
+    if (!counted || !lineCounts(row)) continue;
     availability.total += 1;
     if (enough) availability.have += 1;
     else if (pick?.productId)
@@ -443,6 +485,8 @@ export async function resolveIngredients(
       lotId = input.lotId;
     }
     const partId = 'partId' in input ? (input.partId ?? null) : null;
+    const optionId = 'optionId' in input ? (input.optionId ?? null) : null;
+    const included = 'included' in input && input.optional ? (input.included ?? null) : null;
     const alternatives: Alternative[] = [];
     for (const alt of input.or ?? []) {
       const named = alt.productId
@@ -468,6 +512,10 @@ export async function resolveIngredients(
       product_id: product?.id ?? null,
       lot_id: lotId,
       part_id: partId,
+      option_id: optionId,
+      course: input.course ?? null,
+      translations: cleanTranslations(input.translations),
+      included,
       variant,
       alternatives,
       choice,
@@ -489,7 +537,9 @@ export async function insertIngredientRows(
   rows: Array<Omit<IngredientRow, 'id' | 'owner_id'>>,
 ): Promise<void> {
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
-  await ctx.db.query(`DELETE FROM ${table} WHERE ${owner} = $1`, [ownerId]);
+  // A recipe's own lines; its choices' options keep theirs.
+  const own = table === 'recipe_ingredients' ? ' AND option_id IS NULL' : '';
+  await ctx.db.query(`DELETE FROM ${table} WHERE ${owner} = $1${own}`, [ownerId]);
   await appendIngredientRows(ctx, table, ownerId, rows);
 }
 
@@ -503,7 +553,8 @@ export async function appendIngredientRows(
   for (const row of rows) {
     if (table === 'recipe_ingredients') {
       await ctx.db.query(
-        `INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort, variant, alternatives) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        `INSERT INTO recipe_ingredients (id, recipe_id, product_id, name, amount, unit, note, optional, sort, variant, alternatives, option_id, course, translations)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)`,
         [
           randomUUID(),
           ownerId,
@@ -516,12 +567,15 @@ export async function appendIngredientRows(
           row.sort,
           row.variant ?? '',
           JSON.stringify(row.alternatives ?? []),
+          row.option_id ?? null,
+          row.course ?? null,
+          JSON.stringify(row.translations ?? {}),
         ],
       );
     } else {
       await ctx.db.query(
-        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant, alternatives, choice)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        `INSERT INTO meal_ingredients (id, meal_id, product_id, lot_id, name, amount, unit, note, optional, sort, part_id, variant, alternatives, choice, option_id, included, course, translations)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb)`,
         [
           randomUUID(),
           ownerId,
@@ -537,6 +591,10 @@ export async function appendIngredientRows(
           row.variant ?? '',
           JSON.stringify(row.alternatives ?? []),
           row.choice ?? null,
+          row.option_id ?? null,
+          row.optional ? (row.included ?? null) : null,
+          row.course ?? null,
+          JSON.stringify(row.translations ?? {}),
         ],
       );
     }
@@ -551,7 +609,10 @@ export async function ingredientRows(
   const map = new Map<string, IngredientRow[]>();
   if (!ownerIds.length) return map;
   const owner = table === 'recipe_ingredients' ? 'recipe_id' : 'meal_id';
-  const lot = table === 'meal_ingredients' ? ', lot_id, part_id, choice' : '';
+  const lot =
+    table === 'meal_ingredients'
+      ? ', lot_id, part_id, choice, option_id, included, course, translations'
+      : ', option_id, course, translations';
   const { rows } = await ctx.db.query<IngredientRow>(
     `SELECT id, ${owner} AS owner_id, product_id${lot}, name, variant, alternatives, amount, unit, note, optional, sort FROM ${table} WHERE ${owner} = ANY($1::uuid[]) ORDER BY sort, id`,
     [ownerIds],

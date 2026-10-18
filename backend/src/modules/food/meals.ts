@@ -22,8 +22,19 @@ import {
 } from './kitchenware';
 import { listRestrictions } from './restrictions';
 import {
+  choicesOf,
+  chosenIds,
+  findOption,
+  pickOptions,
+  rememberOptions,
+  scaledCopy,
+  withChoiceCourses,
+} from './choices';
+import {
   appendIngredientRows,
   describeLines,
+  lineCounts,
+  lineTaken,
   lineTranslations,
   ingredientRows,
   insertIngredientRows,
@@ -53,7 +64,7 @@ import type {
   AteInput,
 } from './schemas';
 import { addStock, localDate, removeLot, restoreStock, useStock } from './stock';
-import { round, type BaseUnit } from './units';
+import type { BaseUnit } from './units';
 import type { Location } from './presets';
 
 /**
@@ -78,6 +89,20 @@ export interface MealPart {
   kind: PartKind;
   servings: number;
   icon: FoodIcon;
+  /** Its recipe's choices (Drink: creamy coffee or tea) and the option this meal makes. */
+  choices: MealPartChoice[];
+}
+
+export interface MealPartChoice {
+  id: string;
+  name: string;
+  /** The section of the meal it is in (drink); null: none named. */
+  course: PartKind | null;
+  /** Its name in other languages ({ ro: { name } }). */
+  translations: Translations;
+  options: Array<{ id: string; name: string; translations: Translations }>;
+  /** The option this meal makes (its lines carry its optionId); null: none of them. */
+  chosen: string | null;
 }
 
 export interface Meal {
@@ -207,11 +232,16 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
     icon: FoodIcon | null;
     recipe_title: string | null;
     recipe_translations: Translations | null;
+    options: string[];
   }>(
-    `SELECT p.id, p.meal_id, p.recipe_id, p.title, p.kind, p.servings, r.icon, r.title AS recipe_title, r.translations AS recipe_translations
+    `SELECT p.id, p.meal_id, p.recipe_id, p.title, p.kind, p.servings, p.options, r.icon, r.title AS recipe_title, r.translations AS recipe_translations
        FROM meal_parts p LEFT JOIN recipes r ON r.id = p.recipe_id
-      WHERE p.meal_id = ANY($1::uuid[]) ORDER BY array_position(ARRAY['dish', 'side', 'sauce', 'drink'], p.kind), p.sort, p.id`,
+      WHERE p.meal_id = ANY($1::uuid[]) ORDER BY array_position(ARRAY['first', 'dish', 'side', 'sauce', 'dessert', 'drink'], p.kind), p.sort, p.id`,
     [mealIds],
+  );
+  const choices = await choicesOf(
+    ctx,
+    rows.flatMap((row) => (row.recipe_id ? [row.recipe_id] : [])),
   );
   for (const row of rows) {
     const part: MealPart = {
@@ -226,6 +256,14 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
       kind: row.kind,
       servings: row.servings,
       icon: row.icon ?? PART_ICON[row.kind],
+      choices: (row.recipe_id ? (choices.get(row.recipe_id) ?? []) : []).map((choice) => ({
+        id: choice.id,
+        name: choice.name,
+        course: choice.course,
+        translations: choice.translations,
+        options: choice.options.map((o) => ({ id: o.id, name: o.name, translations: o.translations })),
+        chosen: choice.options.find((o) => row.options.includes(o.id))?.id ?? null,
+      })),
     };
     map.set(row.meal_id, [...(map.get(row.meal_id) ?? []), part]);
   }
@@ -236,7 +274,9 @@ async function partsOf(ctx: FoodCtx, mealIds: string[]): Promise<Map<string, Mea
 const SCALE_ALTERNATIVES = `alternatives = (SELECT coalesce(jsonb_agg(CASE WHEN a->>'amount' IS NULL THEN a ELSE jsonb_set(a, '{amount}', to_jsonb(round((a->>'amount')::numeric * $2::numeric, 3))) END), '[]'::jsonb) FROM jsonb_array_elements(alternatives) a)`;
 
 const PART_ICON: Record<PartKind, FoodIcon> = {
+  first: 'soup',
   dish: 'pot',
+  dessert: 'cake',
   side: 'bowl',
   sauce: 'sauce',
   drink: 'tea',
@@ -320,8 +360,14 @@ async function build(ctx: FoodCtx, rows: MealRow[]): Promise<Meal[]> {
       eaters: row.eaters,
       doneBy: row.done_by,
       translations: mealTranslations(row, mealParts),
+      // What is eaten: optional lines switched on count, switched off ones don't.
       nutrition: dishSummary(
-        sumLines(lines.map(lineAsCooked), (id) => stock.get(id)?.product),
+        sumLines(
+          lines
+            .filter(lineTaken)
+            .map((line) => lineAsCooked({ ...line, optional: !lineCounts(line) })),
+          (id) => stock.get(id)?.product,
+        ),
         row.servings,
       ),
       parts: mealParts,
@@ -441,29 +487,30 @@ export async function getMeal(ctx: FoodCtx, id: string): Promise<Meal> {
   return (await build(ctx, [await findMealRow(ctx, id)]))[0]!;
 }
 
-/** The recipe's lines, scaled from its servings to `servings`. */
+/**
+ * The recipe's lines scaled from its servings to `servings`: its own, then of each choice the
+ * option picked (else the one picked last time, else the first), in order — the positions cooking
+ * picks alternatives by.
+ */
 async function recipeCopy(
   ctx: FoodCtx,
   recipeId: string,
   servings: number,
-): Promise<Array<Omit<IngredientRow, 'id' | 'owner_id'>>> {
+  picks?: string[],
+): Promise<{ rows: Array<Omit<IngredientRow, 'id' | 'owner_id'>>; options: string[] }> {
   const recipe = await getRecipe(ctx, recipeId);
   const scale = servings / recipe.servings;
-  return (await recipeIngredients(ctx, recipeId)).map((row) => ({
-    product_id: row.product_id,
-    lot_id: null,
-    name: row.name,
-    variant: row.variant ?? '',
-    alternatives: (row.alternatives ?? []).map((alt) => ({
-      ...alt,
-      amount: alt.amount === null ? null : round(alt.amount * scale),
-    })),
-    amount: row.amount === null ? null : round(row.amount * scale),
-    unit: row.unit,
-    note: row.note,
-    optional: row.optional,
-    sort: row.sort,
-  }));
+  const choices = (await choicesOf(ctx, [recipeId])).get(recipeId) ?? [];
+  const all = withChoiceCourses(await recipeIngredients(ctx, recipeId), choices);
+  const options = chosenIds(choices, pickOptions(choices, picks));
+  const lines = [
+    ...all.filter((row) => !row.option_id),
+    ...options.flatMap((id) => all.filter((row) => row.option_id === id)),
+  ];
+  return {
+    rows: lines.map((row, index) => ({ ...scaledCopy(row, scale), sort: index })),
+    options,
+  };
 }
 
 /** Adds a part to a meal: a recipe's lines scaled to its servings, or its own lines. */
@@ -482,8 +529,13 @@ async function insertPart(
     [mealId],
   );
   const sort = rows[0]?.next ?? 0;
+  // A recipe's lines, with the options picked for its choices (lines given instead have none).
+  const copy =
+    recipe && !extra && !input.ingredients
+      ? await recipeCopy(ctx, recipe.id, servings, input.options)
+      : null;
   await ctx.db.query(
-    'INSERT INTO meal_parts (id, meal_id, recipe_id, title, kind, servings, sort) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    'INSERT INTO meal_parts (id, meal_id, recipe_id, title, kind, servings, sort, options) VALUES ($1, $2, $3, $4, $5, $6, $7, $8::uuid[])',
     [
       id,
       mealId,
@@ -492,15 +544,16 @@ async function insertPart(
       input.kind ?? 'dish',
       servings,
       sort,
+      copy?.options ?? [],
     ],
   );
+  // Picked on purpose: the default next time.
+  if (copy && input.options?.length) await rememberOptions(ctx, copy.options);
   const lines = extra
     ? await resolveIngredients(ctx, extra)
     : input.ingredients
       ? await resolveIngredients(ctx, input.ingredients)
-      : recipe
-        ? await recipeCopy(ctx, recipe.id, servings)
-        : [];
+      : (copy?.rows ?? []);
   // Lines keep their part's place in the meal: the first part's lines first.
   await appendIngredientRows(
     ctx,
@@ -528,7 +581,7 @@ export async function planMeal(ctx: FoodCtx, input: MealInput): Promise<Meal> {
   await ctx.tx(async (tx) => {
     const servings = input.servings ?? (Math.max(people, recipe?.servings ?? 0) || 2);
     const parts: MealPartInput[] = [
-      ...(recipe ? [{ recipeId: recipe.id, servings }] : []),
+      ...(recipe ? [{ recipeId: recipe.id, servings, options: input.options }] : []),
       ...(input.parts ?? []),
     ];
     const partRecipes = await Promise.all(
@@ -785,8 +838,8 @@ export async function setMealIngredients(
     const meal = await findMealRow(tx, id, true);
     if (meal.status === 'done')
       throw new AppError(409, 'DONE', 'This meal is done; reopen it to change it');
-    const { rows: parts } = await tx.db.query<{ id: string }>(
-      'SELECT id FROM meal_parts WHERE meal_id = $1',
+    const { rows: parts } = await tx.db.query<{ id: string; options: string[] }>(
+      'SELECT id, options FROM meal_parts WHERE meal_id = $1',
       [id],
     );
     for (const [index, input] of inputs.entries()) {
@@ -796,7 +849,12 @@ export async function setMealIngredients(
         });
       }
     }
-    await insertIngredientRows(tx, 'meal_ingredients', id, await resolveIngredients(tx, inputs));
+    // A line keeps its option only when its part makes that option.
+    const options = new Set(parts.flatMap((part) => part.options));
+    const kept = inputs.map((input) =>
+      input.optionId && !options.has(input.optionId) ? { ...input, optionId: null } : input,
+    );
+    await insertIngredientRows(tx, 'meal_ingredients', id, await resolveIngredients(tx, kept));
   });
   return getMeal(ctx, id);
 }
@@ -844,7 +902,8 @@ export async function completeMeal(
     const rows = (await ingredientRows(tx, 'meal_ingredients', [id])).get(id) ?? [];
     const stock = await stockSnapshot(tx);
     for (const row of rows) {
-      if (!row.product_id || row.amount === null) continue;
+      // An optional line switched off for this meal isn't used.
+      if (!row.product_id || row.amount === null || !lineTaken(row)) continue;
       const product = await findProduct(tx, row.product_id);
       if (product.trackMode !== 'exact') continue;
       // The option picked for this meal; not picked and not enough of it: the first alternative
@@ -985,6 +1044,12 @@ export async function completeMeal(
     // What it was cooked with is dirty now.
     const needs = (await mealNeeds(tx, await partsOf(tx, [id]))).get(id) ?? [];
     const dirtied = needs.length ? await dirtyAfterCooking(tx, needs) : [];
+    // What was made is what to offer first next time (tea, if tea it was).
+    await tx.db.query(
+      `UPDATE recipe_choices c SET last_option_id = o.id FROM recipe_options o
+        WHERE c.id = o.choice_id AND o.id IN (SELECT unnest(options) FROM meal_parts WHERE meal_id = $1)`,
+      [id],
+    );
     await tx.db.query(
       `UPDATE meals SET status = 'done', done_at = $2, leftovers_lot_id = $3, updated_at = $2, dirtied = $4, done_by = coalesce(done_by, $5) WHERE id = $1`,
       [
@@ -1057,6 +1122,7 @@ export async function cookRecipe(
     servings?: number;
     leftovers?: CompleteMealInput['leftovers'];
     choices?: Record<string, number>;
+    options?: string[];
   },
 ) {
   const time = `${String(ctx.now.getHours()).padStart(2, '0')}:${String(ctx.now.getMinutes()).padStart(2, '0')}`;
@@ -1067,6 +1133,7 @@ export async function cookRecipe(
       time,
       recipeId,
       servings: input.servings,
+      options: input.options,
     });
     if (input.choices && Object.keys(input.choices).length) {
       // Milk or whipped cream, as picked: by the ingredient's place in the recipe.
@@ -1120,6 +1187,119 @@ export async function setLineChoice(
       lineId,
       mealId,
       choice,
+    ]);
+  });
+  return getMeal(ctx, mealId);
+}
+
+/**
+ * Switches one of a planned meal's recipe choices to another option (tea instead of the coffee):
+ * the old option's lines go, the new one's come in scaled to the part's servings, and it becomes
+ * the recipe's default. The option is found by id or name, in the given part or any of the meal's.
+ */
+export async function chooseMealOption(
+  ctx: FoodCtx,
+  mealId: string,
+  option: string,
+  partId?: string,
+): Promise<Meal> {
+  await ctx.tx(async (tx) => {
+    const meal = await findMealRow(tx, mealId, true);
+    if (meal.status === 'done')
+      throw new AppError(409, 'DONE', 'This meal is done; reopen it to change it');
+    if (partId) await findPart(tx, mealId, partId);
+    const { rows: parts } = await tx.db.query<{
+      id: string;
+      recipe_id: string;
+      servings: number;
+      options: string[];
+      recipe_servings: number;
+    }>(
+      `SELECT p.id, p.recipe_id, p.servings, p.options, r.servings AS recipe_servings
+         FROM meal_parts p JOIN recipes r ON r.id = p.recipe_id
+        WHERE p.meal_id = $1 AND ($2::uuid IS NULL OR p.id = $2) ORDER BY p.sort, p.id`,
+      [mealId, partId ?? null],
+    );
+    const choices = await choicesOf(
+      tx,
+      parts.map((p) => p.recipe_id),
+    );
+    let hit: { part: (typeof parts)[number]; found: NonNullable<ReturnType<typeof findOption>> } | null =
+      null;
+    for (const part of parts) {
+      const found = findOption(choices.get(part.recipe_id) ?? [], option);
+      if (found) {
+        hit = { part, found };
+        break;
+      }
+    }
+    if (!hit)
+      throw new AppError(400, 'VALIDATION', `This meal has no option “${option}”`, {
+        fields: { option: 'No such option' },
+      });
+    const { part, found } = hit;
+    if (part.options.includes(found.option.id)) return;
+    const group = found.choice.options.map((o) => o.id);
+    await tx.db.query(
+      'DELETE FROM meal_ingredients WHERE part_id = $1 AND option_id = ANY($2::uuid[])',
+      [part.id, group],
+    );
+    const { rows: next } = await tx.db.query<{ next: number }>(
+      'SELECT coalesce(max(sort) + 1, 0) AS next FROM meal_ingredients WHERE part_id = $1',
+      [part.id],
+    );
+    const scale = part.servings / part.recipe_servings;
+    const lines = withChoiceCourses(
+      await recipeIngredients(tx, part.recipe_id),
+      choices.get(part.recipe_id) ?? [],
+    ).filter((row) => row.option_id === found.option.id);
+    await appendIngredientRows(
+      tx,
+      'meal_ingredients',
+      mealId,
+      lines.map((row, index) => ({
+        ...scaledCopy(row, scale),
+        part_id: part.id,
+        sort: (next[0]?.next ?? 0) + index,
+      })),
+    );
+    await tx.db.query('UPDATE meal_parts SET options = $2::uuid[] WHERE id = $1', [
+      part.id,
+      [...part.options.filter((id) => !group.includes(id)), found.option.id],
+    ]);
+    await rememberOptions(tx, [found.option.id]);
+  });
+  return getMeal(ctx, mealId);
+}
+
+/**
+ * Switches an optional line of a planned meal on (true: needed, bought, eaten and taken like any
+ * line) or off (false: left out of everything for this meal), or back to usual (null).
+ */
+export async function setLineIncluded(
+  ctx: FoodCtx,
+  mealId: string,
+  lineId: string,
+  included: boolean | null,
+): Promise<Meal> {
+  await ctx.tx(async (tx) => {
+    const meal = await findMealRow(tx, mealId, true);
+    if (meal.status === 'done')
+      throw new AppError(409, 'DONE', 'This meal is done; reopen it to change it');
+    if (!isUuid(lineId)) throw new AppError(404, 'NOT_FOUND', 'That line is not in this meal');
+    const { rows } = await tx.db.query<{ optional: boolean }>(
+      'SELECT optional FROM meal_ingredients WHERE id = $1 AND meal_id = $2',
+      [lineId, mealId],
+    );
+    if (!rows[0]) throw new AppError(404, 'NOT_FOUND', 'That line is not in this meal');
+    if (!rows[0].optional)
+      throw new AppError(400, 'VALIDATION', 'Only an optional ingredient can be left out', {
+        fields: { included: 'Not optional' },
+      });
+    await tx.db.query('UPDATE meal_ingredients SET included = $3 WHERE id = $1 AND meal_id = $2', [
+      lineId,
+      mealId,
+      included,
     ]);
   });
   return getMeal(ctx, mealId);
