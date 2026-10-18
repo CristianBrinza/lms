@@ -5,7 +5,7 @@ import { ConfirmSheet } from '@/components/common/ConfirmSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Avatar, Button, IconButton, Sheet, Skeleton, TextField, toast } from '@/components/ui';
-import { AddIcon, EditIcon, HouseIcon, PersonAddIcon, SwapIcon } from '@/components/ui/icons';
+import { AddIcon, DeleteIcon, EditIcon, HouseIcon, PersonAddIcon, SwapIcon } from '@/components/ui/icons';
 import { cx } from '@/lib/cx';
 import { errorMessage } from '@/lib/errors';
 import { fullName } from '@/lib/format';
@@ -30,6 +30,18 @@ export default function HouseholdsPage() {
   const [adding, setAdding] = useState<Household | null>(null);
   const [moving, setMoving] = useState<{ person: Member; from: Household } | null>(null);
   const [confirm, setConfirm] = useState<Move | null>(null);
+  const [deleting, setDeleting] = useState<Household | null>(null);
+  const remove = useMutation({
+    mutationFn: (household: Household) => adminApi.deleteHousehold(household.id),
+    onSuccess: (_, household) => {
+      setDeleting(null);
+      toast.success(t.householdDeleted(household.name));
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.households });
+    },
+  });
 
   const households = query.data ?? [];
   const refresh = () => {
@@ -122,9 +134,17 @@ export default function HouseholdsPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-4 rounded-2xl bg-ink-50 px-4 py-3 text-sm text-ink-600">
-                  {t.emptyHousehold}
-                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl bg-ink-50 px-4 py-3">
+                  <p className="min-w-0 flex-1 text-sm text-ink-600">{t.emptyHousehold}</p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={DeleteIcon}
+                    onClick={() => setDeleting(household)}
+                  >
+                    {t.deleteHousehold}
+                  </Button>
+                </div>
               )}
 
               <Button
@@ -217,6 +237,16 @@ export default function HouseholdsPage() {
         </div>
       </Sheet>
 
+      <ConfirmSheet
+        open={deleting !== null}
+        onClose={() => setDeleting(null)}
+        onConfirm={() => deleting && remove.mutate(deleting)}
+        loading={remove.isPending}
+        title={deleting ? t.deleteHouseholdTitle(deleting.name) : ''}
+        description={t.deleteHouseholdBody}
+        confirmLabel={t.deleteHousehold}
+        tone="danger"
+      />
       <ConfirmSheet
         open={confirm !== null}
         onClose={() => setConfirm(null)}

@@ -343,6 +343,34 @@ export function adminRoutes(deps: AppDeps) {
     return c.json({ household: { id, name } });
   });
 
+  /**
+   * An empty household goes, with everything kept in it (its kitchen, lists, trips). One with
+   * people in it is refused: move them first.
+   */
+  app.delete('/households/:id', async (c) => {
+    const id = c.req.param('id');
+    if (!z.uuid().safeParse(id).success)
+      throw new AppError(404, 'NOT_FOUND', 'That kitchen was not found');
+    const { rows } = await deps.db.query<{ name: string; members: number }>(
+      `SELECT h.name, (SELECT count(*)::int FROM users u WHERE u.household_id = h.id) AS members
+         FROM households h WHERE h.id = $1`,
+      [id],
+    );
+    const household = rows[0];
+    if (!household) throw new AppError(404, 'NOT_FOUND', 'That kitchen was not found');
+    if (household.members > 0)
+      throw new AppError(409, 'HOUSEHOLD_NOT_EMPTY', 'Move the people in it to another household first');
+    await deps.db.query('DELETE FROM households WHERE id = $1', [id]);
+    await audit(deps, {
+      actorId: c.get('user').id,
+      action: 'household.deleted',
+      targetId: null,
+      ip: maskIp(c.get('ip')),
+      meta: { householdId: id, name: household.name },
+    });
+    return c.body(null, 204);
+  });
+
   app.put('/users/:id/kitchen', async (c) => {
     const body = await readJson(c, KitchenBody);
     const target = await loadTarget(c.req.param('id'));

@@ -52,6 +52,11 @@ const en = {
     `${name} · ${plural(n, { one: '# person', other: '# people' })}`,
   noHousehold: 'Not in a household yet (one is made on their first visit to Food).',
   manageHouseholds: 'Households',
+  deleteHousehold: 'Delete',
+  deleteHouseholdTitle: (name: string) => `Delete ${name}?`,
+  deleteHouseholdBody:
+    'Everything kept in it goes too: its kitchen, shopping and buy lists, house and trips. No one lives in it, and this can’t be undone.',
+  householdDeleted: (name: string) => `${name} deleted`,
   // shared
   name: 'Name',
   surname: 'Surname',
@@ -228,6 +233,11 @@ const ro: typeof en = {
     `${name} · ${plural(n, { one: '# persoană', few: '# persoane', other: '# de persoane' })}`,
   noHousehold: 'Încă fără gospodărie (se face la prima vizită în Mâncare).',
   manageHouseholds: 'Gospodării',
+  deleteHousehold: 'Șterge',
+  deleteHouseholdTitle: (name) => `Ștergi ${name}?`,
+  deleteHouseholdBody:
+    'Pleacă tot ce e în ea: bucătăria, cumpărăturile, lista de cumpărat, casa și călătoriile. Nu locuiește nimeni în ea, iar asta nu se poate anula.',
+  householdDeleted: (name) => `${name} a fost ștearsă`,
   name: 'Prenume',
   surname: 'Nume',
   email: 'Email',
@@ -405,6 +415,11 @@ const ru: typeof en = {
     `${name} · ${plural(n, { one: '# человек', few: '# человека', many: '# человек', other: '# человека' })}`,
   noHousehold: 'Пока без семьи (создаётся при первом заходе в «Еду»).',
   manageHouseholds: 'Семьи',
+  deleteHousehold: 'Удалить',
+  deleteHouseholdTitle: (name) => `Удалить ${name}?`,
+  deleteHouseholdBody:
+    'Удалится всё, что в ней: кухня, покупки, список покупок, дом и поездки. В ней никто не живёт, и это нельзя отменить.',
+  householdDeleted: (name) => `${name} удалена`,
   name: 'Имя',
   surname: 'Фамилия',
   email: 'Эл. почта',

@@ -87,6 +87,7 @@ export const adminApi = {
     api.get<{ households: Household[] }>('/admin/households').then((r) => r.households),
   createHousehold: (name: string) =>
     api.post<{ household: Household }>('/admin/households', { name }).then((r) => r.household),
+  deleteHousehold: (id: string) => api.delete<void>(`/admin/households/${id}`),
   renameHousehold: (id: string, name: string) => api.patch<unknown>(`/admin/households/${id}`, { name }),
   /** Seats someone in a household; null gives them one of their own. */
   setKitchen: (id: string, householdId: string | null) =>
