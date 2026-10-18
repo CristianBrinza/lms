@@ -199,7 +199,7 @@ export function CollectionSection({
           />
         ))}
       </div>
-      <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-0 md:px-0">
+      <ul className="-mx-4 flex snap-x snap-proximity scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-0 md:px-0">
         {collection.parts.map((part) => (
           <li key={part.id} className="w-[6.75rem] shrink-0 snap-start sm:w-[7.5rem]">
             <PosterCard

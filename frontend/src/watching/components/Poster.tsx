@@ -220,7 +220,7 @@ export function PosterRow({
   return (
     <ul
       aria-label={label}
-      className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5 md:scroll-px-5 md:px-5 lg:-mx-8 lg:scroll-px-8 lg:px-8"
+      className="-mx-4 flex snap-x snap-proximity scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-5 md:scroll-px-5 md:px-5 lg:-mx-8 lg:scroll-px-8 lg:px-8"
     >
       {items.map((item) => (
         <li key={item.id} className="w-[6.75rem] shrink-0 snap-start sm:w-[7.5rem] lg:w-[8.5rem]">

@@ -375,6 +375,23 @@
   }
 }
 
+/*
+ * Rows that scroll sideways (posters, chips, cards), on touch screens: the row keeps the swipe to
+ * itself (no hand-off to the page at its ends), the browser knows up front that both directions
+ * pan, and a card under the finger doesn't shrink while the row moves — that shrink, starting on
+ * every touch, is what made the rows judder on iPhone.
+ */
+.overflow-x-auto {
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+@media (hover: none) {
+  .overflow-x-auto .press:active {
+    transform: none;
+  }
+}
+
 /* A doodle's stroke draws itself in once (styles with .doodle-draw on an SVG path). */
 .doodle-draw {
   stroke-dasharray: 400;

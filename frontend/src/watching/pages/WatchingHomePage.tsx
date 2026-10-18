@@ -95,7 +95,7 @@ export default function WatchingHomePage() {
           <>
             {data!.continueWatching.length ? (
               <Section title={t.home.continue}>
-                <ul className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 lg:grid-cols-3">
+                <ul className="-mx-4 flex snap-x snap-proximity scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-2 md:overflow-visible md:px-0 lg:grid-cols-3">
                   {data!.continueWatching.map((item) => (
                     <li
                       key={item.title.id}
