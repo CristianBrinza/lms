@@ -108,6 +108,7 @@ function ResultRow({ result, onWatched }: { result: TitleCard; onWatched: () => 
   const status = useSetStatus();
   const { who } = useMarkWho(result.id);
   const [added, setAdded] = useState(result.status === 'watchlist');
+  const seen = result.status === 'completed';
   return (
     <article className="flex h-full gap-3 rounded-[1.25rem] bg-white p-2.5 shadow-[var(--shadow-xs)]">
       <Link to={`/watching/${result.id}`} viewTransition className="w-[4.5rem] shrink-0">
@@ -128,8 +129,15 @@ function ResultRow({ result, onWatched }: { result: TitleCard; onWatched: () => 
           </span>
         </Link>
         <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
-          <Button size="sm" variant="primary" icon={CheckIcon} onClick={onWatched}>
-            {t.search.watched}
+          {/* Seen: ink with a tick. Not yet: an outline that says what a tap does. */}
+          <Button
+            size="sm"
+            variant={seen ? 'primary' : 'outline'}
+            icon={seen ? CheckIcon : undefined}
+            aria-pressed={seen}
+            onClick={onWatched}
+          >
+            {seen ? t.search.watched : t.search.markWatched}
           </Button>
           <Button
             size="sm"
