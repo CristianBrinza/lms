@@ -246,6 +246,7 @@ const en = {
     laundry: 'In the laundry',
     worn: 'Being worn',
     lent: 'Lent out',
+    vacuum: 'Vacuum-packed',
   } as Words<Storage>,
   placeKind: {
     room: 'Room',
@@ -254,6 +255,7 @@ const en = {
     rail: 'Hanging rail',
     drawer: 'Drawer',
     box: 'Box',
+    vacuum_bag: 'Vacuum bag',
     hook: 'Hook',
     section: 'Section',
   } as Words<PlaceKind>,
@@ -634,6 +636,7 @@ const ro: Dict = {
     laundry: 'La spălat',
     worn: 'Purtat acum',
     lent: 'Împrumutat',
+    vacuum: 'Vacuumat',
   },
   placeKind: {
     room: 'Cameră',
@@ -642,6 +645,7 @@ const ro: Dict = {
     rail: 'Bară de umerașe',
     drawer: 'Sertar',
     box: 'Cutie',
+    vacuum_bag: 'Sac vacuumat',
     hook: 'Cârlig',
     section: 'Compartiment',
   },
@@ -1013,6 +1017,7 @@ const ru: Dict = {
     laundry: 'В стирке',
     worn: 'Сейчас на мне',
     lent: 'Одолжено',
+    vacuum: 'В вакууме',
   },
   placeKind: {
     room: 'Комната',
@@ -1021,6 +1026,7 @@ const ru: Dict = {
     rail: 'Штанга',
     drawer: 'Ящик',
     box: 'Коробка',
+    vacuum_bag: 'Вакуумный пакет',
     hook: 'Крючок',
     section: 'Отделение',
   },

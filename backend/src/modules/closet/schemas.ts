@@ -153,7 +153,7 @@ export const STATUSES = [
 export type Status = (typeof STATUSES)[number];
 /** In the closet now (or about to be back): the rest are wished for or gone. */
 export const OWNED_STATUSES: Status[] = ['clean', 'to_wash', 'at_cleaners', 'lent'];
-export const STORAGES = ['folded', 'hanging', 'drawer', 'box', 'laundry', 'worn', 'lent'] as const;
+export const STORAGES = ['folded', 'hanging', 'drawer', 'box', 'laundry', 'worn', 'lent', 'vacuum'] as const;
 export const PHOTO_KINDS = ['front', 'back', 'label', 'detail'] as const;
 export type PhotoKind = (typeof PHOTO_KINDS)[number] | 'backdrop';
 
@@ -165,6 +165,7 @@ export const PLACE_KINDS = [
   'rail',
   'drawer',
   'box',
+  'vacuum_bag',
   'hook',
   'section',
 ] as const;

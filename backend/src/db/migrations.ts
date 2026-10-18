@@ -1444,6 +1444,17 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       );
     `,
   },
+  {
+    version: 42,
+    name: 'closet: vacuum bags',
+    sql: `
+      -- A vacuum bag is a place (in a room, furniture, shelf or box); pieces in one are stored 'vacuum'.
+      -- closet_items.storage is free text, so only the place kinds are constrained.
+      ALTER TABLE closet_places DROP CONSTRAINT closet_places_kind_check;
+      ALTER TABLE closet_places ADD CONSTRAINT closet_places_kind_check CHECK (kind IN ('room',
+        'furniture', 'shelf', 'rail', 'drawer', 'box', 'vacuum_bag', 'hook', 'section'));
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

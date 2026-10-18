@@ -224,7 +224,7 @@ export const CLOSET_TOOLS: Tool[] = [
     name: 'closet_places',
     title: 'Where clothes are kept',
     description:
-      'The household’s places, as paths (Bedroom › Wardrobe › Shelf 2 (left)), with ids and how many pieces each holds. action "create" adds one: kind room, furniture (in a room), or inside furniture shelf (number 1 = the lowest), rail, drawer (1 = top), box, hook, section; side left/middle/right; parent as a path or parentId. Create the room, then the furniture, then its sections.',
+      'The household’s places, as paths (Bedroom › Wardrobe › Shelf 2 (left)), with ids and how many pieces each holds. action "create" adds one: kind room, furniture (in a room), or inside furniture shelf (number 1 = the lowest), rail, drawer (1 = top), box, vacuum_bag (a vacuum-sealed bag, in a room, furniture, shelf or box), hook, section; side left/middle/right; parent as a path or parentId. Create the room, then the furniture, then its sections.',
     access: 'write',
     input: z.object({
       action: z.enum(['list', 'create']).optional().describe('list (default) or create'),
@@ -258,7 +258,7 @@ export const CLOSET_TOOLS: Tool[] = [
     name: 'closet_set_place',
     title: 'Put pieces somewhere',
     description:
-      'Where pieces are kept now: placeId or place (a path like "Hallway closet" or "Bedroom > Wardrobe > Shelf 3"), and how (storage: folded, hanging, drawer, box, laundry, worn, lent). placeId null takes them out of any place.',
+      'Where pieces are kept now: placeId or place (a path like "Hallway closet" or "Bedroom > Wardrobe > Shelf 3"), and how (storage: folded, hanging, drawer, box, laundry, worn, lent, vacuum). placeId null takes them out of any place.',
     access: 'write',
     input: z.object({
       itemIds: z.array(z.uuid()).min(1).max(200),

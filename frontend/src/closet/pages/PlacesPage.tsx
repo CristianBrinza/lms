@@ -85,6 +85,9 @@ export default function PlacesPage() {
                 <Button size="sm" variant="tint" icon={AddIcon} onClick={() => setEditing({ mode: 'new', kind: 'furniture', parentId: room.id })}>
                   {t.addFurniture}
                 </Button>
+                <Button size="sm" variant="tint" icon={AddIcon} onClick={() => setEditing({ mode: 'new', kind: 'section', parentId: room.id })}>
+                  {t.placeKind.vacuum_bag}
+                </Button>
                 {room.items ? (
                   <Button size="sm" variant="ghost" onClick={() => setOpen(room)}>
                     {t.inside(room.items)}
@@ -163,6 +166,7 @@ const BAND_LOOK: Partial<Record<PlaceKind, string>> = {
   rail: 'h-16',
   drawer: 'h-12 rounded-xl bg-ink-50',
   box: 'h-12 rounded-xl bg-butter-50',
+  vacuum_bag: 'h-12 rounded-[1.25rem] border border-dashed border-ink-300 bg-sky-50',
   hook: 'h-11',
   section: 'h-12',
 };

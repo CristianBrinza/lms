@@ -60,10 +60,11 @@ export async function findPlace(ctx: FoodCtx, id: string): Promise<Place> {
 export const placeTree = (places: Place[]) => new Map(places.map((p) => [p.id, p]));
 
 /** How a piece is usually kept in a kind of place: hanging on a rail, folded on a shelf. */
-export function storageFor(kind: PlaceKind): '' | 'hanging' | 'drawer' | 'box' | 'folded' {
+export function storageFor(kind: PlaceKind): '' | 'hanging' | 'drawer' | 'box' | 'folded' | 'vacuum' {
   if (kind === 'rail' || kind === 'hook') return 'hanging';
   if (kind === 'drawer') return 'drawer';
   if (kind === 'box') return 'box';
+  if (kind === 'vacuum_bag') return 'vacuum';
   if (kind === 'shelf') return 'folded';
   return '';
 }

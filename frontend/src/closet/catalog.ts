@@ -112,8 +112,8 @@ export const STATUSES = [
 ] as const;
 /** In the closet (or coming back to it). */
 export const OWNED = ['clean', 'to_wash', 'at_cleaners', 'lent'] as const;
-export const STORAGES = ['folded', 'hanging', 'drawer', 'box', 'laundry', 'worn', 'lent'] as const;
-export const SECTION_KINDS = ['shelf', 'rail', 'drawer', 'box', 'hook', 'section'] as const;
+export const STORAGES = ['folded', 'hanging', 'drawer', 'box', 'laundry', 'worn', 'lent', 'vacuum'] as const;
+export const SECTION_KINDS = ['shelf', 'rail', 'drawer', 'box', 'vacuum_bag', 'hook', 'section'] as const;
 
 /** The size system a kind usually goes with, for the add flow's guess. */
 export function sizeSystemFor(category: Category | ''): string {

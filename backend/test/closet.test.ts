@@ -239,6 +239,11 @@ describe('closet: places', () => {
     const moved = await b.post('/api/closet/items/bulk', { ids: [jumper.id], patch: { placeId: shelf2.id } });
     expect(moved.body.items[0]).toMatchObject({ placeId: shelf2.id, storage: 'folded' });
 
+    const bag = (await b.post('/api/closet/places', { kind: 'vacuum_bag', parentId: room.id })).body.place;
+    expect(bag.kind).toBe('vacuum_bag');
+    const winter = (await b.post('/api/closet/items', { name: 'Winter duvet', category: 'tops', placeId: bag.id })).body.item;
+    expect(winter.storage).toBe('vacuum');
+
     const all = (await b.get('/api/closet/places')).body.places;
     expect(all.find((p: any) => p.id === shelf2.id).items).toBe(1);
     expect((await b.get(`/api/closet/items?placeId=${wardrobe.id}`)).body.items).toHaveLength(2);
@@ -246,6 +251,7 @@ describe('closet: places', () => {
     expect(findByPath(all, 'bedroom › wardrobe › rail')?.id).toBe(rail.id);
     expect(findByPath(all, 'Kitchen')).toBeNull();
 
+    await b.delete(`/api/closet/places/${bag.id}`);
     // Removing the wardrobe takes its sections; the pieces just lose their place.
     expect((await b.delete(`/api/closet/places/${wardrobe.id}`)).status).toBe(204);
     expect((await b.get('/api/closet/places')).body.places.map((p: any) => p.name)).toEqual(['Bedroom']);

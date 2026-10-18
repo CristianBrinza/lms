@@ -12,9 +12,9 @@ export type Status =
   | 'archived'
   | 'sold'
   | 'donated';
-export type Storage = '' | 'folded' | 'hanging' | 'drawer' | 'box' | 'laundry' | 'worn' | 'lent';
+export type Storage = '' | 'folded' | 'hanging' | 'drawer' | 'box' | 'laundry' | 'worn' | 'lent' | 'vacuum';
 export type PhotoKind = 'front' | 'back' | 'label' | 'detail';
-export type PlaceKind = 'room' | 'furniture' | 'shelf' | 'rail' | 'drawer' | 'box' | 'hook' | 'section';
+export type PlaceKind = 'room' | 'furniture' | 'shelf' | 'rail' | 'drawer' | 'box' | 'vacuum_bag' | 'hook' | 'section';
 export type Side = '' | 'left' | 'middle' | 'right';
 
 export interface Care {
