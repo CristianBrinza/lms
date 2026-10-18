@@ -41,11 +41,27 @@ import { useClosetT } from '../i18n';
 import { placeName, placePath } from '../places';
 import { slideIndex } from '../gallery';
 
-type CutMode = 'plain' | '3d' | 'vector';
+type CutMode = 'plain' | '3d' | 'vector' | 'tryon';
 
-/** Cut-outs first (front, back), then the photos as taken, then the label, then details. */
+/** Which friendly reason a try-on failure carries (the server writes `failed: <reason>`). */
+const tryonReasonKey = (status: string) =>
+  /quota/i.test(status)
+    ? 'quota'
+    : /busy/i.test(status)
+      ? 'busy'
+      : /starting up/i.test(status)
+        ? 'asleep'
+        : /too long/i.test(status)
+          ? 'timeout'
+          : /mannequin/i.test(status)
+            ? 'fit'
+            : 'failed';
+
+/** Cut-outs first (front, back), then the AI try-ons, then the photos as taken, then the label, then details. */
 const galleryRank = (photo: Photo) =>
-  (photo.kind === 'label' ? 2 : photo.kind === 'detail' ? 3 : photo.superseded ? 1 : 0) * 2 + (photo.kind === 'back' ? 1 : 0);
+  photo.kind === 'tryon'
+    ? 1.5
+    : (photo.kind === 'label' ? 2 : photo.kind === 'detail' ? 3 : photo.superseded ? 1 : 0) * 2 + (photo.kind === 'back' ? 1 : 0);
 const galleryOrder = (photos: Photo[], originals: Photo[]) =>
   [...photos, ...originals]
     .map((photo, i) => ({ photo, i }))
@@ -468,6 +484,11 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [choosing, setChoosing] = useState(false);
+  const [mannequinSheet, setMannequinSheet] = useState(false);
+  const mannequins = useQuery({ queryKey: ['closet', 'mannequins'], queryFn: closetApi.mannequins, enabled: mannequinSheet });
+  const lastMannequin = mannequins.data?.mannequins.find((m) => m.userId === detail.item.ownerId)?.mannequin ?? null;
+  const tryonRunning = detail.item.tryonStatus === 'running';
+  const tryonFailed = detail.item.tryonStatus.startsWith('failed:');
   const [touching, setTouching] = useState<Blob | null>(null);
   const [touchingId, setTouchingId] = useState<string | null>(null);
   const [straightening, setStraightening] = useState<{ photo: Photo; blob: Blob } | null>(null);
@@ -476,6 +497,7 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   // Any front/back photo that still has its background, flagged or not, so a cut-out can always be redone.
   const isBare = (p: Photo) => !p.superseded && !p.hasAlpha && (p.kind === 'front' || p.kind === 'back');
   const pending = photos.filter(isBare);
+  const garmentPhoto = photos.find((p) => !p.superseded && p.kind !== 'label' && p.kind !== 'tryon');
 
   const goTo = (i: number) => {
     const track = strip.current;
@@ -511,6 +533,10 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
   /** Every front/back photo that still has its background, one at a time. */
   const removeBackgrounds = async (mode: CutMode) => {
     setChoosing(false);
+    if (mode === 'tryon') {
+      setMannequinSheet(true);
+      return;
+    }
     if (mode === 'vector') {
       await act(() => closetApi.requestVector(detail.item.id));
       return;
@@ -597,6 +623,14 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
     } catch (error) {
       toast.error(errorMessage(error));
     }
+  };
+
+  const startTryon = async (mannequin: 'male' | 'female') => {
+    setMannequinSheet(false);
+    await act(async () => {
+      await closetApi.tryon(detail.item.id, { mannequin });
+      toast.success(t.tryonStarted);
+    });
   };
 
   const act = async (work: () => Promise<unknown>) => {
@@ -750,6 +784,11 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
             {t.addLabel}
           </Button>
         ) : null}
+        {garmentPhoto && !tryonRunning ? (
+          <Button size="sm" variant="tint" icon={SparkleIcon} disabled={busy !== null} onClick={() => setMannequinSheet(true)}>
+            {t.tryonOption}
+          </Button>
+        ) : null}
         {current && !current.superseded ? (
           <IconButton
             icon={DeleteIcon}
@@ -760,6 +799,16 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
           />
         ) : null}
       </div>
+      {tryonRunning ? (
+        <p className="mt-2 flex items-center gap-2 text-sm text-ink-700" aria-live="polite">
+          <SparkleIcon fontSize="inherit" className="animate-pulse text-lav-600" />
+          <span>{t.tryonRunning}</span>
+        </p>
+      ) : tryonFailed ? (
+        <p className="mt-2 text-sm text-ink-700" role="status">
+          {t.tryonReasons[tryonReasonKey(detail.item.tryonStatus)]}
+        </p>
+      ) : null}
       {detail.item.vectorRequested ? (
         <p className="mt-2 flex items-center gap-2 text-sm text-ink-700" aria-live="polite">
           <SparkleIcon fontSize="inherit" className="text-lav-600" />
@@ -779,15 +828,30 @@ function Photos({ detail, onChanged }: { detail: ItemDetail; onChanged: () => vo
       <StraightenSheet source={straightening?.blob ?? null} onClose={() => setStraightening(null)} onSave={saveStraightened} />
       <Sheet open={choosing} onClose={() => setChoosing(false)} title={t.cutChoiceTitle} description={t.cutChoiceBody(pending.length)}>
         <div className="flex flex-col gap-2.5">
-          {(['plain', '3d', 'vector'] as const).map((mode) => (
+          {(['plain', '3d', 'vector', 'tryon'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => void removeBackgrounds(mode)}
               className="press rounded-2xl bg-ink-50 p-4 text-left hover:bg-ink-100"
             >
-              <span className="block text-[0.9375rem] font-semibold text-ink-900">{mode === 'vector' ? t.cutVector : mode === '3d' ? t.cut3d : t.cutOnly}</span>
-              <span className="mt-0.5 block text-sm text-ink-600">{mode === 'vector' ? t.cutVectorHint : mode === '3d' ? t.cut3dHint : t.cutOnlyHint}</span>
+              <span className="block text-[0.9375rem] font-semibold text-ink-900">{mode === 'tryon' ? t.tryonOption : mode === 'vector' ? t.cutVector : mode === '3d' ? t.cut3d : t.cutOnly}</span>
+              <span className="mt-0.5 block text-sm text-ink-600">{mode === 'tryon' ? t.tryonHint : mode === 'vector' ? t.cutVectorHint : mode === '3d' ? t.cut3dHint : t.cutOnlyHint}</span>
+            </button>
+          ))}
+        </div>
+      </Sheet>
+      <Sheet open={mannequinSheet} onClose={() => setMannequinSheet(false)} title={t.tryonChoose} description={t.tryonChooseBody}>
+        <div className="grid grid-cols-2 gap-3">
+          {(['male', 'female'] as const).map((which) => (
+            <button
+              key={which}
+              type="button"
+              onClick={() => void startTryon(which)}
+              className="press flex min-h-32 flex-col items-center justify-center gap-1 rounded-2xl bg-ink-50 p-4 text-center hover:bg-ink-100"
+            >
+              <span className="text-[0.9375rem] font-semibold text-ink-900">{which === 'male' ? t.mannequinMale : t.mannequinFemale}</span>
+              {lastMannequin === which ? <span className="text-xs text-ink-600">{t.mannequinLast}</span> : null}
             </button>
           ))}
         </div>

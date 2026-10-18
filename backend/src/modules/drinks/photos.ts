@@ -28,7 +28,7 @@ const VIPS_ENV = { ...process.env, VIPS_CONCURRENCY: '1' };
 
 let vipsPath: Promise<string | null> | null = null;
 /** Where vipsthumbnail is, looked up once (PATH can't change while the server runs). */
-function findVips(): Promise<string | null> {
+export function findVips(): Promise<string | null> {
   vipsPath ??= (async () => {
     for (const dir of (process.env.PATH ?? '').split(delimiter).filter(Boolean)) {
       const path = join(dir, 'vipsthumbnail');
@@ -140,7 +140,7 @@ interface Encoded {
   height: number | null;
 }
 
-async function shrink(vips: string, bytes: Buffer, mime: Mime): Promise<Encoded> {
+async function shrink(vips: string, bytes: Buffer, mime: Mime, max = 1600): Promise<Encoded> {
   const dir = await mkdtemp(join(tmpdir(), 'lms-drink-'));
   try {
     const source = join(dir, `in.${mime.split('/')[1]}`);
@@ -148,7 +148,7 @@ async function shrink(vips: string, bytes: Buffer, mime: Mime): Promise<Encoded>
     const thumb = join(dir, 'thumb.webp');
     await writeFile(source, bytes);
     // ">" only ever shrinks; vipsthumbnail turns the picture upright by its EXIF and strips it.
-    await run(vips, [source, '--size', '1600x1600>', '-o', `${full}[Q=78,strip]`], {
+    await run(vips, [source, '--size', `${max}x${max}>`, '-o', `${full}[Q=78,strip]`], {
       timeout: 120_000,
       env: VIPS_ENV,
     });
@@ -202,9 +202,9 @@ export async function rasterizeSvg(bytes: Buffer): Promise<Buffer> {
 }
 
 /** The upload as it will be stored: shrunk by vips, or kept as is when that's small and plain. */
-export async function encodePhoto(bytes: Buffer, mime: Mime): Promise<Encoded> {
+export async function encodePhoto(bytes: Buffer, mime: Mime, max = 1600): Promise<Encoded> {
   const vips = await findVips();
-  if (vips) return oneAtATime(() => shrink(vips, bytes, mime));
+  if (vips) return oneAtATime(() => shrink(vips, bytes, mime, max));
   const plain = mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp';
   if (!plain || bytes.length > MAX_AS_IS)
     throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'That photo is too large', {

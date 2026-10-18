@@ -1463,6 +1463,19 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       ALTER TABLE closet_items ADD COLUMN vector_requested_at timestamptz;
     `,
   },
+  {
+    version: 44,
+    name: 'closet: virtual try-on',
+    sql: `
+      -- Which store mannequin a person's try-ons dress ('male' or 'female'); NULL: ask on the first try-on.
+      ALTER TABLE users ADD COLUMN closet_mannequin text CHECK (closet_mannequin IN ('male', 'female'));
+      -- '' (idle), 'running', or 'failed: <short reason>' for the last try-on of the piece.
+      ALTER TABLE closet_items ADD COLUMN tryon_status text NOT NULL DEFAULT '';
+      ALTER TABLE closet_photos DROP CONSTRAINT closet_photos_kind_check;
+      ALTER TABLE closet_photos ADD CONSTRAINT closet_photos_kind_check
+        CHECK (kind IN ('front', 'back', 'label', 'detail', 'backdrop', 'tryon'));
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

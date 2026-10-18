@@ -29,6 +29,7 @@ import { addPhoto, photoBytes, removePhoto, updatePhoto, vectorRequests } from '
 import { addPlace, listPlaces, removePlace, reorderPlaces, updatePlace } from './places';
 import {
   BulkInput,
+  MannequinInput,
   ExportQuery,
   ItemInput,
   ItemPatch,
@@ -43,6 +44,7 @@ import {
   TripInput,
   TripItemsInput,
   TripPatch,
+  TryonInput,
   WashedInput,
   WearInput,
   WearPatch,
@@ -60,6 +62,7 @@ import {
   tripDetail,
   updateTrip,
 } from './trips';
+import { listMannequins, setMannequin, startTryon } from './tryon';
 import { addWear, listWears, logWorn, removeWear, updateWear } from './wears';
 
 const OwnerQuery = z.object({ owner: z.string().trim().max(60).optional() });
@@ -131,6 +134,22 @@ export function closetRoutes(deps: AppDeps) {
   app.get('/vector-requests', async (c) => c.json(await vectorRequests(ctx(c))));
   app.post('/items/:id/photos', async (c) =>
     c.json(await addPhoto(ctx(c), c.req.param('id'), await readJson(c, PhotoInput)), 201),
+  );
+
+  // Virtual try-on: dresses the piece on a store mannequin in the background (a minute or two).
+  app.post('/items/:id/tryon', async (c) => {
+    // The body is optional: { photoId } picks the garment photo.
+    const body: unknown = await c.req.json().catch(() => ({}));
+    const input = TryonInput.safeParse(body ?? {});
+    if (!input.success)
+      throw new AppError(400, 'VALIDATION', 'photoId must be a photo id', { fields: { photoId: 'Invalid' } });
+    return c.json(await startTryon(deps, ctx(c), c.req.param('id'), input.data), 202);
+  });
+
+  // Mannequins: which store mannequin each person's try-ons dress.
+  app.get('/mannequins', async (c) => c.json(await listMannequins(ctx(c))));
+  app.put('/mannequins/:userId', async (c) =>
+    c.json(await setMannequin(ctx(c), c.req.param('userId'), (await readJson(c, MannequinInput)).mannequin)),
   );
 
   // Photos: a photo's bytes never change (a new photo is a new id), cached for a year by ETag.

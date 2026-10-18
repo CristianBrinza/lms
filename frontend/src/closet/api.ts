@@ -13,7 +13,8 @@ export type Status =
   | 'sold'
   | 'donated';
 export type Storage = '' | 'folded' | 'hanging' | 'drawer' | 'box' | 'laundry' | 'worn' | 'lent' | 'vacuum';
-export type PhotoKind = 'front' | 'back' | 'label' | 'detail';
+export type PhotoKind = 'front' | 'back' | 'label' | 'detail' | 'tryon';
+export type Mannequin = 'male' | 'female';
 export type PlaceKind = 'room' | 'furniture' | 'shelf' | 'rail' | 'drawer' | 'box' | 'vacuum_bag' | 'hook' | 'section';
 export type Side = '' | 'left' | 'middle' | 'right';
 
@@ -78,6 +79,8 @@ export interface Item {
   needsCutout: boolean;
   hasLabel: boolean;
   vectorRequested: boolean;
+  /** The last virtual try-on: '' (idle), 'running' or 'failed: <reason>'. */
+  tryonStatus: string;
   wears: number;
   lastWorn: string | null;
   costPerWear: number | null;
@@ -213,6 +216,9 @@ export const closetApi = {
   ) => api.post<{ photo: Photo; storage: Storage_ }>(`/closet/items/${id}/photos`, body),
   requestVector: (id: string) => api.post<{ item: Item }>(`/closet/items/${id}/vector-request`, {}),
   cancelVector: (id: string) => api.delete<{ item: Item }>(`/closet/items/${id}/vector-request`),
+  tryon: (id: string, body: { photoId?: string; mannequin?: Mannequin }) =>
+    api.post<{ status: 'running'; itemId: string }>(`/closet/items/${id}/tryon`, body),
+  mannequins: () => api.get<{ mannequins: { userId: string; mannequin: Mannequin | null }[] }>('/closet/mannequins'),
   updatePhoto: (id: string, patch: { kind?: PhotoKind; cover?: true; needsCutout?: boolean }) =>
     api.patch<{ photo: Photo }>(`/closet/photos/${id}`, patch),
   removePhoto: (id: string) => api.delete<void>(`/closet/photos/${id}`),

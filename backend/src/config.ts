@@ -71,6 +71,8 @@ const EnvSchema = z.object({
   VAPID_SUBJECT: optionalString,
   /** TMDB (Watching): a v4 read access token or a v3 API key. Without it, Watching says so. */
   TMDB_API_KEY: optionalString,
+  /** Hugging Face token for the closet's virtual try-on (a free Space). Without it: a smaller anonymous quota. */
+  HF_TOKEN: optionalString,
 });
 
 export interface AppConfig {
@@ -83,6 +85,8 @@ export interface AppConfig {
   cookieSecure: boolean;
   /** Web push keys; null when reminders can't be sent. */
   push: { publicKey: string; privateKey: string; subject: string } | null;
+  /** Hugging Face for the closet's virtual try-on; the token is optional (smaller anonymous quota). */
+  hf: { token: string | null };
   jwt: {
     secret: Uint8Array;
     previousSecret: Uint8Array | null;
@@ -174,6 +178,7 @@ export function loadConfig(source: Record<string, string | undefined>): AppConfi
     passwordHashCost: env.PASSWORD_HASH_COST,
     bootstrapAdmin: admin,
     tmdb: env.TMDB_API_KEY ? { apiKey: env.TMDB_API_KEY } : null,
+    hf: { token: env.HF_TOKEN || null },
     push:
       env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY
         ? {

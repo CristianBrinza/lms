@@ -7,6 +7,7 @@ import { createDatabase, describeDatabase } from './db';
 import { cleanup } from './db/migrations';
 import { clientIpResolver, proxyTrust } from './lib/client-ip';
 import { loadDotEnv } from './lib/dotenv';
+import { resetTryons } from './modules/closet/tryon';
 import { runReminders } from './modules/reminders/service';
 import { createDeps, prepare } from './runtime';
 
@@ -55,6 +56,8 @@ async function main() {
         console.error('[db] cleanup failed', error.message),
       );
     tidy();
+    // A try-on running when the server stopped is lost: say so instead of "running" forever.
+    void resetTryons(deps).catch((error) => console.error('[closet] try-on reset failed', error.message));
     cleanupTimer = setInterval(tidy, 60 * 60 * 1000);
     // Reminders: a look every minute at what is due (only when push keys are configured).
     if (deps.push) {

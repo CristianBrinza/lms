@@ -5,6 +5,7 @@ import type { Tool, ToolEnv } from '../mcp/tools';
 import { addItem, listItems, updateItem, type Item } from './items';
 import { addLook, listLooks } from './looks';
 import { addPhoto, vectorRequests } from './photos';
+import { startTryon } from './tryon';
 import { addPlace, findByPath, listPlaces, pathText, placeTree, type Place } from './places';
 import {
   CareInput,
@@ -16,6 +17,7 @@ import {
   PlaceInput,
   SIZE_SYSTEMS,
   STORAGES,
+  TryonInput,
 } from './schemas';
 import { closetStats, itemDetail } from './stats';
 import { logWorn, addWear } from './wears';
@@ -353,6 +355,15 @@ export const CLOSET_TOOLS: Tool[] = [
         })),
       };
     },
+  }),
+  tool({
+    name: 'closet_tryon',
+    title: 'Try a piece on (AI)',
+    description:
+      'Starts a virtual try-on: dresses the piece (id from closet_list) on a store mannequin (male or female) with a free AI service. It runs in the background for one to two minutes (one at a time); the result arrives as a photo of kind "tryon" on the piece, and tryonStatus on the piece says "running" or "failed: …". mannequin: male or female (the owner’s saved choice by default; without either it asks). photoId picks the garment photo (default: the cover).',
+    access: 'write',
+    input: z.object({ id: z.uuid() }).extend(TryonInput.shape),
+    run: async (env, { id, ...options }) => startTryon(env.deps, env.ctx, id, options),
   }),
   tool({
     name: 'closet_stats',

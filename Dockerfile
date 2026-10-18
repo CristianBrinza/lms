@@ -24,6 +24,7 @@ RUN apk add --no-cache tzdata vips-tools postgresql16-client
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8790 TZ=Europe/Chisinau WEB_DIR=/app/web
 WORKDIR /app
 COPY --from=api --chown=node:node /api/dist ./dist
+COPY --from=api --chown=node:node /api/assets ./assets
 COPY --from=web --chown=node:node /web/dist ./web
 USER node
 EXPOSE 8790

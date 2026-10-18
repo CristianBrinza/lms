@@ -108,7 +108,7 @@ export async function photosOf(ctx: FoodCtx, itemIds: string[]) {
   if (!itemIds.length) return map;
   const { rows } = await ctx.db.query<PhotoRow>(
     `SELECT ${COLUMNS} FROM closet_photos p
-      WHERE p.household_id = $1 AND p.item_id = ANY ($2::uuid[]) AND NOT p.superseded AND p.kind <> 'label'
+      WHERE p.household_id = $1 AND p.item_id = ANY ($2::uuid[]) AND NOT p.superseded AND p.kind NOT IN ('label', 'tryon')
       ORDER BY p.position, p.created_at`,
     [ctx.actor.householdId, itemIds],
   );
@@ -169,7 +169,7 @@ export async function vectorToPng(image: string): Promise<string> {
 }
 
 /** Stores an upload for a piece (or a look's backdrop) and returns it. */
-async function store(
+export async function storePhoto(
   ctx: FoodCtx,
   target: { itemId: string } | { lookId: string },
   image: string,
@@ -238,7 +238,7 @@ export async function addPhoto(ctx: FoodCtx, itemId: string, rawInput: PhotoInpu
     // The same photo, turned: it takes the old one's place, flags and links; the old file goes.
     const old = await findPhoto(ctx, input.rotates);
     if (old.item_id !== itemId) throw new AppError(404, 'NOT_FOUND', 'No picture');
-    photo = await store(ctx, { itemId }, input.image, {
+    photo = await storePhoto(ctx, { itemId }, input.image, {
       kind: old.kind,
       needsCutout: old.needs_cutout,
       position: old.position,
@@ -252,7 +252,7 @@ export async function addPhoto(ctx: FoodCtx, itemId: string, rawInput: PhotoInpu
     // A cut-out (or a better photo) in the original's place; the original is kept.
     const original = await findPhoto(ctx, input.replaces);
     if (original.item_id !== itemId) throw new AppError(404, 'NOT_FOUND', 'No picture');
-    photo = await store(ctx, { itemId }, input.image, {
+    photo = await storePhoto(ctx, { itemId }, input.image, {
       kind: input.kind ?? (original.kind === 'backdrop' ? 'front' : original.kind),
       needsCutout: input.needsCutout ?? false,
       position: original.position,
@@ -263,7 +263,7 @@ export async function addPhoto(ctx: FoodCtx, itemId: string, rawInput: PhotoInpu
       [original.id],
     );
   } else {
-    photo = await store(ctx, { itemId }, input.image, {
+    photo = await storePhoto(ctx, { itemId }, input.image, {
       kind: input.kind ?? 'front',
       needsCutout: input.needsCutout,
     });
@@ -305,7 +305,7 @@ export async function addBackdrop(ctx: FoodCtx, lookId: string, image: string) {
     "SELECT id FROM closet_photos WHERE look_id = $1 AND kind = 'backdrop'",
     [lookId],
   );
-  const photo = await store(ctx, { lookId }, image, { kind: 'backdrop', needsCutout: false });
+  const photo = await storePhoto(ctx, { lookId }, image, { kind: 'backdrop', needsCutout: false });
   if (old.length)
     await ctx.db.query('DELETE FROM closet_photos WHERE id = ANY ($1::uuid[])', [old.map((r) => r.id)]);
   return photo;

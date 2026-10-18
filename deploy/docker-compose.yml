@@ -70,6 +70,8 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       # Watching: a TMDB v4 read access token (or a v3 API key). Empty: Watching asks for it.
       TMDB_API_KEY: ${TMDB_API_KEY:-}
+      # The closet's virtual try-on (a free Hugging Face Space). Empty: a smaller anonymous quota.
+      HF_TOKEN: ${HF_TOKEN:-}
       # Optional tuning; empty means the app's own default (backend/src/config.ts).
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-}
       ACCESS_TOKEN_TTL_MIN: ${ACCESS_TOKEN_TTL_MIN:-}

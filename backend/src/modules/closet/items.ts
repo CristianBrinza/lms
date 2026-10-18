@@ -59,6 +59,7 @@ interface ItemRow {
   wears: number;
   last_worn: string | null;
   vector_requested_at: Date | null;
+  tryon_status: string;
 }
 
 /** A piece with its cover, photo counts and how often it was worn. */
@@ -66,20 +67,20 @@ const SELECT = `SELECT i.id, i.owner_id, u.name AS owner_name, i.created_by, i.n
     i.subcategory, i.colors, i.materials, i.size, i.size_system, i.brand, i.price::text, i.currency,
     i.bought_on::text, i.store, i.seasons, i.occasions, i.fit, i.condition, i.issues,
     i.condition_notes, i.tags, i.notes, i.url, i.status, i.lent_to, i.favorite, i.place_id,
-    i.storage, i.care, i.storage_advice, i.made_in, i.label_text, i.vector_requested_at, i.created_at, i.updated_at,
+    i.storage, i.care, i.storage_advice, i.made_in, i.label_text, i.vector_requested_at, i.tryon_status, i.created_at, i.updated_at,
     cover.id AS cover_id, cover.has_alpha AS cover_alpha, coalesce(pc.photos, 0) AS photos,
     coalesce(pc.cutouts, 0) AS cutouts, coalesce(pc.label, false) AS has_label,
     coalesce(w.wears, 0) AS wears, w.last_worn
   FROM closet_items i
   JOIN users u ON u.id = i.owner_id
   LEFT JOIN LATERAL (
-    SELECT id, has_alpha FROM closet_photos WHERE item_id = i.id AND NOT superseded
+    SELECT id, has_alpha FROM closet_photos WHERE item_id = i.id AND NOT superseded AND kind <> 'tryon'
     ORDER BY (kind = 'label'), position, created_at LIMIT 1
   ) cover ON true
   LEFT JOIN LATERAL (
     SELECT count(*)::int AS photos, count(*) FILTER (WHERE needs_cutout)::int AS cutouts,
       bool_or(kind = 'label') AS label
-    FROM closet_photos WHERE item_id = i.id AND NOT superseded
+    FROM closet_photos WHERE item_id = i.id AND NOT superseded AND kind <> 'tryon'
   ) pc ON true
   LEFT JOIN LATERAL (
     SELECT count(*)::int AS wears, max(worn_on)::text AS last_worn FROM closet_wears
@@ -136,6 +137,7 @@ export const toItem = (row: ItemRow) => {
     needsCutout: row.cutouts > 0,
     hasLabel: row.has_label,
     vectorRequested: row.vector_requested_at !== null,
+    tryonStatus: row.tryon_status,
     wears: row.wears,
     lastWorn: row.last_worn,
     costPerWear: price !== null && row.wears > 0 ? Math.round((price / row.wears) * 100) / 100 : null,

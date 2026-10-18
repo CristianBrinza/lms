@@ -154,7 +154,7 @@ export type Status = (typeof STATUSES)[number];
 /** In the closet now (or about to be back): the rest are wished for or gone. */
 export const OWNED_STATUSES: Status[] = ['clean', 'to_wash', 'at_cleaners', 'lent'];
 export const STORAGES = ['folded', 'hanging', 'drawer', 'box', 'laundry', 'worn', 'lent', 'vacuum'] as const;
-export const PHOTO_KINDS = ['front', 'back', 'label', 'detail'] as const;
+export const PHOTO_KINDS = ['front', 'back', 'label', 'detail', 'tryon'] as const;
 export type PhotoKind = (typeof PHOTO_KINDS)[number] | 'backdrop';
 
 /** Places: rooms hold furniture, furniture holds sections. Shelves are numbered from the bottom. */
@@ -346,7 +346,7 @@ export const PhotoInput = z.object({
   kind: z
     .enum(PHOTO_KINDS)
     .optional()
-    .describe('front (default), back, label (the care label: kept with the item), detail'),
+    .describe('front (default), back, label (the care label: kept with the item), detail, tryon (an AI try-on picture; never the cover)'),
   needsCutout: z
     .boolean()
     .optional()
@@ -546,3 +546,22 @@ export const ExportQuery = z.object({
   owner: z.string().trim().max(60).optional(),
   format: z.enum(['json', 'csv']).optional(),
 });
+
+
+export const MANNEQUINS = ['male', 'female'] as const;
+export type Mannequin = (typeof MANNEQUINS)[number];
+
+export const TryonInput = z.object({
+  photoId: z
+    .uuid()
+    .optional()
+    .describe('The garment photo to dress (default: the cover, a front photo with its background removed)'),
+  mannequin: z
+    .enum(MANNEQUINS)
+    .optional()
+    .describe('male or female store mannequin for this try-on; the first pick is remembered for the owner'),
+});
+export type TryonInput = z.infer<typeof TryonInput>;
+
+/** A person's mannequin choice for the try-on. */
+export const MannequinInput = z.object({ mannequin: z.enum(MANNEQUINS).nullable() });
