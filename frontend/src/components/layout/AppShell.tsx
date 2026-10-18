@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router';
+import { AssistantLauncher } from '@/assistant/AssistantLauncher';
 import { useLiveSync } from '@/services/liveSync';
 import { PullToRefresh } from './PullToRefresh';
 import { SideNav } from './SideNav';
@@ -17,6 +18,7 @@ export function AppShell() {
         </PullToRefresh>
       </main>
       <TabBar />
+      <AssistantLauncher />
     </div>
   );
 }

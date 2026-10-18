@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 import { loadConfig } from '../config';
 import { createDatabase } from '../db';
 import { loadDotEnv } from '../lib/dotenv';
-import { createToken, TOKEN_SCOPES, type TokenScope } from '../modules/tokens';
+import { ALL_SCOPES, createToken, type TokenScope } from '../modules/tokens';
 import { findUserByEmail } from '../modules/users';
 import { createDeps } from '../runtime';
 
@@ -27,7 +27,7 @@ async function main() {
   });
   if (!values.email) throw new Error('Pass --email of the account the key acts as');
   const scope = values.scope as TokenScope;
-  if (!TOKEN_SCOPES.includes(scope)) throw new Error(`--scope is one of ${TOKEN_SCOPES.join(', ')}`);
+  if (!ALL_SCOPES.includes(scope)) throw new Error(`--scope is one of ${ALL_SCOPES.join(', ')}`);
 
   const config = loadConfig({ ...process.env, ADMIN_EMAIL: '', ADMIN_PASSWORD: '' });
   const db = createDatabase(config);

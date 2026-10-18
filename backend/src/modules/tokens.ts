@@ -17,7 +17,11 @@ import { toUser, USER_COLUMNS, type User } from './users';
  */
 
 export const TOKEN_SCOPES = ['food:read', 'food', 'admin'] as const;
-export type TokenScope = (typeof TOKEN_SCOPES)[number];
+export type PublicScope = (typeof TOKEN_SCOPES)[number];
+/** The assistant bridge's key: reaches only /api/assistant/bridge/*, made on the server (CLI), never in the app. */
+export const BRIDGE_SCOPE = 'assistant-bridge' as const;
+export const ALL_SCOPES = [...TOKEN_SCOPES, BRIDGE_SCOPE] as const;
+export type TokenScope = PublicScope | typeof BRIDGE_SCOPE;
 
 const TOKEN_PREFIX = 'lms_';
 const MAX_ACTIVE_TOKENS = 20;
@@ -60,7 +64,7 @@ export async function createToken(
   user: User,
   input: { name: string; scope: TokenScope; oauthClientId?: string },
 ): Promise<{ token: string; key: PublicToken }> {
-  if (input.scope === 'admin' && user.role !== 'admin')
+  if ((input.scope === 'admin' || input.scope === BRIDGE_SCOPE) && user.role !== 'admin')
     throw new AppError(403, 'FORBIDDEN', 'Only admins can give an assistant admin access');
   const { rows: count } = await deps.db.query<{ count: number }>(
     'SELECT count(*)::int AS count FROM api_tokens WHERE user_id = $1 AND revoked_at IS NULL',
@@ -140,6 +144,7 @@ export async function authenticateToken(
  */
 export function tokenMayAccess(scope: TokenScope, method: string, path: string): boolean {
   const read = method === 'GET' || method === 'HEAD';
+  if (scope === BRIDGE_SCOPE) return path.startsWith('/api/assistant/bridge/');
   if (path === '/api/me') return read;
   if (path === '/api/food' || path.startsWith('/api/food/'))
     return scope === 'food:read' ? read : true;

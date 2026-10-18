@@ -6,6 +6,7 @@ import { translateFields, translateMessage } from './lib/messages';
 import {
   apiSecurityHeaders,
   hostGuard,
+  assistantBodyLimit,
   importBodyLimit,
   jsonBodyLimit,
   noStore,
@@ -14,6 +15,7 @@ import {
   requestContext,
 } from './middleware/security';
 import { drinksRoutes } from './modules/drinks/routes';
+import { assistantRoutes } from './modules/assistant/routes';
 import { closetRoutes } from './modules/closet/routes';
 import { medicationRoutes } from './modules/medication/routes';
 import { backupRoutes } from './modules/admin/backup';
@@ -50,7 +52,9 @@ export function createApp(deps: AppDeps) {
       ? next()
       : c.req.path === '/api/watching/import'
       ? importBodyLimit(c, next)
-      : PHOTO_PATHS.test(c.req.path)
+      : c.req.path === '/api/assistant/attachments'
+        ? assistantBodyLimit(c, next)
+        : PHOTO_PATHS.test(c.req.path)
         ? photoBodyLimit(c, next)
         : jsonBodyLimit(c, next),
   );
@@ -74,6 +78,7 @@ export function createApp(deps: AppDeps) {
   app.route('/api/drinks', drinksRoutes(deps));
   app.route('/api/closet', closetRoutes(deps));
   app.route('/api/medication', medicationRoutes(deps));
+  app.route('/api/assistant', assistantRoutes(deps));
   app.route('/api/users', avatarRoutes(deps));
   app.route(
     '/api/mcp',

@@ -7,7 +7,7 @@ import { AppError } from '../lib/errors';
 import { enforceRateLimits } from '../lib/rate-limit';
 import { readJson } from '../lib/validation';
 import { requireAuth, sessionOf } from '../middleware/auth';
-import { createToken, TOKEN_SCOPES, type TokenScope } from './tokens';
+import { createToken, TOKEN_SCOPES, type PublicScope, type TokenScope } from './tokens';
 import { findUserById } from './users';
 
 /**
@@ -23,7 +23,7 @@ import { findUserById } from './users';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 
-export const SCOPE_TEXT: Record<TokenScope, string> = {
+export const SCOPE_TEXT: Record<PublicScope, string> = {
   'food:read': 'Look at the kitchen, recipes, lists, the plan and training; change nothing',
   food: 'Read and change everything in Food, the House and Training',
   admin: 'Everything, plus people’s accounts',

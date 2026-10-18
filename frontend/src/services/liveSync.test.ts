@@ -33,6 +33,7 @@ describe('live sync: which queries an area’s change refetches', () => {
     expect(keysOf('drinks')).toEqual([drinksKeys.all]);
     expect(keysOf('closet')).toEqual([closetKeys.all]);
     expect(keysOf('medication')).toEqual([medicationKeys.all, wishlistKeys.all]);
+    expect(keysOf('assistant')).toEqual([['assistant']]);
     expect(keysOf('reminders')).toEqual([foodKeys.reminders]);
     expect(keysOf('paydays')).toEqual([paydaysQueryKey]);
     expect(keysOf('people')).toEqual([

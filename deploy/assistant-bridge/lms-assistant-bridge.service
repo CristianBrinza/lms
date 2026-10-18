@@ -1,0 +1,17 @@
+[Unit]
+Description=LMS in-app assistant bridge (Claude Code CLI and whisper.cpp)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/shades/lms
+ExecStart=/usr/bin/node %h/shades/lms/deploy/assistant-bridge/bridge.mjs
+EnvironmentFile=-%h/.config/lms/assistant.env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Restart=always
+RestartSec=5
+# No MemoryMax: the Claude CLI child runs inside this cgroup.
+
+[Install]
+WantedBy=default.target

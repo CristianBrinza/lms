@@ -133,3 +133,12 @@ export { default as MedicationIcon } from '@mui/icons-material/MedicationRounded
 export { default as PrintIcon } from '@mui/icons-material/PrintRounded';
 export { default as SnoozeIcon } from '@mui/icons-material/SnoozeRounded';
 export { default as SkipNextIcon } from '@mui/icons-material/SkipNextRounded';
+export { default as SendIcon } from '@mui/icons-material/SendRounded';
+export { default as MicIcon } from '@mui/icons-material/MicRounded';
+export { default as StopIcon } from '@mui/icons-material/StopRounded';
+export { default as CameraIcon } from '@mui/icons-material/PhotoCameraRounded';
+export { default as PhotoLibraryIcon } from '@mui/icons-material/PhotoLibraryRounded';
+export { default as FileIcon } from '@mui/icons-material/InsertDriveFileRounded';
+export { default as ExpandIcon } from '@mui/icons-material/OpenInFullRounded';
+export { default as CollapseIcon } from '@mui/icons-material/CloseFullscreenRounded';
+export { default as NewChatIcon } from '@mui/icons-material/AddCommentRounded';

@@ -16,6 +16,7 @@ export const LIVE_AREAS = [
   'drinks',
   'closet',
   'medication',
+  'assistant',
   'reminders',
   'people',
   'paydays',

@@ -1603,6 +1603,65 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       );
     `,
   },
+  {
+    version: 46,
+    name: 'assistant: in-app Claude chat, its queue and the bridge key',
+    sql: `
+      -- The bridge (a script on the server PC) has its own key scope, limited to /api/assistant/bridge/*.
+      ALTER TABLE api_tokens DROP CONSTRAINT api_tokens_scope_check;
+      ALTER TABLE api_tokens ADD CONSTRAINT api_tokens_scope_check
+        CHECK (scope IN ('food:read', 'food', 'admin', 'assistant-bridge'));
+
+      CREATE TABLE assistant_threads (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title text NOT NULL DEFAULT '',
+        -- 'assistant': read, look things up, use the LMS tools. 'developer': may edit code and deploy.
+        mode text NOT NULL DEFAULT 'assistant' CHECK (mode IN ('assistant', 'developer')),
+        -- The Claude Code session that holds this thread's memory (--resume).
+        session_id text,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX assistant_threads_user_idx ON assistant_threads (user_id, updated_at DESC);
+
+      -- A person's message, and Claude's reply (queued until the bridge takes it).
+      CREATE TABLE assistant_messages (
+        id uuid PRIMARY KEY,
+        thread_id uuid NOT NULL REFERENCES assistant_threads(id) ON DELETE CASCADE,
+        role text NOT NULL CHECK (role IN ('user', 'assistant')),
+        text text NOT NULL DEFAULT '',
+        status text NOT NULL DEFAULT 'done' CHECK (status IN ('queued', 'running', 'done', 'failed', 'stopped')),
+        progress text NOT NULL DEFAULT '',
+        error text NOT NULL DEFAULT '',
+        -- For a reply: the message it answers.
+        parent_id uuid REFERENCES assistant_messages(id) ON DELETE SET NULL,
+        stop_requested boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL,
+        updated_at timestamptz NOT NULL
+      );
+      CREATE INDEX assistant_messages_thread_idx ON assistant_messages (thread_id, created_at);
+      CREATE INDEX assistant_messages_queue_idx ON assistant_messages (created_at) WHERE status IN ('queued', 'running');
+
+      -- Photos, files and voice notes. Uploaded first (message_id NULL), attached when sent.
+      CREATE TABLE assistant_attachments (
+        id uuid PRIMARY KEY,
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message_id uuid REFERENCES assistant_messages(id) ON DELETE CASCADE,
+        kind text NOT NULL CHECK (kind IN ('image', 'audio', 'file')),
+        mime text NOT NULL,
+        name text NOT NULL DEFAULT '',
+        bytes bytea NOT NULL,
+        -- A voice note's transcription: '' (not asked), queued, running, done, failed.
+        transcript_status text NOT NULL DEFAULT '',
+        transcript text NOT NULL DEFAULT '',
+        transcript_error text NOT NULL DEFAULT '',
+        transcript_requested_at timestamptz,
+        created_at timestamptz NOT NULL
+      );
+      CREATE INDEX assistant_attachments_message_idx ON assistant_attachments (message_id);
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

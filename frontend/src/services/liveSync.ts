@@ -18,6 +18,7 @@ export type LiveArea =
   | 'drinks'
   | 'closet'
   | 'medication'
+  | 'assistant'
   | 'reminders'
   | 'people'
   | 'paydays'
@@ -68,6 +69,8 @@ const TARGETS: Record<Exclude<LiveArea, 'other'>, LiveTarget[]> = {
   closet: [{ queryKey: ['closet'] }],
   // The medicine cabinet, treatments and doses (a buy-list request also touches the wishlist).
   medication: [{ queryKey: ['medication'] }, { queryKey: ['wishlist'] }],
+  // The in-app assistant's conversations (their owner only).
+  assistant: [{ queryKey: ['assistant'] }],
   reminders: [{ queryKey: ['me', 'reminders'] }],
   people: [
     { queryKey: ['me'], exact: true },

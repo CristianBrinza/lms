@@ -141,3 +141,11 @@ export const jsonBodyLimit = bodyLimit({
     throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body too large');
   },
 });
+
+/** The assistant's uploads (a photo, a voice note or a file up to 15 MB) arrive as base64 JSON. */
+export const assistantBodyLimit = bodyLimit({
+  maxSize: 21 * 1024 * 1024,
+  onError: () => {
+    throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body too large');
+  },
+});

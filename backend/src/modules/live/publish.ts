@@ -14,6 +14,8 @@ const QUIET = [
   /^\/api\/oauth\//,
   /^\/api\/mcp(\/|$)/,
   /^\/api\/events$/,
+  // The assistant announces itself, to the thread's owner only (modules/assistant).
+  /^\/api\/assistant(\/|$)/,
   /^\/api\/me\/(sessions|tokens|password|push)(\/|$)/,
 ];
 

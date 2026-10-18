@@ -7,7 +7,7 @@ import { bearerToken } from '../../middleware/auth';
 import { ensureKitchen, foodCtx } from '../food/kitchen';
 import { localDate } from '../food/stock';
 import { publishChange, toolArea } from '../live/publish';
-import { authenticateToken, type TokenScope } from '../tokens';
+import { authenticateToken, BRIDGE_SCOPE, type TokenScope } from '../tokens';
 import { inputSchema, scopeAllows, TOOLS, type ToolEnv } from './tools';
 
 /**
@@ -190,6 +190,8 @@ export function mcpRoutes(deps: AppDeps, getApp: () => Hono<AppEnv>) {
       throw new AppError(401, 'KEY_INVALID', 'This access key is not valid', {
         headers: { 'WWW-Authenticate': mcpChallenge(deps, 'invalid_token') },
       });
+    if (auth.scope === BRIDGE_SCOPE)
+      throw new AppError(403, 'KEY_SCOPE', 'This access key can’t do that');
     await enforceRateLimits(deps, [{ key: `mcp:${auth.tokenId}`, limit: 600, windowSec: 10 * 60 }]);
 
     let body: unknown;
