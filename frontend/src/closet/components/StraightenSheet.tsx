@@ -3,7 +3,8 @@ import { Button, Sheet } from '@/components/ui';
 import { decodeRaster, encodeRaster } from '../images';
 import { useClosetT } from '../i18n';
 import type { Raster } from '../refine';
-import { autoTilt, straighten } from '../straighten';
+import { silhouetteKeystone } from '../perspective';
+import { autoTilt, rotateRaster, straighten } from '../straighten';
 
 const PREVIEW = 520;
 
@@ -23,8 +24,8 @@ function shrink(raster: Raster): Raster {
 }
 
 /**
- * Straighten a cut-out: tilt (±15°) and perspective (±25%) with a live preview, "Auto" for the
- * tilt found from the piece itself. Save hands back the result as a PNG blob.
+ * Straighten a cut-out: tilt (±15°) and perspective (±25%) with a live preview, "Auto" for both
+ * found from the piece itself (sliders stay for fine-tuning). Save hands back the result as a PNG blob.
  */
 export function StraightenSheet({
   source,
@@ -78,6 +79,15 @@ export function StraightenSheet({
     }
   };
 
+  /** Auto: the tilt from the piece's axis, then the perspective that evens out its own sides (the cut-out already had the towel's perspective corrected when it was made). */
+  const auto = () => {
+    if (!small) return;
+    const turn = Math.round(autoTilt(small));
+    setTilt(turn);
+    const level = turn ? rotateRaster(small, turn) : small;
+    setPerspective(Math.round(silhouetteKeystone(level) * 100));
+  };
+
   const slider = (label: string, value: number, min: number, max: number, set: (n: number) => void, unit: string) => (
     <label className="block">
       <span className="flex justify-between text-sm font-semibold text-ink-900">
@@ -109,7 +119,7 @@ export function StraightenSheet({
         {slider(t.tilt, tilt, -15, 15, setTilt, '°')}
         {slider(t.perspective, perspective, -25, 25, setPerspective, '%')}
         <div className="flex flex-wrap gap-2">
-          <Button variant="tint" disabled={!small} onClick={() => small && setTilt(Math.round(autoTilt(small)))}>
+          <Button variant="tint" disabled={!small} onClick={auto}>
             {t.auto}
           </Button>
           <span className="flex-1" />

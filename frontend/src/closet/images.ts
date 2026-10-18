@@ -1,6 +1,7 @@
 import { storage } from '@/lib/storage';
 import { nearestColor, type ClosetColor } from './catalog';
 import { refineCutout, type Raster } from './refine';
+import { planPerspective, warpPerspective } from './perspective';
 import { autoDeskew } from './straighten';
 
 /**
@@ -158,11 +159,19 @@ export async function encodeRaster(raster: Raster): Promise<Blob> {
 }
 
 /**
- * The cut-out after the model: clean mask (strips of towel or bed at the edges gone), colour corrected from the original photo's background,
- * cropped, and straightened. A transparent PNG.
+ * The cut-out after the model. First the perspective is corrected from the towel the piece lies
+ * on (the photo and the matte are warped alike, so the clean-up works on the straightened piece;
+ * no towel in sight, no change). Then the mask is cleaned (strips of towel or bed at the edges
+ * gone), the colour corrected from the original photo's background, cropped, and straightened.
+ * A transparent PNG.
  */
 export async function polishCutout(original: Blob, cut: Blob): Promise<Blob> {
-  const [photo, mask] = await Promise.all([decodeRaster(original), decodeRaster(cut)]);
+  let [photo, mask] = await Promise.all([decodeRaster(original), decodeRaster(cut)]);
+  const plan = planPerspective(photo);
+  if (plan) {
+    photo = warpPerspective(photo, plan, 'clamp');
+    mask = warpPerspective(mask, plan, 'clear');
+  }
   const refined = autoDeskew(refineCutout(mask, photo));
   return encodeRaster(refined);
 }

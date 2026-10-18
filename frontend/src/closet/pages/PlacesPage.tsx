@@ -166,7 +166,7 @@ const BAND_LOOK: Partial<Record<PlaceKind, string>> = {
   rail: 'h-16',
   drawer: 'h-12 rounded-xl bg-ink-50',
   box: 'h-12 rounded-xl bg-butter-50',
-  vacuum_bag: 'h-12 rounded-[1.25rem] border border-dashed border-ink-300 bg-sky-50',
+  vacuum_bag: 'h-12 rounded-[1.25rem] border border-dashed border-ink-300 bg-sky-100',
   hook: 'h-11',
   section: 'h-12',
 };
