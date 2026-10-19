@@ -1662,6 +1662,16 @@ export const MIGRATIONS: ReadonlyArray<{ version: number; name: string; sql: str
       CREATE INDEX assistant_attachments_message_idx ON assistant_attachments (message_id);
     `,
   },
+  {
+    version: 47,
+    name: 'assistant: the main chat mode (a window into the LMS [Server] session)',
+    sql: `
+      ALTER TABLE assistant_threads DROP CONSTRAINT assistant_threads_mode_check;
+      ALTER TABLE assistant_threads ADD CONSTRAINT assistant_threads_mode_check
+        CHECK (mode IN ('main', 'assistant', 'developer'));
+      ALTER TABLE assistant_threads ALTER COLUMN mode SET DEFAULT 'main';
+    `,
+  },
 ];
 
 /** Applies pending migrations. An advisory lock keeps two starting processes from racing. */

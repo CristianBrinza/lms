@@ -33,7 +33,7 @@ const CLOSE_MS = 200;
 const time = (iso: string) =>
   new Intl.DateTimeFormat(intlLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 
-function Bubble({ message }: { message: AssistantMessage }) {
+function Bubble({ message, main }: { message: AssistantMessage; main: boolean }) {
   const t = useAssistantT();
   const mine = message.role === 'user';
   const working = message.status === 'queued' || message.status === 'running';
@@ -86,9 +86,16 @@ function Bubble({ message }: { message: AssistantMessage }) {
         {!mine && working ? (
           <p className="mt-1 flex items-center gap-2 text-sm text-ink-500">
             <Spinner className="size-3.5" />
-            <span className="truncate">{lastStep ?? (message.status === 'queued' ? t.queued : t.working)}</span>
+            <span className="truncate">
+              {main
+                ? lastStep
+                  ? `${t.mainWorking} ${lastStep}`
+                  : t.sentToMain
+                : (lastStep ?? (message.status === 'queued' ? t.queued : t.working))}
+            </span>
           </p>
         ) : null}
+        {!mine && working && main ? <p className="mt-1 text-xs text-ink-500">{t.mainHint}</p> : null}
         {!mine && message.status === 'failed' && message.error ? (
           <p className="mt-1 text-sm text-danger-700">{message.error}</p>
         ) : null}
@@ -122,7 +129,7 @@ export default function AssistantPanel({ onClose }: { onClose: () => void }) {
   const [threadId, setThreadId] = useState<string | null | undefined>(
     () => storage.get(THREAD_KEY) ?? undefined,
   );
-  const [pendingMode, setPendingMode] = useState<Mode>('assistant');
+  const [pendingMode, setPendingMode] = useState<Mode>('main');
 
   const threads = useQuery({
     queryKey: assistantKeys.threads,
@@ -299,7 +306,7 @@ export default function AssistantPanel({ onClose }: { onClose: () => void }) {
 
         <div className="flex flex-wrap items-center gap-2 px-4 pb-2">
           <div role="radiogroup" aria-label={t.modeLabel} className="flex rounded-full bg-lav-100 p-0.5">
-            {(['assistant', 'developer'] as const).map((value) => (
+            {(['main', 'assistant', 'developer'] as const).map((value) => (
               <button
                 key={value}
                 type="button"
@@ -331,7 +338,7 @@ export default function AssistantPanel({ onClose }: { onClose: () => void }) {
           ) : messages.length ? (
             <ul className="space-y-3" aria-live="polite">
               {messages.map((message) => (
-                <Bubble key={message.id} message={message} />
+                <Bubble key={message.id} message={message} main={mode === 'main'} />
               ))}
             </ul>
           ) : (

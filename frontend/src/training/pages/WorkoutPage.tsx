@@ -333,7 +333,7 @@ export default function WorkoutPage() {
       )}
 
       {dirty && current ? (
-        <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.75rem)] z-30 flex justify-center px-4 md:bottom-6">
+        <div data-fab className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.75rem)] z-30 flex justify-center px-4 md:bottom-6">
           <div className="flex w-full max-w-md items-center gap-2 rounded-full bg-ink-900 p-1.5 pl-5 text-white shadow-[var(--shadow-tile)]">
             <span className="min-w-0 flex-1 text-sm leading-tight font-semibold">{t.unsaved}</span>
             <Button

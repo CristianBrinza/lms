@@ -2,7 +2,7 @@ import { api } from '@/services/api/client';
 
 /** /api/assistant: the in-app Claude (admins only for now). The server queues, a bridge answers. */
 
-export type Mode = 'assistant' | 'developer';
+export type Mode = 'main' | 'assistant' | 'developer';
 export type MessageStatus = 'queued' | 'running' | 'done' | 'failed' | 'stopped';
 export type AttachmentKind = 'image' | 'audio' | 'file';
 

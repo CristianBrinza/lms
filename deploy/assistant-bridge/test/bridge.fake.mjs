@@ -28,7 +28,7 @@ const server = createServer((req, res) => {
     const route = req.url.replace('/api/assistant/bridge', '');
     calls.push(`${req.method} ${route} ${body}`);
     res.setHeader('content-type', 'application/json');
-    if (route === '/next') {
+    if (route.startsWith('/next')) {
       if (served) return setTimeout(() => res.end('{"job":null}'), 500);
       served = true;
       return res.end(JSON.stringify({ job: { type: 'chat', id: 'm1', threadId: 't', mode: 'assistant', sessionId: null, text: 'hi', attachments: [{ id: 'a1', mime: 'application/pdf', kind: 'file', name: 'my doc.pdf' }] } }));

@@ -25,6 +25,7 @@ export function DockBar({
     <>
       {createPortal(
         <div
+          data-fab
           className={cx(
             'fixed inset-x-0 z-[41] animate-rise px-4 py-2.5 md:hidden',
             surface,

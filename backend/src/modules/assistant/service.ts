@@ -11,8 +11,21 @@ import { isUuid } from '../users';
  * back. Nothing here runs Claude.
  */
 
-export const MODES = ['assistant', 'developer'] as const;
+export const MODES = ['main', 'assistant', 'developer'] as const;
 export type Mode = (typeof MODES)[number];
+/** What the bridge script claims; 'main' belongs to the relay (the desktop chat). */
+export const BRIDGE_MODES: Mode[] = ['assistant', 'developer'];
+/** A main-chat reply may wait while that chat is busy with other work. */
+const STALE_MAIN_MS = 12 * 60 * 60 * 1000;
+
+/** Parses ?modes=a,b; unknown names are ignored, and nothing valid means the bridge's own modes. */
+export function parseModes(raw: string | undefined | null): Mode[] {
+  const list = (raw ?? '')
+    .split(',')
+    .map((m) => m.trim())
+    .filter((m): m is Mode => (MODES as readonly string[]).includes(m));
+  return list.length ? [...new Set(list)] : BRIDGE_MODES;
+}
 
 export const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -256,15 +269,19 @@ export type Job =
  * The next job, oldest first, one at a time: nothing is handed out while another is running
  * (a job whose bridge went quiet for too long is failed first). Marks the job running.
  */
-export async function claimNext(deps: AppDeps): Promise<Job | null> {
+export async function claimNext(deps: AppDeps, modes: Mode[] = BRIDGE_MODES): Promise<Job | null> {
   const now = deps.now();
+  // Voice notes are the bridge's work, never the relay's.
+  const transcribes = modes.some((m) => m !== 'main');
   const claimed = await deps.db.tx(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['assistant:queue']);
     await client.query(
-      `UPDATE assistant_messages SET status = 'failed', error = 'The assistant stopped answering', updated_at = $1
-        WHERE role = 'assistant' AND status = 'running'
-          AND updated_at < $1::timestamptz - $2 * interval '1 millisecond'`,
-      [now, STALE_CHAT_MS],
+      `UPDATE assistant_messages m SET status = 'failed', error = 'The assistant stopped answering', updated_at = $1
+         FROM assistant_threads t
+        WHERE t.id = m.thread_id AND m.role = 'assistant' AND m.status = 'running'
+          AND m.updated_at < $1::timestamptz
+              - (CASE WHEN t.mode = 'main' THEN $3::bigint ELSE $2::bigint END) * interval '1 millisecond'`,
+      [now, STALE_CHAT_MS, STALE_MAIN_MS],
     );
     await client.query(
       `UPDATE assistant_attachments SET transcript_status = 'failed', transcript_error = 'The transcription timed out'
@@ -272,19 +289,25 @@ export async function claimNext(deps: AppDeps): Promise<Job | null> {
           AND transcript_requested_at < $1::timestamptz - $2 * interval '1 millisecond'`,
       [now, STALE_TRANSCRIBE_MS],
     );
+    // One job at a time per consumer: a running main-chat reply never blocks the bridge, and the
+    // other way round.
     const running = await client.query(
-      `SELECT 1 FROM assistant_messages WHERE role = 'assistant' AND status = 'running'
-       UNION ALL SELECT 1 FROM assistant_attachments WHERE transcript_status = 'running' LIMIT 1`,
+      `SELECT 1 FROM assistant_messages m JOIN assistant_threads t ON t.id = m.thread_id
+        WHERE m.role = 'assistant' AND m.status = 'running' AND t.mode = ANY ($1::text[])
+       UNION ALL SELECT 1 FROM assistant_attachments WHERE $2::boolean AND transcript_status = 'running' LIMIT 1`,
+      [modes, transcribes],
     );
     if (running.rowCount) return null;
     const { rows } = await client.query<{ kind: 'chat' | 'transcribe'; id: string }>(
       `SELECT kind, id FROM (
-         SELECT 'chat' AS kind, id::text AS id, created_at AS at FROM assistant_messages
-          WHERE role = 'assistant' AND status = 'queued'
+         SELECT 'chat' AS kind, m.id::text AS id, m.created_at AS at FROM assistant_messages m
+           JOIN assistant_threads t ON t.id = m.thread_id
+          WHERE m.role = 'assistant' AND m.status = 'queued' AND t.mode = ANY ($1::text[])
          UNION ALL
          SELECT 'transcribe', id::text, transcript_requested_at FROM assistant_attachments
-          WHERE transcript_status = 'queued'
+          WHERE $2::boolean AND transcript_status = 'queued'
        ) q ORDER BY at, id LIMIT 1`,
+      [modes, transcribes],
     );
     const next = rows[0];
     if (!next) return null;
@@ -342,6 +365,25 @@ export async function claimNext(deps: AppDeps): Promise<Job | null> {
   if (claimed.owner && claimed.job.type === 'chat')
     announce(deps, claimed.owner, claimed.job.threadId);
   return claimed.job;
+}
+
+/** Queued replies for these modes, oldest first, without claiming them (the relay's `peek`). */
+export async function peekQueued(deps: AppDeps, modes: Mode[]) {
+  const { rows } = await deps.db.query<{ id: string; thread_id: string; text: string; created_at: Date }>(
+    `SELECT m.id, m.thread_id, q.text, m.created_at
+       FROM assistant_messages m
+       JOIN assistant_threads t ON t.id = m.thread_id
+       LEFT JOIN assistant_messages q ON q.id = m.parent_id
+      WHERE m.role = 'assistant' AND m.status = 'queued' AND t.mode = ANY ($1::text[])
+      ORDER BY m.created_at, m.id`,
+    [modes],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    threadId: r.thread_id,
+    text: (r.text ?? '').slice(0, 200),
+    createdAt: r.created_at.toISOString(),
+  }));
 }
 
 /** What the bridge may change on a reply that is running. */
@@ -443,9 +485,11 @@ export async function finishTranscription(
 /** The bridge restarted: whatever was running is not any more. */
 export async function resetRunning(deps: AppDeps): Promise<void> {
   const now = deps.now();
+  // Only the bridge's own jobs: a main-chat reply belongs to the relay, which has not restarted.
   await deps.db.query(
-    `UPDATE assistant_messages SET status = 'failed', error = 'The assistant restarted, try again', updated_at = $1
-      WHERE role = 'assistant' AND status = 'running'`,
+    `UPDATE assistant_messages m SET status = 'failed', error = 'The assistant restarted, try again', updated_at = $1
+       FROM assistant_threads t
+      WHERE t.id = m.thread_id AND m.role = 'assistant' AND m.status = 'running' AND t.mode <> 'main'`,
     [now],
   );
   await deps.db.query(

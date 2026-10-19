@@ -274,7 +274,7 @@ export function EpisodeList({
       </ul>
 
       {picking ? (
-        <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-10 lg:bottom-4">
+        <div data-fab className="sticky bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-10 lg:bottom-4">
           <Button
             fullWidth
             icon={CheckIcon}

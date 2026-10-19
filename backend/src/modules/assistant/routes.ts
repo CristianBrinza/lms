@@ -22,6 +22,8 @@ import {
   MAX_FILE_BYTES,
   messagesOf,
   MODES,
+  parseModes,
+  peekQueued,
   resetRunning,
   sendMessage,
   stopMessage,
@@ -93,14 +95,20 @@ export function assistantRoutes(deps: AppDeps, options: { pollMs?: number; nextW
 
   /** Long poll: the next job, or {job: null} after ~25 s so the bridge asks again. */
   bridge.get('/next', async (c) => {
+    const modes = parseModes(c.req.query('modes'));
     const until = Date.now() + nextWaitMs;
     for (;;) {
-      const job = await claimNext(deps);
+      const job = await claimNext(deps, modes);
       if (job) return c.json({ job });
       if (Date.now() + pollMs >= until) return c.json({ job: null });
       await sleep(pollMs);
     }
   });
+
+  /** What waits for these modes (?modes=main), without claiming anything. */
+  bridge.get('/queue', async (c) =>
+    c.json({ queued: await peekQueued(deps, parseModes(c.req.query('modes'))) }),
+  );
 
   bridge.get('/attachments/:id', async (c) => {
     const id = c.req.param('id');
@@ -151,7 +159,7 @@ export function assistantRoutes(deps: AppDeps, options: { pollMs?: number; nextW
 
   app.post('/threads', async (c) => {
     const body = await readJson(c, ThreadInput);
-    return c.json({ thread: await createThread(deps, c.get('user').id, body.mode ?? 'assistant') }, 201);
+    return c.json({ thread: await createThread(deps, c.get('user').id, body.mode ?? 'main') }, 201);
   });
 
   app.patch('/threads/:id', async (c) => {

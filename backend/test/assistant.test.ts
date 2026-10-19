@@ -107,6 +107,33 @@ describe('assistant: the queue', () => {
     expect(await claimNext(t.deps)).toBeNull();
   });
 
+  it('keeps main-chat messages away from the bridge, and the bridge’s away from the relay', async () => {
+    const { user, thread, bridge } = await setup();
+    const main = await createThread(t.deps, user.id, 'main');
+    const mainMsg = await sendMessage(t.deps, user.id, main.id, { text: 'for the desktop chat', attachmentIds: [] });
+    // The bridge (default modes, or named) never sees it.
+    expect(await claimNext(t.deps)).toBeNull();
+    expect(await claimNext(t.deps, ['assistant', 'developer'])).toBeNull();
+    // Peeking lists it without claiming.
+    const peek = await bridge.get('/api/assistant/bridge/queue?modes=main');
+    expect(peek.body.queued).toHaveLength(1);
+    expect(peek.body.queued[0]).toMatchObject({ id: mainMsg, text: 'for the desktop chat' });
+    expect((await bridge.get('/api/assistant/bridge/queue')).body.queued).toHaveLength(0);
+
+    // A bridge message is queued too; the relay only gets the main one.
+    const mine = await sendMessage(t.deps, user.id, thread.id, { text: 'for the bridge', attachmentIds: [] });
+    const claimed = (await bridge.get('/api/assistant/bridge/next?modes=main')).body.job;
+    expect(claimed).toMatchObject({ type: 'chat', id: mainMsg, mode: 'main', text: 'for the desktop chat' });
+    // A running main reply doesn't block the bridge, and the bridge's doesn't block the relay.
+    expect(await claimNext(t.deps)).toMatchObject({ id: mine, mode: 'assistant' });
+    // Restarting the bridge doesn't fail the main reply.
+    expect((await bridge.post('/api/assistant/bridge/reset')).status).toBe(200);
+    expect(
+      (await bridge.post(`/api/assistant/bridge/messages/${mainMsg}/progress`, { progress: 'Looking' })).body,
+    ).toEqual({ stop: false });
+    await finishMessage(t.deps, mainMsg, { ok: true, text: 'done' });
+  });
+
   it('runs a voice note and a message in the order they were asked', async () => {
     const { b, bridge, user, thread } = await setup();
     const up = await b.post('/api/assistant/attachments', { kind: 'audio', mime: 'audio/mp4', data: 'AAAA' });

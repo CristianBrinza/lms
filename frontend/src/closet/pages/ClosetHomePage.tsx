@@ -225,7 +225,7 @@ export default function ClosetHomePage() {
       )}
 
       {selected ? (
-        <div className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.75rem)] z-30 px-3 md:bottom-6">
+        <div data-fab className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.75rem)] z-30 px-3 md:bottom-6">
           <div className="mx-auto flex max-w-xl items-center gap-2 rounded-pill bg-ink-900 p-1.5 pl-4 text-white shadow-[var(--shadow-float)] animate-rise">
             <span className="tabular mr-auto text-sm font-semibold">{t.selected(selected.size)}</span>
             <button

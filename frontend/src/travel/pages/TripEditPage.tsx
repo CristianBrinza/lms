@@ -477,7 +477,7 @@ function TripForm({ trip }: { trip: Trip | null }) {
         <p className="text-sm font-medium text-danger-700">{errorMessage(save.error)}</p>
       ) : null}
 
-      <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.5rem)] z-20 rounded-[1.5rem] bg-white/95 p-2 shadow-[var(--shadow-raised)] backdrop-blur md:bottom-4">
+      <div data-fab className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.5rem)] z-20 rounded-[1.5rem] bg-white/95 p-2 shadow-[var(--shadow-raised)] backdrop-blur md:bottom-4">
         <div className="flex gap-2">
           {trip ? (
             <Button

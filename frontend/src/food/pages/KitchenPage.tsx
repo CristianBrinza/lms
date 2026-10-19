@@ -285,7 +285,7 @@ export function InventoryScreen({ area }: { area: Area }) {
       {/* In <body>: the page's entrance animation transforms its box, which would re-anchor `fixed`. */}
       {products.length
         ? createPortal(
-            <div className="fixed bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.875rem)] right-4 z-30 animate-rise md:hidden">
+            <div data-fab className="fixed bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+0.875rem)] right-4 z-30 animate-rise md:hidden">
               <Button
                 icon={AddIcon}
                 variant="accent"

@@ -10,6 +10,7 @@ import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { buildSystemPrompt } from './prompt.mjs';
 import { applyEvent, createState, finalText, parseLine, redact } from './stream.mjs';
 
 // ---- config ---------------------------------------------------------------------------------
@@ -42,14 +43,6 @@ const TRANSCRIBE_TIMEOUT_MS = Number(env.TRANSCRIBE_TIMEOUT_MS) || 3 * 60 * 1000
 const SECRETS = [BRIDGE_KEY, MCP_KEY, env.CLAUDE_CODE_OAUTH_TOKEN || ''].filter(Boolean);
 const clean = (text) => redact(text, SECRETS);
 
-const SYSTEM_PROMPT = [
-  "You are the in-app LMS assistant for Cristian's household; he is using the app on his phone.",
-  'Answer in the language he writes in (Romanian, Russian or English; default English).',
-  'Change data only through the LMS tools (MCP), the /tmp/recipes helpers or scripts/lms.mjs.',
-  'Never create kitchenware or stock as a side effect of something else.',
-  'Keep replies short and plain; markdown is allowed. Images and files may be given as file paths: read them with the Read tool.',
-].join(' ');
-
 const ASSISTANT_TOOLS = [
   'Read',
   'Glob',
@@ -58,8 +51,15 @@ const ASSISTANT_TOOLS = [
   'WebFetch',
   'mcp__lms',
   'Bash(node /tmp/recipes/*)',
+  // One-liners that import /tmp/recipes/api.mjs: a pattern can't tell them from any other
+  // `node -e`, so all of them are allowed; Write and Edit stay inside the scratch folders.
+  'Bash(node -e *)',
   'Bash(node scripts/lms.mjs*)',
   'Bash(node scripts/*)',
+  'Write(//tmp/recipes/**)',
+  'Write(//tmp/assistant-*/**)',
+  'Edit(//tmp/recipes/**)',
+  'Edit(//tmp/assistant-*/**)',
 ].join(',');
 
 const log = (...args) => console.log(new Date().toISOString(), ...args.map((a) => clean(typeof a === 'string' ? a : JSON.stringify(a))));
@@ -260,7 +260,7 @@ async function runChat(job) {
     const mcpFile = await writeMcpConfig();
     const attempt = async (resume) => {
       const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-        '--append-system-prompt', SYSTEM_PROMPT, '--mcp-config', mcpFile, '--strict-mcp-config'];
+        '--append-system-prompt', buildSystemPrompt(), '--mcp-config', mcpFile, '--strict-mcp-config'];
       if (job.mode === 'developer') args.push('--permission-mode', 'bypassPermissions');
       else args.push('--permission-mode', 'dontAsk', '--permission-prompts', 'none', `--allowedTools=${ASSISTANT_TOOLS}`);
       if (resume) args.push('--resume', resume);
@@ -382,7 +382,7 @@ async function main() {
   for (;;) {
     let job = null;
     try {
-      const res = await api('GET', '/next', undefined, 40000);
+      const res = await api('GET', '/next?modes=assistant,developer', undefined, 40000);
       job = res && res.job ? res.job : null;
       delay = 2000;
     } catch (error) {
