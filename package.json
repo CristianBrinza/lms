@@ -25,5 +25,8 @@
     "concurrently": "^10.0.5",
     "prettier": "^3.9.9"
   },
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "yarn@1.22.22",
+  "resolutions": {
+    "shell-quote": "^1.11.0"
+  }
 }
