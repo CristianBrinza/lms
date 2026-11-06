@@ -38,8 +38,8 @@ describe('travel: a packing list that fits the trip', () => {
       scope: 'national',
       kind: 'day',
       transport: 'car',
-      startDate: '2026-10-18',
-      endDate: '2026-10-18',
+      startDate: '2036-10-18',
+      endDate: '2036-10-18',
       departTime: '08:00',
       people: [user.id],
       guests: 1,
@@ -56,8 +56,8 @@ describe('travel: a packing list that fits the trip', () => {
       scope: 'international',
       kind: 'vacation',
       transport: 'plane',
-      startDate: '2026-11-02',
-      endDate: '2026-11-08',
+      startDate: '2036-11-02',
+      endDate: '2036-11-08',
     });
     const list = away.body.checks;
     expect(names(list)).toEqual(
@@ -72,7 +72,7 @@ describe('travel: a packing list that fits the trip', () => {
     expect(list.find((c: any) => c.name === 'Underwear').quantity).toBe(7);
 
     // Coming up first, soonest first.
-    const trips = (await b.get('/api/travel?today=2026-10-10')).body.trips;
+    const trips = (await b.get('/api/travel?today=2036-10-10')).body.trips;
     expect(trips.map((x: any) => x.name)).toEqual(['Soroca fortress', 'Barcelona']);
   });
 
@@ -83,8 +83,8 @@ describe('travel: a packing list that fits the trip', () => {
       scope: 'national',
       kind: 'family',
       transport: 'bus',
-      startDate: '2026-10-24',
-      endDate: '2026-10-25',
+      startDate: '2036-10-24',
+      endDate: '2036-10-25',
     });
     const id = body.trip.id;
     const brush = body.checks.find((c: any) => c.name === 'Toothbrush');
@@ -100,7 +100,7 @@ describe('travel: a packing list that fits the trip', () => {
 
     // Made a day trip by car: the night things go, the car things come; the tick stays.
     const changed = await b.patch(`/api/travel/trips/${id}`, {
-      endDate: '2026-10-24',
+      endDate: '2036-10-24',
       transport: 'car',
     });
     const list = names(changed.body.checks);
@@ -149,8 +149,8 @@ describe('travel: a packing list that fits the trip', () => {
       scope: 'national',
       kind: 'other',
       transport: 'car',
-      startDate: '2026-10-18',
-      endDate: '2026-10-18',
+      startDate: '2036-10-18',
+      endDate: '2036-10-18',
       bagIds: [bag.body.bag.id],
     });
     expect(trip.status).toBe(400);
@@ -169,8 +169,8 @@ describe('travel: a packing list that fits the trip', () => {
       scope: 'international',
       kind: 'other',
       transport: 'bus',
-      startDate: '2026-10-20',
-      endDate: '2026-10-21',
+      startDate: '2036-10-20',
+      endDate: '2036-10-21',
       gear: [{ gearId: bank.body.gear.id, count: 1 }],
     });
     expect(away.body.trip.gear).toEqual([{ gearId: bank.body.gear.id, count: 1 }]);
@@ -181,8 +181,8 @@ describe('travel: a packing list that fits the trip', () => {
           scope: 'national',
           kind: 'other',
           transport: 'car',
-          startDate: '2026-10-18',
-          endDate: '2026-10-18',
+          startDate: '2036-10-18',
+          endDate: '2036-10-18',
           gear: [{ gearId: bank.body.gear.id, count: 1 }],
         })
       ).status,
@@ -196,8 +196,8 @@ describe('travel: a packing list that fits the trip', () => {
           scope: 'national',
           kind: 'day',
           transport: 'car',
-          startDate: '2026-10-18',
-          endDate: '2026-10-17',
+          startDate: '2036-10-18',
+          endDate: '2036-10-17',
         })
       ).status,
     ).toBe(400);
@@ -212,31 +212,31 @@ describe('travel: deadlines, things to buy, the way there and back', () => {
       scope: 'international',
       kind: 'vacation',
       transport: 'plane',
-      startDate: '2026-11-02',
-      endDate: '2026-11-08',
+      startDate: '2036-11-02',
+      endDate: '2036-11-08',
       departTime: '05:30',
-      arriveDate: '2026-11-02',
+      arriveDate: '2036-11-02',
       arriveTime: '09:40',
-      backDate: '2026-11-08',
+      backDate: '2036-11-08',
       backTime: '18:15',
       returnTime: '23:50',
     });
     expect(body.trip).toMatchObject({
       departTime: '05:30',
       arriveTime: '09:40',
-      backDate: '2026-11-08',
+      backDate: '2036-11-08',
       backTime: '18:15',
       returnTime: '23:50',
     });
     const checkIn = body.checks.find((c: any) => c.name === 'Online check-in done');
-    expect(checkIn.dueAt).toBe('2026-11-01T05:30'); // a day before leaving home
+    expect(checkIn.dueAt).toBe('2036-11-01T05:30'); // a day before leaving home
     expect(body.checks.find((c: any) => c.name === 'Wet wipes').dueAt).toBeNull();
 
     // A deadline set on the list reaches the trip.
     const item = (await b.get('/api/travel')).body.items.find((i: any) => i.name === 'Sunscreen');
     await b.patch(`/api/travel/items/${item.id}`, { dueHours: 48 });
     const after = (await b.get(`/api/travel/trips/${body.trip.id}`)).body;
-    expect(after.checks.find((c: any) => c.name === 'Sunscreen').dueAt).toBe('2026-10-31T05:30');
+    expect(after.checks.find((c: any) => c.name === 'Sunscreen').dueAt).toBe('2036-10-31T05:30');
     const moved = await b.patch(`/api/travel/trips/${body.trip.id}`, { arriveTime: null });
     expect(moved.body.trip.arriveTime).toBeNull();
     expect(moved.body.trip.backTime).toBe('18:15');
@@ -264,8 +264,8 @@ describe('travel: deadlines, things to buy, the way there and back', () => {
       scope: 'national',
       kind: 'day',
       transport: 'car',
-      startDate: '2026-10-18',
-      endDate: '2026-10-18',
+      startDate: '2036-10-18',
+      endDate: '2036-10-18',
     });
     const id = body.trip.id;
     const wipes = body.checks.find((c: any) => c.name === 'Wet wipes');
@@ -279,7 +279,7 @@ describe('travel: deadlines, things to buy, the way there and back', () => {
     expect((await b.post(`/api/travel/trips/${id}/shop`)).body).toEqual({ listed: 0 });
     const lines = (await b.get('/api/food/shopping')).body.items;
     const line = lines.find((l: any) => l.name === 'Wet wipes');
-    expect(line).toMatchObject({ needBy: '2026-10-17', note: 'For Soroca' });
+    expect(line).toMatchObject({ needBy: '2036-10-17', note: 'For Soroca' });
     expect(line.area).toBe('house');
     const listed = (await b.get(`/api/travel/trips/${id}`)).body.checks.find(
       (c: any) => c.id === wipes.id,
@@ -310,8 +310,8 @@ describe('travel: in English, Romanian and Russian', () => {
       scope: 'international',
       kind: 'other',
       transport: 'car',
-      startDate: '2026-10-20',
-      endDate: '2026-10-20',
+      startDate: '2036-10-20',
+      endDate: '2036-10-20',
     });
     expect(body.trip.translations).toEqual({ ru: { name: 'Яссы' } });
     const licence = body.checks.find((c: any) => c.name === 'Driving licence');
@@ -385,8 +385,8 @@ describe('travel: in English, Romanian and Russian', () => {
       scope: 'national',
       kind: 'day',
       transport: 'car',
-      startDate: '2026-10-18',
-      endDate: '2026-10-18',
+      startDate: '2036-10-18',
+      endDate: '2036-10-18',
     });
     const changed = await b.patch(`/api/travel/trips/${trip.body.trip.id}`, {
       translations: { ro: { note: 'Luăm termosul' } },
