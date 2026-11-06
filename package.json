@@ -1,6 +1,6 @@
 {
   "name": "lms",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "LMS — Life Management System: a private, installable PWA (React + Vite web app and a Node.js + PostgreSQL API, served from one machine through a Cloudflare Tunnel)",
   "license": "UNLICENSED",
