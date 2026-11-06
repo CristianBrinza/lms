@@ -1,6 +1,6 @@
 # LMS: the web app and the API in one image, built on the server from its own checkout
 # (deploy/updater/update.sh, deploy/server/live.sh). The API serves the web app too (WEB_DIR).
-FROM node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS web
+FROM node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS web
 WORKDIR /web
 COPY frontend/package.json frontend/yarn.lock ./
 RUN yarn install --frozen-lockfile --non-interactive --network-timeout 600000
@@ -8,7 +8,7 @@ COPY frontend/ ./
 ARG APP_VERSION=""
 RUN APP_VERSION="$APP_VERSION" yarn build
 
-FROM node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS api
+FROM node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS api
 WORKDIR /api
 COPY backend/package.json backend/yarn.lock ./
 RUN yarn install --frozen-lockfile --non-interactive --network-timeout 600000
@@ -16,7 +16,7 @@ COPY backend/ ./
 ARG APP_VERSION=""
 RUN APP_VERSION="$APP_VERSION" yarn build
 
-FROM node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+FROM node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
 # Time zone data, so TZ (the kitchen's local time) works: "today", best-before dates, reminders.
 # vips-tools: photos are shrunk to small WebP files before they're stored (Drinks).
 # postgresql16-client: pg_dump and pg_restore for the admin's backup download and restore.
