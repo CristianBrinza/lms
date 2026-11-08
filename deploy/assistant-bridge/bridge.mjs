@@ -50,15 +50,13 @@ const ASSISTANT_TOOLS = [
   'WebSearch',
   'WebFetch',
   'mcp__lms',
-  'Bash(node /tmp/recipes/*)',
-  // One-liners that import /tmp/recipes/api.mjs: a pattern can't tell them from any other
+  'Bash(node /home/shades/shades/lms/scripts/household/*)',
+  // One-liners that import scripts/household/api.mjs: a pattern can't tell them from any other
   // `node -e`, so all of them are allowed; Write and Edit stay inside the scratch folders.
   'Bash(node -e *)',
   'Bash(node scripts/lms.mjs*)',
   'Bash(node scripts/*)',
-  'Write(//tmp/recipes/**)',
   'Write(//tmp/assistant-*/**)',
-  'Edit(//tmp/recipes/**)',
   'Edit(//tmp/assistant-*/**)',
 ].join(',');
 
