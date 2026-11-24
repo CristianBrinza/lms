@@ -11,7 +11,7 @@ const en = {
   justNow: 'Just now',
   device: 'Device',
   windowsPc: 'Windows PC',
-  photo: { notImage: 'Pick a photo', unreadable: 'That photo couldn’t be read' },
+  photo: { notImage: 'Pick a photo', unreadable: 'That photo couldn’t be read', optimizing: 'Optimizing photo…' },
 };
 
 const ro: typeof en = {
@@ -24,7 +24,7 @@ const ro: typeof en = {
   justNow: 'Chiar acum',
   device: 'Dispozitiv',
   windowsPc: 'PC cu Windows',
-  photo: { notImage: 'Alege o poză', unreadable: 'Poza nu poate fi citită' },
+  photo: { notImage: 'Alege o poză', unreadable: 'Poza nu poate fi citită', optimizing: 'Se optimizează poza…' },
 };
 
 const ru: typeof en = {
@@ -37,7 +37,7 @@ const ru: typeof en = {
   justNow: 'Только что',
   device: 'Устройство',
   windowsPc: 'ПК с Windows',
-  photo: { notImage: 'Выберите фото', unreadable: 'Не удалось прочитать это фото' },
+  photo: { notImage: 'Выберите фото', unreadable: 'Не удалось прочитать это фото', optimizing: 'Оптимизируем фото…' },
 };
 
 /** A plain lookup (not a hook): these helpers run outside components too. */

@@ -1,3 +1,7 @@
+import { toast } from '@/components/ui';
+import { libT } from '@/lib/i18n';
+import { MAX_SIDE as LIMIT_SIDE, optimizeImage } from '@/lib/optimizeImage';
+
 /** Photos shrunk in the browser, files read as base64, and the recorder's format. */
 
 export const MAX_SIDE = 2048;
@@ -18,24 +22,20 @@ export const readAsDataUrl = (blob: Blob) =>
     reader.readAsDataURL(blob);
   });
 
-/** A photo upright and at most 2048 px, as a JPEG data URL (a phone photo goes from 5 MB to ~500 KB). */
+/**
+ * A photo for the assistant through the shared optimizer: upright, under 8 MB, up to 4000 px, with
+ * "Optimizing photo…" while a big one is shrunk. A HEIC the browser can't draw goes as it is.
+ */
 export async function shrinkImage(file: Blob): Promise<{ dataUrl: string; preview: Blob }> {
-  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  let note: string | number | undefined;
   try {
-    const { width, height } = fitWithin(bitmap.width, bitmap.height);
-    const node = document.createElement('canvas');
-    node.width = width;
-    node.height = height;
-    const context = node.getContext('2d');
-    if (!context) throw new Error('no canvas');
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, width, height);
-    context.drawImage(bitmap, 0, 0, width, height);
-    const blob = await new Promise<Blob | null>((resolve) => node.toBlob(resolve, 'image/jpeg', 0.85));
-    if (!blob) throw new Error('encode failed');
+    const { blob } = await optimizeImage(file, {
+      maxSide: LIMIT_SIDE.photo,
+      onWork: () => (note = toast.loading(libT().photo.optimizing)),
+    });
     return { dataUrl: await readAsDataUrl(blob), preview: blob };
   } finally {
-    bitmap.close();
+    if (note !== undefined) toast.dismiss(note);
   }
 }
 

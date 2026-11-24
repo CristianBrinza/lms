@@ -120,7 +120,7 @@ export function Composer({ busy, stopping, onSend, onStop }: ComposerProps) {
             const saved = await assistantApi.upload({
               kind: 'image',
               name: file.name || 'photo.jpg',
-              mime: 'image/jpeg',
+              mime: preview.type || 'image/jpeg',
               data: dataUrl,
             });
             patch(key, { status: 'ready', id: saved.id });
