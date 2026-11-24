@@ -21,7 +21,10 @@ import type { PhotoInput, PHOTO_KINDS } from './schemas';
 type PhotoKind = (typeof PHOTO_KINDS)[number];
 
 const run = promisify(execFile);
-const MAX_UPLOAD = 12 * 1024 * 1024;
+/** As it arrives: the app shrinks photos to 8 MB, but a HEIC it can't draw comes as it is. */
+const MAX_UPLOAD = 45 * 1024 * 1024;
+/** What may be stored after re-encoding: the app's limit, checked again here. */
+export const MAX_STORED = 8 * 1024 * 1024;
 const MAX_AS_IS = 1.5 * 1024 * 1024;
 /** One thread per photo: the server is small and shared (the API container has 1 GB). */
 const VIPS_ENV = { ...process.env, VIPS_CONCURRENCY: '1' };
@@ -204,7 +207,12 @@ export async function rasterizeSvg(bytes: Buffer): Promise<Buffer> {
 /** The upload as it will be stored: shrunk by vips, or kept as is when that's small and plain. */
 export async function encodePhoto(bytes: Buffer, mime: Mime, max = 1600): Promise<Encoded> {
   const vips = await findVips();
-  if (vips) return oneAtATime(() => shrink(vips, bytes, mime, max));
+  if (vips) {
+    const encoded = await oneAtATime(() => shrink(vips, bytes, mime, max));
+    if (encoded.full.length > MAX_STORED)
+      throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'That photo is too large', { fields: { image: 'Too large' } });
+    return encoded;
+  }
   const plain = mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp';
   if (!plain || bytes.length > MAX_AS_IS)
     throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'That photo is too large', {

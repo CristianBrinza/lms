@@ -124,11 +124,12 @@ export const importBodyLimit = bodyLimit({
 });
 
 /**
- * A drink's photo (POST /api/drinks/:id/photos, or MCP's drinks_add_photo): up to 12 MB as a
- * base64 data URL, which is a third bigger. The server shrinks it before storing it.
+ * A photo (a drink's, a medicine's, a closet piece's, or over MCP): the app sends it at most 8 MB,
+ * but a HEIC the browser can't draw comes as it is, up to 45 MB, as base64 (a third bigger). The
+ * server converts and shrinks it before storing it.
  */
 export const photoBodyLimit = bodyLimit({
-  maxSize: 17 * 1024 * 1024,
+  maxSize: 60 * 1024 * 1024,
   onError: () => {
     throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body too large');
   },
@@ -142,9 +143,9 @@ export const jsonBodyLimit = bodyLimit({
   },
 });
 
-/** The assistant's uploads (a photo, a voice note or a file up to 15 MB) arrive as base64 JSON. */
+/** The assistant's uploads arrive as base64 JSON: a file up to 15 MB, or a HEIC photo up to 45 MB. */
 export const assistantBodyLimit = bodyLimit({
-  maxSize: 21 * 1024 * 1024,
+  maxSize: 60 * 1024 * 1024,
   onError: () => {
     throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Request body too large');
   },
