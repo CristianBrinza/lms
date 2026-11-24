@@ -19,8 +19,9 @@ RUN APP_VERSION="$APP_VERSION" yarn build
 FROM node:22.23.4-alpine3.24@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
 # Time zone data, so TZ (the kitchen's local time) works: "today", best-before dates, reminders.
 # vips-tools: photos are shrunk to small WebP files before they're stored (Drinks).
+# vips-heif: an iPhone HEIC the browser can't draw (Chrome on a PC) is converted here (libheif + libde265).
 # postgresql16-client: pg_dump and pg_restore for the admin's backup download and restore.
-RUN apk add --no-cache tzdata vips-tools postgresql16-client
+RUN apk add --no-cache tzdata vips-tools vips-heif postgresql16-client
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8790 TZ=Europe/Chisinau WEB_DIR=/app/web
 WORKDIR /app
 COPY --from=api --chown=node:node /api/dist ./dist
